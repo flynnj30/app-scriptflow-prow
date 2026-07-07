@@ -1,13 +1,12 @@
-// notepad.js - Complete Notepad Module with all features
+// ================================================================
+// NOTEPAD MODULE - COMPLETE FIX
+// ================================================================
 
-// ============================================================
-// NOTEPAD STATE
-// ============================================================
-
+// ---- NOTEPAD STATE ----
 const NOTEPAD_STATE = {
   notes: [],
   currentNoteId: null,
-  viewMode: 'list', // 'list' or 'grid'
+  viewMode: 'list',
   searchTerm: '',
   filter: {
     folder: 'all',
@@ -18,7 +17,7 @@ const NOTEPAD_STATE = {
   },
   isMarkdownMode: false,
   isPlainTextMode: false,
-  isDarkMode: document.body.classList.contains('dark'),
+  isDarkMode: document.body?.classList?.contains('dark') || false,
   noteVersions: {},
   currentVersionIndex: {},
   reminders: [],
@@ -28,13 +27,47 @@ const NOTEPAD_STATE = {
   isLocked: false,
   pin: localStorage.getItem('notepad_pin') || null,
   autoLockTimer: null,
-  isDirty: false
+  isDirty: false,
+  isInitialized: false
 };
 
-// ============================================================
-// NOTE DATA STORAGE
-// ============================================================
+// ---- SAFE DOM HELPERS ----
+function safeGetElement(id) {
+  const el = document.getElementById(id);
+  if (!el) {
+    console.warn(`[Notepad] Element not found: #${id}`);
+  }
+  return el;
+}
 
+function safeSetText(id, text) {
+  const el = safeGetElement(id);
+  if (el) {
+    el.textContent = text;
+    return true;
+  }
+  return false;
+}
+
+function safeSetHTML(id, html) {
+  const el = safeGetElement(id);
+  if (el) {
+    el.innerHTML = html;
+    return true;
+  }
+  return false;
+}
+
+function safeAddEventListener(id, event, handler) {
+  const el = safeGetElement(id);
+  if (el) {
+    el.addEventListener(event, handler);
+    return true;
+  }
+  return false;
+}
+
+// ---- NOTE DATA STORAGE ----
 function loadNotesFromStorage() {
   try {
     const data = localStorage.getItem('notepad_data');
@@ -44,7 +77,6 @@ function loadNotesFromStorage() {
       NOTEPAD_STATE.noteVersions = parsed.versions || {};
       NOTEPAD_STATE.reminders = parsed.reminders || [];
       NOTEPAD_STATE.currentVersionIndex = {};
-      // Initialize version index for each note
       NOTEPAD_STATE.notes.forEach(note => {
         if (NOTEPAD_STATE.noteVersions[note.id]) {
           NOTEPAD_STATE.currentVersionIndex[note.id] = NOTEPAD_STATE.noteVersions[note.id].length - 1;
@@ -56,7 +88,7 @@ function loadNotesFromStorage() {
       return true;
     }
   } catch (e) {
-    console.warn('Error loading notes:', e);
+    console.warn('[Notepad] Error loading notes:', e);
   }
   return false;
 }
@@ -72,7 +104,7 @@ function saveNotesToStorage() {
     updateNoteCount();
     return true;
   } catch (e) {
-    console.error('Error saving notes:', e);
+    console.error('[Notepad] Error saving notes:', e);
     return false;
   }
 }
@@ -112,7 +144,6 @@ function updateNote(id, updates) {
   const note = NOTEPAD_STATE.notes.find(n => n.id === id);
   if (!note) return null;
   
-  // Save version before update
   if (updates.content && updates.content !== note.content) {
     saveNoteVersion(id, note.content);
   }
@@ -137,7 +168,6 @@ function saveNoteVersion(id, content) {
   if (!NOTEPAD_STATE.noteVersions[id]) {
     NOTEPAD_STATE.noteVersions[id] = [];
   }
-  // Remove future versions if we're not at the latest
   if (NOTEPAD_STATE.currentVersionIndex[id] < NOTEPAD_STATE.noteVersions[id].length - 1) {
     NOTEPAD_STATE.noteVersions[id] = NOTEPAD_STATE.noteVersions[id].slice(0, NOTEPAD_STATE.currentVersionIndex[id] + 1);
   }
@@ -180,14 +210,10 @@ function redoNote(id) {
   return content;
 }
 
-// ============================================================
-// FILTERING & SORTING
-// ============================================================
-
+// ---- FILTERING & SORTING ----
 function getFilteredNotes() {
   let notes = [...NOTEPAD_STATE.notes];
   
-  // Filter by archived/trash
   if (NOTEPAD_STATE.filter.showArchived) {
     notes = notes.filter(n => n.archived);
   } else if (NOTEPAD_STATE.filter.showTrash) {
@@ -196,17 +222,14 @@ function getFilteredNotes() {
     notes = notes.filter(n => !n.archived && !n.trashed);
   }
   
-  // Filter by folder
   if (NOTEPAD_STATE.filter.folder !== 'all') {
     notes = notes.filter(n => n.folder === NOTEPAD_STATE.filter.folder);
   }
   
-  // Filter by tag
   if (NOTEPAD_STATE.filter.tag !== 'all') {
     notes = notes.filter(n => n.tags && n.tags.includes(NOTEPAD_STATE.filter.tag));
   }
   
-  // Search
   if (NOTEPAD_STATE.searchTerm) {
     const term = NOTEPAD_STATE.searchTerm.toLowerCase();
     notes = notes.filter(n => 
@@ -216,7 +239,6 @@ function getFilteredNotes() {
     );
   }
   
-  // Sort
   switch (NOTEPAD_STATE.filter.sort) {
     case 'recent':
       notes.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
@@ -242,17 +264,17 @@ function getFilteredNotes() {
 
 function updateNoteCount() {
   const count = NOTEPAD_STATE.notes.filter(n => !n.archived && !n.trashed).length;
-  const badge = document.querySelector('.notepad-badge');
+  const badge = safeGetElement('noteCount');
   if (badge) badge.textContent = count;
 }
 
-// ============================================================
-// RENDER FUNCTIONS
-// ============================================================
-
+// ---- RENDER FUNCTIONS ----
 function renderNoteList() {
-  const container = document.getElementById('noteList');
-  if (!container) return;
+  const container = safeGetElement('noteList');
+  if (!container) {
+    console.warn('[Notepad] Note list container not found');
+    return;
+  }
   
   const notes = getFilteredNotes();
   
@@ -266,7 +288,7 @@ function renderNoteList() {
         </button>
       </div>
     `;
-    const btn = document.getElementById('emptyNewNoteBtn');
+    const btn = safeGetElement('emptyNewNoteBtn');
     if (btn) btn.addEventListener('click', () => createNewNote());
     return;
   }
@@ -361,16 +383,15 @@ function renderNoteList() {
     });
   });
   
-  // Setup drag and drop
   setupNoteDragAndDrop();
 }
 
 function renderNoteEditor(note) {
-  const emptyState = document.getElementById('noteEmptyState');
-  const editorContent = document.getElementById('noteEditorContent');
-  const titleInput = document.getElementById('noteTitleInput');
-  const editorBody = document.getElementById('noteEditorBody');
-  const markdownPreview = document.getElementById('noteMarkdownPreview');
+  const emptyState = safeGetElement('noteEmptyState');
+  const editorContent = safeGetElement('noteEditorContent');
+  const titleInput = safeGetElement('noteTitleInput');
+  const editorBody = safeGetElement('noteEditorBody');
+  const markdownPreview = safeGetElement('noteMarkdownPreview');
   
   if (!note) {
     if (emptyState) emptyState.style.display = 'flex';
@@ -387,26 +408,23 @@ function renderNoteEditor(note) {
     return;
   }
   
-  // Title
+  // Title - SAFE CHECK
   if (titleInput) titleInput.value = note.title;
   
   // Content
   if (NOTEPAD_STATE.isMarkdownMode) {
-    // Markdown mode: show preview
     if (editorBody) editorBody.style.display = 'none';
     if (markdownPreview) {
       markdownPreview.style.display = 'block';
       markdownPreview.innerHTML = renderMarkdown(note.content);
     }
   } else if (NOTEPAD_STATE.isPlainTextMode) {
-    // Plain text mode
     if (editorBody) {
       editorBody.style.display = 'block';
       editorBody.textContent = note.content;
     }
     if (markdownPreview) markdownPreview.style.display = 'none';
   } else {
-    // Rich text mode
     if (editorBody) {
       editorBody.style.display = 'block';
       editorBody.innerHTML = note.content || '';
@@ -414,8 +432,8 @@ function renderNoteEditor(note) {
     if (markdownPreview) markdownPreview.style.display = 'none';
   }
   
-  // Folder
-  const folderSelect = document.getElementById('noteFolderSelect');
+  // Folder - SAFE CHECK
+  const folderSelect = safeGetElement('noteFolderSelect');
   if (folderSelect) folderSelect.value = note.folder || 'none';
   
   // Tags
@@ -434,7 +452,7 @@ function renderNoteEditor(note) {
 }
 
 function renderNoteTags(tags) {
-  const container = document.getElementById('noteTagList');
+  const container = safeGetElement('noteTagList');
   if (!container) return;
   container.innerHTML = tags.map(tag => `
     <span class="tag-pill">
@@ -452,25 +470,28 @@ function renderNoteTags(tags) {
 }
 
 function updateNoteMeta(note) {
+  if (!note) return;
+  
   const wordCount = countWords(note.content);
   const charCount = note.content.length;
   const readingTime = Math.max(1, Math.ceil(wordCount / 200));
   
-  document.getElementById('wordCount').textContent = `${wordCount} words`;
-  document.getElementById('charCount').textContent = `${charCount} chars`;
-  document.getElementById('readingTime').textContent = `${readingTime} min read`;
-  document.getElementById('noteLastEdited').textContent = `Last edited: ${formatDate(note.updatedAt)}`;
+  // SAFE: Only update if elements exist
+  safeSetText('wordCount', `${wordCount} words`);
+  safeSetText('charCount', `${charCount} chars`);
+  safeSetText('readingTime', `${readingTime} min read`);
+  safeSetText('noteLastEdited', `Last edited: ${formatDate(note.updatedAt)}`);
 }
 
 function updateEditorStatus(status, isError = false) {
-  const statusEl = document.getElementById('noteStatus');
+  const statusEl = safeGetElement('noteStatus');
   if (!statusEl) return;
   statusEl.className = isError ? 'error' : (status === 'Saving...' ? 'saving' : 'saved');
   statusEl.innerHTML = `<i class="fas ${status === 'Saving...' ? 'fa-spinner fa-spin' : (isError ? 'fa-exclamation-circle' : 'fa-check')}"></i> ${status}`;
 }
 
 function renderVersionHistory(noteId) {
-  const container = document.getElementById('versionList');
+  const container = safeGetElement('versionList');
   if (!container) return;
   
   const versions = getNoteVersions(noteId);
@@ -501,68 +522,42 @@ function renderVersionHistory(noteId) {
       const note = NOTEPAD_STATE.notes.find(n => n.id === noteId);
       if (note) renderNoteEditor(note);
       renderNoteList();
-      document.getElementById('versionHistoryModal').style.display = 'none';
+      const versionModal = safeGetElement('versionHistoryModal');
+      if (versionModal) versionModal.style.display = 'none';
       showToast('Version restored', 'success');
     });
   });
 }
 
-// ============================================================
-// MARKDOWN RENDERER (Simple)
-// ============================================================
-
+// ---- MARKDOWN RENDERER ----
 function renderMarkdown(text) {
   if (!text) return '';
   
   let html = escapeHtml(text);
   
-  // Headers
   html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
   html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
   html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
-  
-  // Bold
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
-  
-  // Italic
   html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
   html = html.replace(/_(.*?)_/g, '<em>$1</em>');
-  
-  // Strikethrough
   html = html.replace(/~~(.*?)~~/g, '<s>$1</s>');
-  
-  // Code blocks
   html = html.replace(/```([^`]+)```/g, '<pre><code>$1</code></pre>');
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-  
-  // Blockquotes
   html = html.replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>');
-  
-  // Lists
   html = html.replace(/^\- (.*$)/gim, '<li>$1</li>');
   html = html.replace(/^\* (.*$)/gim, '<li>$1</li>');
   html = html.replace(/^[0-9]+\. (.*$)/gim, '<li>$1</li>');
-  
-  // Links
   html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-  
-  // Images
   html = html.replace(/!\[([^\]]*)\]\(([^\)]+)\)/g, '<img src="$2" alt="$1">');
-  
-  // Horizontal rule
   html = html.replace(/^---$/gim, '<hr>');
-  
-  // Line breaks
   html = html.replace(/\n/g, '<br>');
   
   return html;
 }
 
-// ============================================================
-// NOTE ACTIONS
-// ============================================================
-
+// ---- NOTE ACTIONS ----
 function createNewNote(template = null) {
   let content = '';
   let title = 'Untitled';
@@ -605,7 +600,6 @@ function selectNote(id) {
   if (note) {
     renderNoteEditor(note);
     renderNoteList();
-    // Update active state in list
     document.querySelectorAll('.note-item').forEach(el => {
       el.classList.toggle('active', el.dataset.id === id);
     });
@@ -617,7 +611,6 @@ function deleteNote(id) {
   if (!note) return;
   
   if (note.trashed) {
-    // Permanently delete
     if (confirm('Permanently delete this note?')) {
       deleteNotePermanently(id);
       renderNoteList();
@@ -633,7 +626,6 @@ function deleteNote(id) {
       showToast('Note permanently deleted', 'info');
     }
   } else {
-    // Move to trash
     trashNote(id);
   }
 }
@@ -707,15 +699,13 @@ function saveCurrentNote() {
   const note = NOTEPAD_STATE.notes.find(n => n.id === NOTEPAD_STATE.currentNoteId);
   if (!note) return;
   
-  const titleInput = document.getElementById('noteTitleInput');
-  const editorBody = document.getElementById('noteEditorBody');
-  const markdownPreview = document.getElementById('noteMarkdownPreview');
-  const folderSelect = document.getElementById('noteFolderSelect');
+  const titleInput = safeGetElement('noteTitleInput');
+  const editorBody = safeGetElement('noteEditorBody');
+  const folderSelect = safeGetElement('noteFolderSelect');
   
   let content = '';
   if (NOTEPAD_STATE.isMarkdownMode) {
-    // Content is stored as markdown, preview is rendered
-    content = note.content; // Keep existing markdown
+    content = note.content;
   } else if (NOTEPAD_STATE.isPlainTextMode) {
     content = editorBody ? editorBody.textContent || '' : '';
   } else {
@@ -725,7 +715,6 @@ function saveCurrentNote() {
   const title = titleInput ? titleInput.value.trim() : 'Untitled';
   const folder = folderSelect ? folderSelect.value : 'none';
   
-  // Only save if content changed
   if (content !== note.content || title !== note.title || folder !== note.folder) {
     updateNote(note.id, {
       title: title || 'Untitled',
@@ -786,7 +775,7 @@ function toggleMarkdownMode() {
   if (NOTEPAD_STATE.isMarkdownMode) {
     NOTEPAD_STATE.isPlainTextMode = false;
   }
-  const btn = document.getElementById('toggleMarkdownBtn');
+  const btn = safeGetElement('toggleMarkdownBtn');
   if (btn) btn.classList.toggle('active', NOTEPAD_STATE.isMarkdownMode);
   
   const note = NOTEPAD_STATE.notes.find(n => n.id === NOTEPAD_STATE.currentNoteId);
@@ -798,22 +787,18 @@ function togglePlainTextMode() {
   if (NOTEPAD_STATE.isPlainTextMode) {
     NOTEPAD_STATE.isMarkdownMode = false;
   }
-  const btn = document.getElementById('togglePlainTextBtn');
+  const btn = safeGetElement('togglePlainTextBtn');
   if (btn) btn.classList.toggle('active', NOTEPAD_STATE.isPlainTextMode);
   
   const note = NOTEPAD_STATE.notes.find(n => n.id === NOTEPAD_STATE.currentNoteId);
   if (note) renderNoteEditor(note);
 }
 
-// ============================================================
-// EDITOR COMMANDS (Rich Text)
-// ============================================================
-
+// ---- EDITOR COMMANDS ----
 function executeEditorCommand(command, value = null) {
-  const editorBody = document.getElementById('noteEditorBody');
+  const editorBody = safeGetElement('noteEditorBody');
   if (!editorBody) return;
   
-  // Focus editor if not focused
   if (document.activeElement !== editorBody) {
     editorBody.focus();
   }
@@ -840,10 +825,7 @@ function executeEditorCommand(command, value = null) {
   updateEditorStatus('Unsaved changes');
 }
 
-// ============================================================
-// EXPORT FUNCTIONS
-// ============================================================
-
+// ---- EXPORT FUNCTIONS ----
 function exportNote(format) {
   const note = NOTEPAD_STATE.notes.find(n => n.id === NOTEPAD_STATE.currentNoteId);
   if (!note) {
@@ -866,7 +848,6 @@ function exportNote(format) {
       mimeType = 'text/plain';
       break;
     case 'pdf':
-      // Simple PDF export using html2pdf
       const element = document.createElement('div');
       element.innerHTML = `
         <h1>${escapeHtml(title)}</h1>
@@ -874,18 +855,22 @@ function exportNote(format) {
         <div style="margin-top: 40px; font-size: 12px; color: #999;">Exported from ScriptFlow Pro on ${new Date().toLocaleString()}</div>
       `;
       document.body.appendChild(element);
-      html2pdf().set({
-        margin: 0.5,
-        filename: `${title}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-      }).from(element).save().then(() => {
+      if (typeof html2pdf !== 'undefined') {
+        html2pdf().set({
+          margin: 0.5,
+          filename: `${title}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2 },
+          jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+        }).from(element).save().then(() => {
+          document.body.removeChild(element);
+        });
+      } else {
+        showToast('PDF export requires html2pdf library', 'error');
         document.body.removeChild(element);
-      });
+      }
       return;
     case 'docx':
-      // Simple HTML with docx mime type
       data = `
         <html>
           <head><meta charset="UTF-8"><title>${escapeHtml(title)}</title></head>
@@ -934,10 +919,8 @@ function exportNote(format) {
       return;
   }
   
-  // For PDF, we handle separately above
   if (format === 'pdf') return;
   
-  // Download file
   const blob = new Blob([data], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -958,7 +941,6 @@ function importNote(file, title) {
       let content = e.target.result;
       let noteTitle = title || file.name.replace(/\.[^.]+$/, '');
       
-      // Try to parse if JSON
       if (file.name.endsWith('.json')) {
         try {
           const data = JSON.parse(content);
@@ -980,10 +962,7 @@ function importNote(file, title) {
   reader.readAsText(file);
 }
 
-// ============================================================
-// REMINDERS
-// ============================================================
-
+// ---- REMINDERS ----
 function setReminder(noteId, date, time, noteText) {
   const reminder = {
     id: generateNoteId(),
@@ -1008,7 +987,6 @@ function checkReminders() {
     if (reminder.completed) return;
     const reminderDate = new Date(`${reminder.date}T${reminder.time || '00:00'}`);
     if (reminderDate <= now) {
-      // Trigger reminder
       const note = NOTEPAD_STATE.notes.find(n => n.id === reminder.noteId);
       showToast(`⏰ Reminder: ${note ? note.title : 'Note'} - ${reminder.note || 'Time to review!'}`, 'info');
       reminder.completed = true;
@@ -1017,10 +995,7 @@ function checkReminders() {
   });
 }
 
-// ============================================================
-// LOCK / PIN
-// ============================================================
-
+// ---- LOCK / PIN ----
 function setNotePin(pin) {
   NOTEPAD_STATE.pin = pin;
   localStorage.setItem('notepad_pin', pin);
@@ -1042,7 +1017,6 @@ function unlockNote(id, pin) {
   const note = NOTEPAD_STATE.notes.find(n => n.id === id);
   if (note) renderNoteEditor(note);
   
-  // Auto-lock after inactivity
   clearTimeout(NOTEPAD_STATE.autoLockTimer);
   NOTEPAD_STATE.autoLockTimer = setTimeout(() => {
     NOTEPAD_STATE.isLocked = false;
@@ -1052,24 +1026,24 @@ function unlockNote(id, pin) {
         renderNoteEditor(n);
       }
     }
-  }, 5 * 60 * 1000); // 5 minutes
+  }, 5 * 60 * 1000);
   
   return true;
 }
 
 function showLockModal(noteId) {
-  const modal = document.getElementById('lockModal');
+  const modal = safeGetElement('lockModal');
   if (!modal) return;
   modal.style.display = 'flex';
   modal.dataset.noteId = noteId;
-  document.getElementById('pinInput').value = '';
-  document.getElementById('pinInput').focus();
+  const pinInput = safeGetElement('pinInput');
+  if (pinInput) {
+    pinInput.value = '';
+    pinInput.focus();
+  }
 }
 
-// ============================================================
-// DRAG AND DROP
-// ============================================================
-
+// ---- DRAG AND DROP ----
 function setupNoteDragAndDrop() {
   const items = document.querySelectorAll('.note-item');
   let draggedId = null;
@@ -1120,10 +1094,7 @@ function reorderNotes(sourceId, targetId) {
   renderNoteList();
 }
 
-// ============================================================
-// UTILITY FUNCTIONS
-// ============================================================
-
+// ---- UTILITY FUNCTIONS ----
 function countWords(text) {
   if (!text) return 0;
   const plain = text.replace(/<[^>]*>/g, '');
@@ -1182,10 +1153,6 @@ function showToast(message, type = 'success') {
   setTimeout(() => toast.remove(), 3000);
 }
 
-// ============================================================
-// SEARCH HIGHLIGHTING
-// ============================================================
-
 function highlightSearchTerm(text, term) {
   if (!term || !text) return text;
   const regex = new RegExp(`(${escapeRegex(term)})`, 'gi');
@@ -1196,58 +1163,59 @@ function escapeRegex(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// ============================================================
-// EVENT BINDING
-// ============================================================
-
+// ---- EVENT BINDING ----
 function initNotepadEvents() {
   // New Note
-  document.getElementById('newNoteBtn')?.addEventListener('click', () => createNewNote());
-  document.getElementById('newNoteFromEmptyBtn')?.addEventListener('click', () => createNewNote());
+  safeAddEventListener('newNoteBtn', 'click', () => createNewNote());
+  safeAddEventListener('newNoteFromEmptyBtn', 'click', () => createNewNote());
   
   // Search
-  const searchInput = document.getElementById('noteSearchInput');
-  const searchBtn = document.getElementById('searchNoteBtn');
-  const clearSearchBtn = document.getElementById('clearSearchBtn');
-  const searchBar = document.getElementById('noteSearchBar');
+  const searchInput = safeGetElement('noteSearchInput');
+  const searchBtn = safeGetElement('searchNoteBtn');
+  const clearSearchBtn = safeGetElement('clearSearchBtn');
+  const searchBar = safeGetElement('noteSearchBar');
   
-  searchBtn?.addEventListener('click', () => {
-    searchBar.style.display = searchBar.style.display === 'none' ? 'flex' : 'none';
-    if (searchBar.style.display !== 'none') {
-      searchInput.focus();
-    }
-  });
+  if (searchBtn && searchBar) {
+    searchBtn.addEventListener('click', () => {
+      searchBar.style.display = searchBar.style.display === 'none' ? 'flex' : 'none';
+      if (searchBar.style.display !== 'none' && searchInput) {
+        searchInput.focus();
+      }
+    });
+  }
   
-  searchInput?.addEventListener('input', (e) => {
-    NOTEPAD_STATE.searchTerm = e.target.value;
-    renderNoteList();
-  });
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      NOTEPAD_STATE.searchTerm = e.target.value;
+      renderNoteList();
+    });
+  }
   
-  clearSearchBtn?.addEventListener('click', () => {
-    if (searchInput) {
+  if (clearSearchBtn && searchInput) {
+    clearSearchBtn.addEventListener('click', () => {
       searchInput.value = '';
       NOTEPAD_STATE.searchTerm = '';
       renderNoteList();
-    }
-  });
+    });
+  }
   
   // Filters
-  document.getElementById('noteFilterFolder')?.addEventListener('change', (e) => {
+  safeAddEventListener('noteFilterFolder', 'change', (e) => {
     NOTEPAD_STATE.filter.folder = e.target.value;
     renderNoteList();
   });
   
-  document.getElementById('noteFilterTag')?.addEventListener('change', (e) => {
+  safeAddEventListener('noteFilterTag', 'change', (e) => {
     NOTEPAD_STATE.filter.tag = e.target.value;
     renderNoteList();
   });
   
-  document.getElementById('noteSortBy')?.addEventListener('change', (e) => {
+  safeAddEventListener('noteSortBy', 'change', (e) => {
     NOTEPAD_STATE.filter.sort = e.target.value;
     renderNoteList();
   });
   
-  document.getElementById('showArchivedBtn')?.addEventListener('click', () => {
+  safeAddEventListener('showArchivedBtn', 'click', () => {
     NOTEPAD_STATE.filter.showArchived = !NOTEPAD_STATE.filter.showArchived;
     NOTEPAD_STATE.filter.showTrash = false;
     renderNoteList();
@@ -1260,7 +1228,7 @@ function initNotepadEvents() {
     }
   });
   
-  document.getElementById('showTrashBtn')?.addEventListener('click', () => {
+  safeAddEventListener('showTrashBtn', 'click', () => {
     NOTEPAD_STATE.filter.showTrash = !NOTEPAD_STATE.filter.showTrash;
     NOTEPAD_STATE.filter.showArchived = false;
     renderNoteList();
@@ -1274,13 +1242,13 @@ function initNotepadEvents() {
   });
   
   // Refresh
-  document.getElementById('refreshNotesBtn')?.addEventListener('click', () => {
+  safeAddEventListener('refreshNotesBtn', 'click', () => {
     renderNoteList();
     showToast('Notes refreshed', 'info');
   });
   
   // Save
-  document.getElementById('saveNoteBtn')?.addEventListener('click', saveCurrentNote);
+  safeAddEventListener('saveNoteBtn', 'click', saveCurrentNote);
   
   // Editor commands
   document.querySelectorAll('.toolbar-btn[data-command]').forEach(btn => {
@@ -1298,11 +1266,11 @@ function initNotepadEvents() {
   });
   
   // Toggle markdown
-  document.getElementById('toggleMarkdownBtn')?.addEventListener('click', toggleMarkdownMode);
-  document.getElementById('togglePlainTextBtn')?.addEventListener('click', togglePlainTextMode);
+  safeAddEventListener('toggleMarkdownBtn', 'click', toggleMarkdownMode);
+  safeAddEventListener('togglePlainTextBtn', 'click', togglePlainTextMode);
   
   // Undo/Redo
-  document.getElementById('undoNoteBtn')?.addEventListener('click', () => {
+  safeAddEventListener('undoNoteBtn', 'click', () => {
     if (NOTEPAD_STATE.currentNoteId) {
       const result = undoNote(NOTEPAD_STATE.currentNoteId);
       if (result) {
@@ -1313,7 +1281,7 @@ function initNotepadEvents() {
     }
   });
   
-  document.getElementById('redoNoteBtn')?.addEventListener('click', () => {
+  safeAddEventListener('redoNoteBtn', 'click', () => {
     if (NOTEPAD_STATE.currentNoteId) {
       const result = redoNote(NOTEPAD_STATE.currentNoteId);
       if (result) {
@@ -1325,23 +1293,23 @@ function initNotepadEvents() {
   });
   
   // Pin, Favorite, Archive, Delete, Duplicate
-  document.getElementById('pinNoteBtn')?.addEventListener('click', () => {
+  safeAddEventListener('pinNoteBtn', 'click', () => {
     if (NOTEPAD_STATE.currentNoteId) togglePinNote(NOTEPAD_STATE.currentNoteId);
   });
   
-  document.getElementById('favoriteNoteBtn')?.addEventListener('click', () => {
+  safeAddEventListener('favoriteNoteBtn', 'click', () => {
     if (NOTEPAD_STATE.currentNoteId) toggleFavoriteNote(NOTEPAD_STATE.currentNoteId);
   });
   
-  document.getElementById('archiveNoteBtn')?.addEventListener('click', () => {
+  safeAddEventListener('archiveNoteBtn', 'click', () => {
     if (NOTEPAD_STATE.currentNoteId) archiveNote(NOTEPAD_STATE.currentNoteId);
   });
   
-  document.getElementById('deleteNoteBtn')?.addEventListener('click', () => {
+  safeAddEventListener('deleteNoteBtn', 'click', () => {
     if (NOTEPAD_STATE.currentNoteId) deleteNote(NOTEPAD_STATE.currentNoteId);
   });
   
-  document.getElementById('duplicateNoteBtn')?.addEventListener('click', () => {
+  safeAddEventListener('duplicateNoteBtn', 'click', () => {
     if (NOTEPAD_STATE.currentNoteId) duplicateNote(NOTEPAD_STATE.currentNoteId);
   });
   
@@ -1353,66 +1321,77 @@ function initNotepadEvents() {
   });
   
   // Tags
-  document.getElementById('addTagBtn')?.addEventListener('click', () => {
-    const input = document.getElementById('noteTagInput');
+  safeAddEventListener('addTagBtn', 'click', () => {
+    const input = safeGetElement('noteTagInput');
     if (input && input.value.trim()) {
       addTagToCurrentNote(input.value.trim());
       input.value = '';
     }
   });
   
-  document.getElementById('noteTagInput')?.addEventListener('keydown', (e) => {
+  safeAddEventListener('noteTagInput', 'keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      document.getElementById('addTagBtn')?.click();
+      const btn = safeGetElement('addTagBtn');
+      if (btn) btn.click();
     }
   });
   
   // Version history
-  document.getElementById('versionHistoryBtn')?.addEventListener('click', () => {
+  safeAddEventListener('versionHistoryBtn', 'click', () => {
     if (NOTEPAD_STATE.currentNoteId) {
       renderVersionHistory(NOTEPAD_STATE.currentNoteId);
-      document.getElementById('versionHistoryModal').style.display = 'flex';
+      const modal = safeGetElement('versionHistoryModal');
+      if (modal) modal.style.display = 'flex';
     }
   });
   
-  document.getElementById('closeVersionBtn')?.addEventListener('click', () => {
-    document.getElementById('versionHistoryModal').style.display = 'none';
+  safeAddEventListener('closeVersionBtn', 'click', () => {
+    const modal = safeGetElement('versionHistoryModal');
+    if (modal) modal.style.display = 'none';
   });
   
   // Export
-  document.getElementById('exportNoteBtn')?.addEventListener('click', () => {
-    document.getElementById('exportModal').style.display = 'flex';
+  safeAddEventListener('exportNoteBtn', 'click', () => {
+    const modal = safeGetElement('exportModal');
+    if (modal) modal.style.display = 'flex';
   });
   
-  document.getElementById('exportConfirmBtn')?.addEventListener('click', () => {
-    const format = document.getElementById('exportFormat').value;
-    exportNote(format);
-    document.getElementById('exportModal').style.display = 'none';
+  safeAddEventListener('exportConfirmBtn', 'click', () => {
+    const formatSelect = safeGetElement('exportFormat');
+    if (formatSelect) {
+      exportNote(formatSelect.value);
+      const modal = safeGetElement('exportModal');
+      if (modal) modal.style.display = 'none';
+    }
   });
   
-  document.getElementById('closeExportBtn')?.addEventListener('click', () => {
-    document.getElementById('exportModal').style.display = 'none';
+  safeAddEventListener('closeExportBtn', 'click', () => {
+    const modal = safeGetElement('exportModal');
+    if (modal) modal.style.display = 'none';
   });
   
   // Import
-  document.getElementById('importNoteBtn')?.addEventListener('click', () => {
-    document.getElementById('importModal').style.display = 'flex';
+  safeAddEventListener('importNoteBtn', 'click', () => {
+    const modal = safeGetElement('importModal');
+    if (modal) modal.style.display = 'flex';
   });
   
-  document.getElementById('importConfirmBtn')?.addEventListener('click', () => {
-    const fileInput = document.getElementById('importFileInput');
-    const titleInput = document.getElementById('importTitle');
-    if (fileInput.files && fileInput.files.length > 0) {
-      importNote(fileInput.files[0], titleInput.value);
-      document.getElementById('importModal').style.display = 'none';
+  safeAddEventListener('importConfirmBtn', 'click', () => {
+    const fileInput = safeGetElement('importFileInput');
+    const titleInput = safeGetElement('importTitle');
+    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+      importNote(fileInput.files[0], titleInput ? titleInput.value : '');
+      const modal = safeGetElement('importModal');
+      if (modal) modal.style.display = 'none';
     } else {
       showToast('Please select a file', 'error');
     }
   });
   
-  document.getElementById('closeImportBtn')?.addEventListener('click', () => {
-    document.getElementById('importModal').style.display = 'none';
+  safeAddEventListener('closeImportBtn', 'click', () => {
+    const modal = safeGetElement('importModal');
+    if (modal) modal.style.display = 'none';
   });
   
   // Templates
@@ -1420,89 +1399,84 @@ function initNotepadEvents() {
     card.addEventListener('click', () => {
       const template = card.dataset.template;
       createNewNote(template);
-      document.getElementById('templateModal').style.display = 'none';
+      const modal = safeGetElement('templateModal');
+      if (modal) modal.style.display = 'none';
     });
   });
   
-  document.getElementById('closeTemplateBtn')?.addEventListener('click', () => {
-    document.getElementById('templateModal').style.display = 'none';
+  safeAddEventListener('closeTemplateBtn', 'click', () => {
+    const modal = safeGetElement('templateModal');
+    if (modal) modal.style.display = 'none';
   });
   
   // Reminders
-  document.querySelectorAll('.reminder-btn')?.forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (NOTEPAD_STATE.currentNoteId) {
-        document.getElementById('reminderModal').style.display = 'flex';
-        document.getElementById('reminderDate').value = new Date().toISOString().split('T')[0];
-      }
-    });
-  });
-  
-  document.getElementById('saveReminderBtn')?.addEventListener('click', () => {
-    const date = document.getElementById('reminderDate').value;
-    const time = document.getElementById('reminderTime').value;
-    const note = document.getElementById('reminderNote').value;
-    if (NOTEPAD_STATE.currentNoteId && date) {
-      setReminder(NOTEPAD_STATE.currentNoteId, date, time, note);
-      document.getElementById('reminderModal').style.display = 'none';
+  safeAddEventListener('saveReminderBtn', 'click', () => {
+    const date = safeGetElement('reminderDate');
+    const time = safeGetElement('reminderTime');
+    const note = safeGetElement('reminderNote');
+    if (NOTEPAD_STATE.currentNoteId && date && date.value) {
+      setReminder(NOTEPAD_STATE.currentNoteId, date.value, time ? time.value : '', note ? note.value : '');
+      const modal = safeGetElement('reminderModal');
+      if (modal) modal.style.display = 'none';
     } else {
       showToast('Please select a date', 'error');
     }
   });
   
-  document.getElementById('closeReminderBtn')?.addEventListener('click', () => {
-    document.getElementById('reminderModal').style.display = 'none';
+  safeAddEventListener('closeReminderBtn', 'click', () => {
+    const modal = safeGetElement('reminderModal');
+    if (modal) modal.style.display = 'none';
   });
   
   // Lock modal
-  document.getElementById('unlockBtn')?.addEventListener('click', () => {
-    const modal = document.getElementById('lockModal');
-    const pinInput = document.getElementById('pinInput');
-    const noteId = modal.dataset.noteId;
-    if (pinInput && noteId) {
+  safeAddEventListener('unlockBtn', 'click', () => {
+    const modal = safeGetElement('lockModal');
+    const pinInput = safeGetElement('pinInput');
+    if (modal && pinInput) {
+      const noteId = modal.dataset.noteId;
       if (unlockNote(noteId, pinInput.value)) {
         modal.style.display = 'none';
       }
     }
   });
   
-  document.getElementById('closeLockBtn')?.addEventListener('click', () => {
-    document.getElementById('lockModal').style.display = 'none';
+  safeAddEventListener('closeLockBtn', 'click', () => {
+    const modal = safeGetElement('lockModal');
+    if (modal) modal.style.display = 'none';
   });
   
-  document.getElementById('pinInput')?.addEventListener('keydown', (e) => {
+  safeAddEventListener('pinInput', 'keydown', (e) => {
     if (e.key === 'Enter') {
-      document.getElementById('unlockBtn')?.click();
+      const btn = safeGetElement('unlockBtn');
+      if (btn) btn.click();
     }
   });
   
   // Auto-save on input
-  document.getElementById('noteTitleInput')?.addEventListener('input', () => {
+  safeAddEventListener('noteTitleInput', 'input', () => {
     NOTEPAD_STATE.isDirty = true;
     updateEditorStatus('Unsaved changes');
   });
   
-  document.getElementById('noteEditorBody')?.addEventListener('input', () => {
+  safeAddEventListener('noteEditorBody', 'input', () => {
     NOTEPAD_STATE.isDirty = true;
     updateEditorStatus('Unsaved changes');
     const note = NOTEPAD_STATE.notes.find(n => n.id === NOTEPAD_STATE.currentNoteId);
     if (note) updateNoteMeta(note);
   });
   
-  document.getElementById('noteFolderSelect')?.addEventListener('change', () => {
+  safeAddEventListener('noteFolderSelect', 'change', () => {
     NOTEPAD_STATE.isDirty = true;
     updateEditorStatus('Unsaved changes');
   });
   
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
-    // Ctrl+S to save
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
       e.preventDefault();
       saveCurrentNote();
     }
     
-    // Escape to close modals
     if (e.key === 'Escape') {
       document.querySelectorAll('.modal-overlay[style*="display: flex"]').forEach(modal => {
         modal.style.display = 'none';
@@ -1518,6 +1492,9 @@ function initNotepadEvents() {
   });
   
   // Auto-save interval
+  if (NOTEPAD_STATE.autoSaveInterval) {
+    clearInterval(NOTEPAD_STATE.autoSaveInterval);
+  }
   NOTEPAD_STATE.autoSaveInterval = setInterval(autoSaveNote, 30000);
   
   // Check reminders every minute
@@ -1527,13 +1504,29 @@ function initNotepadEvents() {
   document.addEventListener('themeChanged', () => {
     NOTEPAD_STATE.isDarkMode = document.body.classList.contains('dark');
   });
+  
+  NOTEPAD_STATE.isInitialized = true;
+  console.log('[Notepad] Events initialized successfully');
 }
 
-// ============================================================
-// INITIALIZATION
-// ============================================================
-
+// ---- INITIALIZATION ----
 function initNotepad() {
+  console.log('[Notepad] Initializing...');
+  
+  // Check if DOM elements exist
+  const container = safeGetElement('noteList');
+  if (!container) {
+    console.warn('[Notepad] Note list container not found. Module may not be rendered yet.');
+    // Try again after a delay
+    setTimeout(() => {
+      if (!NOTEPAD_STATE.isInitialized) {
+        console.log('[Notepad] Retrying initialization...');
+        initNotepad();
+      }
+    }, 500);
+    return;
+  }
+  
   // Load data
   loadNotesFromStorage();
   
@@ -1577,13 +1570,10 @@ function initNotepad() {
   // Update count
   updateNoteCount();
   
-  console.log('📝 Notepad module initialized');
+  console.log('[Notepad] ✅ Initialized successfully');
 }
 
-// ============================================================
-// EXPOSE TO GLOBAL
-// ============================================================
-
+// ---- EXPOSE TO GLOBAL ----
 window.Notepad = {
   init: initNotepad,
   createNote: createNewNote,
@@ -1595,12 +1585,24 @@ window.Notepad = {
   getCurrentNote: () => NOTEPAD_STATE.notes.find(n => n.id === NOTEPAD_STATE.currentNoteId),
   setPIN: setNotePin,
   lockNote: lockNote,
-  unlockNote: unlockNote
+  unlockNote: unlockNote,
+  isReady: () => NOTEPAD_STATE.isInitialized
 };
 
 // Auto-init when DOM is ready
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initNotepad);
+  document.addEventListener('DOMContentLoaded', function() {
+    // Small delay to ensure DOM is fully rendered
+    setTimeout(initNotepad, 100);
+  });
 } else {
-  initNotepad();
+  setTimeout(initNotepad, 100);
 }
+
+// Also try to init when window loads (fallback)
+window.addEventListener('load', function() {
+  if (!NOTEPAD_STATE.isInitialized) {
+    console.log('[Notepad] Fallback initialization on window load');
+    initNotepad();
+  }
+});
