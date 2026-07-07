@@ -19,9 +19,31 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     
-    <!-- Styles -->
-    <link rel="stylesheet" href="css/style.css" />
-    <link rel="stylesheet" href="css/notepad.css" />
+    <!-- Styles - FIXED PATHS -->
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="./css/notepad.css" />
+    
+    <!-- Fallback styles in case CSS fails to load -->
+    <style>
+        /* Fallback styles - ensures basic functionality even if CSS fails */
+        body { 
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: #f4f6fb;
+            color: #0f172a;
+            margin: 0;
+            padding: 0;
+        }
+        body.dark {
+            background: #0f172a;
+            color: #f1f5f9;
+        }
+        .app-wrapper { display: flex; min-height: 100vh; }
+        .sidebar { width: 320px; background: #0b1120; }
+        .main-content { flex: 1; padding: 24px 32px; }
+        .toast { position: fixed; bottom: 24px; right: 24px; background: #10b981; color: white; padding: 12px 24px; border-radius: 60px; z-index: 6000; }
+        .toast.error { background: #ef4444; }
+        .toast.info { background: #3b82f6; }
+    </style>
 </head>
 <body class="dark">
     <div class="app-wrapper">
@@ -181,7 +203,8 @@
                         <button id="closeFeaturePanelBtn" class="btn-icon" aria-label="Close panel"><i class="fas fa-times" aria-hidden="true"></i> Close</button>
                     </div>
                     <div class="feature-panel-body" id="featurePanelBody">
-                        <!-- Rendered dynamically -->
+                        <!-- Feature content rendered dynamically -->
+                        <div id="notepadContainer"></div>
                     </div>
                 </div>
             </div>
@@ -369,9 +392,66 @@
         </div>
     </div>
 
-    <!-- JavaScript -->
-    <script src="js/firebase-config.js"></script>
-    <script src="js/script.js"></script>
-    <script src="js/notepad.js"></script>
+    <!-- JavaScript - FIXED PATHS -->
+    <script src="./js/firebase-config.js"></script>
+    <script src="./js/script.js"></script>
+    <script src="./js/notepad.js"></script>
+    
+    <!-- Initialization Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 ScriptFlow Pro initializing...');
+            
+            // Check if CSS loaded correctly, if not, use fallback
+            function checkStylesLoaded() {
+                try {
+                    const testEl = document.createElement('div');
+                    testEl.className = 'app-wrapper';
+                    document.body.appendChild(testEl);
+                    const computed = getComputedStyle(testEl);
+                    const isLoaded = computed.display === 'flex';
+                    document.body.removeChild(testEl);
+                    
+                    if (!isLoaded) {
+                        console.warn('⚠️ CSS may not have loaded correctly, applying fallback...');
+                        // Apply minimal styles to ensure functionality
+                        document.querySelector('.app-wrapper').style.display = 'flex';
+                        document.querySelector('.sidebar').style.width = '320px';
+                        document.querySelector('.main-content').style.flex = '1';
+                        document.querySelector('.main-content').style.padding = '24px 32px';
+                    }
+                } catch(e) {
+                    console.warn('CSS check failed:', e);
+                }
+            }
+            
+            setTimeout(checkStylesLoaded, 100);
+            
+            // Initialize Notepad after a short delay
+            setTimeout(function() {
+                if (window.Notepad) {
+                    console.log('📝 Initializing Notepad module...');
+                    try {
+                        window.Notepad.init();
+                    } catch(e) {
+                        console.error('❌ Notepad init error:', e);
+                    }
+                } else {
+                    console.warn('⚠️ Notepad module not found, retrying...');
+                    setTimeout(function() {
+                        if (window.Notepad) {
+                            try {
+                                window.Notepad.init();
+                            } catch(e) {
+                                console.error('❌ Notepad init error:', e);
+                            }
+                        } else {
+                            console.error('❌ Notepad module failed to load');
+                        }
+                    }, 1000);
+                }
+            }, 500);
+        });
+    </script>
 </body>
 </html>
