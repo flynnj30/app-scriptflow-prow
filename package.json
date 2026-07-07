@@ -1,7 +1,7 @@
 {
   "name": "scriptflow-pro",
   "version": "1.0.0",
-  "description": "ScriptFlow Pro - Smart CRM & Notes Manager",
+  "description": "ScriptFlow Pro - Smart CRM & Notes Manager with Workspace",
   "main": "index.html",
   "scripts": {
     "start": "npx serve . -p $PORT",
@@ -11,6 +11,21 @@
     "serve": "^14.2.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "18.x"
+  },
+  "keywords": [
+    "crm",
+    "notes",
+    "calendar",
+    "tasks",
+    "workspace",
+    "sales",
+    "scriptflow"
+  ],
+  "author": "ScriptFlow Pro",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/scriptflow-pro"
   }
 }
