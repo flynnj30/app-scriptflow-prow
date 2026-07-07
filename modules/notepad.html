@@ -1,0 +1,339 @@
+<!-- notepad.html -->
+<div class="notepad-module" id="notepadModule">
+  <!-- Notepad Header -->
+  <div class="notepad-header">
+    <div class="notepad-title-section">
+      <h2>
+        <i class="fas fa-sticky-note" style="color:var(--primary);"></i>
+        Notes
+        <span class="notepad-badge" id="noteCount">0</span>
+      </h2>
+      <div class="notepad-actions">
+        <button class="btn-icon" id="newNoteBtn" title="New Note" aria-label="Create new note">
+          <i class="fas fa-plus"></i> New
+        </button>
+        <button class="btn-icon" id="searchNoteBtn" title="Search Notes" aria-label="Search notes">
+          <i class="fas fa-search"></i>
+        </button>
+        <button class="btn-icon" id="viewToggleBtn" title="Toggle view" aria-label="Toggle view">
+          <i class="fas fa-list"></i>
+        </button>
+      </div>
+    </div>
+    <div class="notepad-status-bar">
+      <span id="saveStatusNote"><i class="fas fa-check-circle" style="color:var(--success);"></i> All saved</span>
+      <span id="noteStats">0 words · 0 chars · 0 min read</span>
+    </div>
+  </div>
+
+  <!-- Search Bar -->
+  <div class="notepad-search-bar" id="noteSearchBar" style="display:none;">
+    <div class="search-wrapper">
+      <i class="fas fa-search"></i>
+      <input type="text" id="noteSearchInput" placeholder="Search notes..." aria-label="Search notes">
+      <button class="btn-icon" id="clearSearchBtn" aria-label="Clear search">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="filter-group">
+      <select id="noteFilterFolder" aria-label="Filter by folder">
+        <option value="all">All Folders</option>
+        <option value="work">💼 Work</option>
+        <option value="personal">🏠 Personal</option>
+        <option value="sales">📈 Sales</option>
+      </select>
+      <select id="noteFilterTag" aria-label="Filter by tag">
+        <option value="all">All Tags</option>
+        <option value="important">⭐ Important</option>
+        <option value="followup">📌 Follow-up</option>
+        <option value="meeting">🤝 Meeting</option>
+        <option value="call">📞 Call</option>
+      </select>
+      <select id="noteSortBy" aria-label="Sort by">
+        <option value="recent">Recent</option>
+        <option value="name">Name</option>
+        <option value="created">Created Date</option>
+        <option value="pinned">Pinned</option>
+        <option value="favorite">Favorites</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="notepad-main">
+    <!-- Sidebar - Note List -->
+    <div class="notepad-sidebar" id="noteSidebar">
+      <div class="note-list-header">
+        <span>Notes</span>
+        <button class="btn-icon-sm" id="refreshNotesBtn" title="Refresh" aria-label="Refresh notes">
+          <i class="fas fa-sync-alt"></i>
+        </button>
+      </div>
+      <div class="note-list" id="noteList">
+        <!-- Notes rendered dynamically -->
+      </div>
+      <div class="note-list-footer">
+        <button class="btn-icon-sm" id="showArchivedBtn" aria-label="Show archived notes">
+          <i class="fas fa-archive"></i> Archived
+        </button>
+        <button class="btn-icon-sm" id="showTrashBtn" aria-label="Show trashed notes">
+          <i class="fas fa-trash"></i> Trash
+        </button>
+      </div>
+    </div>
+
+    <!-- Editor Area -->
+    <div class="notepad-editor" id="noteEditor">
+      <!-- Empty State -->
+      <div class="note-empty-state" id="noteEmptyState">
+        <i class="fas fa-sticky-note" style="font-size:48px; opacity:0.3;"></i>
+        <h3>No note selected</h3>
+        <p>Select a note from the list or create a new one</p>
+        <button class="btn-icon" id="newNoteFromEmptyBtn" style="background:var(--primary); color:white;">
+          <i class="fas fa-plus"></i> New Note
+        </button>
+      </div>
+
+      <!-- Note Editor Content -->
+      <div class="note-editor-content" id="noteEditorContent" style="display:none;">
+        <!-- Toolbar -->
+        <div class="note-toolbar">
+          <div class="toolbar-group">
+            <button class="toolbar-btn" data-command="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+            <button class="toolbar-btn" data-command="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+            <button class="toolbar-btn" data-command="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+            <button class="toolbar-btn" data-command="strikethrough" title="Strikethrough"><s>S</s></button>
+            <span class="toolbar-divider"></span>
+            <button class="toolbar-btn" data-command="insertUnorderedList" title="Bullet List"><i class="fas fa-list-ul"></i></button>
+            <button class="toolbar-btn" data-command="insertOrderedList" title="Numbered List"><i class="fas fa-list-ol"></i></button>
+            <button class="toolbar-btn" data-command="insertHorizontalRule" title="Divider"><i class="fas fa-minus"></i></button>
+            <span class="toolbar-divider"></span>
+            <button class="toolbar-btn" data-command="formatBlock" data-value="h1" title="Heading 1">H1</button>
+            <button class="toolbar-btn" data-command="formatBlock" data-value="h2" title="Heading 2">H2</button>
+            <button class="toolbar-btn" data-command="formatBlock" data-value="h3" title="Heading 3">H3</button>
+            <span class="toolbar-divider"></span>
+            <button class="toolbar-btn" data-command="createLink" title="Insert Link"><i class="fas fa-link"></i></button>
+            <button class="toolbar-btn" data-command="insertImage" title="Insert Image"><i class="fas fa-image"></i></button>
+            <button class="toolbar-btn" data-command="formatBlock" data-value="blockquote" title="Quote"><i class="fas fa-quote-right"></i></button>
+            <button class="toolbar-btn" data-command="insertHTML" data-value='<pre><code>code</code></pre>' title="Code Block"><i class="fas fa-code"></i></button>
+            <span class="toolbar-divider"></span>
+            <button class="toolbar-btn" id="toggleMarkdownBtn" title="Toggle Markdown"><i class="fas fa-markdown"></i></button>
+            <button class="toolbar-btn" id="togglePlainTextBtn" title="Plain Text Mode"><i class="fas fa-font"></i></button>
+          </div>
+          <div class="toolbar-group">
+            <button class="toolbar-btn" id="undoNoteBtn" title="Undo (Ctrl+Z)"><i class="fas fa-undo"></i></button>
+            <button class="toolbar-btn" id="redoNoteBtn" title="Redo (Ctrl+Y)"><i class="fas fa-redo"></i></button>
+          </div>
+          <div class="toolbar-group">
+            <button class="toolbar-btn" id="pinNoteBtn" title="Pin Note"><i class="fas fa-thumbtack"></i></button>
+            <button class="toolbar-btn" id="favoriteNoteBtn" title="Favorite"><i class="fas fa-star"></i></button>
+            <button class="toolbar-btn" id="archiveNoteBtn" title="Archive"><i class="fas fa-archive"></i></button>
+            <button class="toolbar-btn" id="deleteNoteBtn" title="Delete"><i class="fas fa-trash"></i></button>
+            <button class="toolbar-btn" id="duplicateNoteBtn" title="Duplicate"><i class="fas fa-copy"></i></button>
+          </div>
+        </div>
+
+        <!-- Note Meta -->
+        <div class="note-meta">
+          <input type="text" id="noteTitleInput" class="note-title-input" placeholder="Note title..." aria-label="Note title">
+          <div class="note-meta-right">
+            <span id="noteLastEdited">Last edited: just now</span>
+            <div class="note-color-picker">
+              <button class="color-dot" data-color="default" style="background:var(--bg-secondary); border:1px solid var(--border-color);" aria-label="Default color"></button>
+              <button class="color-dot" data-color="#f87171" style="background:#f87171;" aria-label="Red"></button>
+              <button class="color-dot" data-color="#fbbf24" style="background:#fbbf24;" aria-label="Yellow"></button>
+              <button class="color-dot" data-color="#34d399" style="background:#34d399;" aria-label="Green"></button>
+              <button class="color-dot" data-color="#60a5fa" style="background:#60a5fa;" aria-label="Blue"></button>
+              <button class="color-dot" data-color="#a78bfa" style="background:#a78bfa;" aria-label="Purple"></button>
+              <button class="color-dot" data-color="#f472b6" style="background:#f472b6;" aria-label="Pink"></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Folder & Tags -->
+        <div class="note-organization">
+          <div class="org-group">
+            <label>Folder:</label>
+            <select id="noteFolderSelect" aria-label="Select folder">
+              <option value="none">None</option>
+              <option value="work">💼 Work</option>
+              <option value="personal">🏠 Personal</option>
+              <option value="sales">📈 Sales</option>
+            </select>
+          </div>
+          <div class="org-group">
+            <label>Tags:</label>
+            <div class="tag-input-container">
+              <input type="text" id="noteTagInput" placeholder="Add tag..." aria-label="Add tag">
+              <button id="addTagBtn" class="btn-icon-sm"><i class="fas fa-plus"></i></button>
+            </div>
+            <div class="tag-list" id="noteTagList"></div>
+          </div>
+        </div>
+
+        <!-- Editor Body -->
+        <div class="editor-container">
+          <div class="editor-wrapper">
+            <div id="noteEditorBody" class="note-editor-body" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Note content">
+              <!-- Rich text content -->
+            </div>
+            <div id="noteMarkdownPreview" class="note-markdown-preview" style="display:none;">
+              <!-- Markdown preview rendered -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Editor Footer -->
+        <div class="note-editor-footer">
+          <div class="editor-footer-left">
+            <button class="btn-icon-sm" id="saveNoteBtn" style="background:var(--success); color:white;">
+              <i class="fas fa-save"></i> Save
+            </button>
+            <button class="btn-icon-sm" id="versionHistoryBtn" title="Version History">
+              <i class="fas fa-history"></i> Versions
+            </button>
+            <button class="btn-icon-sm" id="exportNoteBtn" title="Export">
+              <i class="fas fa-file-export"></i> Export
+            </button>
+            <button class="btn-icon-sm" id="importNoteBtn" title="Import">
+              <i class="fas fa-file-import"></i> Import
+            </button>
+          </div>
+          <div class="editor-footer-right">
+            <span id="wordCount">0 words</span>
+            <span id="charCount">0 chars</span>
+            <span id="readingTime">0 min read</span>
+            <span id="noteStatus"><i class="fas fa-save"></i> Auto-saved</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modals -->
+  
+  <!-- Template Modal -->
+  <div id="templateModal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true">
+    <div class="modal-card" style="max-width:500px;">
+      <h3><i class="fas fa-template"></i> Note Templates</h3>
+      <div class="template-grid" id="templateGrid">
+        <div class="template-card" data-template="meeting">
+          <i class="fas fa-handshake"></i>
+          <h4>Meeting Notes</h4>
+          <p>Structured meeting notes with agenda and action items</p>
+        </div>
+        <div class="template-card" data-template="sales">
+          <i class="fas fa-chart-line"></i>
+          <h4>Sales Call</h4>
+          <p>Sales call notes with objection handling</p>
+        </div>
+        <div class="template-card" data-template="followup">
+          <i class="fas fa-clock"></i>
+          <h4>Follow-up</h4>
+          <p>Follow-up notes with next steps</p>
+        </div>
+        <div class="template-card" data-template="daily">
+          <i class="fas fa-sun"></i>
+          <h4>Daily Notes</h4>
+          <p>Daily journal and task notes</p>
+        </div>
+      </div>
+      <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px;">
+        <button id="closeTemplateBtn" class="btn-icon">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Version History Modal -->
+  <div id="versionHistoryModal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true">
+    <div class="modal-card" style="max-width:600px;">
+      <h3><i class="fas fa-history"></i> Version History</h3>
+      <div class="version-list" id="versionList">
+        <!-- Versions rendered dynamically -->
+      </div>
+      <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px;">
+        <button id="closeVersionBtn" class="btn-icon">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reminder Modal -->
+  <div id="reminderModal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true">
+    <div class="modal-card" style="max-width:400px;">
+      <h3><i class="fas fa-bell"></i> Set Reminder</h3>
+      <div class="form-group">
+        <label for="reminderDate">Date</label>
+        <input type="date" id="reminderDate">
+      </div>
+      <div class="form-group">
+        <label for="reminderTime">Time</label>
+        <input type="time" id="reminderTime">
+      </div>
+      <div class="form-group">
+        <label for="reminderNote">Note</label>
+        <input type="text" id="reminderNote" placeholder="Reminder note...">
+      </div>
+      <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px;">
+        <button id="saveReminderBtn" class="btn-icon" style="background:var(--primary); color:white;">Set Reminder</button>
+        <button id="closeReminderBtn" class="btn-icon">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export Modal -->
+  <div id="exportModal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true">
+    <div class="modal-card" style="max-width:400px;">
+      <h3><i class="fas fa-file-export"></i> Export Note</h3>
+      <div class="form-group">
+        <label>Format</label>
+        <select id="exportFormat">
+          <option value="txt">TXT</option>
+          <option value="pdf">PDF</option>
+          <option value="docx">DOCX</option>
+          <option value="html">HTML</option>
+          <option value="md">Markdown</option>
+          <option value="json">JSON</option>
+        </select>
+      </div>
+      <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px;">
+        <button id="exportConfirmBtn" class="btn-icon" style="background:var(--primary); color:white;">Export</button>
+        <button id="closeExportBtn" class="btn-icon">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import Modal -->
+  <div id="importModal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true">
+    <div class="modal-card" style="max-width:400px;">
+      <h3><i class="fas fa-file-import"></i> Import Note</h3>
+      <div class="form-group">
+        <label>File</label>
+        <input type="file" id="importFileInput" accept=".txt,.md,.html,.json">
+      </div>
+      <div class="form-group">
+        <label>Title</label>
+        <input type="text" id="importTitle" placeholder="Note title...">
+      </div>
+      <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px;">
+        <button id="importConfirmBtn" class="btn-icon" style="background:var(--primary); color:white;">Import</button>
+        <button id="closeImportBtn" class="btn-icon">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Password Lock Modal -->
+  <div id="lockModal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true">
+    <div class="modal-card" style="max-width:400px;">
+      <h3><i class="fas fa-lock"></i> Note Locked</h3>
+      <p style="color:var(--text-muted); margin-bottom:16px;">Enter your PIN to access this note</p>
+      <div class="form-group">
+        <label for="pinInput">PIN</label>
+        <input type="password" id="pinInput" maxlength="6" placeholder="Enter PIN..." autocomplete="off">
+      </div>
+      <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px;">
+        <button id="unlockBtn" class="btn-icon" style="background:var(--primary); color:white;">Unlock</button>
+        <button id="closeLockBtn" class="btn-icon">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
