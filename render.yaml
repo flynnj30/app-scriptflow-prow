@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: app-scriptflow-pro
+    env: static
+    buildCommand: echo "Static site - no build needed"
+    staticPublishPath: .
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /*
+        name: Content-Security-Policy
+        value: "frame-ancestors 'self' https://*.render.com"
+    envVars:
+      - key: NODE_ENV
+        value: production
