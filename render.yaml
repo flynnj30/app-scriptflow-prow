@@ -10,7 +10,7 @@ services:
         destination: /index.html
     envVars:
       - key: NODE_VERSION
-        value: 20.18.0
+        value: 18.0.0
       - key: NODE_ENV
         value: production
       - key: PORT
@@ -25,6 +25,12 @@ services:
       - path: /*
         name: X-XSS-Protection
         value: 1; mode=block
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Permissions-Policy
+        value: geolocation=(), microphone=(), camera=()
     healthCheckPath: /
     scaling:
       minInstances: 1
