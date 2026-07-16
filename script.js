@@ -338,15 +338,20 @@ function openShortcutEdit(action) {
 
 function openGlobalSearch() {
     const modal = document.getElementById('globalSearchModal');
+    if (!modal) return;
     modal.style.display = 'flex';
     const input = document.getElementById('globalSearchInput');
-    input.value = '';
-    input.focus();
-    document.getElementById('globalSearchResults').innerHTML = '';
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+    const results = document.getElementById('globalSearchResults');
+    if (results) results.innerHTML = '';
 }
 
 function performGlobalSearch(query) {
     const results = document.getElementById('globalSearchResults');
+    if (!results) return;
     if (!query || query.length < 2) {
         results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">Type at least 2 characters to search...</p>';
         return;
@@ -426,6 +431,29 @@ function performGlobalSearch(query) {
 // SCRIPT MANAGEMENT WITH DRAG & DROP
 // ============================================================
 
+function updateKeyHints() {
+    const visible = getOrderedVisible();
+    const items = document.querySelectorAll('.script-item');
+    items.forEach((item, idx) => {
+        const hint = item.querySelector('.key-hint');
+        if (hint && idx < 9) {
+            hint.textContent = idx + 1;
+        } else if (hint) {
+            hint.textContent = '';
+        }
+    });
+    
+    const activeHint = document.getElementById('activeShortcutHint');
+    if (activeHint) {
+        const idx = visible.indexOf(currentScriptId);
+        if (idx >= 0 && idx < 9) {
+            activeHint.textContent = idx + 1;
+        } else {
+            activeHint.textContent = '—';
+        }
+    }
+}
+
 function loadScript(id) {
     if (!scripts[id]) return;
     if (isEditing) {
@@ -434,11 +462,15 @@ function loadScript(id) {
     }
     currentScriptId = id;
     const script = scripts[id];
-    document.getElementById('currentScriptName').innerHTML = script.name;
-    document.getElementById('scriptContent').innerHTML = `<div class="script-display">${escapeHtml(script.content).replace(/\n/g, '<br>')}</div>`;
-    document.getElementById('versionNumber').textContent = script.version || 1;
+    const nameEl = document.getElementById('currentScriptName');
+    if (nameEl) nameEl.innerHTML = script.name;
+    const contentEl = document.getElementById('scriptContent');
+    if (contentEl) {
+        contentEl.innerHTML = `<div class="script-display">${escapeHtml(script.content).replace(/\n/g, '<br>')}</div>`;
+    }
+    const versionEl = document.getElementById('versionNumber');
+    if (versionEl) versionEl.textContent = script.version || 1;
     
-    // Update favorite star
     updateFavoriteStar();
     renderSidebar();
     updateKeyHints();
@@ -560,50 +592,59 @@ function startEdit() {
     const script = scripts[currentScriptId];
     currentEditContent = script.content;
     
-    document.getElementById('editScriptBtn').style.display = 'none';
-    document.getElementById('saveScriptBtn').style.display = 'inline-flex';
-    document.getElementById('cancelEditBtn').style.display = 'inline-flex';
-    document.getElementById('editStatusBadge').style.display = 'inline-flex';
+    const editBtn = document.getElementById('editScriptBtn');
+    const saveBtn = document.getElementById('saveScriptBtn');
+    const cancelBtn = document.getElementById('cancelEditBtn');
+    const statusBadge = document.getElementById('editStatusBadge');
+    
+    if (editBtn) editBtn.style.display = 'none';
+    if (saveBtn) saveBtn.style.display = 'inline-flex';
+    if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+    if (statusBadge) statusBadge.style.display = 'inline-flex';
     
     const contentDiv = document.getElementById('scriptContent');
-    contentDiv.innerHTML = `
-        <textarea class="edit-textarea" id="editTextarea">${escapeHtml(script.content)}</textarea>
-        <div class="auto-save-indicator">Auto-saving...</div>
-    `;
+    if (contentDiv) {
+        contentDiv.innerHTML = `
+            <textarea class="edit-textarea" id="editTextarea">${escapeHtml(script.content)}</textarea>
+            <div class="auto-save-indicator">Auto-saving...</div>
+        `;
+    }
     
     const textarea = document.getElementById('editTextarea');
-    textarea.focus();
-    
-    // Auto-save on input
-    textarea.addEventListener('input', () => {
-        currentEditContent = textarea.value;
-        const indicator = document.querySelector('.auto-save-indicator');
-        if (indicator) {
-            indicator.textContent = 'Saving...';
-            indicator.style.color = 'var(--warning)';
-        }
-        clearTimeout(autoSaveTimer);
-        autoSaveTimer = setTimeout(() => {
-            saveScriptContent(textarea.value);
+    if (textarea) {
+        textarea.focus();
+        
+        // Auto-save on input
+        textarea.addEventListener('input', () => {
+            currentEditContent = textarea.value;
             const indicator = document.querySelector('.auto-save-indicator');
             if (indicator) {
-                indicator.textContent = '✓ Auto-saved';
-                indicator.style.color = 'var(--success)';
+                indicator.textContent = 'Saving...';
+                indicator.style.color = 'var(--warning)';
             }
-        }, 1000);
-    });
-    
-    // Keyboard shortcuts for editing
-    textarea.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            cancelEdit();
-        }
-        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-            e.preventDefault();
-            saveScriptContent(textarea.value);
-            finishEdit();
-        }
-    });
+            clearTimeout(autoSaveTimer);
+            autoSaveTimer = setTimeout(() => {
+                saveScriptContent(textarea.value);
+                const indicator = document.querySelector('.auto-save-indicator');
+                if (indicator) {
+                    indicator.textContent = '✓ Auto-saved';
+                    indicator.style.color = 'var(--success)';
+                }
+            }, 1000);
+        });
+        
+        // Keyboard shortcuts for editing
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                cancelEdit();
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                saveScriptContent(textarea.value);
+                finishEdit();
+            }
+        });
+    }
 }
 
 function saveScriptContent(content) {
@@ -627,10 +668,15 @@ function saveScriptContent(content) {
 
 function finishEdit() {
     isEditing = false;
-    document.getElementById('editScriptBtn').style.display = 'inline-flex';
-    document.getElementById('saveScriptBtn').style.display = 'none';
-    document.getElementById('cancelEditBtn').style.display = 'none';
-    document.getElementById('editStatusBadge').style.display = 'none';
+    const editBtn = document.getElementById('editScriptBtn');
+    const saveBtn = document.getElementById('saveScriptBtn');
+    const cancelBtn = document.getElementById('cancelEditBtn');
+    const statusBadge = document.getElementById('editStatusBadge');
+    
+    if (editBtn) editBtn.style.display = 'inline-flex';
+    if (saveBtn) saveBtn.style.display = 'none';
+    if (cancelBtn) cancelBtn.style.display = 'none';
+    if (statusBadge) statusBadge.style.display = 'none';
     loadScript(currentScriptId);
     showToast('Changes saved', 'success');
 }
@@ -638,10 +684,15 @@ function finishEdit() {
 function cancelEdit() {
     if (!confirm('Discard your changes?')) return;
     isEditing = false;
-    document.getElementById('editScriptBtn').style.display = 'inline-flex';
-    document.getElementById('saveScriptBtn').style.display = 'none';
-    document.getElementById('cancelEditBtn').style.display = 'none';
-    document.getElementById('editStatusBadge').style.display = 'none';
+    const editBtn = document.getElementById('editScriptBtn');
+    const saveBtn = document.getElementById('saveScriptBtn');
+    const cancelBtn = document.getElementById('cancelEditBtn');
+    const statusBadge = document.getElementById('editStatusBadge');
+    
+    if (editBtn) editBtn.style.display = 'inline-flex';
+    if (saveBtn) saveBtn.style.display = 'none';
+    if (cancelBtn) cancelBtn.style.display = 'none';
+    if (statusBadge) statusBadge.style.display = 'none';
     loadScript(currentScriptId);
 }
 
@@ -883,7 +934,8 @@ async function loadUserData(showLoading = true) {
     if (!currentUser) return;
     try {
         if (showLoading) {
-            document.getElementById('saveStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+            const statusEl = document.getElementById('saveStatus');
+            if (statusEl) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
         }
         const userDoc = await db.collection('users').doc(currentUser.uid).get();
         const userData = userDoc.data();
@@ -921,7 +973,8 @@ async function loadUserData(showLoading = true) {
         renderSidebar();
         loadScript('opening');
         closeAuthModal();
-        document.getElementById('saveStatus').innerHTML = '<i class="fas fa-check"></i> Synced';
+        const statusEl = document.getElementById('saveStatus');
+        if (statusEl) statusEl.innerHTML = '<i class="fas fa-check"></i> Synced';
     } catch (error) {
         console.error('Data Load Error:', error);
         handleError(error, 'Loading Data');
@@ -1108,10 +1161,15 @@ function getAverageScore() {
 }
 
 function updateStats() {
-    document.getElementById('statToday').innerText = getTodayCount();
-    document.getElementById('statWeek').innerText = getWeekCount();
-    document.getElementById('statMonth').innerText = getMonthCount();
-    document.getElementById('avgScore').innerText = getAverageScore();
+    const todayEl = document.getElementById('statToday');
+    const weekEl = document.getElementById('statWeek');
+    const monthEl = document.getElementById('statMonth');
+    const avgEl = document.getElementById('avgScore');
+    
+    if (todayEl) todayEl.innerText = getTodayCount();
+    if (weekEl) weekEl.innerText = getWeekCount();
+    if (monthEl) monthEl.innerText = getMonthCount();
+    if (avgEl) avgEl.innerText = getAverageScore();
     updateTaskStats();
 }
 
@@ -1145,7 +1203,8 @@ function deleteTask(id) {
 
 function updateTaskStats() {
     const pending = tasks.filter(t => !t.completed).length;
-    document.getElementById('pendingTasks').innerText = pending;
+    const pendingEl = document.getElementById('pendingTasks');
+    if (pendingEl) pendingEl.innerText = pending;
 }
 
 // ============================================================
@@ -1242,12 +1301,18 @@ function checkDuplicate(appointment) {
 }
 
 function openSmartImport() {
-    document.getElementById('smartImportModal').style.display = 'flex';
-    document.getElementById('importTextArea').value = '';
-    document.getElementById('importPreview').style.display = 'none';
-    document.getElementById('saveImportBtn').style.display = 'none';
-    parsedImportData = {};
-    importConfidence = {};
+    const modal = document.getElementById('smartImportModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        const textArea = document.getElementById('importTextArea');
+        if (textArea) textArea.value = '';
+        const preview = document.getElementById('importPreview');
+        if (preview) preview.style.display = 'none';
+        const saveBtn = document.getElementById('saveImportBtn');
+        if (saveBtn) saveBtn.style.display = 'none';
+        parsedImportData = {};
+        importConfidence = {};
+    }
 }
 
 function renderParsedPreview(data, confidence) {
@@ -1257,6 +1322,7 @@ function renderParsedPreview(data, confidence) {
     const missingContainer = document.getElementById('missingFields');
     const duplicateContainer = document.getElementById('duplicateWarning');
     
+    if (!preview) return;
     preview.style.display = 'block';
     
     let fieldsHtml = '', totalConfidence = 0, fieldCount = 0;
@@ -1285,49 +1351,59 @@ function renderParsedPreview(data, confidence) {
         if (!data[field] || !data[field].trim()) missingFields.push(field);
     }
     
-    fieldsContainer.innerHTML = fieldsHtml;
+    if (fieldsContainer) fieldsContainer.innerHTML = fieldsHtml;
     
-    fieldsContainer.querySelectorAll('.field-value').forEach(el => {
-        el.addEventListener('blur', function() {
-            const field = this.getAttribute('data-field');
-            parsedImportData[field] = this.textContent.trim();
-            updateImportValidation();
+    if (fieldsContainer) {
+        fieldsContainer.querySelectorAll('.field-value').forEach(el => {
+            el.addEventListener('blur', function() {
+                const field = this.getAttribute('data-field');
+                parsedImportData[field] = this.textContent.trim();
+                updateImportValidation();
+            });
         });
-    });
-    
-    fieldsContainer.querySelectorAll('.field-edit').forEach(el => {
-        el.addEventListener('click', function() {
-            const field = this.getAttribute('data-field');
-            const valueEl = fieldsContainer.querySelector(`.field-value[data-field="${field}"]`);
-            if (valueEl) { valueEl.focus(); }
+        
+        fieldsContainer.querySelectorAll('.field-edit').forEach(el => {
+            el.addEventListener('click', function() {
+                const field = this.getAttribute('data-field');
+                const valueEl = fieldsContainer.querySelector(`.field-value[data-field="${field}"]`);
+                if (valueEl) { valueEl.focus(); }
+            });
         });
-    });
+    }
     
     parsedImportData = { ...data };
     importConfidence = { ...confidence };
     
     const avgConf = fieldCount > 0 ? totalConfidence / fieldCount : 0;
-    confidenceContainer.innerHTML = `
-        <strong>Overall Confidence:</strong> ${Math.round(avgConf * 100)}% 
-        <span style="font-size:0.75rem; color:var(--text-muted); margin-left:8px;">(${fieldCount} fields parsed)</span>
-    `;
-    
-    const duplicate = checkDuplicate(data);
-    if (duplicate) {
-        duplicateContainer.style.display = 'block';
-        duplicateContainer.innerHTML = `⚠️ <strong>Potential duplicate found!</strong> Similar appointment exists: ${duplicate.business} - ${duplicate.contactName} on ${formatDate(duplicate.date)}`;
-    } else {
-        duplicateContainer.style.display = 'none';
+    if (confidenceContainer) {
+        confidenceContainer.innerHTML = `
+            <strong>Overall Confidence:</strong> ${Math.round(avgConf * 100)}% 
+            <span style="font-size:0.75rem; color:var(--text-muted); margin-left:8px;">(${fieldCount} fields parsed)</span>
+        `;
     }
     
-    if (missingFields.length > 0) {
-        missingContainer.innerHTML = `⚠️ <strong>Missing required fields:</strong> ${missingFields.join(', ')}<br><span style="font-size:0.75rem;">Please fill in all required fields before saving.</span>`;
-        missingContainer.style.color = 'var(--danger)';
-        document.getElementById('saveImportBtn').disabled = true;
-    } else {
-        missingContainer.innerHTML = '✅ All required fields are filled';
-        missingContainer.style.color = 'var(--success)';
-        document.getElementById('saveImportBtn').disabled = false;
+    const duplicate = checkDuplicate(data);
+    if (duplicateContainer) {
+        if (duplicate) {
+            duplicateContainer.style.display = 'block';
+            duplicateContainer.innerHTML = `⚠️ <strong>Potential duplicate found!</strong> Similar appointment exists: ${duplicate.business} - ${duplicate.contactName} on ${formatDate(duplicate.date)}`;
+        } else {
+            duplicateContainer.style.display = 'none';
+        }
+    }
+    
+    if (missingContainer) {
+        if (missingFields.length > 0) {
+            missingContainer.innerHTML = `⚠️ <strong>Missing required fields:</strong> ${missingFields.join(', ')}<br><span style="font-size:0.75rem;">Please fill in all required fields before saving.</span>`;
+            missingContainer.style.color = 'var(--danger)';
+            const saveBtn = document.getElementById('saveImportBtn');
+            if (saveBtn) saveBtn.disabled = true;
+        } else {
+            missingContainer.innerHTML = '✅ All required fields are filled';
+            missingContainer.style.color = 'var(--success)';
+            const saveBtn = document.getElementById('saveImportBtn');
+            if (saveBtn) saveBtn.disabled = false;
+        }
     }
     updateImportValidation();
 }
@@ -1336,14 +1412,16 @@ function updateImportValidation() {
     const requiredFields = ['name', 'business'];
     const allFilled = requiredFields.every(field => parsedImportData[field] && parsedImportData[field].trim());
     const saveBtn = document.getElementById('saveImportBtn');
-    if (allFilled) {
-        saveBtn.style.display = 'inline-flex';
-        saveBtn.disabled = false;
-        saveBtn.style.opacity = '1';
-    } else {
-        saveBtn.style.display = 'inline-flex';
-        saveBtn.disabled = true;
-        saveBtn.style.opacity = '0.5';
+    if (saveBtn) {
+        if (allFilled) {
+            saveBtn.style.display = 'inline-flex';
+            saveBtn.disabled = false;
+            saveBtn.style.opacity = '1';
+        } else {
+            saveBtn.style.display = 'inline-flex';
+            saveBtn.disabled = true;
+            saveBtn.style.opacity = '0.5';
+        }
     }
 }
 
@@ -1370,7 +1448,8 @@ function saveImportedAppointment() {
 }
 
 function closeSmartImport() {
-    document.getElementById('smartImportModal').style.display = 'none';
+    const modal = document.getElementById('smartImportModal');
+    if (modal) modal.style.display = 'none';
     parsedImportData = {};
     importConfidence = {};
 }
@@ -1385,26 +1464,33 @@ function showAppointmentDetail(appointmentId) {
     
     currentAppointmentId = appointmentId;
     const modal = document.getElementById('appointmentDetailModal');
-    document.getElementById('appointmentDetailTitle').textContent = `📋 ${appt.business} - ${appt.contactName}`;
+    if (!modal) return;
     
-    document.getElementById('appointmentDetailContent').innerHTML = `
-        <div class="detail-row"><span class="detail-label">Business</span><span class="detail-value">${escapeHtml(appt.business)}</span></div>
-        <div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">${escapeHtml(appt.contactName)}</span></div>
-        <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value">${escapeHtml(appt.phone || 'N/A')}</span></div>
-        <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${escapeHtml(appt.email || 'N/A')}</span></div>
-        <div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">${formatDate(appt.date)}</span></div>
-        <div class="detail-row"><span class="detail-label">Time</span><span class="detail-value">${escapeHtml(appt.time || 'N/A')}</span></div>
-        <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value"><span class="status-tag ${getStatusClassSmall(getStatus(appt))}">${getStatus(appt)}</span></span></div>
-        <div class="detail-row"><span class="detail-label">Assigned</span><span class="detail-value">${escapeHtml(appt.assigned || 'Daniel')}</span></div>
-        <div class="detail-row"><span class="detail-label">Lead Score</span><span class="detail-value"><span class="score-badge ${getScoreColor(calculateLeadScore(appt))}">${calculateLeadScore(appt)} Pts</span></span></div>
-        ${appt.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value" style="white-space:pre-wrap;">${escapeHtml(appt.notes)}</span></div>` : ''}
-        ${appt.tags && appt.tags.length > 0 ? `<div class="detail-row"><span class="detail-label">Tags</span><span class="detail-value">${appt.tags.map(t => `#${t}`).join(' ')}</span></div>` : ''}
-    `;
+    const titleEl = document.getElementById('appointmentDetailTitle');
+    if (titleEl) titleEl.textContent = `📋 ${appt.business} - ${appt.contactName}`;
+    
+    const contentEl = document.getElementById('appointmentDetailContent');
+    if (contentEl) {
+        contentEl.innerHTML = `
+            <div class="detail-row"><span class="detail-label">Business</span><span class="detail-value">${escapeHtml(appt.business)}</span></div>
+            <div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">${escapeHtml(appt.contactName)}</span></div>
+            <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value">${escapeHtml(appt.phone || 'N/A')}</span></div>
+            <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${escapeHtml(appt.email || 'N/A')}</span></div>
+            <div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">${formatDate(appt.date)}</span></div>
+            <div class="detail-row"><span class="detail-label">Time</span><span class="detail-value">${escapeHtml(appt.time || 'N/A')}</span></div>
+            <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value"><span class="status-tag ${getStatusClassSmall(getStatus(appt))}">${getStatus(appt)}</span></span></div>
+            <div class="detail-row"><span class="detail-label">Assigned</span><span class="detail-value">${escapeHtml(appt.assigned || 'Daniel')}</span></div>
+            <div class="detail-row"><span class="detail-label">Lead Score</span><span class="detail-value"><span class="score-badge ${getScoreColor(calculateLeadScore(appt))}">${calculateLeadScore(appt)} Pts</span></span></div>
+            ${appt.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value" style="white-space:pre-wrap;">${escapeHtml(appt.notes)}</span></div>` : ''}
+            ${appt.tags && appt.tags.length > 0 ? `<div class="detail-row"><span class="detail-label">Tags</span><span class="detail-value">${appt.tags.map(t => `#${t}`).join(' ')}</span></div>` : ''}
+        `;
+    }
     modal.style.display = 'flex';
 }
 
 function closeAppointmentDetail() {
-    document.getElementById('appointmentDetailModal').style.display = 'none';
+    const modal = document.getElementById('appointmentDetailModal');
+    if (modal) modal.style.display = 'none';
     currentAppointmentId = null;
 }
 
@@ -1435,25 +1521,204 @@ function openQuickReportWithDate(defaultDate) {
     `;
     document.body.appendChild(modal);
 
-    document.getElementById('saveQuickApptBtn').addEventListener('click', () => {
-        const date = document.getElementById('newApptDate').value;
-        const bus = document.getElementById('newApptBusiness').value.trim();
-        const contact = document.getElementById('newApptContact').value.trim();
-        const phone = document.getElementById('newApptPhone').value.trim();
-        const email = document.getElementById('newApptEmail').value.trim();
-        const time = document.getElementById('newApptTime').value;
-        const status = document.getElementById('newApptStatus').value;
-        const notes = document.getElementById('newApptNotes').value.trim();
+    const saveBtn = document.getElementById('saveQuickApptBtn');
+    const cancelBtn = document.getElementById('cancelQuickApptBtn');
+    
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            const date = document.getElementById('newApptDate')?.value || '';
+            const bus = document.getElementById('newApptBusiness')?.value?.trim() || '';
+            const contact = document.getElementById('newApptContact')?.value?.trim() || '';
+            const phone = document.getElementById('newApptPhone')?.value?.trim() || '';
+            const email = document.getElementById('newApptEmail')?.value?.trim() || '';
+            const time = document.getElementById('newApptTime')?.value || '';
+            const status = document.getElementById('newApptStatus')?.value || 'Pending';
+            const notes = document.getElementById('newApptNotes')?.value?.trim() || '';
 
-        if (!bus || !contact) { showToast('Please fill in all required fields', 'error'); return; }
-        addAppointment(date, bus, contact, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), 'Daniel', null, status);
-        modal.remove();
-        showToast('Appointment added successfully! 🎉', 'success');
-        refreshCurrentView();
+            if (!bus || !contact) { showToast('Please fill in all required fields', 'error'); return; }
+            addAppointment(date, bus, contact, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), 'Daniel', null, status);
+            modal.remove();
+            showToast('Appointment added successfully! 🎉', 'success');
+            refreshCurrentView();
+        });
+    }
+    
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => modal.remove());
+    }
+    
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+}
+
+// ============================================================
+// FEATURE PANEL
+// ============================================================
+
+function showFeaturePanel(featureType, title) {
+    const scriptPanel = document.getElementById('scriptPanel');
+    const featurePanel = document.getElementById('featurePanel');
+    const featureTitle = document.getElementById('featurePanelTitle');
+    const featureBody = document.getElementById('featurePanelBody');
+    
+    if (!scriptPanel || !featurePanel) return;
+    
+    currentView = featureType;
+    if (featureTitle) {
+        featureTitle.innerHTML = `<i class="fas ${featureType === 'calendar' ? 'fa-calendar-alt' : featureType === 'tasks' ? 'fa-tasks' : featureType === 'analytics' ? 'fa-chart-pie' : 'fa-sticky-note'}"></i> ${title}`;
+    }
+    
+    // Show appropriate view toggles
+    const calendarToggle = document.getElementById('calendarViewToggle');
+    const analyticsToggle = document.getElementById('analyticsTabContainer');
+    const taskToggle = document.getElementById('taskViewToggle');
+    const shortcutsToggle = document.getElementById('shortcutsViewToggle');
+    const notepadToggle = document.getElementById('notepadTabContainer');
+    const workspaceToggle = document.getElementById('workspaceViewToggle');
+    
+    if (calendarToggle) calendarToggle.style.display = featureType === 'calendar' ? 'flex' : 'none';
+    if (analyticsToggle) analyticsToggle.style.display = featureType === 'analytics' ? 'flex' : 'none';
+    if (taskToggle) taskToggle.style.display = featureType === 'tasks' ? 'flex' : 'none';
+    if (shortcutsToggle) shortcutsToggle.style.display = featureType === 'shortcuts' ? 'flex' : 'none';
+    if (notepadToggle) notepadToggle.style.display = 'none';
+    if (workspaceToggle) workspaceToggle.style.display = 'none';
+    
+    scriptPanel.style.display = 'none';
+    featurePanel.style.display = 'block';
+    
+    if (featureBody) {
+        if (featureType === 'calendar') {
+            renderCalendarPanel(featureBody);
+        } else if (featureType === 'tasks') {
+            renderTasksPanel(featureBody);
+        } else if (featureType === 'analytics') {
+            renderAnalyticsHub(featureBody);
+        } else if (featureType === 'shortcuts') {
+            renderShortcutsPanel(featureBody);
+        } else if (featureType === 'notepad') {
+            showToast('📝 Notes feature coming soon!', 'info');
+            featurePanel.style.display = 'none';
+            scriptPanel.style.display = 'block';
+        }
+    }
+}
+
+function hideFeaturePanel() {
+    const featurePanel = document.getElementById('featurePanel');
+    const scriptPanel = document.getElementById('scriptPanel');
+    if (featurePanel) featurePanel.style.display = 'none';
+    if (scriptPanel) scriptPanel.style.display = 'block';
+}
+
+function refreshCurrentView() {
+    const body = document.getElementById('featurePanelBody');
+    if (!body) return;
+    if (currentView === 'calendar') renderCalendarPanel(body);
+    else if (currentView === 'tasks') renderTasksPanel(body);
+    else if (currentView === 'analytics') renderAnalyticsHub(body);
+    else if (currentView === 'shortcuts') renderShortcutsPanel(body);
+}
+
+// ============================================================
+// SHORTCUTS PANEL
+// ============================================================
+
+function renderShortcutsPanel(container) {
+    if (!container) return;
+    container.innerHTML = `
+        <div class="shortcuts-container">
+            <h3><i class="fas fa-keyboard"></i> Keyboard Shortcuts Manager</h3>
+            <p style="color:var(--text-muted); margin-bottom:16px;">View and customize keyboard shortcuts for quick access to features.</p>
+            <div style="margin-bottom:16px; display:flex; gap:8px; flex-wrap:wrap;">
+                <button id="shortcutsResetDefaultsBtn" class="btn-icon" style="background:var(--warning); color:#1e293b;"><i class="fas fa-undo"></i> Reset Defaults</button>
+                <span style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center;">⚠️ Conflicts are highlighted in red</span>
+            </div>
+            <div id="shortcutsListContainer" style="max-height:450px; overflow-y:auto;"></div>
+        </div>
+    `;
+    
+    renderShortcutsList();
+    const resetBtn = document.getElementById('shortcutsResetDefaultsBtn');
+    if (resetBtn) resetBtn.addEventListener('click', resetShortcutsToDefaults);
+}
+
+// ============================================================
+// TASKS PANEL
+// ============================================================
+
+function renderTasksPanel(container) {
+    if (!container) return;
+    const filteredTasks = taskFilter === 'all' ? tasks : tasks.filter(t => !t.completed);
+    
+    container.innerHTML = `
+        <div class="tasks-section">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                <h3><i class="fas fa-tasks"></i> Follow-up Tasks</h3>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <button id="taskFilterAll" class="view-btn ${taskFilter === 'all' ? 'active' : ''}">All</button>
+                    <button id="taskFilterPending" class="view-btn ${taskFilter === 'pending' ? 'active' : ''}">Pending</button>
+                    <button id="taskFilterToday" class="view-btn ${taskFilter === 'today' ? 'active' : ''}">Today</button>
+                    <button id="addNewTaskBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> New</button>
+                </div>
+            </div>
+            <div class="tasks-list">
+                ${filteredTasks.length === 0 ? '<div class="empty-state"><i class="fas fa-check-circle"></i><p>No tasks found</p></div>' : 
+                filteredTasks.map(t => `
+                    <div class="task-card ${t.completed ? 'task-completed' : ''}">
+                        <div class="task-row">
+                            <div class="task-title">
+                                <input type="checkbox" ${t.completed ? 'checked' : ''} class="toggle-task-checkbox" data-id="${t.id}" />
+                                <span>${escapeHtml(t.description)}</span>
+                            </div>
+                            <div class="task-actions">
+                                <button class="delete-task-btn" data-id="${t.id}" title="Delete"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                        <div class="task-meta">
+                            ${t.dueDate ? `<span><i class="far fa-calendar"></i> Due: ${formatDate(t.dueDate)}</span>` : ''}
+                            <span class="task-priority-${t.priority || 'medium'}">${t.priority || 'Medium'}</span>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+
+    const filterAll = document.getElementById('taskFilterAll');
+    const filterPending = document.getElementById('taskFilterPending');
+    const filterToday = document.getElementById('taskFilterToday');
+    const addBtn = document.getElementById('addNewTaskBtn');
+    
+    if (filterAll) filterAll.addEventListener('click', () => { taskFilter = 'all'; renderTasksPanel(container); });
+    if (filterPending) filterPending.addEventListener('click', () => { taskFilter = 'pending'; renderTasksPanel(container); });
+    if (filterToday) filterToday.addEventListener('click', () => { taskFilter = 'today'; renderTasksPanel(container); });
+
+    if (addBtn) {
+        addBtn.addEventListener('click', () => {
+            const desc = prompt('Enter task description:');
+            if (desc && desc.trim()) {
+                const dueDate = prompt('Enter due date (YYYY-MM-DD) or leave blank:', getTodayStr());
+                addTask(desc.trim(), dueDate || '', 'medium', null);
+                refreshCurrentView();
+                showToast('Task added!', 'success');
+            }
+        });
+    }
+
+    container.querySelectorAll('.toggle-task-checkbox').forEach(cb => {
+        cb.addEventListener('change', () => {
+            toggleTaskComplete(cb.getAttribute('data-id'));
+            setTimeout(() => renderTasksPanel(container), 100);
+        });
     });
 
-    document.getElementById('cancelQuickApptBtn').addEventListener('click', () => modal.remove());
-    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    container.querySelectorAll('.delete-task-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (confirm('Delete this task?')) {
+                deleteTask(btn.getAttribute('data-id'));
+                renderTasksPanel(container);
+            }
+        });
+    });
 }
 
 // ============================================================
@@ -1568,11 +1833,18 @@ function renderCalendarPanel(container) {
     container.querySelectorAll('.calendar-day[data-date]').forEach(el => {
         el.addEventListener('click', () => { selectedCalDate = el.getAttribute('data-date'); renderCalendarPanel(container); });
     });
-    document.getElementById('calPrevBtn')?.addEventListener('click', () => { currentCalDate.setMonth(currentCalDate.getMonth() - 1); renderCalendarPanel(container); });
-    document.getElementById('calNextBtn')?.addEventListener('click', () => { currentCalDate.setMonth(currentCalDate.getMonth() + 1); renderCalendarPanel(container); });
-    document.getElementById('calTodayBtn')?.addEventListener('click', () => { currentCalDate = new Date(); selectedCalDate = getTodayStr(); renderCalendarPanel(container); });
-    document.getElementById('quickAddCalBtn')?.addEventListener('click', () => openQuickReportWithDate(selectedCalDate));
-    document.getElementById('switchToListView')?.addEventListener('click', () => { calendarView = 'list'; renderCalendarPanel(container); });
+    
+    const prevBtn = document.getElementById('calPrevBtn');
+    const nextBtn = document.getElementById('calNextBtn');
+    const todayBtn = document.getElementById('calTodayBtn');
+    const addBtn = document.getElementById('quickAddCalBtn');
+    const listBtn = document.getElementById('switchToListView');
+    
+    if (prevBtn) prevBtn.addEventListener('click', () => { currentCalDate.setMonth(currentCalDate.getMonth() - 1); renderCalendarPanel(container); });
+    if (nextBtn) nextBtn.addEventListener('click', () => { currentCalDate.setMonth(currentCalDate.getMonth() + 1); renderCalendarPanel(container); });
+    if (todayBtn) todayBtn.addEventListener('click', () => { currentCalDate = new Date(); selectedCalDate = getTodayStr(); renderCalendarPanel(container); });
+    if (addBtn) addBtn.addEventListener('click', () => openQuickReportWithDate(selectedCalDate));
+    if (listBtn) listBtn.addEventListener('click', () => { calendarView = 'list'; renderCalendarPanel(container); });
 
     container.querySelectorAll('.delete-appt-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -1666,16 +1938,18 @@ function renderListView(container) {
         </div>
     `;
 
-    // Event listeners
-    document.getElementById('switchToCalendarView')?.addEventListener('click', () => { calendarView = 'calendar'; renderCalendarPanel(container); });
-    document.getElementById('addApptFromList')?.addEventListener('click', () => openQuickReportWithDate(getTodayStr()));
+    const calendarBtn = document.getElementById('switchToCalendarView');
+    const addBtn = document.getElementById('addApptFromList');
+    const searchInput = document.getElementById('listSearchInput');
+    const statusFilter = document.getElementById('listStatusFilter');
+    const tagFilter = document.getElementById('listTagFilter');
+    
+    if (calendarBtn) calendarBtn.addEventListener('click', () => { calendarView = 'calendar'; renderCalendarPanel(container); });
+    if (addBtn) addBtn.addEventListener('click', () => openQuickReportWithDate(getTodayStr()));
+    if (searchInput) searchInput.addEventListener('input', filterListItems);
+    if (statusFilter) statusFilter.addEventListener('change', filterListItems);
+    if (tagFilter) tagFilter.addEventListener('change', filterListItems);
 
-    // Search and filter
-    document.getElementById('listSearchInput')?.addEventListener('input', filterListItems);
-    document.getElementById('listStatusFilter')?.addEventListener('change', filterListItems);
-    document.getElementById('listTagFilter')?.addEventListener('change', filterListItems);
-
-    // Delete from list
     container.querySelectorAll('.delete-appt-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1689,173 +1963,22 @@ function renderListView(container) {
 }
 
 function filterListItems() {
-    const search = document.getElementById('listSearchInput')?.value.toLowerCase() || '';
-    const statusFilter = document.getElementById('listStatusFilter')?.value || 'all';
-    const tagFilter = document.getElementById('listTagFilter')?.value || 'all';
+    const searchInput = document.getElementById('listSearchInput');
+    const statusFilter = document.getElementById('listStatusFilter');
+    const tagFilter = document.getElementById('listTagFilter');
+    
+    const search = searchInput?.value?.toLowerCase() || '';
+    const statusFilterValue = statusFilter?.value || 'all';
+    const tagFilterValue = tagFilter?.value || 'all';
     const items = document.querySelectorAll('#listItemsContainer .list-item');
     
     items.forEach(item => {
         const text = item.textContent.toLowerCase();
         const status = item.querySelector('.list-status')?.textContent || '';
-        const tags = item.querySelectorAll('.list-tag') || [];
         let show = true;
         if (search && !text.includes(search)) show = false;
-        if (statusFilter !== 'all' && status !== statusFilter) show = false;
-        if (tagFilter !== 'all') {
-            const hasTag = Array.from(tags).some(t => t.textContent === tagFilter);
-            if (!hasTag) show = false;
-        }
+        if (statusFilterValue !== 'all' && status !== statusFilterValue) show = false;
         item.style.display = show ? 'grid' : 'none';
-    });
-}
-
-// ============================================================
-// FEATURE PANEL
-// ============================================================
-
-function showFeaturePanel(featureType, title) {
-    const scriptPanel = document.getElementById('scriptPanel');
-    const featurePanel = document.getElementById('featurePanel');
-    const featureTitle = document.getElementById('featurePanelTitle');
-    const featureBody = document.getElementById('featurePanelBody');
-    
-    if (!scriptPanel || !featurePanel) return;
-    
-    currentView = featureType;
-    featureTitle.innerHTML = `<i class="fas ${featureType === 'calendar' ? 'fa-calendar-alt' : featureType === 'tasks' ? 'fa-tasks' : featureType === 'analytics' ? 'fa-chart-pie' : 'fa-sticky-note'}"></i> ${title}`;
-    
-    // Show appropriate view toggles
-    document.getElementById('calendarViewToggle').style.display = featureType === 'calendar' ? 'flex' : 'none';
-    document.getElementById('analyticsTabContainer').style.display = featureType === 'analytics' ? 'flex' : 'none';
-    document.getElementById('taskViewToggle').style.display = featureType === 'tasks' ? 'flex' : 'none';
-    document.getElementById('shortcutsViewToggle').style.display = featureType === 'shortcuts' ? 'flex' : 'none';
-    document.getElementById('notepadTabContainer').style.display = 'none';
-    document.getElementById('workspaceViewToggle').style.display = 'none';
-    
-    scriptPanel.style.display = 'none';
-    featurePanel.style.display = 'block';
-    
-    if (featureType === 'calendar') {
-        renderCalendarPanel(featureBody);
-    } else if (featureType === 'tasks') {
-        renderTasksPanel(featureBody);
-    } else if (featureType === 'analytics') {
-        renderAnalyticsHub(featureBody);
-    } else if (featureType === 'shortcuts') {
-        renderShortcutsPanel(featureBody);
-    } else if (featureType === 'notepad') {
-        showToast('📝 Notes feature coming soon!', 'info');
-        featurePanel.style.display = 'none';
-        scriptPanel.style.display = 'block';
-    }
-}
-
-function hideFeaturePanel() {
-    document.getElementById('featurePanel').style.display = 'none';
-    document.getElementById('scriptPanel').style.display = 'block';
-}
-
-function refreshCurrentView() {
-    const body = document.getElementById('featurePanelBody');
-    if (!body) return;
-    if (currentView === 'calendar') renderCalendarPanel(body);
-    else if (currentView === 'tasks') renderTasksPanel(body);
-    else if (currentView === 'analytics') renderAnalyticsHub(body);
-    else if (currentView === 'shortcuts') renderShortcutsPanel(body);
-}
-
-// ============================================================
-// SHORTCUTS PANEL
-// ============================================================
-
-function renderShortcutsPanel(container) {
-    if (!container) return;
-    container.innerHTML = `
-        <div class="shortcuts-container">
-            <h3><i class="fas fa-keyboard"></i> Keyboard Shortcuts Manager</h3>
-            <p style="color:var(--text-muted); margin-bottom:16px;">View and customize keyboard shortcuts for quick access to features.</p>
-            <div style="margin-bottom:16px; display:flex; gap:8px; flex-wrap:wrap;">
-                <button id="shortcutsResetDefaultsBtn" class="btn-icon" style="background:var(--warning); color:#1e293b;"><i class="fas fa-undo"></i> Reset Defaults</button>
-                <span style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center;">⚠️ Conflicts are highlighted in red</span>
-            </div>
-            <div id="shortcutsListContainer" style="max-height:450px; overflow-y:auto;"></div>
-        </div>
-    `;
-    
-    renderShortcutsList();
-    document.getElementById('shortcutsResetDefaultsBtn')?.addEventListener('click', resetShortcutsToDefaults);
-}
-
-// ============================================================
-// TASKS PANEL
-// ============================================================
-
-function renderTasksPanel(container) {
-    if (!container) return;
-    const filteredTasks = taskFilter === 'all' ? tasks : tasks.filter(t => !t.completed);
-    
-    container.innerHTML = `
-        <div class="tasks-section">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-                <h3><i class="fas fa-tasks"></i> Follow-up Tasks</h3>
-                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                    <button id="taskFilterAll" class="view-btn ${taskFilter === 'all' ? 'active' : ''}">All</button>
-                    <button id="taskFilterPending" class="view-btn ${taskFilter === 'pending' ? 'active' : ''}">Pending</button>
-                    <button id="taskFilterToday" class="view-btn ${taskFilter === 'today' ? 'active' : ''}">Today</button>
-                    <button id="addNewTaskBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> New</button>
-                </div>
-            </div>
-            <div class="tasks-list">
-                ${filteredTasks.length === 0 ? '<div class="empty-state"><i class="fas fa-check-circle"></i><p>No tasks found</p></div>' : 
-                filteredTasks.map(t => `
-                    <div class="task-card ${t.completed ? 'task-completed' : ''}">
-                        <div class="task-row">
-                            <div class="task-title">
-                                <input type="checkbox" ${t.completed ? 'checked' : ''} class="toggle-task-checkbox" data-id="${t.id}" />
-                                <span>${escapeHtml(t.description)}</span>
-                            </div>
-                            <div class="task-actions">
-                                <button class="delete-task-btn" data-id="${t.id}" title="Delete"><i class="fas fa-trash"></i></button>
-                            </div>
-                        </div>
-                        <div class="task-meta">
-                            ${t.dueDate ? `<span><i class="far fa-calendar"></i> Due: ${formatDate(t.dueDate)}</span>` : ''}
-                            <span class="task-priority-${t.priority || 'medium'}">${t.priority || 'Medium'}</span>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        </div>
-    `;
-
-    document.getElementById('taskFilterAll')?.addEventListener('click', () => { taskFilter = 'all'; renderTasksPanel(container); });
-    document.getElementById('taskFilterPending')?.addEventListener('click', () => { taskFilter = 'pending'; renderTasksPanel(container); });
-    document.getElementById('taskFilterToday')?.addEventListener('click', () => { taskFilter = 'today'; renderTasksPanel(container); });
-
-    document.getElementById('addNewTaskBtn')?.addEventListener('click', () => {
-        const desc = prompt('Enter task description:');
-        if (desc && desc.trim()) {
-            const dueDate = prompt('Enter due date (YYYY-MM-DD) or leave blank:', getTodayStr());
-            addTask(desc.trim(), dueDate || '', 'medium', null);
-            refreshCurrentView();
-            showToast('Task added!', 'success');
-        }
-    });
-
-    container.querySelectorAll('.toggle-task-checkbox').forEach(cb => {
-        cb.addEventListener('change', () => {
-            toggleTaskComplete(cb.getAttribute('data-id'));
-            setTimeout(() => renderTasksPanel(container), 100);
-        });
-    });
-
-    container.querySelectorAll('.delete-task-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            if (confirm('Delete this task?')) {
-                deleteTask(btn.getAttribute('data-id'));
-                renderTasksPanel(container);
-            }
-        });
     });
 }
 
@@ -1970,14 +2093,11 @@ function renderAnalyticsHub(container) {
     }, 100);
 
     // Event listeners
-    document.getElementById('analyticsApplyFilters')?.addEventListener('click', () => {
-        showToast('Filters applied', 'info');
-        // Re-render with filters
-    });
-
-    document.getElementById('analyticsExportPDF')?.addEventListener('click', () => {
-        showToast('PDF export coming soon!', 'info');
-    });
+    const applyBtn = document.getElementById('analyticsApplyFilters');
+    const exportBtn = document.getElementById('analyticsExportPDF');
+    
+    if (applyBtn) applyBtn.addEventListener('click', () => { showToast('Filters applied', 'info'); });
+    if (exportBtn) exportBtn.addEventListener('click', () => { showToast('PDF export coming soon!', 'info'); });
 }
 
 function initAnalyticsCharts(dailyData, statusCounts) {
@@ -2102,6 +2222,8 @@ function initAnalyticsCharts(dailyData, statusCounts) {
 function openBulkActions() {
     const modal = document.getElementById('bulkActionsModal');
     const container = document.getElementById('bulkSelectionContainer');
+    if (!modal || !container) return;
+    
     modal.style.display = 'flex';
     selectedAppointments = new Set();
     
@@ -2138,280 +2260,394 @@ document.addEventListener('DOMContentLoaded', () => {
     const toolsMenu = document.getElementById('toolsMenu');
     const toolsChevron = document.getElementById('toolsChevron');
     
-    if (toolsOpen) { toolsMenu.classList.add('open'); toolsChevron.classList.add('rotated'); }
-    toolsHeader?.addEventListener('click', () => {
-        toolsOpen = !toolsOpen;
-        toolsMenu.classList.toggle('open');
-        toolsChevron.classList.toggle('rotated');
-        localStorage.setItem('toolsMenuOpen', toolsOpen);
-    });
+    if (toolsHeader && toolsMenu && toolsChevron) {
+        if (toolsOpen) { toolsMenu.classList.add('open'); toolsChevron.classList.add('rotated'); }
+        
+        toolsHeader.addEventListener('click', () => {
+            toolsOpen = !toolsOpen;
+            toolsMenu.classList.toggle('open');
+            toolsChevron.classList.toggle('rotated');
+            localStorage.setItem('toolsMenuOpen', toolsOpen);
+        });
+    }
 
     // Menu Toggle
-    document.getElementById('menuToggleBtn')?.addEventListener('click', () => {
-        document.getElementById('mainSidebar').classList.toggle('closed');
-        document.getElementById('mainContent').classList.toggle('expanded');
-    });
+    const menuToggle = document.getElementById('menuToggleBtn');
+    const sidebar = document.getElementById('mainSidebar');
+    const mainContent = document.getElementById('mainContent');
+    
+    if (menuToggle && sidebar && mainContent) {
+        menuToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('closed');
+            mainContent.classList.toggle('expanded');
+        });
+    }
 
     // Tool Items
     document.querySelectorAll('.tool-item').forEach(item => {
         item.addEventListener('click', () => {
             const tool = item.getAttribute('data-tool');
-            if (tool === 'notepad') showToast('📝 Notes feature coming soon!', 'info');
-            else if (tool === 'calendar') showFeaturePanel('calendar', '📅 Appointment & Handoff Calendar');
-            else if (tool === 'tasks') showFeaturePanel('tasks', '📋 Follow-up Tasks Manager');
-            else if (tool === 'analytics') showFeaturePanel('analytics', '📊 Pipeline Performance');
-            else if (tool === 'shortcuts') showFeaturePanel('shortcuts', '⌨️ Keyboard Shortcuts');
-            else if (tool === 'theme') { document.body.classList.toggle('dark'); showToast('Theme toggled', 'info'); }
-            else if (tool === 'help') showToast('Handoffs: Warm Callback, Completed, Canceled, Pending, Hot Transfer - All integrated!', 'info');
-            else if (tool === 'reset') {
+            if (tool === 'notepad') {
+                showToast('📝 Notes feature coming soon!', 'info');
+            } else if (tool === 'calendar') {
+                showFeaturePanel('calendar', '📅 Appointment & Handoff Calendar');
+            } else if (tool === 'tasks') {
+                showFeaturePanel('tasks', '📋 Follow-up Tasks Manager');
+            } else if (tool === 'analytics') {
+                showFeaturePanel('analytics', '📊 Pipeline Performance');
+            } else if (tool === 'shortcuts') {
+                showFeaturePanel('shortcuts', '⌨️ Keyboard Shortcuts');
+            } else if (tool === 'theme') {
+                document.body.classList.toggle('dark');
+                showToast('Theme toggled', 'info');
+            } else if (tool === 'help') {
+                showToast('Handoffs: Warm Callback, Completed, Canceled, Pending, Hot Transfer - All integrated!', 'info');
+            } else if (tool === 'reset') {
                 if (confirm('⚠️ This will clear all local data and reset the app. Continue?')) {
                     localStorage.clear();
-                    if (currentUser) db.collection('users').doc(currentUser.uid).delete();
+                    if (currentUser) {
+                        db.collection('users').doc(currentUser.uid).delete();
+                    }
                     location.reload();
                 }
-            } else if (tool === 'export') exportToCSV();
+            } else if (tool === 'export') {
+                exportToCSV();
+            }
         });
     });
 
     // Close Feature Panel
-    document.getElementById('closeFeaturePanelBtn')?.addEventListener('click', hideFeaturePanel);
+    const closeFeatureBtn = document.getElementById('closeFeaturePanelBtn');
+    if (closeFeatureBtn) {
+        closeFeatureBtn.addEventListener('click', hideFeaturePanel);
+    }
 
     // Smart Import
-    document.getElementById('quickReportBtn')?.addEventListener('click', openSmartImport);
-    document.getElementById('parseImportBtn')?.addEventListener('click', () => {
-        const text = document.getElementById('importTextArea').value;
-        if (!text.trim()) { showToast('Please paste some text to parse', 'warning'); return; }
-        const { result, confidence } = parseAppointmentText(text);
-        renderParsedPreview(result, confidence);
-    });
-    document.getElementById('saveImportBtn')?.addEventListener('click', saveImportedAppointment);
-    document.getElementById('closeImportBtn')?.addEventListener('click', closeSmartImport);
+    const quickReportBtn = document.getElementById('quickReportBtn');
+    const parseBtn = document.getElementById('parseImportBtn');
+    const saveImportBtn = document.getElementById('saveImportBtn');
+    const closeImportBtn = document.getElementById('closeImportBtn');
+    
+    if (quickReportBtn) quickReportBtn.addEventListener('click', openSmartImport);
+    
+    if (parseBtn) {
+        parseBtn.addEventListener('click', () => {
+            const textArea = document.getElementById('importTextArea');
+            if (!textArea) return;
+            const text = textArea.value;
+            if (!text.trim()) { showToast('Please paste some text to parse', 'warning'); return; }
+            const { result, confidence } = parseAppointmentText(text);
+            renderParsedPreview(result, confidence);
+        });
+    }
+    
+    if (saveImportBtn) saveImportBtn.addEventListener('click', saveImportedAppointment);
+    if (closeImportBtn) closeImportBtn.addEventListener('click', closeSmartImport);
 
     // Appointment Detail
-    document.getElementById('apptCopyBtn')?.addEventListener('click', () => {
-        const appt = getAppointmentById(currentAppointmentId);
-        if (appt) {
-            const text = `Business: ${appt.business}\nContact: ${appt.contactName}\nPhone: ${appt.phone || 'N/A'}\nStatus: ${getStatus(appt)}\nDate: ${formatDate(appt.date)}${appt.time ? `\nTime: ${appt.time}` : ''}${appt.notes ? `\nNotes: ${appt.notes}` : ''}`;
-            copyToClipboard(text);
-        }
-    });
-    document.getElementById('apptEditBtn')?.addEventListener('click', () => {
-        const appt = getAppointmentById(currentAppointmentId);
-        if (appt) {
-            closeAppointmentDetail();
-            openQuickReportWithDate(appt.date);
-            setTimeout(() => {
-                document.getElementById('newApptBusiness').value = appt.business;
-                document.getElementById('newApptContact').value = appt.contactName;
-                document.getElementById('newApptPhone').value = appt.phone || '';
-                document.getElementById('newApptTime').value = appt.time || '';
-                document.getElementById('newApptStatus').value = getStatus(appt);
-                document.getElementById('newApptNotes').value = appt.notes || '';
+    const copyBtn = document.getElementById('apptCopyBtn');
+    const editBtn = document.getElementById('apptEditBtn');
+    const deleteBtn = document.getElementById('apptDeleteBtn');
+    const closeDetailBtn = document.getElementById('apptCloseBtn');
+    
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+            const appt = getAppointmentById(currentAppointmentId);
+            if (appt) {
+                const text = `Business: ${appt.business}\nContact: ${appt.contactName}\nPhone: ${appt.phone || 'N/A'}\nStatus: ${getStatus(appt)}\nDate: ${formatDate(appt.date)}${appt.time ? `\nTime: ${appt.time}` : ''}${appt.notes ? `\nNotes: ${appt.notes}` : ''}`;
+                copyToClipboard(text);
+            }
+        });
+    }
+    
+    if (editBtn) {
+        editBtn.addEventListener('click', () => {
+            const appt = getAppointmentById(currentAppointmentId);
+            if (appt) {
+                closeAppointmentDetail();
+                openQuickReportWithDate(appt.date);
+                setTimeout(() => {
+                    const businessInput = document.getElementById('newApptBusiness');
+                    const contactInput = document.getElementById('newApptContact');
+                    const phoneInput = document.getElementById('newApptPhone');
+                    const timeInput = document.getElementById('newApptTime');
+                    const statusSelect = document.getElementById('newApptStatus');
+                    const notesInput = document.getElementById('newApptNotes');
+                    
+                    if (businessInput) businessInput.value = appt.business;
+                    if (contactInput) contactInput.value = appt.contactName;
+                    if (phoneInput) phoneInput.value = appt.phone || '';
+                    if (timeInput) timeInput.value = appt.time || '';
+                    if (statusSelect) statusSelect.value = getStatus(appt);
+                    if (notesInput) notesInput.value = appt.notes || '';
+                    deleteAppointment(appt.date, appt.id);
+                }, 100);
+            }
+        });
+    }
+    
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => {
+            const appt = getAppointmentById(currentAppointmentId);
+            if (appt && confirm('Delete this appointment permanently?')) {
                 deleteAppointment(appt.date, appt.id);
-            }, 100);
-        }
-    });
-    document.getElementById('apptDeleteBtn')?.addEventListener('click', () => {
-        const appt = getAppointmentById(currentAppointmentId);
-        if (appt && confirm('Delete this appointment permanently?')) {
-            deleteAppointment(appt.date, appt.id);
-            closeAppointmentDetail();
-            showToast('Appointment deleted', 'info');
-        }
-    });
-    document.getElementById('apptCloseBtn')?.addEventListener('click', closeAppointmentDetail);
+                closeAppointmentDetail();
+                showToast('Appointment deleted', 'info');
+            }
+        });
+    }
+    
+    if (closeDetailBtn) closeDetailBtn.addEventListener('click', closeAppointmentDetail);
 
     // Script Editing
-    document.getElementById('editScriptBtn')?.addEventListener('click', startEdit);
-    document.getElementById('saveScriptBtn')?.addEventListener('click', () => {
-        const textarea = document.getElementById('editTextarea');
-        if (textarea) {
-            saveScriptContent(textarea.value);
-            finishEdit();
-        }
-    });
-    document.getElementById('cancelEditBtn')?.addEventListener('click', cancelEdit);
-    document.getElementById('copyScriptBtn')?.addEventListener('click', () => {
-        const script = scripts[currentScriptId];
-        if (script) copyToClipboard(script.content);
-    });
-    document.getElementById('resetScriptBtn')?.addEventListener('click', () => {
-        if (confirm('Reset this script to its original content?')) {
-            if (currentUser && currentScriptId) {
-                db.collection('users').doc(currentUser.uid).collection('scripts').doc(currentScriptId).set({
-                    name: scripts[currentScriptId].name,
-                    content: scripts[currentScriptId].content,
-                    version: 1
-                }, { merge: true }).then(() => {
-                    showToast('Script reset', 'info');
-                    loadUserData(true);
-                });
+    const editScriptBtn = document.getElementById('editScriptBtn');
+    const saveScriptBtn = document.getElementById('saveScriptBtn');
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    const copyScriptBtn = document.getElementById('copyScriptBtn');
+    const resetScriptBtn = document.getElementById('resetScriptBtn');
+    const favoriteScriptBtn = document.getElementById('favoriteScriptBtn');
+    
+    if (editScriptBtn) editScriptBtn.addEventListener('click', startEdit);
+    if (saveScriptBtn) {
+        saveScriptBtn.addEventListener('click', () => {
+            const textarea = document.getElementById('editTextarea');
+            if (textarea) {
+                saveScriptContent(textarea.value);
+                finishEdit();
             }
-        }
-    });
-    document.getElementById('favoriteScriptBtn')?.addEventListener('click', () => {
-        toggleFavorite(currentScriptId);
-    });
+        });
+    }
+    if (cancelEditBtn) cancelEditBtn.addEventListener('click', cancelEdit);
+    
+    if (copyScriptBtn) {
+        copyScriptBtn.addEventListener('click', () => {
+            const script = scripts[currentScriptId];
+            if (script) copyToClipboard(script.content);
+        });
+    }
+    
+    if (resetScriptBtn) {
+        resetScriptBtn.addEventListener('click', () => {
+            if (confirm('Reset this script to its original content?')) {
+                if (currentUser && currentScriptId) {
+                    db.collection('users').doc(currentUser.uid).collection('scripts').doc(currentScriptId).set({
+                        name: scripts[currentScriptId].name,
+                        content: scripts[currentScriptId].content,
+                        version: 1
+                    }, { merge: true }).then(() => {
+                        showToast('Script reset', 'info');
+                        loadUserData(true);
+                    });
+                }
+            }
+        });
+    }
+    
+    if (favoriteScriptBtn) {
+        favoriteScriptBtn.addEventListener('click', () => {
+            toggleFavorite(currentScriptId);
+        });
+    }
 
     // Bulk Actions
-    document.getElementById('bulkActionsBtn')?.addEventListener('click', openBulkActions);
-    document.getElementById('closeBulkModalBtn')?.addEventListener('click', () => {
-        document.getElementById('bulkActionsModal').style.display = 'none';
-    });
-    document.getElementById('executeBulkActionBtn')?.addEventListener('click', () => {
-        const action = document.getElementById('bulkActionSelect').value;
-        const selected = Array.from(selectedAppointments);
-        if (selected.length === 0) { showToast('Please select at least one appointment', 'warning'); return; }
+    const bulkActionsBtn = document.getElementById('bulkActionsBtn');
+    const closeBulkBtn = document.getElementById('closeBulkModalBtn');
+    const executeBulkBtn = document.getElementById('executeBulkActionBtn');
+    const bulkActionSelect = document.getElementById('bulkActionSelect');
+    
+    if (bulkActionsBtn) bulkActionsBtn.addEventListener('click', openBulkActions);
+    if (closeBulkBtn) {
+        closeBulkBtn.addEventListener('click', () => {
+            const modal = document.getElementById('bulkActionsModal');
+            if (modal) modal.style.display = 'none';
+        });
+    }
+    
+    if (executeBulkBtn) {
+        executeBulkBtn.addEventListener('click', () => {
+            const action = bulkActionSelect?.value || 'status';
+            const selected = Array.from(selectedAppointments);
+            if (selected.length === 0) { showToast('Please select at least one appointment', 'warning'); return; }
 
-        if (action === 'delete') {
-            if (!confirm(`Delete ${selected.length} appointment(s)?`)) return;
-            selected.forEach(id => {
-                for (let date in appointments) {
-                    if (appointments[date].reports) {
-                        const found = appointments[date].reports.find(r => r.id === id);
-                        if (found) { deleteAppointment(date, id); break; }
-                    }
-                }
-            });
-            showToast(`${selected.length} appointment(s) deleted`, 'success');
-        } else if (action === 'status') {
-            const newStatus = document.getElementById('bulkStatusSelect').value;
-            selected.forEach(id => {
-                for (let date in appointments) {
-                    if (appointments[date].reports) {
-                        const found = appointments[date].reports.find(r => r.id === id);
-                        if (found) { updateAppointment(date, id, { status: newStatus }); break; }
-                    }
-                }
-            });
-            showToast(`${selected.length} appointment(s) updated to ${newStatus}`, 'success');
-        } else if (action === 'tag') {
-            const tag = document.getElementById('bulkTagSelect').value;
-            selected.forEach(id => {
-                for (let date in appointments) {
-                    if (appointments[date].reports) {
-                        const found = appointments[date].reports.find(r => r.id === id);
-                        if (found) {
-                            const tags = found.tags || [];
-                            if (!tags.includes(tag)) { tags.push(tag); updateAppointment(date, id, { tags }); }
-                            break;
+            if (action === 'delete') {
+                if (!confirm(`Delete ${selected.length} appointment(s)?`)) return;
+                selected.forEach(id => {
+                    for (let date in appointments) {
+                        if (appointments[date].reports) {
+                            const found = appointments[date].reports.find(r => r.id === id);
+                            if (found) { deleteAppointment(date, id); break; }
                         }
                     }
-                }
-            });
-            showToast(`Tag added to ${selected.length} appointment(s)`, 'success');
-        } else if (action === 'export') {
-            exportSelectedToCSV(selected);
-        }
-        document.getElementById('bulkActionsModal').style.display = 'none';
-        refreshCurrentView();
-    });
-
-    document.getElementById('bulkActionSelect')?.addEventListener('change', () => {
-        const value = document.getElementById('bulkActionSelect').value;
-        document.getElementById('bulkStatusGroup').style.display = value === 'status' ? 'block' : 'none';
-        document.getElementById('bulkTagGroup').style.display = value === 'tag' ? 'block' : 'none';
-        document.getElementById('bulkActionOptions').style.display = (value === 'status' || value === 'tag') ? 'block' : 'none';
-    });
-
-    // Sign Out
-    document.getElementById('signOutBtn')?.addEventListener('click', signOut);
-
-    // Refresh
-    document.getElementById('refreshBtn')?.addEventListener('click', async () => {
-        if (isRefreshing) return;
-        isRefreshing = true;
-        const refreshBtn = document.getElementById('refreshBtn');
-        refreshBtn.classList.add('spinning');
-        refreshBtn.disabled = true;
-        try {
-            showToast('Refreshing data...', 'info');
-            await loadUserData(true);
-            refreshCurrentView();
-            showToast('Data refreshed!', 'success');
-        } catch (error) { handleError(error, 'Refresh'); }
-        finally {
-            isRefreshing = false;
-            refreshBtn.classList.remove('spinning');
-            refreshBtn.disabled = false;
-        }
-    });
-
-    // Add Script
-    document.getElementById('addScriptBtnSide')?.addEventListener('click', () => {
-        if (!currentUser) { showToast('Please sign in first', 'error'); return; }
-        const name = prompt('Enter script name:');
-        if (name && name.trim()) {
-            const id = 'script_' + generateUniqueId();
-            db.collection('users').doc(currentUser.uid).collection('scripts').doc(id).set({
-                name: name.trim(),
-                content: 'New script content...',
-                version: 1,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            }).then(() => { showToast('Script created!', 'success'); loadUserData(true); })
-            .catch(err => handleError(err, 'Creating script'));
-        }
-    });
-
-    // Search Scripts
-    document.getElementById('scriptSearch')?.addEventListener('input', (e) => {
-        searchTerm = e.target.value.toLowerCase();
-        document.querySelectorAll('.script-item').forEach(item => {
-            const name = item.querySelector('.script-name')?.textContent?.toLowerCase() || '';
-            item.style.display = name.includes(searchTerm) ? 'flex' : 'none';
-        });
-    });
-
-    // Global Search
-    document.getElementById('searchGlobalBtn')?.addEventListener('click', openGlobalSearch);
-    document.getElementById('globalSearchInput')?.addEventListener('input', (e) => {
-        performGlobalSearch(e.target.value);
-    });
-    document.getElementById('globalSearchCloseBtn')?.addEventListener('click', () => {
-        document.getElementById('globalSearchModal').style.display = 'none';
-    });
-
-    // CSV Upload
-    document.getElementById('csvFileInput')?.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                try {
-                    const csvText = event.target.result;
-                    const lines = csvText.split('\n').filter(line => line.trim());
-                    if (lines.length > 0) {
-                        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-                        let imported = 0;
-                        for (let i = 1; i < lines.length; i++) {
-                            const values = lines[i].split(',').map(v => v.trim());
-                            const data = {};
-                            headers.forEach((h, idx) => { data[h] = values[idx] || ''; });
-                            if (data.name || data.business) {
-                                addAppointment(
-                                    data.date || getTodayStr(),
-                                    data.business || data.company || 'Unknown Business',
-                                    data.name || data.contact || 'Unknown Contact',
-                                    'Owner',
-                                    data.phone || data.mobile || '',
-                                    data.time || '',
-                                    data.notes || '',
-                                    'Daniel',
-                                    null,
-                                    data.status || 'Pending'
-                                );
-                                imported++;
+                });
+                showToast(`${selected.length} appointment(s) deleted`, 'success');
+            } else if (action === 'status') {
+                const statusSelect = document.getElementById('bulkStatusSelect');
+                const newStatus = statusSelect?.value || 'Pending';
+                selected.forEach(id => {
+                    for (let date in appointments) {
+                        if (appointments[date].reports) {
+                            const found = appointments[date].reports.find(r => r.id === id);
+                            if (found) { updateAppointment(date, id, { status: newStatus }); break; }
+                        }
+                    }
+                });
+                showToast(`${selected.length} appointment(s) updated to ${newStatus}`, 'success');
+            } else if (action === 'tag') {
+                const tagSelect = document.getElementById('bulkTagSelect');
+                const tag = tagSelect?.value || '';
+                selected.forEach(id => {
+                    for (let date in appointments) {
+                        if (appointments[date].reports) {
+                            const found = appointments[date].reports.find(r => r.id === id);
+                            if (found) {
+                                const tags = found.tags || [];
+                                if (!tags.includes(tag)) { tags.push(tag); updateAppointment(date, id, { tags }); }
+                                break;
                             }
                         }
-                        showToast(`Imported ${imported} appointments from CSV!`, 'success');
-                        refreshCurrentView();
                     }
-                } catch (err) { showToast('Error parsing CSV: ' + err.message, 'error'); }
-            };
-            reader.readAsText(file);
-        }
-        e.target.value = '';
-    });
+                });
+                showToast(`Tag added to ${selected.length} appointment(s)`, 'success');
+            } else if (action === 'export') {
+                exportSelectedToCSV(selected);
+            }
+            const modal = document.getElementById('bulkActionsModal');
+            if (modal) modal.style.display = 'none';
+            refreshCurrentView();
+        });
+    }
+
+    if (bulkActionSelect) {
+        bulkActionSelect.addEventListener('change', () => {
+            const value = bulkActionSelect.value;
+            const statusGroup = document.getElementById('bulkStatusGroup');
+            const tagGroup = document.getElementById('bulkTagGroup');
+            const options = document.getElementById('bulkActionOptions');
+            if (statusGroup) statusGroup.style.display = value === 'status' ? 'block' : 'none';
+            if (tagGroup) tagGroup.style.display = value === 'tag' ? 'block' : 'none';
+            if (options) options.style.display = (value === 'status' || value === 'tag') ? 'block' : 'none';
+        });
+    }
+
+    // Sign Out
+    const signOutBtn = document.getElementById('signOutBtn');
+    if (signOutBtn) signOutBtn.addEventListener('click', signOut);
+
+    // Refresh
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', async () => {
+            if (isRefreshing) return;
+            isRefreshing = true;
+            refreshBtn.classList.add('spinning');
+            refreshBtn.disabled = true;
+            try {
+                showToast('Refreshing data...', 'info');
+                await loadUserData(true);
+                refreshCurrentView();
+                showToast('Data refreshed!', 'success');
+            } catch (error) { handleError(error, 'Refresh'); }
+            finally {
+                isRefreshing = false;
+                refreshBtn.classList.remove('spinning');
+                refreshBtn.disabled = false;
+            }
+        });
+    }
+
+    // Add Script
+    const addScriptBtn = document.getElementById('addScriptBtnSide');
+    if (addScriptBtn) {
+        addScriptBtn.addEventListener('click', () => {
+            if (!currentUser) { showToast('Please sign in first', 'error'); return; }
+            const name = prompt('Enter script name:');
+            if (name && name.trim()) {
+                const id = 'script_' + generateUniqueId();
+                db.collection('users').doc(currentUser.uid).collection('scripts').doc(id).set({
+                    name: name.trim(),
+                    content: 'New script content...',
+                    version: 1,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                }).then(() => { showToast('Script created!', 'success'); loadUserData(true); })
+                .catch(err => handleError(err, 'Creating script'));
+            }
+        });
+    }
+
+    // Search Scripts
+    const scriptSearch = document.getElementById('scriptSearch');
+    if (scriptSearch) {
+        scriptSearch.addEventListener('input', (e) => {
+            searchTerm = e.target.value.toLowerCase();
+            document.querySelectorAll('.script-item').forEach(item => {
+                const name = item.querySelector('.script-name')?.textContent?.toLowerCase() || '';
+                item.style.display = name.includes(searchTerm) ? 'flex' : 'none';
+            });
+        });
+    }
+
+    // Global Search
+    const searchGlobalBtn = document.getElementById('searchGlobalBtn');
+    const globalSearchInput = document.getElementById('globalSearchInput');
+    const globalSearchClose = document.getElementById('globalSearchCloseBtn');
+    
+    if (searchGlobalBtn) searchGlobalBtn.addEventListener('click', openGlobalSearch);
+    if (globalSearchInput) {
+        globalSearchInput.addEventListener('input', (e) => {
+            performGlobalSearch(e.target.value);
+        });
+    }
+    if (globalSearchClose) {
+        globalSearchClose.addEventListener('click', () => {
+            const modal = document.getElementById('globalSearchModal');
+            if (modal) modal.style.display = 'none';
+        });
+    }
+
+    // CSV Upload
+    const csvFileInput = document.getElementById('csvFileInput');
+    if (csvFileInput) {
+        csvFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const csvText = event.target.result;
+                        const lines = csvText.split('\n').filter(line => line.trim());
+                        if (lines.length > 0) {
+                            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                            let imported = 0;
+                            for (let i = 1; i < lines.length; i++) {
+                                const values = lines[i].split(',').map(v => v.trim());
+                                const data = {};
+                                headers.forEach((h, idx) => { data[h] = values[idx] || ''; });
+                                if (data.name || data.business) {
+                                    addAppointment(
+                                        data.date || getTodayStr(),
+                                        data.business || data.company || 'Unknown Business',
+                                        data.name || data.contact || 'Unknown Contact',
+                                        'Owner',
+                                        data.phone || data.mobile || '',
+                                        data.time || '',
+                                        data.notes || '',
+                                        'Daniel',
+                                        null,
+                                        data.status || 'Pending'
+                                    );
+                                    imported++;
+                                }
+                            }
+                            showToast(`Imported ${imported} appointments from CSV!`, 'success');
+                            refreshCurrentView();
+                        }
+                    } catch (err) { showToast('Error parsing CSV: ' + err.message, 'error'); }
+                };
+                reader.readAsText(file);
+            }
+            e.target.value = '';
+        });
+    }
 
     // Export to CSV
     function exportToCSV() {
@@ -2457,9 +2693,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // History button
-    document.getElementById('historyBtn')?.addEventListener('click', () => {
-        showToast('Version history coming soon!', 'info');
-    });
+    const historyBtn = document.getElementById('historyBtn');
+    if (historyBtn) {
+        historyBtn.addEventListener('click', () => {
+            showToast('Version history coming soon!', 'info');
+        });
+    }
 
     // Keyboard Shortcuts - Global
     document.addEventListener('keydown', (e) => {
@@ -2502,7 +2741,7 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'Keyboard Shortcuts': showFeaturePanel('shortcuts', '⌨️ Keyboard Shortcuts'); break;
             case 'Export to CSV': exportToCSV(); break;
             case 'Toggle Theme': document.body.classList.toggle('dark'); showToast('Theme toggled', 'info'); break;
-            case 'Refresh Data': document.getElementById('refreshBtn')?.click(); break;
+            case 'Refresh Data': { const btn = document.getElementById('refreshBtn'); if (btn) btn.click(); break; }
             case 'Bulk Actions': openBulkActions(); break;
             default: showToast(`Action: ${action}`, 'info');
         }
