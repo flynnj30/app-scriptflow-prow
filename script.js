@@ -1,3 +1,7 @@
+// ================================================================
+// SCRIPTFLOW PRO - COMPLETE CENTRALIZED APPLICATION
+// ================================================================
+
 // ============================================================
 // APPLICATION STATE
 // ============================================================
@@ -15,6 +19,7 @@ let searchTerm = "";
 let tasks = [];
 let taskFilter = 'all';
 let isRefreshing = false;
+let sortableInstance = null;
 
 let appointmentsUnsubscribe = null;
 let tasksUnsubscribe = null;
@@ -24,6 +29,7 @@ let selectedCalDate = getTodayStr();
 
 let currentView = 'calendar';
 let selectedAppointments = new Set();
+let currentAppointmentId = null;
 
 let toolsOpen = localStorage.getItem('toolsMenuOpen') === 'true';
 
@@ -46,6 +52,19 @@ const TAG_OPTIONS = [
     { id: 'vip', name: 'VIP', color: '#3b82f6', colorClass: 'tag-vip-bg' },
     { id: 'negligent_warm_callback', name: 'Negligent Warm Callback', color: '#ef4444', colorClass: 'tag-negligent-warm-callback-bg' }
 ];
+
+// Field mapping for smart import
+const FIELD_MAPPINGS = {
+    'name': ['name', 'client', 'prospect', 'contact', 'customer', 'person', 'full name', 'contact name'],
+    'business': ['business', 'company', 'organization', 'org', 'firm', 'brand', 'store'],
+    'phone': ['phone', 'mobile', 'cell', 'telephone', 'number', 'contact number', 'phone number', 'mobile number'],
+    'email': ['email', 'e-mail', 'mail', 'email address', 'e-mail address'],
+    'date': ['date', 'appointment date', 'schedule date', 'meeting date', 'call date', 'day'],
+    'time': ['time', 'appointment time', 'schedule time', 'meeting time', 'call time', 'hour'],
+    'status': ['status', 'state', 'stage', 'lead status', 'appointment status', 'call status'],
+    'notes': ['notes', 'note', 'comment', 'remarks', 'additional notes', 'info', 'details'],
+    'assigned': ['assigned', 'assigned to', 'owner', 'agent', 'representative', 'rep', 'assigned agent']
+};
 
 // ============================================================
 // UTILITY HELPERS
@@ -128,6 +147,17 @@ function formatDate(dateStr) {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function formatTime(timeStr) {
+    if (!timeStr) return '';
+    try {
+        const d = new Date(`2000-01-01T${timeStr}`);
+        if (isNaN(d.getTime())) return timeStr;
+        return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    } catch {
+        return timeStr;
+    }
+}
+
 function escapeHtml(s) {
     return s ? String(s).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])) : '';
 }
@@ -136,8 +166,8 @@ function showToast(msg, type = 'success') {
     const existingToasts = document.querySelectorAll('.toast');
     existingToasts.forEach(t => t.remove());
     const t = document.createElement('div');
-    t.className = `toast ${type === 'error' ? 'error' : (type === 'info' ? 'info' : '')}`;
-    t.innerHTML = `${type === 'success' ? '✓' : (type === 'error' ? '⚠️' : 'ℹ️')} ${msg}`;
+    t.className = `toast ${type === 'error' ? 'error' : (type === 'info' ? 'info' : (type === 'warning' ? 'warning' : ''))}`;
+    t.innerHTML = `${type === 'success' ? '✓' : (type === 'error' ? '⚠️' : (type === 'warning' ? '⚠️' : 'ℹ️'))} ${msg}`;
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 3000);
 }
@@ -293,6 +323,7 @@ async function signOut() {
     try {
         if (appointmentsUnsubscribe) { appointmentsUnsubscribe(); appointmentsUnsubscribe = null; }
         if (tasksUnsubscribe) { tasksUnsubscribe(); tasksUnsubscribe = null; }
+        if (sortableInstance) { sortableInstance.destroy(); sortableInstance = null; }
         currentUser = null;
         appointments = {};
         tasks = [];
@@ -486,6 +517,26 @@ async function createDefaultScripts() {
         "opening": {
             name: "🎯 Opening Script",
             content: "\"Hey, is this [Company Name]?\"\n\n\"Awesome — this is Flynn. We created a free, modern preview version inspired by your current site. There's no cost or obligation. Would you be open to taking a quick look later today and sharing your thoughts?\""
+        },
+        "owner_yes": {
+            name: "👑 Owner - Yes",
+            content: "Perfect! Daniel will call you shortly to showcase your preview concept. Is this the best number to connect with you?"
+        },
+        "owner_no": {
+            name: "🤤 Not Owner",
+            content: "No worries! Who usually drives your design or advertising decisions? What is the best coordinate to reach them today?"
+        },
+        "objection_website": {
+            name: "💻 Objection - Website",
+            content: "I completely understand your concern about the website. Our preview is designed to show you what's possible without any commitment. It's a risk-free way to see how modern design could help your business grow."
+        },
+        "objection_cost": {
+            name: "💰 Objection - Cost",
+            content: "Great question about pricing. The preview is completely free—there's no cost or obligation. We believe in showing value first. If you love what you see, we can discuss options that fit your budget."
+        },
+        "closing": {
+            name: "🤝 Closing Script",
+            content: "Thank you for your time today! I'll have our team prepare the preview and reach out with next steps. Is there anything else you'd like to know before we proceed?"
         }
     };
     const batch = db.batch();
@@ -501,7 +552,7 @@ async function createDefaultScripts() {
 // ============================================================
 
 function addAppointment(dateStr, business, contactName, role, phone, time, notes, assigned, editId = null, status = 'Pending', crmLink = '', tags = []) {
-    if (!currentUser) { showToast('Please sign in first', 'error'); return; }
+    if (!currentUser) { showToast('Please sign in first', 'error'); return null; }
     if (!appointments[dateStr]) appointments[dateStr] = { count: 0, note: '', reports: [] };
     if (!STATUS_OPTIONS.includes(status)) { status = 'Pending'; }
     const newAppt = {
@@ -513,7 +564,7 @@ function addAppointment(dateStr, business, contactName, role, phone, time, notes
         fullText: `Business: ${business}\nContact: ${contactName}\nPhone: ${phone}\nStatus: ${status}\nNotes: ${notes}`
     };
     syncAppointment(newAppt);
-    return newAppt.fullText;
+    return newAppt;
 }
 
 async function syncAppointment(appointment) {
@@ -531,9 +582,30 @@ function deleteAppointment(dateStr, id) {
         if (appointments[dateStr].reports.length === 0) delete appointments[dateStr];
         db.collection('users').doc(currentUser.uid).collection('appointments').doc(id.toString()).delete();
         updateStats();
+        refreshCurrentView();
         return true;
     }
     return false;
+}
+
+function updateAppointment(dateStr, id, updates) {
+    const appt = appointments[dateStr]?.reports?.find(r => r.id === id);
+    if (!appt) return false;
+    Object.assign(appt, updates);
+    syncAppointment(appt);
+    updateStats();
+    refreshCurrentView();
+    return true;
+}
+
+function getAppointmentById(id) {
+    for (let date in appointments) {
+        if (appointments[date].reports) {
+            const found = appointments[date].reports.find(r => r.id === id);
+            if (found) return found;
+        }
+    }
+    return null;
 }
 
 // ============================================================
@@ -615,6 +687,13 @@ function toggleTaskComplete(id) {
     }
 }
 
+function deleteTask(id) {
+    tasks = tasks.filter(t => t.id !== id);
+    db.collection('users').doc(currentUser.uid).collection('tasks').doc(id).delete();
+    updateTaskStats();
+    refreshCurrentView();
+}
+
 function updateTaskStats() {
     const pending = tasks.filter(t => !t.completed).length;
     const pendingTasksElem = document.getElementById('pendingTasks');
@@ -622,7 +701,7 @@ function updateTaskStats() {
 }
 
 // ============================================================
-// SCRIPT MANAGEMENT
+// SCRIPT MANAGEMENT WITH DRAG & DROP
 // ============================================================
 
 function loadScript(id) {
@@ -634,19 +713,25 @@ function loadScript(id) {
 }
 
 function getOrderedVisible() {
+    if (scriptOrder && scriptOrder.length > 0) {
+        return scriptOrder.filter(id => scripts[id]);
+    }
     return Object.keys(scripts);
 }
 
 function renderSidebar() {
     const container = document.getElementById('scriptListContainer');
     if (!container) return;
+    
     const visible = getOrderedVisible();
     let html = '';
     visible.forEach((id, idx) => {
         const s = scripts[id];
+        if (!s) return;
         const active = currentScriptId === id;
         html += `
             <div class="script-item ${active ? 'active' : ''}" data-id="${id}">
+                <i class="fas fa-grip-vertical drag-handle" aria-hidden="true"></i>
                 <span class="script-name">${escapeHtml(s.name)}</span>
                 <span class="key-hint">${idx < 9 ? idx + 1 : ''}</span>
             </div>
@@ -654,10 +739,796 @@ function renderSidebar() {
     });
     container.innerHTML = html;
     
+    // Initialize Sortable
+    if (sortableInstance) {
+        sortableInstance.destroy();
+    }
+    
+    sortableInstance = new Sortable(container, {
+        handle: '.drag-handle',
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        dragClass: 'sortable-drag',
+        onEnd: async function(evt) {
+            const items = container.querySelectorAll('.script-item');
+            const newOrder = [];
+            items.forEach(item => {
+                const id = item.getAttribute('data-id');
+                if (id) newOrder.push(id);
+            });
+            scriptOrder = newOrder;
+            await saveScriptOrder();
+            renderSidebar();
+            updateKeyHints();
+        }
+    });
+    
     container.querySelectorAll('.script-item').forEach(el => {
-        el.addEventListener('click', () => {
+        el.addEventListener('click', (e) => {
+            if (e.target.closest('.drag-handle')) return;
             loadScript(el.getAttribute('data-id'));
         });
+    });
+    
+    updateKeyHints();
+}
+
+function updateKeyHints() {
+    const visible = getOrderedVisible();
+    const items = document.querySelectorAll('.script-item');
+    items.forEach((item, idx) => {
+        const hint = item.querySelector('.key-hint');
+        if (hint && idx < 9) {
+            hint.textContent = idx + 1;
+        } else if (hint) {
+            hint.textContent = '';
+        }
+    });
+    
+    // Update active shortcut hint
+    const activeHint = document.getElementById('activeShortcutHint');
+    if (activeHint) {
+        const idx = visible.indexOf(currentScriptId);
+        if (idx >= 0 && idx < 9) {
+            activeHint.textContent = idx + 1;
+        } else {
+            activeHint.textContent = '—';
+        }
+    }
+}
+
+async function saveScriptOrder() {
+    if (!currentUser) return;
+    try {
+        await db.collection('users').doc(currentUser.uid).update({
+            scriptOrder: scriptOrder
+        });
+    } catch (error) {
+        console.error('Error saving script order:', error);
+    }
+}
+
+// ============================================================
+// SMART IMPORT MODULE
+// ============================================================
+
+let parsedImportData = {};
+let importConfidence = {};
+
+function parseAppointmentText(text) {
+    const result = {};
+    const confidence = {};
+    const lines = text.split('\n').filter(line => line.trim());
+    
+    // Try to detect format: either key: value or plain text
+    const hasKeyValue = lines.some(line => line.includes(':'));
+    
+    if (hasKeyValue) {
+        // Parse key: value format
+        lines.forEach(line => {
+            const [key, ...valueParts] = line.split(':');
+            const rawKey = key.trim().toLowerCase();
+            const rawValue = valueParts.join(':').trim();
+            
+            if (rawValue) {
+                // Find matching field
+                let matchedField = null;
+                let matchScore = 0;
+                
+                for (const [field, aliases] of Object.entries(FIELD_MAPPINGS)) {
+                    if (aliases.some(alias => rawKey.includes(alias) || alias.includes(rawKey))) {
+                        matchedField = field;
+                        matchScore = 1.0;
+                        break;
+                    }
+                }
+                
+                if (matchedField) {
+                    result[matchedField] = rawValue;
+                    confidence[matchedField] = matchScore;
+                }
+            }
+        });
+    } else {
+        // Try to intelligently parse plain text
+        const fullText = lines.join(' ');
+        
+        // Try to extract name (look for patterns like "Client: John" or just names)
+        const nameMatch = fullText.match(/(?:name|client|contact|prospect)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i);
+        if (nameMatch) {
+            result.name = nameMatch[1];
+            confidence.name = 0.7;
+        }
+        
+        // Try to extract business
+        const businessMatch = fullText.match(/(?:business|company|org)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i);
+        if (businessMatch) {
+            result.business = businessMatch[1];
+            confidence.business = 0.7;
+        }
+        
+        // Try to extract phone
+        const phoneMatch = fullText.match(/(?:\+?1?[\s-]?)?\(?([0-9]{3})\)?[\s-]?([0-9]{3})[\s-]?([0-9]{4})/);
+        if (phoneMatch) {
+            result.phone = `${phoneMatch[1]}-${phoneMatch[2]}-${phoneMatch[3]}`;
+            confidence.phone = 0.9;
+        }
+        
+        // Try to extract email
+        const emailMatch = fullText.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
+        if (emailMatch) {
+            result.email = emailMatch[0];
+            confidence.email = 0.9;
+        }
+        
+        // Try to extract date
+        const dateMatch = fullText.match(/\b(\d{4}-\d{1,2}-\d{1,2})|\b(\d{1,2}\/\d{1,2}\/\d{2,4})/);
+        if (dateMatch) {
+            result.date = dateMatch[0];
+            confidence.date = 0.7;
+        }
+        
+        // Try to extract status from common phrases
+        const statusMatch = fullText.match(/(?:status|state|stage)[:\s]+([A-Za-z\s]+)/i);
+        if (statusMatch) {
+            const statusText = statusMatch[1].trim();
+            for (const option of STATUS_OPTIONS) {
+                if (statusText.toLowerCase().includes(option.toLowerCase())) {
+                    result.status = option;
+                    confidence.status = 0.8;
+                    break;
+                }
+            }
+        }
+        
+        // Try to extract time
+        const timeMatch = fullText.match(/\b(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?|\d{1,2}\s*(?:AM|PM|am|pm))\b/);
+        if (timeMatch) {
+            result.time = timeMatch[0];
+            confidence.time = 0.7;
+        }
+    }
+    
+    // Set default confidence for fields without specific match
+    for (const field of ['name', 'business', 'phone', 'email', 'date', 'time', 'status']) {
+        if (result[field] && !confidence[field]) {
+            confidence[field] = 0.5;
+        }
+    }
+    
+    return { result, confidence };
+}
+
+function checkDuplicate(appointment) {
+    if (!appointment.name && !appointment.phone && !appointment.email) return null;
+    
+    for (let date in appointments) {
+        if (appointments[date].reports) {
+            for (const existing of appointments[date].reports) {
+                let matchCount = 0;
+                let totalChecks = 0;
+                
+                if (appointment.name && existing.contactName) {
+                    totalChecks++;
+                    if (appointment.name.toLowerCase() === existing.contactName.toLowerCase()) matchCount++;
+                }
+                if (appointment.phone && existing.phone) {
+                    totalChecks++;
+                    if (appointment.phone === existing.phone) matchCount++;
+                }
+                if (appointment.email && existing.email) {
+                    totalChecks++;
+                    if (appointment.email.toLowerCase() === existing.email.toLowerCase()) matchCount++;
+                }
+                if (appointment.business && existing.business) {
+                    totalChecks++;
+                    if (appointment.business.toLowerCase() === existing.business.toLowerCase()) matchCount++;
+                }
+                
+                if (totalChecks > 0 && matchCount / totalChecks >= 0.6) {
+                    return existing;
+                }
+            }
+        }
+    }
+    return null;
+}
+
+function openSmartImport() {
+    const modal = document.getElementById('smartImportModal');
+    modal.style.display = 'flex';
+    document.getElementById('importTextArea').value = '';
+    document.getElementById('importPreview').style.display = 'none';
+    document.getElementById('saveImportBtn').style.display = 'none';
+    parsedImportData = {};
+    importConfidence = {};
+}
+
+function renderParsedPreview(data, confidence) {
+    const preview = document.getElementById('importPreview');
+    const fieldsContainer = document.getElementById('parsedFields');
+    const confidenceContainer = document.getElementById('confidenceScore');
+    const missingContainer = document.getElementById('missingFields');
+    const duplicateContainer = document.getElementById('duplicateWarning');
+    
+    preview.style.display = 'block';
+    
+    // Render parsed fields
+    let fieldsHtml = '';
+    let totalConfidence = 0;
+    let fieldCount = 0;
+    const requiredFields = ['name', 'business'];
+    const missingFields = [];
+    
+    for (const [field, value] of Object.entries(data)) {
+        if (!value) continue;
+        const conf = confidence[field] || 0.5;
+        totalConfidence += conf;
+        fieldCount++;
+        
+        const confClass = conf >= 0.7 ? 'high' : (conf >= 0.4 ? 'medium' : 'low');
+        const confLabel = conf >= 0.7 ? 'High' : (conf >= 0.4 ? 'Medium' : 'Low');
+        
+        fieldsHtml += `
+            <div class="parsed-field">
+                <span class="field-label">${field.charAt(0).toUpperCase() + field.slice(1)}</span>
+                <span class="field-value" contenteditable="true" data-field="${field}">${escapeHtml(value)}</span>
+                <span class="field-confidence ${confClass}">${confLabel} (${Math.round(conf * 100)}%)</span>
+                <i class="fas fa-pen field-edit" data-field="${field}" title="Edit value"></i>
+            </div>
+        `;
+        
+        // Check required fields
+        if (requiredFields.includes(field) && !value) {
+            missingFields.push(field);
+        }
+    }
+    
+    // Check for missing required fields
+    for (const field of requiredFields) {
+        if (!data[field] || !data[field].trim()) {
+            missingFields.push(field);
+        }
+    }
+    
+    fieldsContainer.innerHTML = fieldsHtml;
+    
+    // Add edit functionality
+    fieldsContainer.querySelectorAll('.field-value').forEach(el => {
+        el.addEventListener('blur', function() {
+            const field = this.getAttribute('data-field');
+            const value = this.textContent.trim();
+            parsedImportData[field] = value;
+            updateImportValidation();
+        });
+    });
+    
+    fieldsContainer.querySelectorAll('.field-edit').forEach(el => {
+        el.addEventListener('click', function() {
+            const field = this.getAttribute('data-field');
+            const valueEl = fieldsContainer.querySelector(`.field-value[data-field="${field}"]`);
+            if (valueEl) {
+                valueEl.focus();
+                // Select all text
+                const range = document.createRange();
+                range.selectNodeContents(valueEl);
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+        });
+    });
+    
+    // Update parsed data
+    parsedImportData = { ...data };
+    importConfidence = { ...confidence };
+    
+    // Calculate average confidence
+    const avgConf = fieldCount > 0 ? totalConfidence / fieldCount : 0;
+    confidenceContainer.innerHTML = `
+        <strong>Overall Confidence:</strong> ${Math.round(avgConf * 100)}% 
+        <span style="font-size:0.75rem; color:var(--text-muted); margin-left:8px;">
+            (${fieldCount} fields parsed)
+        </span>
+    `;
+    
+    // Check for duplicates
+    const duplicate = checkDuplicate(data);
+    if (duplicate) {
+        duplicateContainer.style.display = 'block';
+        duplicateContainer.innerHTML = `
+            ⚠️ <strong>Potential duplicate found!</strong> 
+            Similar appointment exists: ${duplicate.business} - ${duplicate.contactName} 
+            on ${formatDate(duplicate.date)}
+        `;
+    } else {
+        duplicateContainer.style.display = 'none';
+    }
+    
+    // Check for missing required fields
+    if (missingFields.length > 0) {
+        missingContainer.innerHTML = `
+            ⚠️ <strong>Missing required fields:</strong> ${missingFields.join(', ')}
+            <br><span style="font-size:0.75rem;">Please fill in all required fields before saving.</span>
+        `;
+        missingContainer.style.color = 'var(--danger)';
+        document.getElementById('saveImportBtn').disabled = true;
+    } else {
+        missingContainer.innerHTML = '✅ All required fields are filled';
+        missingContainer.style.color = 'var(--success)';
+        document.getElementById('saveImportBtn').disabled = false;
+    }
+    
+    updateImportValidation();
+}
+
+function updateImportValidation() {
+    const requiredFields = ['name', 'business'];
+    const allFilled = requiredFields.every(field => 
+        parsedImportData[field] && parsedImportData[field].trim()
+    );
+    
+    const saveBtn = document.getElementById('saveImportBtn');
+    if (allFilled) {
+        saveBtn.style.display = 'inline-flex';
+        saveBtn.disabled = false;
+        saveBtn.style.opacity = '1';
+    } else {
+        saveBtn.style.display = 'inline-flex';
+        saveBtn.disabled = true;
+        saveBtn.style.opacity = '0.5';
+    }
+}
+
+function saveImportedAppointment() {
+    if (!currentUser) {
+        showToast('Please sign in first', 'error');
+        return;
+    }
+    
+    const data = parsedImportData;
+    
+    // Validate required fields
+    if (!data.name || !data.business) {
+        showToast('Name and Business are required', 'error');
+        return;
+    }
+    
+    const date = data.date || getTodayStr();
+    const status = data.status || 'Pending';
+    const time = data.time || '';
+    const phone = data.phone || '';
+    const email = data.email || '';
+    const notes = data.notes || '';
+    const assigned = data.assigned || 'Daniel';
+    
+    // Check for duplicate
+    const duplicate = checkDuplicate(data);
+    if (duplicate) {
+        if (!confirm(`This appears to be a duplicate appointment with ${duplicate.business}. Do you still want to add it?`)) {
+            return;
+        }
+    }
+    
+    const newAppt = addAppointment(
+        date,
+        data.business,
+        data.name,
+        'Owner',
+        phone,
+        time,
+        notes + (email ? `\nEmail: ${email}` : ''),
+        assigned,
+        null,
+        status
+    );
+    
+    if (newAppt) {
+        showToast('Appointment imported successfully! 🎉', 'success');
+        closeSmartImport();
+        refreshCurrentView();
+    }
+}
+
+function closeSmartImport() {
+    document.getElementById('smartImportModal').style.display = 'none';
+    parsedImportData = {};
+    importConfidence = {};
+}
+
+// ============================================================
+// APPOINTMENT DETAIL MODAL
+// ============================================================
+
+function showAppointmentDetail(appointmentId) {
+    const appt = getAppointmentById(appointmentId);
+    if (!appt) {
+        showToast('Appointment not found', 'error');
+        return;
+    }
+    
+    currentAppointmentId = appointmentId;
+    const modal = document.getElementById('appointmentDetailModal');
+    const title = document.getElementById('appointmentDetailTitle');
+    const content = document.getElementById('appointmentDetailContent');
+    
+    title.textContent = `📋 ${appt.business} - ${appt.contactName}`;
+    
+    content.innerHTML = `
+        <div class="detail-row">
+            <span class="detail-label">Business</span>
+            <span class="detail-value">${escapeHtml(appt.business)}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Contact</span>
+            <span class="detail-value">${escapeHtml(appt.contactName)}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Phone</span>
+            <span class="detail-value">${escapeHtml(appt.phone || 'N/A')}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Email</span>
+            <span class="detail-value">${escapeHtml(appt.email || 'N/A')}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Date</span>
+            <span class="detail-value">${formatDate(appt.date)}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Time</span>
+            <span class="detail-value">${escapeHtml(appt.time || 'N/A')}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Status</span>
+            <span class="detail-value"><span class="status-tag ${getStatusClassSmall(getStatus(appt))}">${getStatus(appt)}</span></span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Assigned</span>
+            <span class="detail-value">${escapeHtml(appt.assigned || 'Daniel')}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Lead Score</span>
+            <span class="detail-value"><span class="score-badge ${getScoreColor(calculateLeadScore(appt))}">${calculateLeadScore(appt)} Pts</span></span>
+        </div>
+        ${appt.notes ? `
+        <div class="detail-row">
+            <span class="detail-label">Notes</span>
+            <span class="detail-value" style="white-space:pre-wrap;">${escapeHtml(appt.notes)}</span>
+        </div>
+        ` : ''}
+        ${appt.tags && appt.tags.length > 0 ? `
+        <div class="detail-row">
+            <span class="detail-label">Tags</span>
+            <span class="detail-value">${appt.tags.map(t => `#${t}`).join(' ')}</span>
+        </div>
+        ` : ''}
+    `;
+    
+    modal.style.display = 'flex';
+}
+
+function closeAppointmentDetail() {
+    document.getElementById('appointmentDetailModal').style.display = 'none';
+    currentAppointmentId = null;
+}
+
+// ============================================================
+// CALENDAR PANEL WITH DRAG & DROP
+// ============================================================
+
+function renderCalendarPanel(container) {
+    if (!container) return;
+    const year = currentCalDate.getFullYear();
+    const month = currentCalDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    let daysHtml = '';
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    dayNames.forEach(d => daysHtml += `<div class="day-name">${d}</div>`);
+    
+    for (let i = 0; i < firstDay; i++) { daysHtml += `<div class="calendar-day empty"></div>`; }
+    
+    for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const appts = appointments[dateStr]?.reports || [];
+        const count = appts.length;
+        const isSelected = dateStr === selectedCalDate;
+        
+        let indicatorHtml = '';
+        if (count > 0) {
+            const dots = appts.slice(0, 3).map(a => {
+                let color = 'var(--primary)';
+                const s = getStatus(a);
+                if (s === 'Hot Transfer') color = '#dc2626';
+                else if (s === 'Completed') color = 'var(--success)';
+                else if (s === 'Warm Callback') color = 'var(--warning)';
+                else if (s === 'Pending') color = 'var(--text-muted)';
+                return `<span class="appt-dot" style="background:${color};"></span>`;
+            }).join('');
+            indicatorHtml = `<div class="appt-indicator">${dots}</div>`;
+        }
+        
+        daysHtml += `
+            <div class="calendar-day ${isSelected ? 'selected' : ''}" data-date="${dateStr}">
+                <span class="day-number">${d}</span>
+                ${indicatorHtml}
+                ${count > 0 ? `<span class="appt-badge">${count}</span>` : ''}
+            </div>
+        `;
+    }
+
+    const selectedAppts = appointments[selectedCalDate]?.reports || [];
+    
+    const stats = {
+        hotTransfers: selectedAppts.filter(a => getStatus(a) === 'Hot Transfer').length,
+        warmCallbacks: selectedAppts.filter(a => getStatus(a) === 'Warm Callback').length,
+        completed: selectedAppts.filter(a => getStatus(a) === 'Completed').length,
+        pending: selectedAppts.filter(a => getStatus(a) === 'Pending').length,
+        canceled: selectedAppts.filter(a => getStatus(a) === 'Canceled').length
+    };
+
+    container.innerHTML = `
+        <div class="calendar-section">
+            <div class="calendar-nav" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h3><i class="fas fa-calendar-alt"></i> ${new Date(year, month).toLocaleString('default', { month: 'long' })} ${year}</h3>
+                <div class="calendar-nav-actions" style="display:flex; gap:6px;">
+                    <button id="calPrevBtn" class="btn-icon">Prev</button>
+                    <button id="calTodayBtn" class="btn-icon">Today</button>
+                    <button id="calNextBtn" class="btn-icon">Next</button>
+                </div>
+            </div>
+            <div class="calendar-grid" style="display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; margin-bottom:20px;">
+                ${daysHtml}
+            </div>
+            <div class="kpi-row" style="margin-bottom:16px;">
+                <div class="kpi-card"><div class="kpi-value" style="color:#dc2626;">${stats.hotTransfers}</div><div class="kpi-label">🔥 Hot Transfers</div></div>
+                <div class="kpi-card"><div class="kpi-value" style="color:var(--warning);">${stats.warmCallbacks}</div><div class="kpi-label">📞 Warm Callbacks</div></div>
+                <div class="kpi-card"><div class="kpi-value" style="color:var(--success);">${stats.completed}</div><div class="kpi-label">✅ Completed</div></div>
+                <div class="kpi-card"><div class="kpi-value" style="color:var(--text-muted);">${stats.pending}</div><div class="kpi-label">⏳ Pending</div></div>
+            </div>
+            <div class="appointments-section">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h4>Appointments (${selectedAppts.length})</h4>
+                    <button id="quickAddCalBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> Add Lead</button>
+                </div>
+                <div class="appointments-list" id="appointmentsList">
+                    ${selectedAppts.map(a => {
+                        const score = calculateLeadScore(a);
+                        const isHotTransfer = getStatus(a) === 'Hot Transfer';
+                        return `
+                            <div class="appointment-card" data-id="${a.id}" data-date="${selectedCalDate}" style="border-left: 4px solid ${isHotTransfer ? '#dc2626' : 'var(--border-color)'};">
+                                <i class="fas fa-grip-vertical drag-handle" aria-hidden="true"></i>
+                                <div class="card-row">
+                                    <div class="business-name" onclick="showAppointmentDetail('${a.id}')">
+                                        <strong>${escapeHtml(a.business)}</strong>
+                                        <span class="status-tag ${getStatusClassSmall(getStatus(a))}">${getStatus(a)}</span>
+                                        <span class="score-badge ${getScoreColor(score)}">${score} Pts</span>
+                                    </div>
+                                    <div class="card-actions">
+                                        <button class="delete-appt-btn" data-id="${a.id}" title="Delete"><i class="fas fa-trash"></i></button>
+                                    </div>
+                                </div>
+                                <div style="font-size:0.8rem; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap;">
+                                    <span>Contact: ${escapeHtml(a.contactName)}</span>
+                                    ${a.phone ? `<span>📞 ${escapeHtml(a.phone)}</span>` : ''}
+                                    ${a.time ? `<span>🕐 ${escapeHtml(a.time)}</span>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Calendar day click events
+    container.querySelectorAll('.calendar-day[data-date]').forEach(el => {
+        el.addEventListener('click', () => {
+            selectedCalDate = el.getAttribute('data-date');
+            renderCalendarPanel(container);
+        });
+    });
+    
+    // Calendar navigation
+    document.getElementById('calPrevBtn')?.addEventListener('click', () => {
+        currentCalDate.setMonth(currentCalDate.getMonth() - 1);
+        renderCalendarPanel(container);
+    });
+    
+    document.getElementById('calNextBtn')?.addEventListener('click', () => {
+        currentCalDate.setMonth(currentCalDate.getMonth() + 1);
+        renderCalendarPanel(container);
+    });
+    
+    document.getElementById('calTodayBtn')?.addEventListener('click', () => {
+        currentCalDate = new Date();
+        selectedCalDate = getTodayStr();
+        renderCalendarPanel(container);
+    });
+
+    // Add appointment
+    document.getElementById('quickAddCalBtn')?.addEventListener('click', () => {
+        openQuickReportWithDate(selectedCalDate);
+    });
+
+    // Delete appointment
+    container.querySelectorAll('.delete-appt-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const id = btn.getAttribute('data-id');
+            if (confirm('Delete this appointment permanently?')) {
+                deleteAppointment(selectedCalDate, id);
+                renderCalendarPanel(container);
+                showToast('Appointment deleted', 'info');
+            }
+        });
+    });
+
+    // Initialize Sortable for appointments
+    const appointmentsList = document.getElementById('appointmentsList');
+    if (appointmentsList) {
+        new Sortable(appointmentsList, {
+            handle: '.drag-handle',
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            dragClass: 'sortable-drag',
+            onEnd: function(evt) {
+                // Reorder appointments within the same date
+                const items = appointmentsList.querySelectorAll('.appointment-card');
+                const newOrder = [];
+                items.forEach(item => {
+                    const id = item.getAttribute('data-id');
+                    if (id) newOrder.push(id);
+                });
+                
+                // Update appointment order (store in local state)
+                if (appointments[selectedCalDate]) {
+                    const sortedReports = [];
+                    newOrder.forEach(id => {
+                        const found = appointments[selectedCalDate].reports.find(r => r.id === id);
+                        if (found) sortedReports.push(found);
+                    });
+                    appointments[selectedCalDate].reports = sortedReports;
+                }
+                showToast('Appointments reordered', 'info');
+            }
+        });
+    }
+}
+
+// ============================================================
+// QUICK ADD APPOINTMENT
+// ============================================================
+
+function openQuickReportWithDate(defaultDate) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'quickAddModal';
+    modal.innerHTML = `
+        <div class="modal-card">
+            <h3><i class="fas fa-plus-circle"></i> Add New Appointment</h3>
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="newApptDate" value="${defaultDate}" />
+            </div>
+            <div class="form-group">
+                <label>Business Name *</label>
+                <input type="text" id="newApptBusiness" placeholder="Enter business name" />
+                <div class="error-message">Business name is required</div>
+            </div>
+            <div class="form-group">
+                <label>Contact Name *</label>
+                <input type="text" id="newApptContact" placeholder="Enter contact name" />
+                <div class="error-message">Contact name is required</div>
+            </div>
+            <div class="form-group">
+                <label>Phone</label>
+                <input type="text" id="newApptPhone" placeholder="Enter phone number" />
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="newApptEmail" placeholder="Enter email address" />
+            </div>
+            <div class="form-group">
+                <label>Time</label>
+                <input type="time" id="newApptTime" />
+            </div>
+            <div class="form-group">
+                <label>Lead Status</label>
+                <select id="newApptStatus">
+                    ${STATUS_OPTIONS.map(s => `<option value="${s}" ${s === 'Pending' ? 'selected' : ''}>${s}</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Notes</label>
+                <textarea id="newApptNotes" rows="3" placeholder="Add any additional notes..."></textarea>
+            </div>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+                <button id="saveQuickApptBtn" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-save"></i> Save</button>
+                <button id="cancelQuickApptBtn" class="btn-icon">Cancel</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Validate fields on input
+    const businessInput = document.getElementById('newApptBusiness');
+    const contactInput = document.getElementById('newApptContact');
+    
+    function validateField(input, errorMsg) {
+        const formGroup = input.closest('.form-group');
+        if (input.value.trim()) {
+            formGroup.classList.remove('has-error');
+        } else {
+            formGroup.classList.add('has-error');
+        }
+    }
+    
+    businessInput.addEventListener('input', () => validateField(businessInput));
+    contactInput.addEventListener('input', () => validateField(contactInput));
+
+    document.getElementById('saveQuickApptBtn').addEventListener('click', () => {
+        const date = document.getElementById('newApptDate').value;
+        const bus = document.getElementById('newApptBusiness').value.trim();
+        const contact = document.getElementById('newApptContact').value.trim();
+        const phone = document.getElementById('newApptPhone').value.trim();
+        const email = document.getElementById('newApptEmail').value.trim();
+        const time = document.getElementById('newApptTime').value;
+        const status = document.getElementById('newApptStatus').value;
+        const notes = document.getElementById('newApptNotes').value.trim();
+
+        // Validate required fields
+        let hasError = false;
+        if (!bus) {
+            document.getElementById('newApptBusiness').closest('.form-group').classList.add('has-error');
+            hasError = true;
+        }
+        if (!contact) {
+            document.getElementById('newApptContact').closest('.form-group').classList.add('has-error');
+            hasError = true;
+        }
+        
+        if (hasError) {
+            showToast('Please fill in all required fields', 'error');
+            return;
+        }
+
+        const notesWithEmail = notes + (email ? `\nEmail: ${email}` : '');
+        addAppointment(date, bus, contact, 'Owner', phone, time, notesWithEmail, 'Daniel', null, status);
+        modal.remove();
+        showToast('Appointment added successfully! 🎉', 'success');
+        refreshCurrentView();
+    });
+
+    document.getElementById('cancelQuickApptBtn').addEventListener('click', () => modal.remove());
+    
+    // Close on overlay click
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
     });
 }
 
@@ -705,231 +1576,87 @@ function refreshCurrentView() {
 }
 
 // ============================================================
-// CALENDAR PANEL
-// ============================================================
-
-function renderCalendarPanel(container) {
-    if (!container) return;
-    const year = currentCalDate.getFullYear();
-    const month = currentCalDate.getMonth();
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
-    let daysHtml = '';
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    dayNames.forEach(d => daysHtml += `<div class="day-name">${d}</div>`);
-    
-    for (let i = 0; i < firstDay; i++) { daysHtml += `<div class="calendar-day empty"></div>`; }
-    
-    for (let d = 1; d <= daysInMonth; d++) {
-        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        const appts = appointments[dateStr]?.reports || [];
-        const count = appts.length;
-        const isSelected = dateStr === selectedCalDate;
-        
-        let indicatorHtml = '';
-        if (count > 0) {
-            const dots = appts.slice(0, 3).map(a => {
-                let color = 'var(--primary)';
-                const s = getStatus(a);
-                if (s === 'Hot Transfer') color = '#dc2626';
-                else if (s === 'Completed') color = 'var(--success)';
-                else if (s === 'Warm Callback') color = 'var(--warning)';
-                else if (s === 'Pending') color = 'var(--text-muted)';
-                return `<span class="appt-dot" style="background:${color};"></span>`;
-            }).join('');
-            indicatorHtml = `<div class="appt-indicator">${dots}</div>`;
-        }
-        
-        daysHtml += `
-            <div class="calendar-day ${isSelected ? 'selected' : ''}" data-date="${dateStr}">
-                <span class="day-number">${d}</span>
-                ${indicatorHtml}
-            </div>
-        `;
-    }
-
-    const selectedAppts = appointments[selectedCalDate]?.reports || [];
-    
-    const stats = {
-        hotTransfers: selectedAppts.filter(a => getStatus(a) === 'Hot Transfer').length,
-        warmCallbacks: selectedAppts.filter(a => getStatus(a) === 'Warm Callback').length,
-        completed: selectedAppts.filter(a => getStatus(a) === 'Completed').length,
-        pending: selectedAppts.filter(a => getStatus(a) === 'Pending').length,
-        canceled: selectedAppts.filter(a => getStatus(a) === 'Canceled').length
-    };
-
-    container.innerHTML = `
-        <div class="calendar-section">
-            <div class="calendar-nav" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <h3><i class="fas fa-calendar-alt"></i> ${new Date(year, month).toLocaleString('default', { month: 'long' })} ${year}</h3>
-                <div class="calendar-nav-actions" style="display:flex; gap:6px;">
-                    <button id="calPrevBtn" class="btn-icon">Prev</button>
-                    <button id="calTodayBtn" class="btn-icon">Today</button>
-                    <button id="calNextBtn" class="btn-icon">Next</button>
-                </div>
-            </div>
-            <div class="calendar-grid" style="display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; margin-bottom:20px;">
-                ${daysHtml}
-            </div>
-            <div class="kpi-row" style="margin-bottom:16px;">
-                <div class="kpi-card"><div class="kpi-value" style="color:#dc2626;">${stats.hotTransfers}</div><div class="kpi-label">🔥 Hot Transfers</div></div>
-                <div class="kpi-card"><div class="kpi-value" style="color:var(--warning);">${stats.warmCallbacks}</div><div class="kpi-label">📞 Warm Callbacks</div></div>
-                <div class="kpi-card"><div class="kpi-value" style="color:var(--success);">${stats.completed}</div><div class="kpi-label">✅ Completed</div></div>
-                <div class="kpi-card"><div class="kpi-value" style="color:var(--text-muted);">${stats.pending}</div><div class="kpi-label">⏳ Pending</div></div>
-            </div>
-            <div class="appointments-section">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                    <h4>Appointments (${selectedAppts.length})</h4>
-                    <button id="quickAddCalBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> Add Lead</button>
-                </div>
-                <div class="appointments-list">
-                    ${selectedAppts.map(a => {
-                        const score = calculateLeadScore(a);
-                        const isHotTransfer = getStatus(a) === 'Hot Transfer';
-                        return `
-                            <div class="appointment-card" style="border-left: 4px solid ${isHotTransfer ? '#dc2626' : 'var(--border-color)'}; position: relative;">
-                                <div class="card-row">
-                                    <div class="business-name">
-                                        <strong>${escapeHtml(a.business)}</strong>
-                                        <span class="status-tag ${getStatusClassSmall(getStatus(a))}">${getStatus(a)}</span>
-                                        <span class="score-badge ${getScoreColor(score)}">${score} Pts</span>
-                                    </div>
-                                    <div class="card-actions">
-                                        <button class="delete-appt-btn" data-id="${a.id}"><i class="fas fa-trash"></i></button>
-                                    </div>
-                                </div>
-                                <div style="font-size:0.8rem; margin-top:4px;">Contact: ${escapeHtml(a.contactName)} | Phone: ${escapeHtml(a.phone)}</div>
-                            </div>
-                        `;
-                    }).join('')}
-                </div>
-            </div>
-        </div>
-    `;
-
-    container.querySelectorAll('.calendar-day[data-date]').forEach(el => {
-        el.addEventListener('click', () => {
-            selectedCalDate = el.getAttribute('data-date');
-            renderCalendarPanel(container);
-        });
-    });
-    
-    document.getElementById('calPrevBtn')?.addEventListener('click', () => {
-        currentCalDate.setMonth(currentCalDate.getMonth() - 1);
-        renderCalendarPanel(container);
-    });
-    
-    document.getElementById('calNextBtn')?.addEventListener('click', () => {
-        currentCalDate.setMonth(currentCalDate.getMonth() + 1);
-        renderCalendarPanel(container);
-    });
-    
-    document.getElementById('calTodayBtn')?.addEventListener('click', () => {
-        currentCalDate = new Date();
-        selectedCalDate = getTodayStr();
-        renderCalendarPanel(container);
-    });
-
-    document.getElementById('quickAddCalBtn')?.addEventListener('click', () => {
-        openQuickReportWithDate(selectedCalDate);
-    });
-
-    container.querySelectorAll('.delete-appt-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const id = btn.getAttribute('data-id');
-            if (confirm('Delete lead registration?')) {
-                deleteAppointment(selectedCalDate, id);
-                renderCalendarPanel(container);
-            }
-        });
-    });
-}
-
-function openQuickReportWithDate(defaultDate) {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.innerHTML = `
-        <div class="modal-card">
-            <h3>Add New CRM Entry</h3>
-            <div class="form-group"><label>Date</label><input type="date" id="newApptDate" value="${defaultDate}" /></div>
-            <div class="form-group"><label>Business Name</label><input type="text" id="newApptBusiness" /></div>
-            <div class="form-group"><label>Contact Name</label><input type="text" id="newApptContact" /></div>
-            <div class="form-group"><label>Phone Coordinate</label><input type="text" id="newApptPhone" /></div>
-            <div class="form-group">
-                <label>Lead Handoff Status</label>
-                <select id="newApptStatus">
-                    ${STATUS_OPTIONS.map(s => `<option value="${s}">${s}</option>`).join('')}
-                </select>
-            </div>
-            <div class="form-group"><label>Notes / Context</label><textarea id="newApptNotes"></textarea></div>
-            <div style="display:flex; gap:8px; justify-content:flex-end;">
-                <button id="saveNewApptBtn" class="btn-icon" style="background:var(--success); color:white;">Save Entry</button>
-                <button id="cancelNewApptBtn" class="btn-icon">Cancel</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-
-    document.getElementById('saveNewApptBtn').addEventListener('click', () => {
-        const date = document.getElementById('newApptDate').value;
-        const bus = document.getElementById('newApptBusiness').value;
-        const contact = document.getElementById('newApptContact').value;
-        const phone = document.getElementById('newApptPhone').value;
-        const status = document.getElementById('newApptStatus').value;
-        const notes = document.getElementById('newApptNotes').value;
-
-        if (!bus || !contact) { showToast('Business and Contact fields required', 'error'); return; }
-
-        addAppointment(date, bus, contact, 'Owner', phone, '', notes, 'Daniel', null, status);
-        modal.remove();
-        showToast('CRM Registration Added!', 'success');
-        refreshCurrentView();
-    });
-
-    document.getElementById('cancelNewApptBtn').addEventListener('click', () => modal.remove());
-}
-
-// ============================================================
 // TASKS PANEL
 // ============================================================
 
 function renderTasksPanel(container) {
     if (!container) return;
+    const filteredTasks = taskFilter === 'all' ? tasks : tasks.filter(t => !t.completed);
+    
     container.innerHTML = `
         <div class="tasks-section">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <h3>Follow-up Tasks Board</h3>
-                <button id="addNewTaskBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> New Task</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                <h3><i class="fas fa-tasks"></i> Follow-up Tasks</h3>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <button id="taskFilterAll" class="view-btn ${taskFilter === 'all' ? 'active' : ''}">All</button>
+                    <button id="taskFilterPending" class="view-btn ${taskFilter === 'pending' ? 'active' : ''}">Pending</button>
+                    <button id="addNewTaskBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> New</button>
+                </div>
             </div>
             <div class="tasks-list">
-                ${tasks.map(t => `
-                    <div class="task-card ${t.completed ? 'task-completed' : ''}" style="padding:12px; margin-bottom:8px; border-radius:8px; background:var(--bg-primary);">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-weight:600;">${escapeHtml(t.description)}</span>
-                            <div style="display:flex; gap:6px;">
-                                <button class="toggle-task-btn" data-id="${t.id}"><i class="fas ${t.completed ? 'fa-undo' : 'fa-check'}"></i></button>
+                ${filteredTasks.length === 0 ? `
+                    <div class="empty-state">
+                        <i class="fas fa-check-circle"></i>
+                        <p>No tasks ${taskFilter === 'pending' ? 'pending' : ''}</p>
+                    </div>
+                ` : filteredTasks.map(t => `
+                    <div class="task-card ${t.completed ? 'task-completed' : ''}">
+                        <div class="task-row">
+                            <div class="task-title">
+                                <input type="checkbox" ${t.completed ? 'checked' : ''} class="toggle-task-checkbox" data-id="${t.id}" />
+                                <span>${escapeHtml(t.description)}</span>
+                            </div>
+                            <div class="task-actions">
+                                <button class="delete-task-btn" data-id="${t.id}" title="Delete"><i class="fas fa-trash"></i></button>
                             </div>
                         </div>
-                        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Due: ${t.dueDate || 'N/A'} | Priority: ${t.priority}</div>
+                        <div class="task-meta">
+                            ${t.dueDate ? `<span><i class="far fa-calendar"></i> Due: ${formatDate(t.dueDate)}</span>` : ''}
+                            <span class="task-priority-${t.priority || 'medium'}">${t.priority || 'Medium'}</span>
+                        </div>
                     </div>
                 `).join('')}
             </div>
         </div>
     `;
 
-    document.getElementById('addNewTaskBtn').addEventListener('click', () => {
-        const desc = prompt('Enter task details:');
-        if (desc) {
-            addTask(desc, getTodayStr(), 'medium', null);
+    // Task filter buttons
+    document.getElementById('taskFilterAll')?.addEventListener('click', () => {
+        taskFilter = 'all';
+        renderTasksPanel(container);
+    });
+    
+    document.getElementById('taskFilterPending')?.addEventListener('click', () => {
+        taskFilter = 'pending';
+        renderTasksPanel(container);
+    });
+
+    // Add new task
+    document.getElementById('addNewTaskBtn')?.addEventListener('click', () => {
+        const desc = prompt('Enter task description:');
+        if (desc && desc.trim()) {
+            const dueDate = prompt('Enter due date (YYYY-MM-DD) or leave blank:', getTodayStr());
+            addTask(desc.trim(), dueDate || '', 'medium', null);
             refreshCurrentView();
+            showToast('Task added!', 'success');
         }
     });
 
-    container.querySelectorAll('.toggle-task-btn').forEach(btn => {
+    // Toggle task completion
+    container.querySelectorAll('.toggle-task-checkbox').forEach(cb => {
+        cb.addEventListener('change', () => {
+            toggleTaskComplete(cb.getAttribute('data-id'));
+            setTimeout(() => renderTasksPanel(container), 100);
+        });
+    });
+
+    // Delete task
+    container.querySelectorAll('.delete-task-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            toggleTaskComplete(btn.getAttribute('data-id'));
-            refreshCurrentView();
+            if (confirm('Delete this task?')) {
+                deleteTask(btn.getAttribute('data-id'));
+                renderTasksPanel(container);
+            }
         });
     });
 }
@@ -942,12 +1669,14 @@ function renderAnalyticsHub(container) {
     if (!container) return;
     
     let total = 0, hTransfers = 0, wCallbacks = 0, completedCount = 0, pendingCount = 0, canceledCount = 0;
+    let statusCounts = {};
     
     for (let date in appointments) {
         if (appointments[date].reports) {
             appointments[date].reports.forEach(a => {
                 total++;
                 const status = getStatus(a);
+                statusCounts[status] = (statusCounts[status] || 0) + 1;
                 if (status === 'Hot Transfer') hTransfers++;
                 else if (status === 'Warm Callback') wCallbacks++;
                 else if (status === 'Completed') completedCount++;
@@ -957,39 +1686,104 @@ function renderAnalyticsHub(container) {
         }
     }
 
+    // Calculate conversion rates
+    const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+    const hotTransferRate = total > 0 ? Math.round((hTransfers / total) * 100) : 0;
+    const warmCallbackRate = total > 0 ? Math.round((wCallbacks / total) * 100) : 0;
+
     container.innerHTML = `
-        <div class="analytics-container" style="display:flex; flex-direction:column; gap:20px;">
-            <h3>Lead Conversion Dynamics</h3>
-            <div class="report-metrics" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px;">
-                <div class="metric-card" style="background:var(--bg-primary); padding:16px; border-radius:12px; text-align:center;">
+        <div class="analytics-container">
+            <h3><i class="fas fa-chart-pie"></i> Pipeline Performance Dashboard</h3>
+            
+            <div class="report-metrics" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:12px; margin:16px 0;">
+                <div class="metric-card">
                     <div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div>
-                    <div class="metric-label" style="font-size:0.75rem; color:var(--text-muted);">Total Pipeline</div>
+                    <div class="metric-label">Total Pipeline</div>
                 </div>
-                <div class="metric-card" style="background:var(--bg-primary); padding:16px; border-radius:12px; text-align:center;">
+                <div class="metric-card">
                     <div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div>
-                    <div class="metric-label" style="font-size:0.75rem; color:var(--text-muted);">Hot Transfers</div>
+                    <div class="metric-label">🔥 Hot Transfers</div>
                 </div>
-                <div class="metric-card" style="background:var(--bg-primary); padding:16px; border-radius:12px; text-align:center;">
+                <div class="metric-card">
                     <div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div>
-                    <div class="metric-label" style="font-size:0.75rem; color:var(--text-muted);">Warm Callbacks</div>
+                    <div class="metric-label">📞 Warm Callbacks</div>
                 </div>
-                <div class="metric-card" style="background:var(--bg-primary); padding:16px; border-radius:12px; text-align:center;">
+                <div class="metric-card">
                     <div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div>
-                    <div class="metric-label" style="font-size:0.75rem; color:var(--text-muted);">Completed</div>
+                    <div class="metric-label">✅ Completed</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--text-muted);">${pendingCount}</div>
+                    <div class="metric-label">⏳ Pending</div>
                 </div>
             </div>
             
-            <div class="feature-card" style="background:var(--bg-secondary); border:1px solid var(--border-color); padding:16px; border-radius:12px;">
-                <h4>Lead Qualification Performance</h4>
-                <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
-                    <div>Hot Transfers (${hTransfers})</div>
-                    <div style="background:var(--bg-primary); height:8px; border-radius:4px;"><div style="background:#dc2626; width:${total > 0 ? (hTransfers/total)*100 : 0}%; height:100%; border-radius:4px;"></div></div>
-                    
-                    <div>Warm Callbacks (${wCallbacks})</div>
-                    <div style="background:var(--bg-primary); height:8px; border-radius:4px;"><div style="background:var(--warning); width:${total > 0 ? (wCallbacks/total)*100 : 0}%; height:100%; border-radius:4px;"></div></div>
-                    
-                    <div>Completed Registrations (${completedCount})</div>
-                    <div style="background:var(--bg-primary); height:8px; border-radius:4px;"><div style="background:var(--success); width:${total > 0 ? (completedCount/total)*100 : 0}%; height:100%; border-radius:4px;"></div></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div class="feature-card">
+                    <h4>📊 Conversion Rates</h4>
+                    <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
+                        <div>
+                            <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+                                <span>Completed Rate</span>
+                                <span>${conversionRate}%</span>
+                            </div>
+                            <div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px;">
+                                <div style="background:var(--success); width:${conversionRate}%; height:100%; border-radius:4px; transition:width 0.5s;"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+                                <span>Hot Transfer Rate</span>
+                                <span>${hotTransferRate}%</span>
+                            </div>
+                            <div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px;">
+                                <div style="background:#dc2626; width:${hotTransferRate}%; height:100%; border-radius:4px; transition:width 0.5s;"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+                                <span>Warm Callback Rate</span>
+                                <span>${warmCallbackRate}%</span>
+                            </div>
+                            <div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px;">
+                                <div style="background:var(--warning); width:${warmCallbackRate}%; height:100%; border-radius:4px; transition:width 0.5s;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="feature-card">
+                    <h4>📈 Status Distribution</h4>
+                    <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px; max-height:200px; overflow-y:auto;">
+                        ${Object.entries(statusCounts).map(([status, count]) => `
+                            <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px;">
+                                <span>${status}</span>
+                                <span style="font-weight:600;">${count} (${Math.round((count/total)*100)}%)</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="feature-card" style="margin-top:8px;">
+                <h4>📋 Quick Insights</h4>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-top:8px;">
+                    <div style="padding:12px; background:var(--bg-primary); border-radius:8px; border-left:3px solid var(--success);">
+                        <div style="font-weight:600; font-size:1.1rem;">${completedCount}</div>
+                        <div style="font-size:0.75rem; color:var(--text-muted);">Completed Leads</div>
+                    </div>
+                    <div style="padding:12px; background:var(--bg-primary); border-radius:8px; border-left:3px solid #dc2626;">
+                        <div style="font-weight:600; font-size:1.1rem;">${hTransfers}</div>
+                        <div style="font-size:0.75rem; color:var(--text-muted);">Hot Transfers</div>
+                    </div>
+                    <div style="padding:12px; background:var(--bg-primary); border-radius:8px; border-left:3px solid var(--warning);">
+                        <div style="font-weight:600; font-size:1.1rem;">${wCallbacks}</div>
+                        <div style="font-size:0.75rem; color:var(--text-muted);">Warm Callbacks</div>
+                    </div>
+                    <div style="padding:12px; background:var(--bg-primary); border-radius:8px; border-left:3px solid var(--text-muted);">
+                        <div style="font-weight:600; font-size:1.1rem;">${pendingCount}</div>
+                        <div style="font-size:0.75rem; color:var(--text-muted);">Pending Leads</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1003,13 +1797,15 @@ function renderAnalyticsHub(container) {
 function renderSmartWorkspace(container) {
     if (!container) return;
     container.innerHTML = `
-        <div class="workspace-container" style="display:flex; flex-direction:column; gap:16px; height:100%; min-height:450px;">
-            <div style="display:flex; gap:10px; align-items:center; background:var(--bg-secondary); padding:12px; border-radius:12px; border:1px solid var(--border-color);">
-                <input type="text" id="wsInputUrl" value="https://sales.regen-digital.com/campaigns" style="flex:1; padding:8px 12px; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:0.85rem;" />
-                <button id="wsNavigateBtn" class="btn-icon" style="background:var(--primary); color:white;">Go</button>
+        <div class="workspace-container">
+            <div class="url-bar">
+                <input type="text" id="wsInputUrl" value="https://sales.regen-digital.com/campaigns" />
+                <button id="wsNavigateBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-arrow-right"></i> Go</button>
+                <button id="wsRefreshBtn" class="btn-icon" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+                <button id="wsOpenInNewBtn" class="btn-icon" title="Open in new tab"><i class="fas fa-external-link-alt"></i></button>
             </div>
-            <div style="flex:1; background:white; border-radius:12px; border:1px solid var(--border-color); position:relative; overflow:hidden; min-height:300px;">
-                <iframe id="wsIframe" src="https://sales.regen-digital.com/campaigns" style="width:100%; height:100%; border:none;"></iframe>
+            <div class="iframe-container">
+                <iframe id="wsIframe" src="https://sales.regen-digital.com/campaigns"></iframe>
             </div>
         </div>
     `;
@@ -1020,6 +1816,64 @@ function renderSmartWorkspace(container) {
         if (iframe && url) {
             iframe.src = url;
         }
+    });
+
+    document.getElementById('wsRefreshBtn').addEventListener('click', () => {
+        const iframe = document.getElementById('wsIframe');
+        if (iframe) {
+            iframe.src = iframe.src;
+            showToast('Refreshed', 'info');
+        }
+    });
+
+    document.getElementById('wsOpenInNewBtn').addEventListener('click', () => {
+        const url = document.getElementById('wsInputUrl').value;
+        if (url) {
+            window.open(url, '_blank');
+        }
+    });
+
+    // Enter key in URL input
+    document.getElementById('wsInputUrl').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            document.getElementById('wsNavigateBtn').click();
+        }
+    });
+}
+
+// ============================================================
+// BULK ACTIONS
+// ============================================================
+
+function openBulkActions() {
+    const modal = document.getElementById('bulkActionsModal');
+    const container = document.getElementById('bulkSelectionContainer');
+    modal.style.display = 'flex';
+    selectedAppointments = new Set();
+    
+    let html = '';
+    for (let date in appointments) {
+        if (appointments[date].reports) {
+            appointments[date].reports.forEach(appt => {
+                html += `
+                    <div class="bulk-item">
+                        <input type="checkbox" class="bulk-checkbox" value="${appt.id}" data-date="${date}" />
+                        <span><strong>${escapeHtml(appt.business)}</strong> - ${escapeHtml(appt.contactName)} (${getStatus(appt)})</span>
+                    </div>
+                `;
+            });
+        }
+    }
+    container.innerHTML = html || '<p style="color:var(--text-muted);">No appointments found</p>';
+    
+    container.querySelectorAll('.bulk-checkbox').forEach(cb => {
+        cb.addEventListener('change', () => {
+            if (cb.checked) {
+                selectedAppointments.add(cb.value);
+            } else {
+                selectedAppointments.delete(cb.value);
+            }
+        });
     });
 }
 
@@ -1056,7 +1910,7 @@ document.addEventListener('DOMContentLoaded', () => {
         item.addEventListener('click', () => {
             const tool = item.getAttribute('data-tool');
             if (tool === 'notepad') {
-                showFeaturePanel('notepad', '📝 Notes Workspace');
+                showToast('📝 Notes feature coming soon!', 'info');
             } else if (tool === 'calendar') {
                 showFeaturePanel('calendar', '📅 Appointment & Handoff Calendar');
             } else if (tool === 'tasks') {
@@ -1067,15 +1921,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 showFeaturePanel('analytics', '📊 Pipeline Performance');
             } else if (tool === 'theme') {
                 document.body.classList.toggle('dark');
+                showToast('Theme toggled', 'info');
             } else if (tool === 'help') {
-                showToast('Handoffs (Warm callback, Completed, Canceled, Pending, Hot transfers) integrated globally!', 'info');
+                showToast('Handoffs: Warm Callback, Completed, Canceled, Pending, Hot Transfer - All integrated!', 'info');
             } else if (tool === 'reset') {
-                if (confirm('Clear local database configuration?')) {
+                if (confirm('⚠️ This will clear all local data and reset the app. Continue?')) {
                     localStorage.clear();
+                    if (currentUser) {
+                        db.collection('users').doc(currentUser.uid).delete();
+                    }
                     location.reload();
                 }
             } else if (tool === 'export') {
-                showToast('Export to CSV coming soon!', 'info');
+                exportToCSV();
             }
         });
     });
@@ -1085,9 +1943,143 @@ document.addEventListener('DOMContentLoaded', () => {
         hideFeaturePanel();
     });
 
-    // Quick Report
+    // Smart Import
     document.getElementById('quickReportBtn')?.addEventListener('click', () => {
-        openQuickReportWithDate(getTodayStr());
+        openSmartImport();
+    });
+
+    // Smart Import Modal Events
+    document.getElementById('parseImportBtn')?.addEventListener('click', () => {
+        const text = document.getElementById('importTextArea').value;
+        if (!text.trim()) {
+            showToast('Please paste some text to parse', 'warning');
+            return;
+        }
+        const { result, confidence } = parseAppointmentText(text);
+        renderParsedPreview(result, confidence);
+    });
+
+    document.getElementById('saveImportBtn')?.addEventListener('click', () => {
+        saveImportedAppointment();
+    });
+
+    document.getElementById('closeImportBtn')?.addEventListener('click', closeSmartImport);
+
+    // Appointment Detail Modal Events
+    document.getElementById('apptCopyBtn')?.addEventListener('click', () => {
+        const appt = getAppointmentById(currentAppointmentId);
+        if (appt) {
+            const text = `Business: ${appt.business}\nContact: ${appt.contactName}\nPhone: ${appt.phone || 'N/A'}\nStatus: ${getStatus(appt)}\nDate: ${formatDate(appt.date)}${appt.time ? `\nTime: ${appt.time}` : ''}${appt.notes ? `\nNotes: ${appt.notes}` : ''}`;
+            copyToClipboard(text);
+        }
+    });
+
+    document.getElementById('apptEditBtn')?.addEventListener('click', () => {
+        const appt = getAppointmentById(currentAppointmentId);
+        if (appt) {
+            closeAppointmentDetail();
+            openQuickReportWithDate(appt.date);
+            // Pre-fill the form
+            setTimeout(() => {
+                document.getElementById('newApptBusiness').value = appt.business;
+                document.getElementById('newApptContact').value = appt.contactName;
+                document.getElementById('newApptPhone').value = appt.phone || '';
+                document.getElementById('newApptTime').value = appt.time || '';
+                document.getElementById('newApptStatus').value = getStatus(appt);
+                document.getElementById('newApptNotes').value = appt.notes || '';
+                // Remove the old appointment
+                deleteAppointment(appt.date, appt.id);
+            }, 100);
+        }
+    });
+
+    document.getElementById('apptDeleteBtn')?.addEventListener('click', () => {
+        const appt = getAppointmentById(currentAppointmentId);
+        if (appt && confirm('Delete this appointment permanently?')) {
+            deleteAppointment(appt.date, appt.id);
+            closeAppointmentDetail();
+            showToast('Appointment deleted', 'info');
+        }
+    });
+
+    document.getElementById('apptCloseBtn')?.addEventListener('click', closeAppointmentDetail);
+
+    // Bulk Actions
+    document.getElementById('bulkActionsBtn')?.addEventListener('click', openBulkActions);
+
+    document.getElementById('closeBulkModalBtn')?.addEventListener('click', () => {
+        document.getElementById('bulkActionsModal').style.display = 'none';
+    });
+
+    document.getElementById('executeBulkActionBtn')?.addEventListener('click', () => {
+        const action = document.getElementById('bulkActionSelect').value;
+        const selected = Array.from(selectedAppointments);
+        
+        if (selected.length === 0) {
+            showToast('Please select at least one appointment', 'warning');
+            return;
+        }
+
+        if (action === 'delete') {
+            if (!confirm(`Delete ${selected.length} appointment(s)?`)) return;
+            selected.forEach(id => {
+                for (let date in appointments) {
+                    if (appointments[date].reports) {
+                        const found = appointments[date].reports.find(r => r.id === id);
+                        if (found) {
+                            deleteAppointment(date, id);
+                            break;
+                        }
+                    }
+                }
+            });
+            showToast(`${selected.length} appointment(s) deleted`, 'success');
+        } else if (action === 'status') {
+            const newStatus = document.getElementById('bulkStatusSelect').value;
+            selected.forEach(id => {
+                for (let date in appointments) {
+                    if (appointments[date].reports) {
+                        const found = appointments[date].reports.find(r => r.id === id);
+                        if (found) {
+                            updateAppointment(date, id, { status: newStatus });
+                            break;
+                        }
+                    }
+                }
+            });
+            showToast(`${selected.length} appointment(s) updated to ${newStatus}`, 'success');
+        } else if (action === 'tag') {
+            const tag = document.getElementById('bulkTagSelect').value;
+            selected.forEach(id => {
+                for (let date in appointments) {
+                    if (appointments[date].reports) {
+                        const found = appointments[date].reports.find(r => r.id === id);
+                        if (found) {
+                            const tags = found.tags || [];
+                            if (!tags.includes(tag)) {
+                                tags.push(tag);
+                                updateAppointment(date, id, { tags: tags });
+                            }
+                            break;
+                        }
+                    }
+                }
+            });
+            showToast(`Tag added to ${selected.length} appointment(s)`, 'success');
+        } else if (action === 'export') {
+            exportSelectedToCSV(selected);
+        }
+        
+        document.getElementById('bulkActionsModal').style.display = 'none';
+        refreshCurrentView();
+    });
+
+    // Bulk action select change
+    document.getElementById('bulkActionSelect')?.addEventListener('change', () => {
+        const value = document.getElementById('bulkActionSelect').value;
+        document.getElementById('bulkStatusGroup').style.display = value === 'status' ? 'block' : 'none';
+        document.getElementById('bulkTagGroup').style.display = value === 'tag' ? 'block' : 'none';
+        document.getElementById('bulkActionOptions').style.display = (value === 'status' || value === 'tag') ? 'block' : 'none';
     });
 
     // Sign Out
@@ -1123,18 +2115,145 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('addScriptBtnSide')?.addEventListener('click', () => {
         if (!currentUser) { showToast('Please sign in first', 'error'); return; }
         const name = prompt('Enter script name:');
-        if (name) {
+        if (name && name.trim()) {
             const id = 'script_' + generateUniqueId();
             db.collection('users').doc(currentUser.uid).collection('scripts').doc(id).set({
-                name: name,
+                name: name.trim(),
                 content: 'New script content...',
                 version: 1,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             }).then(() => {
                 showToast('Script created!', 'success');
                 loadUserData(true);
+            }).catch(err => {
+                handleError(err, 'Creating script');
             });
         }
+    });
+
+    // Search Scripts
+    document.getElementById('scriptSearch')?.addEventListener('input', (e) => {
+        searchTerm = e.target.value.toLowerCase();
+        const items = document.querySelectorAll('.script-item');
+        items.forEach(item => {
+            const name = item.querySelector('.script-name')?.textContent?.toLowerCase() || '';
+            if (name.includes(searchTerm)) {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+
+    // Keyboard shortcuts for scripts (1-9)
+    document.addEventListener('keydown', (e) => {
+        if (e.key >= '1' && e.key <= '9') {
+            const index = parseInt(e.key) - 1;
+            const visible = getOrderedVisible();
+            if (index < visible.length) {
+                loadScript(visible[index]);
+                showToast(`Switched to: ${scripts[visible[index]]?.name}`, 'info');
+            }
+        }
+        // Ctrl+K or Cmd+K for command palette
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            showToast('Command palette coming soon!', 'info');
+        }
+    });
+
+    // CSV Upload
+    document.getElementById('csvFileInput')?.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const csvText = event.target.result;
+                    const lines = csvText.split('\n').filter(line => line.trim());
+                    if (lines.length > 0) {
+                        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                        let imported = 0;
+                        for (let i = 1; i < lines.length; i++) {
+                            const values = lines[i].split(',').map(v => v.trim());
+                            const data = {};
+                            headers.forEach((h, idx) => {
+                                data[h] = values[idx] || '';
+                            });
+                            if (data.name || data.business) {
+                                addAppointment(
+                                    data.date || getTodayStr(),
+                                    data.business || data.company || 'Unknown Business',
+                                    data.name || data.contact || 'Unknown Contact',
+                                    'Owner',
+                                    data.phone || data.mobile || '',
+                                    data.time || '',
+                                    data.notes || '',
+                                    'Daniel',
+                                    null,
+                                    data.status || 'Pending'
+                                );
+                                imported++;
+                            }
+                        }
+                        showToast(`Imported ${imported} appointments from CSV!`, 'success');
+                        refreshCurrentView();
+                    }
+                } catch (err) {
+                    showToast('Error parsing CSV: ' + err.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+        e.target.value = ''; // Reset file input
+    });
+
+    // Export to CSV
+    function exportToCSV() {
+        let csv = 'Business,Contact,Phone,Email,Date,Time,Status,Notes,Assigned\n';
+        for (let date in appointments) {
+            if (appointments[date].reports) {
+                appointments[date].reports.forEach(appt => {
+                    csv += `"${appt.business}","${appt.contactName}","${appt.phone || ''}","${appt.email || ''}","${appt.date}","${appt.time || ''}","${getStatus(appt)}","${appt.notes || ''}","${appt.assigned || 'Daniel'}"\n`;
+                });
+            }
+        }
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `appointments_${getTodayStr()}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('CSV exported!', 'success');
+    }
+
+    function exportSelectedToCSV(selectedIds) {
+        let csv = 'Business,Contact,Phone,Email,Date,Time,Status,Notes,Assigned\n';
+        selectedIds.forEach(id => {
+            for (let date in appointments) {
+                if (appointments[date].reports) {
+                    const appt = appointments[date].reports.find(r => r.id === id);
+                    if (appt) {
+                        csv += `"${appt.business}","${appt.contactName}","${appt.phone || ''}","${appt.email || ''}","${appt.date}","${appt.time || ''}","${getStatus(appt)}","${appt.notes || ''}","${appt.assigned || 'Daniel'}"\n`;
+                        break;
+                    }
+                }
+            }
+        });
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `selected_appointments_${getTodayStr()}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast(`${selectedIds.length} appointment(s) exported!`, 'success');
+    }
+
+    // History button
+    document.getElementById('historyBtn')?.addEventListener('click', () => {
+        showToast('Version history coming soon!', 'info');
     });
 
     // Auth state listener
@@ -1147,4 +2266,27 @@ document.addEventListener('DOMContentLoaded', () => {
             showAuthModal();
         }
     });
+
+    // Close modals on overlay click
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-overlay')) {
+            e.target.style.display = 'none';
+        }
+    });
+
+    // Close modals with Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay').forEach(modal => {
+                if (modal.style.display !== 'none') {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+    });
+
+    console.log('🚀 ScriptFlow Pro initialized successfully!');
+    console.log('📊 Handoff statuses integrated:', STATUS_OPTIONS.join(', '));
+    console.log('🎯 Drag & drop enabled for scripts and appointments');
+    console.log('✨ Smart import ready with field validation');
 });
