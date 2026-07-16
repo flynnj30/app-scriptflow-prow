@@ -11,51 +11,115 @@ const FIREBASE_CONFIG = {
     appId: "1:250157640936:web:cd6218470c302b305aed5d"
 };
 
-// Initialize Firebase
+// Initialize Firebase with error handling
+let db = null;
+let auth = null;
+let firebaseInitialized = false;
+
 try {
     if (!firebase.apps.length) {
         firebase.initializeApp(FIREBASE_CONFIG);
         console.log('✅ Firebase initialized successfully');
+        firebaseInitialized = true;
+    } else {
+        firebaseInitialized = true;
     }
 } catch (error) {
-    console.error('❌ Firebase initialization error:', error);
+    console.warn('⚠️ Firebase initialization error:', error.message);
+    // Fallback: Try to use existing app
+    try {
+        if (firebase.apps.length > 0) {
+            firebaseInitialized = true;
+            console.log('✅ Using existing Firebase app');
+        }
+    } catch (e) {
+        console.error('❌ Failed to initialize Firebase:', e);
+    }
 }
 
-const db = firebase.firestore();
-
 try {
-    db.settings({
-        cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
-        merge: true
-    });
+    if (firebaseInitialized) {
+        db = firebase.firestore();
+        
+        // Apply settings with error handling
+        try {
+            db.settings({
+                cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
+                merge: true
+            });
+        } catch (error) {
+            console.warn('Firestore settings already applied:', error);
+        }
+
+        // Enable offline persistence with error handling
+        try {
+            db.enablePersistence({ 
+                synchronizeTabs: true,
+                experimentalForceOwningTab: true 
+            }).catch(err => {
+                // If persistence fails, continue without it
+                if (err.code !== 'failed-precondition' && err.code !== 'unavailable') {
+                    console.warn('Firebase persistence error:', err);
+                }
+            });
+        } catch (err) {
+            console.warn('Firebase persistence setup:', err);
+        }
+
+        // Initialize Auth
+        auth = firebase.auth();
+
+        try {
+            auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+                .catch(err => {
+                    console.warn('Auth persistence error:', err);
+                });
+        } catch (err) {
+            console.warn('Auth persistence setup:', err);
+        }
+    }
 } catch (error) {
-    console.warn('Firestore settings already applied:', error);
+    console.warn('⚠️ Firebase service initialization error:', error.message);
 }
 
-try {
-    db.enablePersistence({ synchronizeTabs: true })
-        .catch(err => {
-            if (err.code !== 'failed-precondition' && err.code !== 'unavailable') {
-                console.warn('Firebase persistence error:', err);
-            }
-        });
-} catch (err) {
-    console.warn('Firebase persistence setup:', err);
-}
-
-const auth = firebase.auth();
-
-try {
-    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
-        .catch(err => {
-            console.warn('Auth persistence error:', err);
-        });
-} catch (err) {
-    console.warn('Auth persistence setup:', err);
-}
-
+// Make available globally with fallbacks
 window.db = db;
 window.auth = auth;
 window.firebase = firebase;
+window.firebaseInitialized = firebaseInitialized;
+
+// Connection status tracking
+let isFirebaseConnected = false;
+let connectionCheckInterval = null;
+
+function checkFirebaseConnection() {
+    if (!db) return;
+    try {
+        // Test connection with a lightweight operation
+        db.collection('_test').limit(1).get()
+            .then(() => {
+                if (!isFirebaseConnected) {
+                    isFirebaseConnected = true;
+                    console.log('✅ Firebase connection established');
+                }
+            })
+            .catch(() => {
+                if (isFirebaseConnected) {
+                    isFirebaseConnected = false;
+                    console.warn('⚠️ Firebase connection lost');
+                }
+            });
+    } catch (e) {
+        // Silently handle connection check errors
+    }
+}
+
+// Check connection every 30 seconds
+if (firebaseInitialized) {
+    connectionCheckInterval = setInterval(checkFirebaseConnection, 30000);
+    // Initial check after 2 seconds
+    setTimeout(checkFirebaseConnection, 2000);
+}
 
 console.log('✅ Firebase services ready');
+console.log('📡 Connection monitoring enabled');
