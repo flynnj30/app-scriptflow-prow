@@ -1,47 +1,36 @@
 # ScriptFlow Pro - Smart CRM & Notes Manager
 
-A full-featured CRM with integrated notes management, appointment scheduling, task tracking, and sales workspace.
+A streamlined CRM with integrated notes management, appointment scheduling, task tracking, and dynamic call-script reordering.
 
-## Features
+## Streamlined Feature Set
 
-### 📝 Notes Management
-- Create, edit, rename, duplicate, delete, archive, restore, pin, favorite
-- Auto-save with visual status
-- Undo/Redo with version history
-- Rich text editing with markdown support
+### 🎯 Dynamic Call Scripts
+- Organize calling scripts in an intuitive, draggable sidebar list
+- Drag and drop scripts to reorder them on the fly
+- Quick key mappings for switching templates instantly
 
-### 📅 CRM Features
-- Appointment calendar with drag & drop
-- Lead scoring system
-- Follow-up task management
-- Bulk actions
-- CSV import/export
+### 📅 CRM Scheduling & Handoffs
+- Appointment calendar featuring drag-and-drop rescheduling
+- Core Handoff tracking (Warm Callbacks, Completed, Cancelled, Pending, Hot Transfers)
+- Manual booking and an intelligent parsed text importer
+- Explicit Copy, Edit, and Delete action controls for appointments
 
-### 🚀 Smart Workspace
-- Tabbed browser
-- Floating panels (Notepad, Script, Calculator, Timer, Clipboard)
-- Quick copy library
-- Command palette (Ctrl+K)
+### 📝 Integrated Notes Workspace
+- Native Notes engine directly side-by-side with your tools
+- Auto-saves locally and automatically syncs to your cloud storage
+- Instant title and content editing
 
-### 🔒 Security
-- Firebase authentication
-- PIN lock for notes
-- Auto-lock after inactivity
-- Encrypted local storage
+### 📋 Task Management & Analytics
+- Follow-up task board with status toggling
+- Conversion analytics tracking total pipelines, hot transfers, and completed calls
 
-## Installation
+## Quick Installation
 
-1. Clone the repository
-2. Replace Firebase config in `js/firebase-config.js`
-3. Open `index.html` in your browser
+1. Clone or download the repository files (`index.html`, `style.css`, `script.js`, `server.js`, `package.json`, `render.yaml`) into a single root folder.
+2. Replace the Firebase configuration object at the top of `script.js` with your specific Firebase credentials.
+3. Run the application locally or deploy it to web hosting.
 
-## Technologies
-
-- HTML5, CSS3, JavaScript
-- Firebase (Auth, Firestore)
-- Chart.js
-- html2pdf.js
-
-## License
-
-MIT
+### Local Execution
+```bash
+npm install
+npm start

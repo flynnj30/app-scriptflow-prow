@@ -4,11 +4,7 @@
   "description": "ScriptFlow Pro - Smart CRM & Notes Manager",
   "main": "index.html",
   "scripts": {
-    "start": "npx serve . -p $PORT",
-    "build": "echo 'Static site - no build needed'"
-  },
-  "dependencies": {
-    "serve": "^14.2.0"
+    "start": "node server.js"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -1,9 +1,7 @@
 services:
   - type: web
     name: scriptflow-pro
-    env: static
-    staticPublishPath: .
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+    env: node
+    plan: free
+    buildCommand: ""
+    startCommand: node server.js
