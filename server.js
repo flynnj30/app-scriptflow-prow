@@ -11,7 +11,8 @@ const mimeTypes = {
     '.json': 'application/json',
     '.png': 'image/png',
     '.jpg': 'image/jpeg',
-    '.svg': 'image/svg+xml'
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon'
 };
 
 const server = http.createServer((req, res) => {
@@ -24,8 +25,8 @@ const server = http.createServer((req, res) => {
     fs.readFile(filePath, (error, content) => {
         if (error) {
             if (error.code === 'ENOENT') {
-                res.writeHead(200, { 'Content-Type': 'text/html' });
                 fs.readFile('./index.html', (err, data) => {
+                    res.writeHead(200, { 'Content-Type': 'text/html' });
                     res.end(data, 'utf-8');
                 });
             } else {
@@ -40,5 +41,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`ScriptFlow Pro running on port ${PORT}`);
 });
