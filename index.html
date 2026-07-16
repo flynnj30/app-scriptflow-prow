@@ -25,13 +25,11 @@
     
     <!-- Prevent extension errors -->
     <script>
-        // Prevent chrome extension errors
         if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
             chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
                 return true;
             });
         }
-        // Suppress console errors from extensions
         console.error = function() {
             const args = Array.from(arguments);
             if (args.some(arg => typeof arg === 'string' && arg.includes('chrome-extension'))) {
