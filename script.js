@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION
+// SCRIPTFLOW PRO - COMPLETE CENTRALIZED APPLICATION (FIXED)
 // ================================================================
 
 // ============================================================
@@ -32,57 +32,48 @@ let selectedCalDate = getTodayStr();
 let calendarView = 'calendar';
 
 let currentView = 'calendar';
-let analyticsTab = 'insights';
 let selectedAppointments = new Set();
 let currentAppointmentId = null;
 
 let toolsOpen = localStorage.getItem('toolsMenuOpen') === 'true';
 let chartInstances = {};
-let isFirebaseReady = false;
 
-// Check if Firebase is available
-try {
-    isFirebaseReady = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
-} catch (e) {
-    isFirebaseReady = false;
-}
-
-// ============================================================
-// KEYBOARD SHORTCUTS
-// ============================================================
-
+// Keyboard Shortcuts
 const DEFAULT_SHORTCUTS = {
     'Smart Import': { keys: ['Ctrl', 'Shift', 'I'], description: 'Open Smart Import modal' },
     'Appointment Calendar': { keys: ['Ctrl', 'Shift', 'C'], description: 'Open Appointment Calendar' },
     'Call Scripts': { keys: ['Ctrl', 'Shift', 'S'], description: 'Open Call Scripts' },
     'Global Search': { keys: ['Ctrl', 'Shift', 'F'], description: 'Open Global Search' },
     'Quick Add Appointment': { keys: ['Ctrl', 'Shift', 'A'], description: 'Quick Add Appointment' },
+    'Floating Notepad': { keys: ['Ctrl', 'Shift', 'N'], description: 'Open Floating Notepad' },
     'Analytics Hub': { keys: ['Ctrl', 'Shift', 'H'], description: 'Open Analytics Hub' },
     'Keyboard Shortcuts': { keys: ['Ctrl', 'Shift', '?'], description: 'Open Keyboard Shortcuts' },
     'Export to CSV': { keys: ['Ctrl', 'Shift', 'E'], description: 'Export data to CSV' },
     'Toggle Theme': { keys: ['Ctrl', 'Shift', 'T'], description: 'Toggle Dark/Light Mode' },
     'Refresh Data': { keys: ['Ctrl', 'Shift', 'R'], description: 'Refresh data from server' },
-    'Bulk Actions': { keys: ['Ctrl', 'Shift', 'B'], description: 'Open Bulk Actions' },
-    'Close Panel': { keys: ['Escape'], description: 'Close current panel and return to scripts' }
+    'Bulk Actions': { keys: ['Ctrl', 'Shift', 'B'], description: 'Open Bulk Actions' }
 };
 
 let customShortcuts = JSON.parse(localStorage.getItem('customShortcuts') || '{}');
 let shortcuts = { ...DEFAULT_SHORTCUTS, ...customShortcuts };
 
-// ============================================================
-// CONSTANTS
-// ============================================================
-
 const STATUS_OPTIONS = [
-    'Warm Callback', 'Completed', 'Canceled', 'Pending', 'Hot Transfer',
-    'Warm Call Booked', 'Meeting Booked', 'Rescheduled', 'Held'
+    'Warm Callback',
+    'Completed',
+    'Canceled',
+    'Pending',
+    'Hot Transfer',
+    'Warm Call Booked',
+    'Meeting Booked',
+    'Rescheduled',
+    'Held'
 ];
 
 const TAG_OPTIONS = [
-    { id: 'qualified_warm_call', name: 'Qualified Warm Call', color: '#10b981' },
-    { id: 'unqualified_warm_callback', name: 'Unqualified Warm Callback', color: '#f59e0b' },
-    { id: 'vip', name: 'VIP', color: '#3b82f6' },
-    { id: 'negligent_warm_callback', name: 'Negligent Warm Callback', color: '#ef4444' }
+    { id: 'qualified_warm_call', name: 'Qualified Warm Call', color: '#10b981', colorClass: 'tag-qualified-warm-call-bg' },
+    { id: 'unqualified_warm_callback', name: 'Unqualified Warm Callback', color: '#f59e0b', colorClass: 'tag-unqualified-warm-callback-bg' },
+    { id: 'vip', name: 'VIP', color: '#3b82f6', colorClass: 'tag-vip-bg' },
+    { id: 'negligent_warm_callback', name: 'Negligent Warm Callback', color: '#ef4444', colorClass: 'tag-negligent-warm-callback-bg' }
 ];
 
 const FIELD_MAPPINGS = {
@@ -96,14 +87,6 @@ const FIELD_MAPPINGS = {
     'notes': ['notes', 'note', 'comment', 'remarks', 'additional notes', 'info', 'details'],
     'assigned': ['assigned', 'assigned to', 'owner', 'agent', 'representative', 'rep', 'assigned agent']
 };
-
-const TEAM_MEMBERS = [
-    { id: 'daniel', name: 'Daniel', role: 'Team Lead', avatar: '👨‍💼', color: '#3b82f6' },
-    { id: 'sarah', name: 'Sarah', role: 'Senior Agent', avatar: '👩‍💼', color: '#8b5cf6' },
-    { id: 'mike', name: 'Mike', role: 'Agent', avatar: '👨‍💻', color: '#10b981' },
-    { id: 'jessica', name: 'Jessica', role: 'Agent', avatar: '👩‍💻', color: '#f59e0b' },
-    { id: 'david', name: 'David', role: 'Junior Agent', avatar: '👨‍🎓', color: '#ef4444' }
-];
 
 // ============================================================
 // UTILITY HELPERS
@@ -119,18 +102,18 @@ function getStatus(appt) {
 }
 
 function getStatusClassSmall(status) {
-    const map = {
-        'Warm Callback': 'status-warm-callback-sm',
-        'Completed': 'status-completed-sm',
-        'Canceled': 'status-canceled-sm',
-        'Pending': 'status-pending-sm',
-        'Hot Transfer': 'status-hot-transfer-sm',
-        'Warm Call Booked': 'status-warm-call-booked-sm',
-        'Meeting Booked': 'status-meeting-booked-sm',
-        'Rescheduled': 'status-rescheduled-sm',
-        'Held': 'status-held-sm'
-    };
-    return map[status] || 'status-pending-sm';
+    switch (status) {
+        case 'Warm Callback': return 'status-warm-callback-sm';
+        case 'Completed': return 'status-completed-sm';
+        case 'Canceled': return 'status-canceled-sm';
+        case 'Pending': return 'status-pending-sm';
+        case 'Hot Transfer': return 'status-hot-transfer-sm';
+        case 'Warm Call Booked': return 'status-warm-call-booked-sm';
+        case 'Meeting Booked': return 'status-meeting-booked-sm';
+        case 'Rescheduled': return 'status-rescheduled-sm';
+        case 'Held': return 'status-held-sm';
+        default: return 'status-pending-sm';
+    }
 }
 
 function getScoreColor(score) {
@@ -186,16 +169,36 @@ function formatDate(dateStr) {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function formatTime(timeStr) {
+    if (!timeStr) return '';
+    try {
+        const d = new Date(`2000-01-01T${timeStr}`);
+        if (isNaN(d.getTime())) return timeStr;
+        return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    } catch {
+        return timeStr;
+    }
+}
+
 function escapeHtml(s) {
     if (!s) return '';
-    return String(s).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+    return String(s).replace(/[&<>"']/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        if (m === '"') return '&quot;';
+        if (m === "'") return '&#039;';
+        return m;
+    });
 }
 
 function showToast(msg, type = 'success') {
-    document.querySelectorAll('.toast').forEach(t => t.remove());
+    const existingToasts = document.querySelectorAll('.toast');
+    existingToasts.forEach(t => t.remove());
     const t = document.createElement('div');
     t.className = `toast ${type === 'error' ? 'error' : (type === 'info' ? 'info' : (type === 'warning' ? 'warning' : ''))}`;
-    t.innerHTML = `${type === 'success' ? '✓' : (type === 'error' ? '⚠️' : (type === 'warning' ? '⚠️' : 'ℹ️'))} ${msg}`;
+    const icon = type === 'success' ? '✓' : (type === 'error' ? '⚠️' : (type === 'warning' ? '⚠️' : 'ℹ️'));
+    t.innerHTML = `${icon} ${msg}`;
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 3500);
 }
@@ -232,71 +235,210 @@ function handleError(error, context = '') {
 }
 
 // ============================================================
-// DOM HELPERS
+// KEYBOARD SHORTCUTS MANAGER
 // ============================================================
 
-function getEl(id) {
-    return document.getElementById(id);
+function getShortcutDisplay(keys) {
+    if (!keys || !Array.isArray(keys)) return '';
+    return keys.map(k => {
+        if (k === 'Ctrl') return '⌘' || 'Ctrl';
+        if (k === 'Shift') return '⇧' || 'Shift';
+        if (k === 'Alt') return '⌥' || 'Alt';
+        return k;
+    }).join(' + ');
 }
 
-function setText(id, text) {
-    const el = getEl(id);
-    if (el) el.textContent = text;
+function formatShortcutForDisplay(keys) {
+    if (!keys || !Array.isArray(keys)) return '';
+    return keys.map(k => {
+        if (k === 'Ctrl') return 'Ctrl';
+        if (k === 'Shift') return 'Shift';
+        if (k === 'Alt') return 'Alt';
+        return k;
+    }).join('+');
 }
 
-function setHTML(id, html) {
-    const el = getEl(id);
-    if (el) el.innerHTML = html;
+function checkShortcutConflict(newKeys, excludeAction = null) {
+    const conflicts = [];
+    for (const [action, shortcut] of Object.entries(shortcuts)) {
+        if (action === excludeAction) continue;
+        if (shortcut.keys && shortcut.keys.length === newKeys.length) {
+            const sorted1 = [...shortcut.keys].sort();
+            const sorted2 = [...newKeys].sort();
+            if (sorted1.every((k, i) => k === sorted2[i])) {
+                conflicts.push(action);
+            }
+        }
+    }
+    return conflicts;
 }
 
-// ============================================================
-// ESC KEY HANDLER
-// ============================================================
-
-function handleEscapeKey() {
-    if (isEditing) {
-        cancelEdit();
+function updateShortcut(action, newKeys) {
+    const conflicts = checkShortcutConflict(newKeys, action);
+    if (conflicts.length > 0) {
+        showToast(`Conflict with: ${conflicts.join(', ')}`, 'warning');
+        return false;
+    }
+    
+    if (shortcuts[action]) {
+        shortcuts[action].keys = newKeys;
+        customShortcuts[action] = shortcuts[action];
+        localStorage.setItem('customShortcuts', JSON.stringify(customShortcuts));
+        showToast(`Shortcut updated for ${action}`, 'success');
         return true;
     }
-    
-    const featurePanel = getEl('featurePanel');
-    if (featurePanel && featurePanel.style.display !== 'none') {
-        hideFeaturePanel();
-        loadScript('opening');
-        showToast('Returned to Opening Script', 'info');
-        return true;
+    return false;
+}
+
+function resetShortcutsToDefaults() {
+    if (confirm('Reset all keyboard shortcuts to default values?')) {
+        customShortcuts = {};
+        localStorage.removeItem('customShortcuts');
+        shortcuts = { ...DEFAULT_SHORTCUTS };
+        showToast('Shortcuts reset to defaults', 'success');
+        renderShortcutsList();
+        renderShortcutsPanel(document.getElementById('featurePanelBody'));
     }
+}
+
+function renderShortcutsList() {
+    const container = document.getElementById('shortcutsListContainer') || document.getElementById('shortcutsList');
+    if (!container) return;
     
-    const openModals = document.querySelectorAll('.modal-overlay');
-    openModals.forEach(modal => {
-        if (modal.style.display !== 'none') {
-            modal.style.display = 'none';
-        }
-    });
-    return true;
+    let html = '';
+    for (const [action, shortcut] of Object.entries(shortcuts)) {
+        const isDefault = DEFAULT_SHORTCUTS[action] && 
+            JSON.stringify(DEFAULT_SHORTCUTS[action].keys) === JSON.stringify(shortcut.keys);
+        const conflict = checkShortcutConflict(shortcut.keys, action);
+        
+        html += `
+            <div class="shortcut-item ${conflict.length > 0 ? 'conflict' : ''}">
+                <div class="shortcut-info">
+                    <div class="shortcut-name">${action}</div>
+                    <div class="shortcut-description">${shortcut.description || ''}</div>
+                </div>
+                <div class="shortcut-keys">
+                    ${shortcut.keys.map(k => `<kbd>${k}</kbd>`).join(' <span class="shortcut-separator">+</span> ')}
+                    ${!isDefault ? ' <span style="font-size:0.65rem; color:var(--text-muted);">(custom)</span>' : ''}
+                    ${conflict.length > 0 ? ` <span class="shortcut-conflict">⚠️ Conflict: ${conflict.join(', ')}</span>` : ''}
+                    <i class="fas fa-pen shortcut-edit" onclick="openShortcutEdit('${action}')" title="Edit shortcut"></i>
+                </div>
+            </div>
+        `;
+    }
+    container.innerHTML = html;
+}
+
+function openShortcutEdit(action) {
+    const currentKeys = shortcuts[action]?.keys || [];
+    const keysString = currentKeys.join('+');
+    const newKeysString = prompt(`Enter new shortcut for "${action}" (e.g., Ctrl+Shift+I):`, keysString);
+    if (newKeysString && newKeysString !== keysString) {
+        const newKeys = newKeysString.split('+').map(k => k.trim());
+        updateShortcut(action, newKeys);
+        renderShortcutsList();
+        renderShortcutsPanel(document.getElementById('featurePanelBody'));
+    }
 }
 
 // ============================================================
-// SCRIPT MANAGEMENT
+// GLOBAL SEARCH
 // ============================================================
 
-function updateKeyHints() {
-    const visible = getOrderedVisible();
-    document.querySelectorAll('.script-item').forEach((item, idx) => {
-        const hint = item.querySelector('.key-hint');
-        if (hint && idx < 9) {
-            hint.textContent = idx + 1;
-        } else if (hint) {
-            hint.textContent = '';
+function openGlobalSearch() {
+    const modal = document.getElementById('globalSearchModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        const input = document.getElementById('globalSearchInput');
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
+        document.getElementById('globalSearchResults').innerHTML = '';
+    }
+}
+
+function performGlobalSearch(query) {
+    const results = document.getElementById('globalSearchResults');
+    if (!results) return;
+    if (!query || query.length < 2) {
+        results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">Type at least 2 characters to search...</p>';
+        return;
+    }
+    
+    const searchResults = [];
+    const q = query.toLowerCase();
+    
+    // Search appointments
+    for (let date in appointments) {
+        if (appointments[date].reports) {
+            appointments[date].reports.forEach(appt => {
+                const searchable = `${appt.business} ${appt.contactName} ${appt.phone || ''} ${appt.email || ''} ${appt.notes || ''}`.toLowerCase();
+                if (searchable.includes(q)) {
+                    searchResults.push({ type: 'appointment', data: appt, date: date });
+                }
+            });
+        }
+    }
+    
+    // Search tasks
+    tasks.forEach(task => {
+        if (task.description.toLowerCase().includes(q)) {
+            searchResults.push({ type: 'task', data: task });
         }
     });
     
-    const activeHint = getEl('activeShortcutHint');
-    if (activeHint) {
-        const idx = visible.indexOf(currentScriptId);
-        activeHint.textContent = (idx >= 0 && idx < 9) ? (idx + 1) : '—';
+    // Search scripts
+    for (const [id, script] of Object.entries(scripts)) {
+        if (script.name.toLowerCase().includes(q) || script.content.toLowerCase().includes(q)) {
+            searchResults.push({ type: 'script', data: { id, ...script } });
+        }
     }
+    
+    if (searchResults.length === 0) {
+        results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">No results found.</p>';
+        return;
+    }
+    
+    let html = `<div style="display:flex; flex-direction:column; gap:8px;">`;
+    searchResults.slice(0, 20).forEach(result => {
+        if (result.type === 'appointment') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="showAppointmentDetail('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${escapeHtml(result.data.business)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">${formatDate(result.data.date)}</span>
+                    </div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary);">${escapeHtml(result.data.contactName)}</div>
+                </div>
+            `;
+        } else if (result.type === 'task') {
+            html += `
+                <div class="list-item" style="padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${escapeHtml(result.data.description)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">${result.data.completed ? '✅ Done' : '⏳ Pending'}</span>
+                    </div>
+                </div>
+            `;
+        } else if (result.type === 'script') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="loadScript('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${escapeHtml(result.data.name)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">📜 Script</span>
+                    </div>
+                </div>
+            `;
+        }
+    });
+    html += `</div>`;
+    results.innerHTML = html;
 }
+
+// ============================================================
+// SCRIPT MANAGEMENT WITH DRAG & DROP
+// ============================================================
 
 function loadScript(id) {
     if (!scripts[id]) return;
@@ -306,12 +448,30 @@ function loadScript(id) {
     }
     currentScriptId = id;
     const script = scripts[id];
-    setText('currentScriptName', script.name);
-    setHTML('scriptContent', `<div class="script-display">${escapeHtml(script.content).replace(/\n/g, '<br>')}</div>`);
-    setText('versionNumber', script.version || 1);
+    document.getElementById('currentScriptName').innerHTML = script.name;
+    document.getElementById('scriptContent').innerHTML = `<div class="script-display">${escapeHtml(script.content).replace(/\n/g, '<br>')}</div>`;
+    document.getElementById('versionNumber').textContent = script.version || 1;
+    
     updateFavoriteStar();
     renderSidebar();
     updateKeyHints();
+}
+
+function updateKeyHints() {
+    const visible = getOrderedVisible();
+    document.querySelectorAll('.script-item').forEach(el => {
+        const id = el.getAttribute('data-id');
+        const idx = visible.indexOf(id);
+        const hint = el.querySelector('.key-hint');
+        if (hint) {
+            hint.textContent = idx < 9 ? (idx + 1) : '';
+        }
+    });
+    const activeHint = document.getElementById('activeShortcutHint');
+    if (activeHint) {
+        const idx = visible.indexOf(currentScriptId);
+        activeHint.textContent = idx < 9 ? (idx + 1) : '—';
+    }
 }
 
 function getOrderedVisible() {
@@ -322,7 +482,7 @@ function getOrderedVisible() {
 }
 
 function renderSidebar() {
-    const container = getEl('scriptListContainer');
+    const container = document.getElementById('scriptListContainer');
     if (!container) return;
     
     const visible = getOrderedVisible();
@@ -345,13 +505,16 @@ function renderSidebar() {
                 <i class="fas fa-grip-vertical drag-handle" aria-hidden="true"></i>
                 <span class="script-name">${escapeHtml(s.name)}</span>
                 <i class="fas fa-star favorite-star ${isFavorite ? 'active' : ''}" data-id="${id}" aria-hidden="true"></i>
-                <span class="key-hint">${idx < 9 ? idx + 1 : ''}</span>
+                <span class="key-hint">${idx < 9 ? (idx + 1) : ''}</span>
             </div>
         `;
     });
     container.innerHTML = html;
     
-    if (sortableInstance) sortableInstance.destroy();
+    // Initialize Sortable
+    if (sortableInstance) {
+        sortableInstance.destroy();
+    }
     
     sortableInstance = new Sortable(container, {
         handle: '.drag-handle',
@@ -359,9 +522,10 @@ function renderSidebar() {
         ghostClass: 'sortable-ghost',
         chosenClass: 'sortable-chosen',
         dragClass: 'sortable-drag',
-        onEnd: async function() {
+        onEnd: async function(evt) {
+            const items = container.querySelectorAll('.script-item');
             const newOrder = [];
-            container.querySelectorAll('.script-item').forEach(item => {
+            items.forEach(item => {
                 const id = item.getAttribute('data-id');
                 if (id) newOrder.push(id);
             });
@@ -372,6 +536,7 @@ function renderSidebar() {
         }
     });
     
+    // Click handlers
     container.querySelectorAll('.script-item').forEach(el => {
         el.addEventListener('click', (e) => {
             if (e.target.closest('.drag-handle')) return;
@@ -380,10 +545,12 @@ function renderSidebar() {
         });
     });
     
+    // Favorite star handlers
     container.querySelectorAll('.favorite-star').forEach(el => {
         el.addEventListener('click', (e) => {
             e.stopPropagation();
-            toggleFavorite(el.getAttribute('data-id'));
+            const id = el.getAttribute('data-id');
+            toggleFavorite(id);
         });
     });
     
@@ -404,7 +571,7 @@ function toggleFavorite(id) {
 }
 
 function updateFavoriteStar() {
-    const star = getEl('favoriteScriptBtn');
+    const star = document.getElementById('favoriteScriptBtn');
     if (star) {
         const isFavorite = scriptFavorites.includes(currentScriptId);
         star.innerHTML = `<i class="fas fa-star" style="color:${isFavorite ? 'var(--favorite-color)' : 'var(--text-muted)'}"></i>`;
@@ -422,55 +589,48 @@ function startEdit() {
     const script = scripts[currentScriptId];
     currentEditContent = script.content;
     
-    const editBtn = getEl('editScriptBtn');
-    const saveBtn = getEl('saveScriptBtn');
-    const cancelBtn = getEl('cancelEditBtn');
-    const statusBadge = getEl('editStatusBadge');
+    document.getElementById('editScriptBtn').style.display = 'none';
+    document.getElementById('saveScriptBtn').style.display = 'inline-flex';
+    document.getElementById('cancelEditBtn').style.display = 'inline-flex';
+    document.getElementById('editStatusBadge').style.display = 'inline-flex';
     
-    if (editBtn) editBtn.style.display = 'none';
-    if (saveBtn) saveBtn.style.display = 'inline-flex';
-    if (cancelBtn) cancelBtn.style.display = 'inline-flex';
-    if (statusBadge) statusBadge.style.display = 'inline-flex';
+    const contentDiv = document.getElementById('scriptContent');
+    contentDiv.innerHTML = `
+        <textarea class="edit-textarea" id="editTextarea">${escapeHtml(script.content)}</textarea>
+        <div class="auto-save-indicator">Auto-saving...</div>
+    `;
     
-    const contentDiv = getEl('scriptContent');
-    if (contentDiv) {
-        contentDiv.innerHTML = `
-            <textarea class="edit-textarea" id="editTextarea">${escapeHtml(script.content)}</textarea>
-            <div class="auto-save-indicator">Auto-saving...</div>
-        `;
-    }
+    const textarea = document.getElementById('editTextarea');
+    textarea.focus();
     
-    const textarea = getEl('editTextarea');
-    if (textarea) {
-        textarea.focus();
-        
-        textarea.addEventListener('input', () => {
-            currentEditContent = textarea.value;
+    textarea.addEventListener('input', () => {
+        currentEditContent = textarea.value;
+        const indicator = document.querySelector('.auto-save-indicator');
+        if (indicator) {
+            indicator.textContent = 'Saving...';
+            indicator.style.color = 'var(--warning)';
+        }
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = setTimeout(() => {
+            saveScriptContent(textarea.value);
             const indicator = document.querySelector('.auto-save-indicator');
             if (indicator) {
-                indicator.textContent = 'Saving...';
-                indicator.style.color = 'var(--warning)';
+                indicator.textContent = '✓ Auto-saved';
+                indicator.style.color = 'var(--success)';
             }
-            clearTimeout(autoSaveTimer);
-            autoSaveTimer = setTimeout(() => {
-                saveScriptContent(textarea.value);
-                const indicator = document.querySelector('.auto-save-indicator');
-                if (indicator) {
-                    indicator.textContent = '✓ Auto-saved';
-                    indicator.style.color = 'var(--success)';
-                }
-            }, 1000);
-        });
-        
-        textarea.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') cancelEdit();
-            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                e.preventDefault();
-                saveScriptContent(textarea.value);
-                finishEdit();
-            }
-        });
-    }
+        }, 1000);
+    });
+    
+    textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            cancelEdit();
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            saveScriptContent(textarea.value);
+            finishEdit();
+        }
+    });
 }
 
 function saveScriptContent(content) {
@@ -484,31 +644,20 @@ function saveScriptContent(content) {
         version: (script.version || 1) + 1
     };
     
-    if (isFirebaseReady) {
-        db.collection('users').doc(currentUser.uid).collection('scripts').doc(currentScriptId).set(updatedScript, { merge: true })
-            .then(() => {
-                scripts[currentScriptId] = updatedScript;
-                showToast('Script saved!', 'success');
-            })
-            .catch(err => handleError(err, 'Saving script'));
-    } else {
-        scripts[currentScriptId] = updatedScript;
-        localStorage.setItem('scripts_fallback', JSON.stringify(scripts));
-        showToast('Script saved locally', 'info');
-    }
+    db.collection('users').doc(currentUser.uid).collection('scripts').doc(currentScriptId).set(updatedScript, { merge: true })
+        .then(() => {
+            scripts[currentScriptId] = updatedScript;
+            showToast('Script saved!', 'success');
+        })
+        .catch(err => handleError(err, 'Saving script'));
 }
 
 function finishEdit() {
     isEditing = false;
-    const editBtn = getEl('editScriptBtn');
-    const saveBtn = getEl('saveScriptBtn');
-    const cancelBtn = getEl('cancelEditBtn');
-    const statusBadge = getEl('editStatusBadge');
-    
-    if (editBtn) editBtn.style.display = 'inline-flex';
-    if (saveBtn) saveBtn.style.display = 'none';
-    if (cancelBtn) cancelBtn.style.display = 'none';
-    if (statusBadge) statusBadge.style.display = 'none';
+    document.getElementById('editScriptBtn').style.display = 'inline-flex';
+    document.getElementById('saveScriptBtn').style.display = 'none';
+    document.getElementById('cancelEditBtn').style.display = 'none';
+    document.getElementById('editStatusBadge').style.display = 'none';
     loadScript(currentScriptId);
     showToast('Changes saved', 'success');
 }
@@ -516,36 +665,56 @@ function finishEdit() {
 function cancelEdit() {
     if (!confirm('Discard your changes?')) return;
     isEditing = false;
-    const editBtn = getEl('editScriptBtn');
-    const saveBtn = getEl('saveScriptBtn');
-    const cancelBtn = getEl('cancelEditBtn');
-    const statusBadge = getEl('editStatusBadge');
-    
-    if (editBtn) editBtn.style.display = 'inline-flex';
-    if (saveBtn) saveBtn.style.display = 'none';
-    if (cancelBtn) cancelBtn.style.display = 'none';
-    if (statusBadge) statusBadge.style.display = 'none';
+    document.getElementById('editScriptBtn').style.display = 'inline-flex';
+    document.getElementById('saveScriptBtn').style.display = 'none';
+    document.getElementById('cancelEditBtn').style.display = 'none';
+    document.getElementById('editStatusBadge').style.display = 'none';
     loadScript(currentScriptId);
 }
 
 // ============================================================
-// AUTHENTICATION
+// AUTHENTICATION HANDLERS
 // ============================================================
 
+function getUserPhotoURL(user) {
+    if (!user) return null;
+    if (user.photoURL) return user.photoURL;
+    if (user.providerData && user.providerData.length > 0) {
+        const googleProvider = user.providerData.find(p => p.providerId === 'google.com');
+        if (googleProvider && googleProvider.photoURL) return googleProvider.photoURL;
+    }
+    return null;
+}
+
 function updateSidebarProfile(user) {
-    const container = getEl('userInfo');
-    if (!container) return;
-    if (!user) { container.style.display = 'none'; return; }
-    container.style.display = 'block';
-    setText('userEmail', user.email || '');
+    const userInfoContainer = document.getElementById('userInfo');
+    if (!userInfoContainer) return;
+    if (!user) {
+        userInfoContainer.style.display = 'none';
+        return;
+    }
+    userInfoContainer.style.display = 'block';
+    let avatarContainer = userInfoContainer.querySelector('.user-profile');
+    if (!avatarContainer) {
+        avatarContainer = document.createElement('div');
+        avatarContainer.className = 'user-profile';
+        userInfoContainer.innerHTML = '';
+        userInfoContainer.appendChild(avatarContainer);
+    }
+    const photoURL = getUserPhotoURL(user);
+    const displayName = user.displayName || user.email || 'User';
+    let avatarHtml = '';
+    if (photoURL) {
+        avatarHtml = `<img src="${photoURL}" alt="${displayName}" class="user-avatar" referrerpolicy="no-referrer" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'user-avatar-placeholder\\'>${displayName.charAt(0).toUpperCase()}</div>'" />`;
+    } else {
+        const initials = displayName.charAt(0).toUpperCase();
+        avatarHtml = `<div class="user-avatar-placeholder">${initials}</div>`;
+    }
+    avatarContainer.innerHTML = `${avatarHtml}<span class="user-email">${user.email || displayName}</span>`;
 }
 
 async function signInWithGoogle() {
-    if (!isFirebaseReady) {
-        showToast('Firebase is not available. Please check your connection.', 'error');
-        return false;
-    }
-    if (authInProgress) return;
+    if (authInProgress) { showToast('Sign in already in progress...', 'info'); return; }
     authInProgress = true;
     try {
         const provider = new firebase.auth.GoogleAuthProvider();
@@ -568,11 +737,7 @@ async function signInWithGoogle() {
 }
 
 async function signUp(email, password, username) {
-    if (!isFirebaseReady) {
-        showToast('Firebase is not available. Please check your connection.', 'error');
-        return false;
-    }
-    if (authInProgress) return;
+    if (authInProgress) { showToast('Sign in progress...', 'info'); return; }
     authInProgress = true;
     try {
         const result = await auth.createUserWithEmailAndPassword(email, password);
@@ -603,11 +768,7 @@ async function signUp(email, password, username) {
 }
 
 async function signIn(email, password) {
-    if (!isFirebaseReady) {
-        showToast('Firebase is not available. Please check your connection.', 'error');
-        return false;
-    }
-    if (authInProgress) return;
+    if (authInProgress) { showToast('Sign in progress...', 'info'); return; }
     authInProgress = true;
     try {
         const result = await auth.signInWithEmailAndPassword(email, password);
@@ -640,11 +801,9 @@ async function signOut() {
         updateSidebarProfile(null);
         updateStats();
         renderSidebar();
-        if (isFirebaseReady) {
-            await auth.signOut();
-        }
+        await auth.signOut();
         showToast('Signed out successfully', 'info');
-        setTimeout(() => showAuthModal(), 300);
+        setTimeout(() => { showAuthModal(); }, 300);
     } catch (error) {
         handleError(error, 'Sign Out');
     }
@@ -653,23 +812,22 @@ async function signOut() {
 function showAuthModal() {
     if (authModalOpen) return;
     authModalOpen = true;
-    const existing = getEl('authModal');
-    if (existing) existing.remove();
+    const existingModal = document.getElementById('authModal');
+    if (existingModal) { existingModal.remove(); }
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.id = 'authModal';
     modal.innerHTML = `
         <div class="modal-card" style="max-width: 420px;">
-            <h2 style="text-align:center; margin-bottom:20px;">
+            <h2 style="text-align:center; margin-bottom: 20px;">
                 <i class="fas fa-microphone-alt" style="color:var(--primary);"></i>
                 ScriptFlow Pro
             </h2>
             <p style="text-align:center; color:var(--text-muted); margin-bottom:20px; font-size:0.9rem;">
                 Sign in to manage and hand off your leads
             </p>
-            ${isFirebaseReady ? `
             <button id="googleSignInBtn" class="btn-icon" style="width:100%; justify-content:center; background:#ffffff; color:#333; border:1px solid #dadce0; margin-bottom:16px; padding:10px;">
-                <svg style="width:18px; height:18px; margin-right:8px;" viewBox="0 0 48 48">
+                <svg style="width:18px; height:18px; margin-right:8px; flex-shrink:0;" viewBox="0 0 48 48">
                     <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
                     <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
                     <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
@@ -678,26 +836,21 @@ function showAuthModal() {
                 <span style="font-weight:500;">Sign in with Google</span>
             </button>
             <div class="auth-divider">or continue with email</div>
-            ` : `
-            <div style="padding:16px; background:var(--warning); border-radius:12px; margin-bottom:16px; color:#1e293b;">
-                ⚠️ Offline Mode - Firebase connection unavailable
-            </div>
-            `}
             <div id="authFormContainer">
                 <div style="display:flex; gap:8px; margin-bottom:20px;">
                     <button id="loginTabBtn" class="view-btn active" style="flex:1; justify-content:center;">Sign In</button>
                     <button id="signupTabBtn" class="view-btn" style="flex:1; justify-content:center;">Sign Up</button>
                 </div>
                 <div id="loginForm">
-                    <div class="form-group"><label>Email</label><input type="email" id="loginEmailInput" placeholder="you@example.com" /></div>
-                    <div class="form-group"><label>Password</label><input type="password" id="loginPasswordInput" placeholder="••••••••" /></div>
-                    <button id="loginBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--primary); color:white;" ${!isFirebaseReady ? 'disabled' : ''}><i class="fas fa-sign-in-alt"></i> Sign In</button>
+                    <div class="form-group"><label for="loginEmailInput">Email</label><input type="email" id="loginEmailInput" placeholder="you@example.com" /></div>
+                    <div class="form-group"><label for="loginPasswordInput">Password</label><input type="password" id="loginPasswordInput" placeholder="••••••••" /></div>
+                    <button id="loginBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--primary); color:white;"><i class="fas fa-sign-in-alt"></i> Sign In</button>
                 </div>
                 <div id="signupForm" style="display:none;">
-                    <div class="form-group"><label>Username</label><input type="text" id="signupUsernameInput" placeholder="Choose a username" /></div>
-                    <div class="form-group"><label>Email</label><input type="email" id="signupEmailInput" placeholder="you@example.com" /></div>
-                    <div class="form-group"><label>Password</label><input type="password" id="signupPasswordInput" placeholder="•••••••• (min 6 chars)" /></div>
-                    <button id="signupBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--success); color:white;" ${!isFirebaseReady ? 'disabled' : ''}><i class="fas fa-user-plus"></i> Create Account</button>
+                    <div class="form-group"><label for="signupUsernameInput">Username</label><input type="text" id="signupUsernameInput" placeholder="Choose a username" /></div>
+                    <div class="form-group"><label for="signupEmailInput">Email</label><input type="email" id="signupEmailInput" placeholder="you@example.com" /></div>
+                    <div class="form-group"><label for="signupPasswordInput">Password</label><input type="password" id="signupPasswordInput" placeholder="•••••••• (min 6 chars)" /></div>
+                    <button id="signupBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--success); color:white;"><i class="fas fa-user-plus"></i> Create Account</button>
                 </div>
             </div>
             <div style="margin-top:16px; text-align:center; font-size:0.8rem; color:var(--text-muted);">🔒 Secure Cloud Data Integration</div>
@@ -705,51 +858,50 @@ function showAuthModal() {
     `;
     document.body.appendChild(modal);
     
-    if (isFirebaseReady) {
-        const googleBtn = getEl('googleSignInBtn');
-        const loginTab = getEl('loginTabBtn');
-        const signupTab = getEl('signupTabBtn');
-        const loginBtn = getEl('loginBtn');
-        const signupBtn = getEl('signupBtn');
-        
-        if (googleBtn) googleBtn.addEventListener('click', (e) => { e.preventDefault(); signInWithGoogle(); });
-        if (loginTab) loginTab.addEventListener('click', () => {
-            loginTab.classList.add('active');
-            if (signupTab) signupTab.classList.remove('active');
-            const loginForm = getEl('loginForm');
-            const signupForm = getEl('signupForm');
-            if (loginForm) loginForm.style.display = 'block';
-            if (signupForm) signupForm.style.display = 'none';
+    // Event listeners for auth modal
+    document.getElementById('googleSignInBtn').addEventListener('click', async (e) => { e.preventDefault(); await signInWithGoogle(); });
+    document.getElementById('loginTabBtn').addEventListener('click', () => {
+        document.getElementById('loginTabBtn').classList.add('active');
+        document.getElementById('signupTabBtn').classList.remove('active');
+        document.getElementById('loginForm').style.display = 'block';
+        document.getElementById('signupForm').style.display = 'none';
+    });
+    document.getElementById('signupTabBtn').addEventListener('click', () => {
+        document.getElementById('signupTabBtn').classList.add('active');
+        document.getElementById('loginTabBtn').classList.remove('active');
+        document.getElementById('loginForm').style.display = 'none';
+        document.getElementById('signupForm').style.display = 'block';
+    });
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+        const email = document.getElementById('loginEmailInput').value;
+        const password = document.getElementById('loginPasswordInput').value;
+        if (!email || !password) { showToast('Please fill in all fields', 'error'); return; }
+        await signIn(email, password);
+    });
+    document.getElementById('signupBtn').addEventListener('click', async () => {
+        const username = document.getElementById('signupUsernameInput').value;
+        const email = document.getElementById('signupEmailInput').value;
+        const password = document.getElementById('signupPasswordInput').value;
+        if (!username || !email || !password) { showToast('Please fill in all fields', 'error'); return; }
+        if (password.length < 6) { showToast('Password must be at least 6 characters', 'error'); return; }
+        await signUp(email, password, username);
+    });
+    modal.querySelectorAll('input').forEach(input => {
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                if (document.getElementById('loginForm').style.display !== 'none') {
+                    document.getElementById('loginBtn').click();
+                } else {
+                    document.getElementById('signupBtn').click();
+                }
+            }
         });
-        if (signupTab) signupTab.addEventListener('click', () => {
-            signupTab.classList.add('active');
-            if (loginTab) loginTab.classList.remove('active');
-            const loginForm = getEl('loginForm');
-            const signupForm = getEl('signupForm');
-            if (loginForm) loginForm.style.display = 'none';
-            if (signupForm) signupForm.style.display = 'block';
-        });
-        if (loginBtn) loginBtn.addEventListener('click', async () => {
-            const email = getEl('loginEmailInput')?.value;
-            const password = getEl('loginPasswordInput')?.value;
-            if (!email || !password) { showToast('Please fill in all fields', 'error'); return; }
-            await signIn(email, password);
-        });
-        if (signupBtn) signupBtn.addEventListener('click', async () => {
-            const username = getEl('signupUsernameInput')?.value;
-            const email = getEl('signupEmailInput')?.value;
-            const password = getEl('signupPasswordInput')?.value;
-            if (!username || !email || !password) { showToast('Please fill in all fields', 'error'); return; }
-            if (password.length < 6) { showToast('Password must be at least 6 characters', 'error'); return; }
-            await signUp(email, password, username);
-        });
-    }
+    });
 }
 
 function closeAuthModal() {
-    const modal = getEl('authModal');
-    if (modal) modal.remove();
-    authModalOpen = false;
+    const modal = document.getElementById('authModal');
+    if (modal) { modal.remove(); authModalOpen = false; }
 }
 
 // ============================================================
@@ -757,37 +909,11 @@ function closeAuthModal() {
 // ============================================================
 
 async function loadUserData(showLoading = true) {
-    if (!currentUser) {
-        // Try loading from local storage
-        const localData = localStorage.getItem('userData_fallback');
-        if (localData) {
-            try {
-                const data = JSON.parse(localData);
-                scripts = data.scripts || {};
-                scriptOrder = data.scriptOrder || [];
-                appointments = data.appointments || {};
-                tasks = data.tasks || {};
-                showToast('Loaded offline data', 'info');
-                updateStats();
-                renderSidebar();
-                loadScript('opening');
-                return;
-            } catch (e) {
-                console.warn('Failed to load offline data:', e);
-            }
-        }
-        return;
-    }
-    
-    if (!isFirebaseReady) {
-        showToast('Firebase unavailable - using offline mode', 'warning');
-        return;
-    }
-    
+    if (!currentUser) return;
     try {
-        const statusEl = getEl('saveStatus');
-        if (statusEl && showLoading) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
-        
+        if (showLoading) {
+            document.getElementById('saveStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+        }
         const userDoc = await db.collection('users').doc(currentUser.uid).get();
         const userData = userDoc.data();
         if (!userData) {
@@ -800,7 +926,7 @@ async function loadUserData(showLoading = true) {
                 goals: { daily: 3, weekly: 15, monthly: 60 },
                 scriptOrder: ['opening']
             });
-            return loadUserData();
+            return loadUserData(false);
         }
         if (userData.goals) {
             goals = { daily: userData.goals.daily || 3, weekly: userData.goals.weekly || 15, monthly: userData.goals.monthly || 60 };
@@ -817,22 +943,14 @@ async function loadUserData(showLoading = true) {
         });
         if (Object.keys(scripts).length === 0) {
             await createDefaultScripts();
-            return loadUserData();
+            return loadUserData(false);
         }
-        
-        // Save to local storage as fallback
-        localStorage.setItem('userData_fallback', JSON.stringify({
-            scripts: scripts,
-            scriptOrder: scriptOrder,
-            appointments: appointments,
-            tasks: tasks
-        }));
         
         updateStats();
         renderSidebar();
         loadScript('opening');
         closeAuthModal();
-        if (statusEl) statusEl.innerHTML = '<i class="fas fa-check"></i> Synced';
+        document.getElementById('saveStatus').innerHTML = '<i class="fas fa-check"></i> Synced';
     } catch (error) {
         console.error('Data Load Error:', error);
         handleError(error, 'Loading Data');
@@ -840,75 +958,76 @@ async function loadUserData(showLoading = true) {
 }
 
 function subscribeToChanges() {
-    if (!currentUser || !isFirebaseReady) return;
+    if (!currentUser) return;
     if (appointmentsUnsubscribe) appointmentsUnsubscribe();
     if (tasksUnsubscribe) tasksUnsubscribe();
 
-    try {
-        appointmentsUnsubscribe = db.collection('users').doc(currentUser.uid).collection('appointments').orderBy('createdAt', 'desc').onSnapshot(snap => {
-            appointments = {};
-            snap.forEach(doc => {
-                const appt = doc.data();
-                if (!appointments[appt.date]) appointments[appt.date] = { count: 0, note: '', reports: [] };
-                appointments[appt.date].reports.push({ ...appt, id: doc.id });
-                appointments[appt.date].count = appointments[appt.date].reports.length;
-            });
-            updateStats();
-            refreshCurrentView();
-            localStorage.setItem('appointments_fallback', JSON.stringify(appointments));
+    appointmentsUnsubscribe = db.collection('users').doc(currentUser.uid).collection('appointments').orderBy('createdAt', 'desc').onSnapshot(snap => {
+        appointments = {};
+        snap.forEach(doc => {
+            const appt = doc.data();
+            if (!appointments[appt.date]) { appointments[appt.date] = { count: 0, note: '', reports: [] }; }
+            appointments[appt.date].reports.push({ ...appt, id: doc.id });
+            appointments[appt.date].count = appointments[appt.date].reports.length;
         });
+        updateStats();
+        refreshCurrentView();
+    }, error => {
+        console.error('Appointments subscription error:', error);
+    });
 
-        tasksUnsubscribe = db.collection('users').doc(currentUser.uid).collection('tasks').orderBy('createdAt', 'desc').onSnapshot(snap => {
-            tasks = [];
-            snap.forEach(doc => tasks.push({ ...doc.data(), id: doc.id }));
-            updateTaskStats();
-            refreshCurrentView();
-            localStorage.setItem('tasks_fallback', JSON.stringify(tasks));
-        });
-    } catch (error) {
-        console.warn('Subscription error:', error);
-        // Load from local storage
-        const appointmentsLocal = localStorage.getItem('appointments_fallback');
-        const tasksLocal = localStorage.getItem('tasks_fallback');
-        if (appointmentsLocal) {
-            try {
-                appointments = JSON.parse(appointmentsLocal);
-                updateStats();
-                refreshCurrentView();
-            } catch (e) {}
-        }
-        if (tasksLocal) {
-            try {
-                tasks = JSON.parse(tasksLocal);
-                updateTaskStats();
-                refreshCurrentView();
-            } catch (e) {}
-        }
-    }
+    tasksUnsubscribe = db.collection('users').doc(currentUser.uid).collection('tasks').orderBy('createdAt', 'desc').onSnapshot(snap => {
+        tasks = [];
+        snap.forEach(doc => { tasks.push({ ...doc.data(), id: doc.id }); });
+        updateTaskStats();
+        refreshCurrentView();
+    }, error => {
+        console.error('Tasks subscription error:', error);
+    });
 }
 
 async function createDefaultScripts() {
-    if (!currentUser || !isFirebaseReady) return;
+    if (!currentUser) return;
     const defaultScripts = {
-        "opening": { name: "🎯 Opening Script", content: '"Hey, is this [Company Name]?"\n\n"Awesome — this is Flynn. We created a free, modern preview version inspired by your current site. There\'s no cost or obligation. Would you be open to taking a quick look later today and sharing your thoughts?"' },
-        "owner_yes": { name: "👑 Owner - Yes", content: "Perfect! Daniel will call you shortly to showcase your preview concept. Is this the best number to connect with you?" },
-        "owner_no": { name: "🤤 Not Owner", content: "No worries! Who usually drives your design or advertising decisions? What is the best coordinate to reach them today?" },
-        "objection_website": { name: "💻 Objection - Website", content: "I completely understand your concern about the website. Our preview is designed to show you what's possible without any commitment." },
-        "objection_cost": { name: "💰 Objection - Cost", content: "Great question about pricing. The preview is completely free—there's no cost or obligation. We believe in showing value first." },
-        "closing": { name: "🤝 Closing Script", content: "Thank you for your time today! I'll have our team prepare the preview and reach out with next steps." }
+        "opening": {
+            name: "🎯 Opening Script",
+            content: "\"Hey, is this [Company Name]?\"\n\n\"Awesome — this is Flynn. We created a free, modern preview version inspired by your current site. There's no cost or obligation. Would you be open to taking a quick look later today and sharing your thoughts?\""
+        },
+        "owner_yes": {
+            name: "👑 Owner - Yes",
+            content: "Perfect! Daniel will call you shortly to showcase your preview concept. Is this the best number to connect with you?"
+        },
+        "owner_no": {
+            name: "🤝 Not Owner",
+            content: "No worries! Who usually drives your design or advertising decisions? What is the best coordinate to reach them today?"
+        },
+        "objection_website": {
+            name: "💻 Objection - Website",
+            content: "I completely understand your concern about the website. Our preview is designed to show you what's possible without any commitment. It's a risk-free way to see how modern design could help your business grow."
+        },
+        "objection_cost": {
+            name: "💰 Objection - Cost",
+            content: "Great question about pricing. The preview is completely free—there's no cost or obligation. We believe in showing value first. If you love what you see, we can discuss options that fit your budget."
+        },
+        "closing": {
+            name: "🤝 Closing Script",
+            content: "Thank you for your time today! I'll have our team prepare the preview and reach out with next steps. Is there anything else you'd like to know before we proceed?"
+        }
     };
     const batch = db.batch();
-    const ref = db.collection('users').doc(currentUser.uid).collection('scripts');
+    const scriptsRef = db.collection('users').doc(currentUser.uid).collection('scripts');
     for (const [id, script] of Object.entries(defaultScripts)) {
-        batch.set(ref.doc(id), { name: script.name, content: script.content, version: 1, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        batch.set(scriptsRef.doc(id), { name: script.name, content: script.content, version: 1, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
     }
     await batch.commit();
 }
 
 async function saveScriptOrder() {
-    if (!currentUser || !isFirebaseReady) return;
+    if (!currentUser) return;
     try {
-        await db.collection('users').doc(currentUser.uid).update({ scriptOrder: scriptOrder });
+        await db.collection('users').doc(currentUser.uid).update({
+            scriptOrder: scriptOrder
+        });
     } catch (error) {
         console.error('Error saving script order:', error);
     }
@@ -921,13 +1040,14 @@ async function saveScriptOrder() {
 function addAppointment(dateStr, business, contactName, role, phone, time, notes, assigned, editId = null, status = 'Pending', crmLink = '', tags = []) {
     if (!currentUser) { showToast('Please sign in first', 'error'); return null; }
     if (!appointments[dateStr]) appointments[dateStr] = { count: 0, note: '', reports: [] };
-    if (!STATUS_OPTIONS.includes(status)) status = 'Pending';
+    if (!STATUS_OPTIONS.includes(status)) { status = 'Pending'; }
     const newAppt = {
         id: editId || generateUniqueId(),
         business, contactName, role: role || 'Owner', phone: phone || '',
         time: time || '', notes: notes || '', assigned: assigned || 'Daniel',
         status: status, crmLink: crmLink || '', tags: tags || [],
-        date: dateStr, createdAt: new Date().toISOString()
+        date: dateStr, createdAt: new Date().toISOString(),
+        fullText: `Business: ${business}\nContact: ${contactName}\nPhone: ${phone}\nStatus: ${status}\nNotes: ${notes}`
     };
     syncAppointment(newAppt);
     return newAppt;
@@ -935,23 +1055,10 @@ function addAppointment(dateStr, business, contactName, role, phone, time, notes
 
 async function syncAppointment(appointment) {
     if (!currentUser) return;
-    if (isFirebaseReady) {
-        try {
-            await db.collection('users').doc(currentUser.uid).collection('appointments').doc(appointment.id.toString()).set(appointment, { merge: true });
-        } catch (e) {
-            console.error('Error syncing appointment:', e);
-            saveAppointmentsToLocal();
-        }
-    } else {
-        saveAppointmentsToLocal();
-    }
-}
-
-function saveAppointmentsToLocal() {
     try {
-        localStorage.setItem('appointments_fallback', JSON.stringify(appointments));
+        await db.collection('users').doc(currentUser.uid).collection('appointments').doc(appointment.id.toString()).set(appointment, { merge: true });
     } catch (e) {
-        console.warn('Failed to save appointments locally:', e);
+        console.error('Error syncing appointment:', e);
     }
 }
 
@@ -959,10 +1066,7 @@ function deleteAppointment(dateStr, id) {
     if (appointments[dateStr]?.reports) {
         appointments[dateStr].reports = appointments[dateStr].reports.filter(r => r.id !== id);
         if (appointments[dateStr].reports.length === 0) delete appointments[dateStr];
-        if (isFirebaseReady) {
-            db.collection('users').doc(currentUser.uid).collection('appointments').doc(id.toString()).delete();
-        }
-        saveAppointmentsToLocal();
+        db.collection('users').doc(currentUser.uid).collection('appointments').doc(id.toString()).delete();
         updateStats();
         refreshCurrentView();
         return true;
@@ -991,7 +1095,7 @@ function getAppointmentById(id) {
 }
 
 // ============================================================
-// METRICS
+// METRICS TRACKING
 // ============================================================
 
 function getTodayCount() { return appointments[getTodayStr()]?.reports?.length || 0; }
@@ -1037,14 +1141,10 @@ function getAverageScore() {
 }
 
 function updateStats() {
-    const todayEl = getEl('statToday');
-    const weekEl = getEl('statWeek');
-    const monthEl = getEl('statMonth');
-    const avgEl = getEl('avgScore');
-    if (todayEl) todayEl.innerText = getTodayCount();
-    if (weekEl) weekEl.innerText = getWeekCount();
-    if (monthEl) monthEl.innerText = getMonthCount();
-    if (avgEl) avgEl.innerText = getAverageScore();
+    document.getElementById('statToday').innerText = getTodayCount();
+    document.getElementById('statWeek').innerText = getWeekCount();
+    document.getElementById('statMonth').innerText = getMonthCount();
+    document.getElementById('avgScore').innerText = getAverageScore();
     updateTaskStats();
 }
 
@@ -1058,23 +1158,15 @@ function addTask(description, dueDate, priority = 'medium', appointmentId = null
         id: generateUniqueId(), description, dueDate, priority,
         appointmentId, completed: false, createdAt: new Date().toISOString()
     };
-    if (isFirebaseReady) {
-        db.collection('users').doc(currentUser.uid).collection('tasks').doc(task.id).set(task);
-    }
-    tasks.push(task);
-    localStorage.setItem('tasks_fallback', JSON.stringify(tasks));
-    updateTaskStats();
-    refreshCurrentView();
+    db.collection('users').doc(currentUser.uid).collection('tasks').doc(task.id).set(task);
+    showToast('Task added!', 'success');
 }
 
 function toggleTaskComplete(id) {
     const task = tasks.find(t => t.id === id);
     if (task) {
         task.completed = !task.completed;
-        if (isFirebaseReady) {
-            db.collection('users').doc(currentUser.uid).collection('tasks').doc(id).update({ completed: task.completed });
-        }
-        localStorage.setItem('tasks_fallback', JSON.stringify(tasks));
+        db.collection('users').doc(currentUser.uid).collection('tasks').doc(id).update({ completed: task.completed });
         updateTaskStats();
         refreshCurrentView();
     }
@@ -1082,22 +1174,18 @@ function toggleTaskComplete(id) {
 
 function deleteTask(id) {
     tasks = tasks.filter(t => t.id !== id);
-    if (isFirebaseReady) {
-        db.collection('users').doc(currentUser.uid).collection('tasks').doc(id).delete();
-    }
-    localStorage.setItem('tasks_fallback', JSON.stringify(tasks));
+    db.collection('users').doc(currentUser.uid).collection('tasks').doc(id).delete();
     updateTaskStats();
     refreshCurrentView();
 }
 
 function updateTaskStats() {
     const pending = tasks.filter(t => !t.completed).length;
-    const pendingEl = getEl('pendingTasks');
-    if (pendingEl) pendingEl.innerText = pending;
+    document.getElementById('pendingTasks').innerText = pending;
 }
 
 // ============================================================
-// SMART IMPORT
+// SMART IMPORT MODULE
 // ============================================================
 
 let parsedImportData = {};
@@ -1107,6 +1195,7 @@ function parseAppointmentText(text) {
     const result = {};
     const confidence = {};
     const lines = text.split('\n').filter(line => line.trim());
+    
     const hasKeyValue = lines.some(line => line.includes(':'));
     
     if (hasKeyValue) {
@@ -1114,25 +1203,53 @@ function parseAppointmentText(text) {
             const [key, ...valueParts] = line.split(':');
             const rawKey = key.trim().toLowerCase();
             const rawValue = valueParts.join(':').trim();
+            
             if (rawValue) {
+                let matchedField = null;
                 for (const [field, aliases] of Object.entries(FIELD_MAPPINGS)) {
                     if (aliases.some(alias => rawKey.includes(alias) || alias.includes(rawKey))) {
-                        result[field] = rawValue;
-                        confidence[field] = 1.0;
+                        matchedField = field;
                         break;
                     }
                 }
+                if (matchedField) {
+                    result[matchedField] = rawValue;
+                    confidence[matchedField] = 1.0;
+                }
             }
         });
+    } else {
+        const fullText = lines.join(' ');
+        
+        const nameMatch = fullText.match(/(?:name|client|contact|prospect)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i);
+        if (nameMatch) { result.name = nameMatch[1]; confidence.name = 0.7; }
+        
+        const businessMatch = fullText.match(/(?:business|company|org)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i);
+        if (businessMatch) { result.business = businessMatch[1]; confidence.business = 0.7; }
+        
+        const phoneMatch = fullText.match(/(?:\+?1?[\s-]?)?\(?([0-9]{3})\)?[\s-]?([0-9]{3})[\s-]?([0-9]{4})/);
+        if (phoneMatch) { result.phone = `${phoneMatch[1]}-${phoneMatch[2]}-${phoneMatch[3]}`; confidence.phone = 0.9; }
+        
+        const emailMatch = fullText.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
+        if (emailMatch) { result.email = emailMatch[0]; confidence.email = 0.9; }
+        
+        const dateMatch = fullText.match(/\b(\d{4}-\d{1,2}-\d{1,2})|\b(\d{1,2}\/\d{1,2}\/\d{2,4})/);
+        if (dateMatch) { result.date = dateMatch[0]; confidence.date = 0.7; }
+        
+        const timeMatch = fullText.match(/\b(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?|\d{1,2}\s*(?:AM|PM|am|pm))\b/);
+        if (timeMatch) { result.time = timeMatch[0]; confidence.time = 0.7; }
     }
+    
     for (const field of ['name', 'business', 'phone', 'email', 'date', 'time', 'status']) {
         if (result[field] && !confidence[field]) confidence[field] = 0.5;
     }
+    
     return { result, confidence };
 }
 
 function checkDuplicate(appointment) {
     if (!appointment.name && !appointment.phone && !appointment.email) return null;
+    
     for (let date in appointments) {
         if (appointments[date].reports) {
             for (const existing of appointments[date].reports) {
@@ -1161,27 +1278,26 @@ function checkDuplicate(appointment) {
 }
 
 function openSmartImport() {
-    const modal = getEl('smartImportModal');
-    if (!modal) return;
-    modal.style.display = 'flex';
-    const textArea = getEl('importTextArea');
-    if (textArea) textArea.value = '';
-    const preview = getEl('importPreview');
-    if (preview) preview.style.display = 'none';
-    const saveBtn = getEl('saveImportBtn');
-    if (saveBtn) saveBtn.style.display = 'none';
-    parsedImportData = {};
-    importConfidence = {};
+    const modal = document.getElementById('smartImportModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        document.getElementById('importTextArea').value = '';
+        document.getElementById('importPreview').style.display = 'none';
+        document.getElementById('saveImportBtn').style.display = 'none';
+        parsedImportData = {};
+        importConfidence = {};
+    }
 }
 
 function renderParsedPreview(data, confidence) {
-    const preview = getEl('importPreview');
-    const fieldsContainer = getEl('parsedFields');
-    const confidenceContainer = getEl('confidenceScore');
-    const missingContainer = getEl('missingFields');
-    const duplicateContainer = getEl('duplicateWarning');
+    const preview = document.getElementById('importPreview');
+    const fieldsContainer = document.getElementById('parsedFields');
+    const confidenceContainer = document.getElementById('confidenceScore');
+    const missingContainer = document.getElementById('missingFields');
+    const duplicateContainer = document.getElementById('duplicateWarning');
     
-    if (!preview) return;
+    if (!preview || !fieldsContainer) return;
+    
     preview.style.display = 'block';
     
     let fieldsHtml = '', totalConfidence = 0, fieldCount = 0;
@@ -1210,57 +1326,49 @@ function renderParsedPreview(data, confidence) {
         if (!data[field] || !data[field].trim()) missingFields.push(field);
     }
     
-    if (fieldsContainer) fieldsContainer.innerHTML = fieldsHtml;
-    if (fieldsContainer) {
-        fieldsContainer.querySelectorAll('.field-value').forEach(el => {
-            el.addEventListener('blur', function() {
-                const field = this.getAttribute('data-field');
-                parsedImportData[field] = this.textContent.trim();
-                updateImportValidation();
-            });
+    fieldsContainer.innerHTML = fieldsHtml;
+    
+    fieldsContainer.querySelectorAll('.field-value').forEach(el => {
+        el.addEventListener('blur', function() {
+            const field = this.getAttribute('data-field');
+            parsedImportData[field] = this.textContent.trim();
+            updateImportValidation();
         });
-        fieldsContainer.querySelectorAll('.field-edit').forEach(el => {
-            el.addEventListener('click', function() {
-                const field = this.getAttribute('data-field');
-                const valueEl = fieldsContainer.querySelector(`.field-value[data-field="${field}"]`);
-                if (valueEl) valueEl.focus();
-            });
+    });
+    
+    fieldsContainer.querySelectorAll('.field-edit').forEach(el => {
+        el.addEventListener('click', function() {
+            const field = this.getAttribute('data-field');
+            const valueEl = fieldsContainer.querySelector(`.field-value[data-field="${field}"]`);
+            if (valueEl) { valueEl.focus(); }
         });
-    }
+    });
     
     parsedImportData = { ...data };
     importConfidence = { ...confidence };
     
     const avgConf = fieldCount > 0 ? totalConfidence / fieldCount : 0;
-    if (confidenceContainer) {
-        confidenceContainer.innerHTML = `
-            <strong>Overall Confidence:</strong> ${Math.round(avgConf * 100)}% 
-            <span style="font-size:0.75rem; color:var(--text-muted); margin-left:8px;">(${fieldCount} fields parsed)</span>
-        `;
+    confidenceContainer.innerHTML = `
+        <strong>Overall Confidence:</strong> ${Math.round(avgConf * 100)}% 
+        <span style="font-size:0.75rem; color:var(--text-muted); margin-left:8px;">(${fieldCount} fields parsed)</span>
+    `;
+    
+    const duplicate = checkDuplicate(data);
+    if (duplicate) {
+        duplicateContainer.style.display = 'block';
+        duplicateContainer.innerHTML = `⚠️ <strong>Potential duplicate found!</strong> Similar appointment exists: ${duplicate.business} - ${duplicate.contactName} on ${formatDate(duplicate.date)}`;
+    } else {
+        duplicateContainer.style.display = 'none';
     }
     
-    if (duplicateContainer) {
-        const duplicate = checkDuplicate(data);
-        if (duplicate) {
-            duplicateContainer.style.display = 'block';
-            duplicateContainer.innerHTML = `⚠️ <strong>Potential duplicate found!</strong> Similar appointment exists: ${duplicate.business} - ${duplicate.contactName} on ${formatDate(duplicate.date)}`;
-        } else {
-            duplicateContainer.style.display = 'none';
-        }
-    }
-    
-    if (missingContainer) {
-        if (missingFields.length > 0) {
-            missingContainer.innerHTML = `⚠️ <strong>Missing required fields:</strong> ${missingFields.join(', ')}<br><span style="font-size:0.75rem;">Please fill in all required fields before saving.</span>`;
-            missingContainer.style.color = 'var(--danger)';
-            const saveBtn = getEl('saveImportBtn');
-            if (saveBtn) saveBtn.disabled = true;
-        } else {
-            missingContainer.innerHTML = '✅ All required fields are filled';
-            missingContainer.style.color = 'var(--success)';
-            const saveBtn = getEl('saveImportBtn');
-            if (saveBtn) saveBtn.disabled = false;
-        }
+    if (missingFields.length > 0) {
+        missingContainer.innerHTML = `⚠️ <strong>Missing required fields:</strong> ${missingFields.join(', ')}<br><span style="font-size:0.75rem;">Please fill in all required fields before saving.</span>`;
+        missingContainer.style.color = 'var(--danger)';
+        document.getElementById('saveImportBtn').disabled = true;
+    } else {
+        missingContainer.innerHTML = '✅ All required fields are filled';
+        missingContainer.style.color = 'var(--success)';
+        document.getElementById('saveImportBtn').disabled = false;
     }
     updateImportValidation();
 }
@@ -1268,17 +1376,15 @@ function renderParsedPreview(data, confidence) {
 function updateImportValidation() {
     const requiredFields = ['name', 'business'];
     const allFilled = requiredFields.every(field => parsedImportData[field] && parsedImportData[field].trim());
-    const saveBtn = getEl('saveImportBtn');
-    if (saveBtn) {
-        if (allFilled) {
-            saveBtn.style.display = 'inline-flex';
-            saveBtn.disabled = false;
-            saveBtn.style.opacity = '1';
-        } else {
-            saveBtn.style.display = 'inline-flex';
-            saveBtn.disabled = true;
-            saveBtn.style.opacity = '0.5';
-        }
+    const saveBtn = document.getElementById('saveImportBtn');
+    if (allFilled) {
+        saveBtn.style.display = 'inline-flex';
+        saveBtn.disabled = false;
+        saveBtn.style.opacity = '1';
+    } else {
+        saveBtn.style.display = 'inline-flex';
+        saveBtn.disabled = true;
+        saveBtn.style.opacity = '0.5';
     }
 }
 
@@ -1305,8 +1411,7 @@ function saveImportedAppointment() {
 }
 
 function closeSmartImport() {
-    const modal = getEl('smartImportModal');
-    if (modal) modal.style.display = 'none';
+    document.getElementById('smartImportModal').style.display = 'none';
     parsedImportData = {};
     importConfidence = {};
 }
@@ -1318,33 +1423,31 @@ function closeSmartImport() {
 function showAppointmentDetail(appointmentId) {
     const appt = getAppointmentById(appointmentId);
     if (!appt) { showToast('Appointment not found', 'error'); return; }
+    
     currentAppointmentId = appointmentId;
-    const modal = getEl('appointmentDetailModal');
+    const modal = document.getElementById('appointmentDetailModal');
     if (!modal) return;
-    const titleEl = getEl('appointmentDetailTitle');
-    if (titleEl) titleEl.textContent = `📋 ${appt.business} - ${appt.contactName}`;
-    const contentEl = getEl('appointmentDetailContent');
-    if (contentEl) {
-        contentEl.innerHTML = `
-            <div class="detail-row"><span class="detail-label">Business</span><span class="detail-value">${escapeHtml(appt.business)}</span></div>
-            <div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">${escapeHtml(appt.contactName)}</span></div>
-            <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value">${escapeHtml(appt.phone || 'N/A')}</span></div>
-            <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${escapeHtml(appt.email || 'N/A')}</span></div>
-            <div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">${formatDate(appt.date)}</span></div>
-            <div class="detail-row"><span class="detail-label">Time</span><span class="detail-value">${escapeHtml(appt.time || 'N/A')}</span></div>
-            <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value"><span class="status-tag ${getStatusClassSmall(getStatus(appt))}">${getStatus(appt)}</span></span></div>
-            <div class="detail-row"><span class="detail-label">Assigned</span><span class="detail-value">${escapeHtml(appt.assigned || 'Daniel')}</span></div>
-            <div class="detail-row"><span class="detail-label">Lead Score</span><span class="detail-value"><span class="score-badge ${getScoreColor(calculateLeadScore(appt))}">${calculateLeadScore(appt)} Pts</span></span></div>
-            ${appt.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value" style="white-space:pre-wrap;">${escapeHtml(appt.notes)}</span></div>` : ''}
-            ${appt.tags && appt.tags.length > 0 ? `<div class="detail-row"><span class="detail-label">Tags</span><span class="detail-value">${appt.tags.map(t => `#${t}`).join(' ')}</span></div>` : ''}
-        `;
-    }
+    
+    document.getElementById('appointmentDetailTitle').textContent = `📋 ${appt.business} - ${appt.contactName}`;
+    
+    document.getElementById('appointmentDetailContent').innerHTML = `
+        <div class="detail-row"><span class="detail-label">Business</span><span class="detail-value">${escapeHtml(appt.business)}</span></div>
+        <div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">${escapeHtml(appt.contactName)}</span></div>
+        <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value">${escapeHtml(appt.phone || 'N/A')}</span></div>
+        <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${escapeHtml(appt.email || 'N/A')}</span></div>
+        <div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">${formatDate(appt.date)}</span></div>
+        <div class="detail-row"><span class="detail-label">Time</span><span class="detail-value">${escapeHtml(appt.time || 'N/A')}</span></div>
+        <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value"><span class="status-tag ${getStatusClassSmall(getStatus(appt))}">${getStatus(appt)}</span></span></div>
+        <div class="detail-row"><span class="detail-label">Assigned</span><span class="detail-value">${escapeHtml(appt.assigned || 'Daniel')}</span></div>
+        <div class="detail-row"><span class="detail-label">Lead Score</span><span class="detail-value"><span class="score-badge ${getScoreColor(calculateLeadScore(appt))}">${calculateLeadScore(appt)} Pts</span></span></div>
+        ${appt.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value" style="white-space:pre-wrap;">${escapeHtml(appt.notes)}</span></div>` : ''}
+        ${appt.tags && appt.tags.length > 0 ? `<div class="detail-row"><span class="detail-label">Tags</span><span class="detail-value">${appt.tags.map(t => `#${t}`).join(' ')}</span></div>` : ''}
+    `;
     modal.style.display = 'flex';
 }
 
 function closeAppointmentDetail() {
-    const modal = getEl('appointmentDetailModal');
-    if (modal) modal.style.display = 'none';
+    document.getElementById('appointmentDetailModal').style.display = 'none';
     currentAppointmentId = null;
 }
 
@@ -1359,7 +1462,7 @@ function openQuickReportWithDate(defaultDate) {
     modal.innerHTML = `
         <div class="modal-card">
             <h3><i class="fas fa-plus-circle"></i> Add New Appointment</h3>
-            <div class="form-group"><label>Date</label><input type="date" id="newApptDate" value="${defaultDate}" /></div>
+            <div class="form-group"><label>Date</label><input type="date" id="newApptDate" value="${defaultDate || getTodayStr()}" /></div>
             <div class="form-group"><label>Business Name *</label><input type="text" id="newApptBusiness" placeholder="Enter business name" /><div class="error-message">Business name is required</div></div>
             <div class="form-group"><label>Contact Name *</label><input type="text" id="newApptContact" placeholder="Enter contact name" /><div class="error-message">Contact name is required</div></div>
             <div class="form-group"><label>Phone</label><input type="text" id="newApptPhone" placeholder="Enter phone number" /></div>
@@ -1374,152 +1477,30 @@ function openQuickReportWithDate(defaultDate) {
         </div>
     `;
     document.body.appendChild(modal);
-    
-    const saveBtn = getEl('saveQuickApptBtn');
-    const cancelBtn = getEl('cancelQuickApptBtn');
-    
-    if (saveBtn) {
-        saveBtn.addEventListener('click', () => {
-            const date = getEl('newApptDate')?.value || '';
-            const bus = getEl('newApptBusiness')?.value?.trim() || '';
-            const contact = getEl('newApptContact')?.value?.trim() || '';
-            const phone = getEl('newApptPhone')?.value?.trim() || '';
-            const email = getEl('newApptEmail')?.value?.trim() || '';
-            const time = getEl('newApptTime')?.value || '';
-            const status = getEl('newApptStatus')?.value || 'Pending';
-            const notes = getEl('newApptNotes')?.value?.trim() || '';
-            if (!bus || !contact) { showToast('Please fill in all required fields', 'error'); return; }
-            addAppointment(date, bus, contact, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), 'Daniel', null, status);
-            modal.remove();
-            showToast('Appointment added successfully! 🎉', 'success');
-            refreshCurrentView();
-        });
-    }
-    if (cancelBtn) cancelBtn.addEventListener('click', () => modal.remove());
+
+    document.getElementById('saveQuickApptBtn').addEventListener('click', () => {
+        const date = document.getElementById('newApptDate').value;
+        const bus = document.getElementById('newApptBusiness').value.trim();
+        const contact = document.getElementById('newApptContact').value.trim();
+        const phone = document.getElementById('newApptPhone').value.trim();
+        const email = document.getElementById('newApptEmail').value.trim();
+        const time = document.getElementById('newApptTime').value;
+        const status = document.getElementById('newApptStatus').value;
+        const notes = document.getElementById('newApptNotes').value.trim();
+
+        if (!bus || !contact) { showToast('Please fill in all required fields', 'error'); return; }
+        addAppointment(date, bus, contact, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), 'Daniel', null, status);
+        modal.remove();
+        showToast('Appointment added successfully! 🎉', 'success');
+        refreshCurrentView();
+    });
+
+    document.getElementById('cancelQuickApptBtn').addEventListener('click', () => modal.remove());
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
 }
 
 // ============================================================
-// FEATURE PANEL
-// ============================================================
-
-function showFeaturePanel(featureType, title) {
-    const scriptPanel = getEl('scriptPanel');
-    const featurePanel = getEl('featurePanel');
-    const featureTitle = getEl('featurePanelTitle');
-    const featureBody = getEl('featurePanelBody');
-    if (!scriptPanel || !featurePanel) return;
-    currentView = featureType;
-    if (featureTitle) {
-        const iconMap = { 'calendar': 'fa-calendar-alt', 'tasks': 'fa-tasks', 'analytics': 'fa-chart-pie', 'shortcuts': 'fa-keyboard' };
-        featureTitle.innerHTML = `<i class="fas ${iconMap[featureType] || 'fa-sticky-note'}"></i> ${title}`;
-    }
-    
-    const container = getEl('viewToggleContainer');
-    if (container) {
-        let html = '';
-        if (featureType === 'calendar') {
-            html = `
-                <div class="view-toggle" id="calendarViewToggle">
-                    <button id="calendarViewBtn" class="view-btn active">📅 Calendar</button>
-                    <button id="listViewBtn" class="view-btn">📋 List</button>
-                </div>
-            `;
-        } else if (featureType === 'analytics') {
-            html = `
-                <div class="view-toggle" id="analyticsTabContainer">
-                    <button id="insightsTabBtn" class="view-btn ${analyticsTab === 'insights' ? 'active' : ''}">📊 Insights</button>
-                    <button id="reportsTabBtn" class="view-btn ${analyticsTab === 'reports' ? 'active' : ''}">📈 Reports</button>
-                    <button id="teamTabBtn" class="view-btn ${analyticsTab === 'team' ? 'active' : ''}">👥 Team</button>
-                </div>
-            `;
-        } else if (featureType === 'tasks') {
-            html = `
-                <div class="view-toggle" id="taskViewToggle">
-                    <button id="taskListViewBtn" class="view-btn active">📋 All</button>
-                    <button id="taskPendingBtn" class="view-btn">⏳ Pending</button>
-                    <button id="taskTodayBtn" class="view-btn">📅 Today</button>
-                </div>
-            `;
-        } else if (featureType === 'shortcuts') {
-            html = `
-                <div class="view-toggle" id="shortcutsViewToggle">
-                    <button id="shortcutsListBtn" class="view-btn active">📋 All</button>
-                    <button id="shortcutsCustomBtn" class="view-btn">✏️ Customize</button>
-                </div>
-            `;
-        }
-        container.innerHTML = html;
-        
-        if (featureType === 'analytics') {
-            const insightsBtn = getEl('insightsTabBtn');
-            const reportsBtn = getEl('reportsTabBtn');
-            const teamBtn = getEl('teamTabBtn');
-            
-            if (insightsBtn) {
-                insightsBtn.addEventListener('click', () => {
-                    analyticsTab = 'insights';
-                    insightsBtn.classList.add('active');
-                    if (reportsBtn) reportsBtn.classList.remove('active');
-                    if (teamBtn) teamBtn.classList.remove('active');
-                    renderAnalyticsHub(featureBody);
-                });
-            }
-            if (reportsBtn) {
-                reportsBtn.addEventListener('click', () => {
-                    analyticsTab = 'reports';
-                    reportsBtn.classList.add('active');
-                    if (insightsBtn) insightsBtn.classList.remove('active');
-                    if (teamBtn) teamBtn.classList.remove('active');
-                    renderAnalyticsHub(featureBody);
-                });
-            }
-            if (teamBtn) {
-                teamBtn.addEventListener('click', () => {
-                    analyticsTab = 'team';
-                    teamBtn.classList.add('active');
-                    if (insightsBtn) insightsBtn.classList.remove('active');
-                    if (reportsBtn) reportsBtn.classList.remove('active');
-                    renderAnalyticsHub(featureBody);
-                });
-            }
-        }
-    }
-    
-    scriptPanel.style.display = 'none';
-    featurePanel.style.display = 'block';
-    
-    if (featureBody) {
-        if (featureType === 'calendar') renderCalendarPanel(featureBody);
-        else if (featureType === 'tasks') renderTasksPanel(featureBody);
-        else if (featureType === 'analytics') renderAnalyticsHub(featureBody);
-        else if (featureType === 'shortcuts') renderShortcutsPanel(featureBody);
-        else if (featureType === 'notepad') {
-            showToast('📝 Notes feature coming soon!', 'info');
-            featurePanel.style.display = 'none';
-            scriptPanel.style.display = 'block';
-        }
-    }
-}
-
-function hideFeaturePanel() {
-    const featurePanel = getEl('featurePanel');
-    const scriptPanel = getEl('scriptPanel');
-    if (featurePanel) featurePanel.style.display = 'none';
-    if (scriptPanel) scriptPanel.style.display = 'block';
-}
-
-function refreshCurrentView() {
-    const body = getEl('featurePanelBody');
-    if (!body) return;
-    if (currentView === 'calendar') renderCalendarPanel(body);
-    else if (currentView === 'tasks') renderTasksPanel(body);
-    else if (currentView === 'analytics') renderAnalyticsHub(body);
-    else if (currentView === 'shortcuts') renderShortcutsPanel(body);
-}
-
-// ============================================================
-// CALENDAR PANEL
+// CALENDAR PANEL WITH DRAG & DROP
 // ============================================================
 
 function renderCalendarPanel(container) {
@@ -1572,7 +1553,7 @@ function renderCalendarPanel(container) {
     };
 
     container.innerHTML = `
-        <div class="calendar-section fade-in">
+        <div class="calendar-section">
             <div class="calendar-nav">
                 <h3><i class="fas fa-calendar-alt"></i> ${new Date(year, month).toLocaleString('default', { month: 'long' })} ${year}</h3>
                 <div class="calendar-nav-actions">
@@ -1626,21 +1607,15 @@ function renderCalendarPanel(container) {
         </div>
     `;
 
+    // Event listeners
     container.querySelectorAll('.calendar-day[data-date]').forEach(el => {
         el.addEventListener('click', () => { selectedCalDate = el.getAttribute('data-date'); renderCalendarPanel(container); });
     });
-    
-    const prevBtn = getEl('calPrevBtn');
-    const nextBtn = getEl('calNextBtn');
-    const todayBtn = getEl('calTodayBtn');
-    const addBtn = getEl('quickAddCalBtn');
-    const listBtn = getEl('switchToListView');
-    
-    if (prevBtn) prevBtn.addEventListener('click', () => { currentCalDate.setMonth(currentCalDate.getMonth() - 1); renderCalendarPanel(container); });
-    if (nextBtn) nextBtn.addEventListener('click', () => { currentCalDate.setMonth(currentCalDate.getMonth() + 1); renderCalendarPanel(container); });
-    if (todayBtn) todayBtn.addEventListener('click', () => { currentCalDate = new Date(); selectedCalDate = getTodayStr(); renderCalendarPanel(container); });
-    if (addBtn) addBtn.addEventListener('click', () => openQuickReportWithDate(selectedCalDate));
-    if (listBtn) listBtn.addEventListener('click', () => { calendarView = 'list'; renderCalendarPanel(container); });
+    document.getElementById('calPrevBtn')?.addEventListener('click', () => { currentCalDate.setMonth(currentCalDate.getMonth() - 1); renderCalendarPanel(container); });
+    document.getElementById('calNextBtn')?.addEventListener('click', () => { currentCalDate.setMonth(currentCalDate.getMonth() + 1); renderCalendarPanel(container); });
+    document.getElementById('calTodayBtn')?.addEventListener('click', () => { currentCalDate = new Date(); selectedCalDate = getTodayStr(); renderCalendarPanel(container); });
+    document.getElementById('quickAddCalBtn')?.addEventListener('click', () => openQuickReportWithDate(selectedCalDate));
+    document.getElementById('switchToListView')?.addEventListener('click', () => { calendarView = 'list'; renderCalendarPanel(container); });
 
     container.querySelectorAll('.delete-appt-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -1653,7 +1628,8 @@ function renderCalendarPanel(container) {
         });
     });
 
-    const appointmentsList = getEl('appointmentsList');
+    // Sortable for appointments
+    const appointmentsList = document.getElementById('appointmentsList');
     if (appointmentsList) {
         new Sortable(appointmentsList, {
             handle: '.drag-handle',
@@ -1698,7 +1674,7 @@ function renderListView(container) {
     allAppointments.sort((a, b) => new Date(a.dateKey) - new Date(b.dateKey));
 
     container.innerHTML = `
-        <div class="list-view-container fade-in">
+        <div class="list-view-container">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
                 <h4><i class="fas fa-list"></i> All Appointments (${allAppointments.length})</h4>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -1733,17 +1709,12 @@ function renderListView(container) {
         </div>
     `;
 
-    const calendarBtn = getEl('switchToCalendarView');
-    const addBtn = getEl('addApptFromList');
-    const searchInput = getEl('listSearchInput');
-    const statusFilter = getEl('listStatusFilter');
-    const tagFilter = getEl('listTagFilter');
-    
-    if (calendarBtn) calendarBtn.addEventListener('click', () => { calendarView = 'calendar'; renderCalendarPanel(container); });
-    if (addBtn) addBtn.addEventListener('click', () => openQuickReportWithDate(getTodayStr()));
-    if (searchInput) searchInput.addEventListener('input', filterListItems);
-    if (statusFilter) statusFilter.addEventListener('change', filterListItems);
-    if (tagFilter) tagFilter.addEventListener('change', filterListItems);
+    document.getElementById('switchToCalendarView')?.addEventListener('click', () => { calendarView = 'calendar'; renderCalendarPanel(container); });
+    document.getElementById('addApptFromList')?.addEventListener('click', () => openQuickReportWithDate(getTodayStr()));
+
+    document.getElementById('listSearchInput')?.addEventListener('input', filterListItems);
+    document.getElementById('listStatusFilter')?.addEventListener('change', filterListItems);
+    document.getElementById('listTagFilter')?.addEventListener('change', filterListItems);
 
     container.querySelectorAll('.delete-appt-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -1758,451 +1729,78 @@ function renderListView(container) {
 }
 
 function filterListItems() {
-    const searchInput = getEl('listSearchInput');
-    const statusFilter = getEl('listStatusFilter');
-    const tagFilter = getEl('listTagFilter');
-    
-    const search = searchInput?.value?.toLowerCase() || '';
-    const statusFilterValue = statusFilter?.value || 'all';
-    const tagFilterValue = tagFilter?.value || 'all';
+    const search = document.getElementById('listSearchInput')?.value.toLowerCase() || '';
+    const statusFilter = document.getElementById('listStatusFilter')?.value || 'all';
+    const tagFilter = document.getElementById('listTagFilter')?.value || 'all';
     const items = document.querySelectorAll('#listItemsContainer .list-item');
     
     items.forEach(item => {
         const text = item.textContent.toLowerCase();
         const status = item.querySelector('.list-status')?.textContent || '';
+        const tags = item.querySelectorAll('.list-tag') || [];
         let show = true;
         if (search && !text.includes(search)) show = false;
-        if (statusFilterValue !== 'all' && status !== statusFilterValue) show = false;
+        if (statusFilter !== 'all' && status !== statusFilter) show = false;
+        if (tagFilter !== 'all') {
+            const hasTag = Array.from(tags).some(t => t.textContent === tagFilter);
+            if (!hasTag) show = false;
+        }
         item.style.display = show ? 'grid' : 'none';
     });
 }
 
 // ============================================================
-// ANALYTICS HUB - Complete Implementation
+// FEATURE PANEL
 // ============================================================
 
-function renderAnalyticsHub(container) {
-    if (!container) return;
+function showFeaturePanel(featureType, title) {
+    const scriptPanel = document.getElementById('scriptPanel');
+    const featurePanel = document.getElementById('featurePanel');
+    const featureTitle = document.getElementById('featurePanelTitle');
+    const featureBody = document.getElementById('featurePanelBody');
     
-    if (analyticsTab === 'insights') {
-        renderAnalyticsInsights(container);
-    } else if (analyticsTab === 'reports') {
-        renderAnalyticsReports(container);
-    } else if (analyticsTab === 'team') {
-        renderAnalyticsTeam(container);
-    }
-}
-
-function renderAnalyticsInsights(container) {
-    let total = 0, hTransfers = 0, wCallbacks = 0, completedCount = 0, pendingCount = 0, canceledCount = 0;
-    let statusCounts = {};
-    let dailyData = {};
+    if (!scriptPanel || !featurePanel) return;
     
-    for (let date in appointments) {
-        if (appointments[date].reports) {
-            appointments[date].reports.forEach(a => {
-                total++;
-                const status = getStatus(a);
-                statusCounts[status] = (statusCounts[status] || 0) + 1;
-                if (status === 'Hot Transfer') hTransfers++;
-                else if (status === 'Warm Callback') wCallbacks++;
-                else if (status === 'Completed') completedCount++;
-                else if (status === 'Pending') pendingCount++;
-                else if (status === 'Canceled') canceledCount++;
-                dailyData[date] = (dailyData[date] || 0) + 1;
-            });
-        }
-    }
-
-    const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
-    const hotTransferRate = total > 0 ? Math.round((hTransfers / total) * 100) : 0;
-    const warmCallbackRate = total > 0 ? Math.round((wCallbacks / total) * 100) : 0;
-
-    container.innerHTML = `
-        <div class="analytics-container fade-in">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
-                <h3><i class="fas fa-chart-pie"></i> Pipeline Insights Dashboard</h3>
-                <span class="version-chip"><i class="fas fa-sync-alt"></i> Live Data</span>
-            </div>
-            
-            <div class="analytics-filters slide-up">
-                <label>Date Range</label>
-                <input type="date" id="analyticsStartDate" value="${getTodayStr()}" />
-                <input type="date" id="analyticsEndDate" value="${getTodayStr()}" />
-                <label>View</label>
-                <select id="analyticsViewSelect">
-                    <option value="overview">Overview</option>
-                    <option value="status">By Status</option>
-                </select>
-                <button id="analyticsApplyFilters" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-filter"></i> Apply</button>
-                <button id="analyticsExportPDF" class="btn-icon" style="background:var(--secondary); color:white;"><i class="fas fa-file-pdf"></i> Export PDF</button>
-            </div>
-            
-            <div class="report-metrics scale-in">
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">Total Pipeline</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--text-muted);">${pendingCount}</div><div class="metric-label">⏳ Pending</div></div>
-            </div>
-            
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-                <div class="feature-card slide-up">
-                    <h4>📊 Conversion Rates</h4>
-                    <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
-                        <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Completed Rate</span><span>${conversionRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--success); width:${conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
-                        <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Hot Transfer Rate</span><span>${hotTransferRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:#dc2626; width:${hotTransferRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
-                        <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Warm Callback Rate</span><span>${warmCallbackRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--warning); width:${warmCallbackRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
-                    </div>
-                </div>
-                
-                <div class="feature-card slide-up">
-                    <h4>📈 Status Distribution</h4>
-                    <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px; max-height:200px; overflow-y:auto;">
-                        ${Object.entries(statusCounts).map(([status, count]) => `
-                            <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px; transition:all 0.3s ease;">
-                                <span>${status}</span>
-                                <span style="font-weight:600;">${count} (${Math.round((count/total)*100)}%)</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-            
-            <div class="feature-card scale-in" style="margin-top:8px;">
-                <h4>📈 Appointment Trend</h4>
-                <div class="chart-container" style="height:200px;">
-                    <canvas id="trendChart"></canvas>
-                </div>
-            </div>
-            
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;">
-                <div class="feature-card scale-in">
-                    <h4>🍩 Status Distribution</h4>
-                    <div class="chart-container-sm" style="height:180px;">
-                        <canvas id="donutChart"></canvas>
-                    </div>
-                </div>
-                <div class="feature-card scale-in">
-                    <h4>📊 Weekly Performance</h4>
-                    <div class="chart-container-sm" style="height:180px;">
-                        <canvas id="barChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    setTimeout(() => {
-        initAnalyticsCharts(dailyData, statusCounts);
-    }, 200);
-
-    const applyBtn = getEl('analyticsApplyFilters');
-    const exportBtn = getEl('analyticsExportPDF');
-    if (applyBtn) applyBtn.addEventListener('click', () => showToast('Filters applied', 'info'));
-    if (exportBtn) exportBtn.addEventListener('click', () => showToast('PDF export coming soon!', 'info'));
-}
-
-function renderAnalyticsReports(container) {
-    let total = 0, completedCount = 0, hTransfers = 0, wCallbacks = 0;
-    let dailyData = {};
-    let assignedStats = {};
+    currentView = featureType;
+    featureTitle.innerHTML = `<i class="fas ${featureType === 'calendar' ? 'fa-calendar-alt' : featureType === 'tasks' ? 'fa-tasks' : featureType === 'analytics' ? 'fa-chart-pie' : featureType === 'shortcuts' ? 'fa-keyboard' : 'fa-sticky-note'}"></i> ${title}`;
     
-    for (let date in appointments) {
-        if (appointments[date].reports) {
-            appointments[date].reports.forEach(a => {
-                total++;
-                const status = getStatus(a);
-                if (status === 'Completed') completedCount++;
-                if (status === 'Hot Transfer') hTransfers++;
-                if (status === 'Warm Callback') wCallbacks++;
-                dailyData[date] = (dailyData[date] || 0) + 1;
-                
-                const assigned = a.assigned || 'Unassigned';
-                assignedStats[assigned] = (assignedStats[assigned] || 0) + 1;
-            });
-        }
+    document.getElementById('calendarViewToggle').style.display = featureType === 'calendar' ? 'flex' : 'none';
+    document.getElementById('analyticsTabContainer').style.display = featureType === 'analytics' ? 'flex' : 'none';
+    document.getElementById('taskViewToggle').style.display = featureType === 'tasks' ? 'flex' : 'none';
+    document.getElementById('shortcutsViewToggle').style.display = featureType === 'shortcuts' ? 'flex' : 'none';
+    
+    scriptPanel.style.display = 'none';
+    featurePanel.style.display = 'block';
+    
+    if (featureType === 'calendar') {
+        renderCalendarPanel(featureBody);
+    } else if (featureType === 'tasks') {
+        renderTasksPanel(featureBody);
+    } else if (featureType === 'analytics') {
+        renderAnalyticsHub(featureBody);
+    } else if (featureType === 'shortcuts') {
+        renderShortcutsPanel(featureBody);
+    } else if (featureType === 'notepad') {
+        showToast('📝 Notes feature coming soon!', 'info');
+        featurePanel.style.display = 'none';
+        scriptPanel.style.display = 'block';
     }
-
-    const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
-    const avgScore = getAverageScore();
-
-    container.innerHTML = `
-        <div class="analytics-container fade-in">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
-                <h3><i class="fas fa-chart-line"></i> Advanced Reports</h3>
-                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <button id="reportsExportCSV" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-file-csv"></i> Export CSV</button>
-                    <button id="reportsExportPDF" class="btn-icon" style="background:var(--secondary); color:white;"><i class="fas fa-file-pdf"></i> Export PDF</button>
-                </div>
-            </div>
-            
-            <div class="report-metrics scale-in">
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">Total Appointments</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--primary);">${conversionRate}%</div><div class="metric-label">Conversion Rate</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--secondary);">${avgScore}</div><div class="metric-label">Avg Lead Score</div></div>
-            </div>
-            
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-                <div class="feature-card slide-up">
-                    <h4>📈 Daily Trend</h4>
-                    <div class="chart-container" style="height:180px;">
-                        <canvas id="reportsTrendChart"></canvas>
-                    </div>
-                </div>
-                <div class="feature-card slide-up">
-                    <h4>👤 Assigned Distribution</h4>
-                    <div class="chart-container" style="height:180px;">
-                        <canvas id="reportsAssignedChart"></canvas>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="feature-card scale-in">
-                <h4>📋 Detailed Breakdown</h4>
-                <div style="overflow-x:auto; margin-top:8px;">
-                    <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
-                        <thead>
-                            <tr style="border-bottom:2px solid var(--border-color);">
-                                <th style="padding:8px; text-align:left;">Metric</th>
-                                <th style="padding:8px; text-align:center;">Count</th>
-                                <th style="padding:8px; text-align:center;">Percentage</th>
-                                <th style="padding:8px; text-align:center;">Trend</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${Object.entries(assignedStats).map(([name, count]) => `
-                                <tr style="border-bottom:1px solid var(--border-color);">
-                                    <td style="padding:8px; font-weight:500;">${name}</td>
-                                    <td style="padding:8px; text-align:center;">${count}</td>
-                                    <td style="padding:8px; text-align:center;">${Math.round((count/total)*100)}%</td>
-                                    <td style="padding:8px; text-align:center;">${count > total/2 ? '📈' : count > total/4 ? '➡️' : '📉'}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    `;
-
-    setTimeout(() => {
-        const trendCtx = getEl('reportsTrendChart')?.getContext('2d');
-        if (trendCtx) {
-            const dates = Object.keys(dailyData).sort().slice(-7);
-            const values = dates.map(d => dailyData[d]);
-            new Chart(trendCtx, {
-                type: 'line',
-                data: {
-                    labels: dates.map(d => formatDate(d)),
-                    datasets: [{ label: 'Appointments', data: values, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-            });
-        }
-        
-        const assignedCtx = getEl('reportsAssignedChart')?.getContext('2d');
-        if (assignedCtx) {
-            const labels = Object.keys(assignedStats);
-            const data = Object.values(assignedStats);
-            const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#f97316'];
-            new Chart(assignedCtx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{ label: 'Appointments', data: data, backgroundColor: colors.slice(0, labels.length), borderRadius: 4 }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-            });
-        }
-    }, 200);
-
-    const exportCSV = getEl('reportsExportCSV');
-    const exportPDF = getEl('reportsExportPDF');
-    if (exportCSV) exportCSV.addEventListener('click', () => showToast('CSV export coming soon!', 'info'));
-    if (exportPDF) exportPDF.addEventListener('click', () => showToast('PDF export coming soon!', 'info'));
 }
 
-function renderAnalyticsTeam(container) {
-    let teamStats = {};
-    TEAM_MEMBERS.forEach(member => {
-        teamStats[member.id] = {
-            ...member,
-            appointments: 0,
-            completed: 0,
-            hotTransfers: 0,
-            warmCallbacks: 0,
-            score: 0
-        };
-    });
-
-    let totalAppts = 0;
-    for (let date in appointments) {
-        if (appointments[date].reports) {
-            appointments[date].reports.forEach(a => {
-                totalAppts++;
-                const assigned = a.assigned || 'unassigned';
-                const status = getStatus(a);
-                
-                if (teamStats[assigned]) {
-                    teamStats[assigned].appointments++;
-                    if (status === 'Completed') teamStats[assigned].completed++;
-                    if (status === 'Hot Transfer') teamStats[assigned].hotTransfers++;
-                    if (status === 'Warm Callback') teamStats[assigned].warmCallbacks++;
-                    teamStats[assigned].score += calculateLeadScore(a);
-                }
-            });
-        }
-    }
-
-    Object.values(teamStats).forEach(member => {
-        if (member.appointments > 0) {
-            member.score = Math.round(member.score / member.appointments);
-        }
-        member.conversionRate = member.appointments > 0 ? Math.round((member.completed / member.appointments) * 100) : 0;
-    });
-
-    const topPerformer = Object.values(teamStats).sort((a, b) => b.score - a.score)[0];
-
-    container.innerHTML = `
-        <div class="analytics-container fade-in">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
-                <h3><i class="fas fa-users"></i> Team Performance Dashboard</h3>
-                <span class="version-chip"><i class="fas fa-crown"></i> ${topPerformer ? `${topPerformer.avatar} ${topPerformer.name} is leading!` : 'No data yet'}</span>
-            </div>
-            
-            <div class="report-metrics scale-in">
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${TEAM_MEMBERS.length}</div><div class="metric-label">👥 Team Members</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${totalAppts}</div><div class="metric-label">📋 Total Appointments</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--primary);">${topPerformer ? topPerformer.score : 0}</div><div class="metric-label">🏆 Top Score</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${topPerformer ? topPerformer.conversionRate : 0}%</div><div class="metric-label">📈 Top Conversion</div></div>
-            </div>
-            
-            <div class="feature-card slide-up">
-                <h4>👤 Team Member Performance</h4>
-                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-top:12px;">
-                    ${Object.values(teamStats).map(member => `
-                        <div style="background:var(--bg-primary); border-radius:12px; padding:16px; border-left: 4px solid ${member.color}; transition:all 0.3s ease;">
-                            <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-                                <span style="font-size:2rem;">${member.avatar}</span>
-                                <div>
-                                    <div style="font-weight:600;">${member.name}</div>
-                                    <div style="font-size:0.7rem; color:var(--text-muted);">${member.role}</div>
-                                </div>
-                                ${member.id === topPerformer?.id ? '<span style="margin-left:auto; font-size:1.2rem;">👑</span>' : ''}
-                            </div>
-                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:0.8rem;">
-                                <span>📋 ${member.appointments}</span>
-                                <span>✅ ${member.completed}</span>
-                                <span>🔥 ${member.hotTransfers}</span>
-                                <span>📞 ${member.warmCallbacks}</span>
-                                <span style="font-weight:600;">Score: ${member.score}</span>
-                                <span style="font-weight:600;">Conv: ${member.conversionRate}%</span>
-                            </div>
-                            <div style="margin-top:8px; background:var(--bg-card); height:4px; border-radius:4px; overflow:hidden;">
-                                <div style="background:${member.color}; width:${member.conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-            
-            <div class="feature-card scale-in">
-                <h4>📊 Team Performance Chart</h4>
-                <div class="chart-container" style="height:200px;">
-                    <canvas id="teamChart"></canvas>
-                </div>
-            </div>
-        </div>
-    `;
-
-    setTimeout(() => {
-        const teamCtx = getEl('teamChart')?.getContext('2d');
-        if (teamCtx) {
-            const labels = Object.values(teamStats).map(m => m.name);
-            const scores = Object.values(teamStats).map(m => m.score);
-            const colors = Object.values(teamStats).map(m => m.color);
-            new Chart(teamCtx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Lead Score',
-                        data: scores,
-                        backgroundColor: colors.map(c => c + '80'),
-                        borderColor: colors,
-                        borderWidth: 2,
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        y: { beginAtZero: true }
-                    }
-                }
-            });
-        }
-    }, 200);
+function hideFeaturePanel() {
+    document.getElementById('featurePanel').style.display = 'none';
+    document.getElementById('scriptPanel').style.display = 'block';
 }
 
-// ============================================================
-// ANALYTICS - CHART HELPERS
-// ============================================================
-
-function initAnalyticsCharts(dailyData, statusCounts) {
-    Object.values(chartInstances).forEach(chart => { if (chart) chart.destroy(); });
-    chartInstances = {};
-    const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#f97316', '#06b6d4', '#ec4899'];
-
-    const trendCtx = getEl('trendChart')?.getContext('2d');
-    if (trendCtx) {
-        const dates = Object.keys(dailyData).sort();
-        const values = dates.map(d => dailyData[d]);
-        chartInstances.trend = new Chart(trendCtx, {
-            type: 'line',
-            data: { labels: dates.map(d => formatDate(d)), datasets: [{ label: 'Appointments', data: values, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-        });
-    }
-
-    const donutCtx = getEl('donutChart')?.getContext('2d');
-    if (donutCtx) {
-        const labels = Object.keys(statusCounts);
-        const data = Object.values(statusCounts);
-        const backgroundColors = labels.map((_, i) => colors[i % colors.length]);
-        chartInstances.donut = new Chart(donutCtx, {
-            type: 'doughnut',
-            data: { labels, datasets: [{ data, backgroundColor: backgroundColors, borderWidth: 2, borderColor: 'var(--bg-secondary)' }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 10 } } } }, cutout: '60%' }
-        });
-    }
-
-    const barCtx = getEl('barChart')?.getContext('2d');
-    if (barCtx) {
-        const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-        const weekData = weekDays.map(() => 0);
-        const now = new Date();
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay() + 1);
-        for (let date in dailyData) {
-            const d = new Date(date);
-            const dayIndex = (d.getDay() + 6) % 7;
-            if (d >= startOfWeek && d <= now) weekData[dayIndex] += dailyData[date];
-        }
-        chartInstances.bar = new Chart(barCtx, {
-            type: 'bar',
-            data: { labels: weekDays, datasets: [{ label: 'This Week', data: weekData, backgroundColor: 'rgba(59,130,246,0.7)', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-        });
-    }
+function refreshCurrentView() {
+    const body = document.getElementById('featurePanelBody');
+    if (!body) return;
+    if (!document.getElementById('featurePanel').style.display || document.getElementById('featurePanel').style.display === 'none') return;
+    
+    if (currentView === 'calendar') renderCalendarPanel(body);
+    else if (currentView === 'tasks') renderTasksPanel(body);
+    else if (currentView === 'analytics') renderAnalyticsHub(body);
+    else if (currentView === 'shortcuts') renderShortcutsPanel(body);
 }
 
 // ============================================================
@@ -2212,7 +1810,7 @@ function initAnalyticsCharts(dailyData, statusCounts) {
 function renderShortcutsPanel(container) {
     if (!container) return;
     container.innerHTML = `
-        <div class="shortcuts-container fade-in">
+        <div class="shortcuts-container">
             <h3><i class="fas fa-keyboard"></i> Keyboard Shortcuts Manager</h3>
             <p style="color:var(--text-muted); margin-bottom:16px;">View and customize keyboard shortcuts for quick access to features.</p>
             <div style="margin-bottom:16px; display:flex; gap:8px; flex-wrap:wrap;">
@@ -2222,90 +1820,9 @@ function renderShortcutsPanel(container) {
             <div id="shortcutsListContainer" style="max-height:450px; overflow-y:auto;"></div>
         </div>
     `;
+    
     renderShortcutsList();
-    const resetBtn = getEl('shortcutsResetDefaultsBtn');
-    if (resetBtn) resetBtn.addEventListener('click', resetShortcutsToDefaults);
-}
-
-function renderShortcutsList() {
-    const container = getEl('shortcutsList');
-    if (!container) return;
-    
-    let html = '';
-    for (const [action, shortcut] of Object.entries(shortcuts)) {
-        const isDefault = DEFAULT_SHORTCUTS[action] && 
-            JSON.stringify(DEFAULT_SHORTCUTS[action].keys) === JSON.stringify(shortcut.keys);
-        const conflict = checkShortcutConflict(shortcut.keys, action);
-        
-        html += `
-            <div class="shortcut-item ${conflict.length > 0 ? 'conflict' : ''}">
-                <div class="shortcut-info">
-                    <div class="shortcut-name">${action}</div>
-                    <div class="shortcut-description">${shortcut.description || ''}</div>
-                </div>
-                <div class="shortcut-keys">
-                    ${shortcut.keys.map(k => `<kbd>${k}</kbd>`).join(' <span class="shortcut-separator">+</span> ')}
-                    ${!isDefault ? ' <span style="font-size:0.65rem; color:var(--text-muted);">(custom)</span>' : ''}
-                    ${conflict.length > 0 ? ` <span class="shortcut-conflict">⚠️ Conflict: ${conflict.join(', ')}</span>` : ''}
-                    <i class="fas fa-pen shortcut-edit" onclick="openShortcutEdit('${action}')" title="Edit shortcut"></i>
-                </div>
-            </div>
-        `;
-    }
-    container.innerHTML = html;
-}
-
-function checkShortcutConflict(newKeys, excludeAction = null) {
-    const conflicts = [];
-    for (const [action, shortcut] of Object.entries(shortcuts)) {
-        if (action === excludeAction) continue;
-        if (shortcut.keys && shortcut.keys.length === newKeys.length) {
-            const sorted1 = [...shortcut.keys].sort();
-            const sorted2 = [...newKeys].sort();
-            if (sorted1.every((k, i) => k === sorted2[i])) {
-                conflicts.push(action);
-            }
-        }
-    }
-    return conflicts;
-}
-
-function openShortcutEdit(action) {
-    const currentKeys = shortcuts[action]?.keys || [];
-    const keysString = currentKeys.join('+');
-    const newKeysString = prompt(`Enter new shortcut for "${action}" (e.g., Ctrl+Shift+I):`, keysString);
-    if (newKeysString && newKeysString !== keysString) {
-        const newKeys = newKeysString.split('+').map(k => k.trim());
-        updateShortcut(action, newKeys);
-        renderShortcutsList();
-    }
-}
-
-function updateShortcut(action, newKeys) {
-    const conflicts = checkShortcutConflict(newKeys, action);
-    if (conflicts.length > 0) {
-        showToast(`Conflict with: ${conflicts.join(', ')}`, 'warning');
-        return false;
-    }
-    
-    if (shortcuts[action]) {
-        shortcuts[action].keys = newKeys;
-        customShortcuts[action] = shortcuts[action];
-        localStorage.setItem('customShortcuts', JSON.stringify(customShortcuts));
-        showToast(`Shortcut updated for ${action}`, 'success');
-        return true;
-    }
-    return false;
-}
-
-function resetShortcutsToDefaults() {
-    if (confirm('Reset all keyboard shortcuts to default values?')) {
-        customShortcuts = {};
-        localStorage.removeItem('customShortcuts');
-        shortcuts = { ...DEFAULT_SHORTCUTS };
-        showToast('Shortcuts reset to defaults', 'success');
-        renderShortcutsList();
-    }
+    document.getElementById('shortcutsResetDefaultsBtn')?.addEventListener('click', resetShortcutsToDefaults);
 }
 
 // ============================================================
@@ -2314,16 +1831,23 @@ function resetShortcutsToDefaults() {
 
 function renderTasksPanel(container) {
     if (!container) return;
-    const filteredTasks = taskFilter === 'all' ? tasks : tasks.filter(t => !t.completed);
+    
+    let filteredTasks = tasks;
+    if (taskFilter === 'pending') {
+        filteredTasks = tasks.filter(t => !t.completed);
+    } else if (taskFilter === 'today') {
+        const today = getTodayStr();
+        filteredTasks = tasks.filter(t => t.dueDate === today);
+    }
     
     container.innerHTML = `
-        <div class="tasks-section fade-in">
+        <div class="tasks-section">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
                 <h3><i class="fas fa-tasks"></i> Follow-up Tasks</h3>
                 <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                    <button id="taskFilterAll" class="view-btn ${taskFilter === 'all' ? 'active' : ''}">All</button>
-                    <button id="taskFilterPending" class="view-btn ${taskFilter === 'pending' ? 'active' : ''}">Pending</button>
-                    <button id="taskFilterToday" class="view-btn ${taskFilter === 'today' ? 'active' : ''}">Today</button>
+                    <button id="taskFilterAllBtn" class="view-btn ${taskFilter === 'all' ? 'active' : ''}">All</button>
+                    <button id="taskFilterPendingBtn" class="view-btn ${taskFilter === 'pending' ? 'active' : ''}">Pending</button>
+                    <button id="taskFilterTodayBtn" class="view-btn ${taskFilter === 'today' ? 'active' : ''}">Today</button>
                     <button id="addNewTaskBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> New</button>
                 </div>
             </div>
@@ -2350,15 +1874,11 @@ function renderTasksPanel(container) {
         </div>
     `;
 
-    const filterAll = getEl('taskFilterAll');
-    const filterPending = getEl('taskFilterPending');
-    const filterToday = getEl('taskFilterToday');
-    const addBtn = getEl('addNewTaskBtn');
-    
-    if (filterAll) filterAll.addEventListener('click', () => { taskFilter = 'all'; renderTasksPanel(container); });
-    if (filterPending) filterPending.addEventListener('click', () => { taskFilter = 'pending'; renderTasksPanel(container); });
-    if (filterToday) filterToday.addEventListener('click', () => { taskFilter = 'today'; renderTasksPanel(container); });
-    if (addBtn) addBtn.addEventListener('click', () => {
+    document.getElementById('taskFilterAllBtn')?.addEventListener('click', () => { taskFilter = 'all'; renderTasksPanel(container); });
+    document.getElementById('taskFilterPendingBtn')?.addEventListener('click', () => { taskFilter = 'pending'; renderTasksPanel(container); });
+    document.getElementById('taskFilterTodayBtn')?.addEventListener('click', () => { taskFilter = 'today'; renderTasksPanel(container); });
+
+    document.getElementById('addNewTaskBtn')?.addEventListener('click', () => {
         const desc = prompt('Enter task description:');
         if (desc && desc.trim()) {
             const dueDate = prompt('Enter due date (YYYY-MM-DD) or leave blank:', getTodayStr());
@@ -2386,19 +1906,252 @@ function renderTasksPanel(container) {
 }
 
 // ============================================================
+// ANALYTICS HUB WITH CHARTS
+// ============================================================
+
+function renderAnalyticsHub(container) {
+    if (!container) return;
+    
+    let total = 0, hTransfers = 0, wCallbacks = 0, completedCount = 0, pendingCount = 0, canceledCount = 0;
+    let statusCounts = {};
+    let dailyData = {};
+    
+    for (let date in appointments) {
+        if (appointments[date].reports) {
+            appointments[date].reports.forEach(a => {
+                total++;
+                const status = getStatus(a);
+                statusCounts[status] = (statusCounts[status] || 0) + 1;
+                if (status === 'Hot Transfer') hTransfers++;
+                else if (status === 'Warm Callback') wCallbacks++;
+                else if (status === 'Completed') completedCount++;
+                else if (status === 'Pending') pendingCount++;
+                else if (status === 'Canceled') canceledCount++;
+                
+                dailyData[date] = (dailyData[date] || 0) + 1;
+            });
+        }
+    }
+
+    const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+    const hotTransferRate = total > 0 ? Math.round((hTransfers / total) * 100) : 0;
+    const warmCallbackRate = total > 0 ? Math.round((wCallbacks / total) * 100) : 0;
+
+    container.innerHTML = `
+        <div class="analytics-container">
+            <h3><i class="fas fa-chart-pie"></i> Pipeline Performance Dashboard</h3>
+            
+            <div class="analytics-filters">
+                <label>Date Range</label>
+                <input type="date" id="analyticsStartDate" value="${getTodayStr()}" />
+                <input type="date" id="analyticsEndDate" value="${getTodayStr()}" />
+                <label>View</label>
+                <select id="analyticsViewSelect">
+                    <option value="overview">Overview</option>
+                    <option value="status">By Status</option>
+                    <option value="team">Team Performance</option>
+                </select>
+                <button id="analyticsApplyFilters" class="btn-icon" style="background:var(--primary); color:white;">Apply</button>
+                <button id="analyticsExportPDF" class="btn-icon" style="background:var(--secondary); color:white;"><i class="fas fa-file-pdf"></i> Export PDF</button>
+            </div>
+            
+            <div class="report-metrics">
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">Total Pipeline</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--text-muted);">${pendingCount}</div><div class="metric-label">⏳ Pending</div></div>
+            </div>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div class="feature-card">
+                    <h4>📊 Conversion Rates</h4>
+                    <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
+                        <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Completed Rate</span><span>${conversionRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px;"><div style="background:var(--success); width:${conversionRate}%; height:100%; border-radius:4px; transition:width 0.5s;"></div></div></div>
+                        <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Hot Transfer Rate</span><span>${hotTransferRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px;"><div style="background:#dc2626; width:${hotTransferRate}%; height:100%; border-radius:4px; transition:width 0.5s;"></div></div></div>
+                        <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Warm Callback Rate</span><span>${warmCallbackRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px;"><div style="background:var(--warning); width:${warmCallbackRate}%; height:100%; border-radius:4px; transition:width 0.5s;"></div></div></div>
+                    </div>
+                </div>
+                
+                <div class="feature-card">
+                    <h4>📈 Status Distribution</h4>
+                    <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px; max-height:200px; overflow-y:auto;">
+                        ${Object.entries(statusCounts).map(([status, count]) => `
+                            <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px;">
+                                <span>${status}</span>
+                                <span style="font-weight:600;">${count} (${Math.round((count/total)*100)}%)</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="feature-card" style="margin-top:8px;">
+                <h4>📈 Appointment Trend</h4>
+                <div class="chart-container" style="height:200px;">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;">
+                <div class="feature-card">
+                    <h4>🍩 Status Distribution</h4>
+                    <div class="chart-container-sm" style="height:180px;">
+                        <canvas id="donutChart"></canvas>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <h4>📊 Weekly Performance</h4>
+                    <div class="chart-container-sm" style="height:180px;">
+                        <canvas id="barChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    setTimeout(() => {
+        initAnalyticsCharts(dailyData, statusCounts);
+    }, 100);
+
+    document.getElementById('analyticsApplyFilters')?.addEventListener('click', () => {
+        showToast('Filters applied', 'info');
+    });
+
+    document.getElementById('analyticsExportPDF')?.addEventListener('click', () => {
+        showToast('PDF export coming soon!', 'info');
+    });
+}
+
+function initAnalyticsCharts(dailyData, statusCounts) {
+    Object.values(chartInstances).forEach(chart => {
+        if (chart) chart.destroy();
+    });
+    chartInstances = {};
+
+    const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#f97316', '#06b6d4', '#ec4899'];
+
+    const trendCtx = document.getElementById('trendChart')?.getContext('2d');
+    if (trendCtx) {
+        const dates = Object.keys(dailyData).sort();
+        const values = dates.map(d => dailyData[d]);
+        chartInstances.trend = new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: dates.map(d => formatDate(d)),
+                datasets: [{
+                    label: 'Appointments',
+                    data: values,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }
+
+    const donutCtx = document.getElementById('donutChart')?.getContext('2d');
+    if (donutCtx) {
+        const labels = Object.keys(statusCounts);
+        const data = Object.values(statusCounts);
+        const backgroundColors = labels.map((_, i) => colors[i % colors.length]);
+        chartInstances.donut = new Chart(donutCtx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: backgroundColors,
+                    borderWidth: 2,
+                    borderColor: 'var(--bg-secondary)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 12, padding: 8, font: { size: 10 } }
+                    }
+                },
+                cutout: '60%'
+            }
+        });
+    }
+
+    const barCtx = document.getElementById('barChart')?.getContext('2d');
+    if (barCtx) {
+        const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const weekData = weekDays.map(() => 0);
+        const now = new Date();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+        
+        for (let date in dailyData) {
+            const d = new Date(date);
+            const dayIndex = (d.getDay() + 6) % 7;
+            if (d >= startOfWeek && d <= now) {
+                weekData[dayIndex] += dailyData[date];
+            }
+        }
+
+        chartInstances.bar = new Chart(barCtx, {
+            type: 'bar',
+            data: {
+                labels: weekDays,
+                datasets: [{
+                    label: 'This Week',
+                    data: weekData,
+                    backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                    borderColor: '#3b82f6',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }
+}
+
+// ============================================================
 // BULK ACTIONS
 // ============================================================
 
 function openBulkActions() {
-    const modal = getEl('bulkActionsModal');
-    const container = getEl('bulkSelectionContainer');
+    const modal = document.getElementById('bulkActionsModal');
+    const container = document.getElementById('bulkSelectionContainer');
     if (!modal || !container) return;
+    
     modal.style.display = 'flex';
     selectedAppointments = new Set();
+    
     let html = '';
+    let hasAppointments = false;
     for (let date in appointments) {
         if (appointments[date].reports) {
             appointments[date].reports.forEach(appt => {
+                hasAppointments = true;
                 html += `
                     <div class="bulk-item">
                         <input type="checkbox" class="bulk-checkbox" value="${appt.id}" data-date="${date}" />
@@ -2409,6 +2162,7 @@ function openBulkActions() {
         }
     }
     container.innerHTML = html || '<p style="color:var(--text-muted);">No appointments found</p>';
+    
     container.querySelectorAll('.bulk-checkbox').forEach(cb => {
         cb.addEventListener('change', () => {
             if (cb.checked) selectedAppointments.add(cb.value);
@@ -2422,67 +2176,40 @@ function openBulkActions() {
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Starting ScriptFlow Pro...');
-    
-    // Check Firebase availability
-    if (!isFirebaseReady) {
-        console.warn('⚠️ Firebase not available - running in offline mode');
-        showToast('Offline mode - Some features may be limited', 'warning');
-    }
-    
     // Setup Tools Menu
-    const toolsHeader = getEl('toolsHeader');
-    const toolsMenu = getEl('toolsMenu');
-    const toolsChevron = getEl('toolsChevron');
+    const toolsHeader = document.getElementById('toolsHeader');
+    const toolsMenu = document.getElementById('toolsMenu');
+    const toolsChevron = document.getElementById('toolsChevron');
     
-    if (toolsHeader && toolsMenu && toolsChevron) {
-        if (toolsOpen) { toolsMenu.classList.add('open'); toolsChevron.classList.add('rotated'); }
-        toolsHeader.addEventListener('click', () => {
-            toolsOpen = !toolsOpen;
-            toolsMenu.classList.toggle('open');
-            toolsChevron.classList.toggle('rotated');
-            localStorage.setItem('toolsMenuOpen', toolsOpen);
-        });
-    }
+    if (toolsOpen) { toolsMenu.classList.add('open'); toolsChevron.classList.add('rotated'); }
+    toolsHeader?.addEventListener('click', function() {
+        toolsOpen = !toolsOpen;
+        toolsMenu.classList.toggle('open');
+        toolsChevron.classList.toggle('rotated');
+        localStorage.setItem('toolsMenuOpen', toolsOpen);
+    });
 
     // Menu Toggle
-    const menuToggle = getEl('menuToggleBtn');
-    const sidebar = getEl('mainSidebar');
-    const mainContent = getEl('mainContent');
-    if (menuToggle && sidebar && mainContent) {
-        menuToggle.addEventListener('click', () => {
-            sidebar.classList.toggle('closed');
-            mainContent.classList.toggle('expanded');
-        });
-    }
-
-    // ESC Key Handler
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            handleEscapeKey();
-        }
+    document.getElementById('menuToggleBtn')?.addEventListener('click', function() {
+        document.getElementById('mainSidebar').classList.toggle('closed');
+        document.getElementById('mainContent').classList.toggle('expanded');
     });
 
     // Tool Items
-    document.querySelectorAll('.tool-item').forEach(item => {
+    document.querySelectorAll('.tool-item').forEach(function(item) {
         item.addEventListener('click', function() {
             const tool = this.getAttribute('data-tool');
             if (tool === 'notepad') showToast('📝 Notes feature coming soon!', 'info');
             else if (tool === 'calendar') showFeaturePanel('calendar', '📅 Appointment & Handoff Calendar');
             else if (tool === 'tasks') showFeaturePanel('tasks', '📋 Follow-up Tasks Manager');
-            else if (tool === 'analytics') {
-                analyticsTab = 'insights';
-                showFeaturePanel('analytics', '📊 Analytics Hub');
-            }
+            else if (tool === 'analytics') showFeaturePanel('analytics', '📊 Pipeline Performance');
             else if (tool === 'shortcuts') showFeaturePanel('shortcuts', '⌨️ Keyboard Shortcuts');
             else if (tool === 'theme') { document.body.classList.toggle('dark'); showToast('Theme toggled', 'info'); }
             else if (tool === 'help') showToast('Handoffs: Warm Callback, Completed, Canceled, Pending, Hot Transfer - All integrated!', 'info');
             else if (tool === 'reset') {
                 if (confirm('⚠️ This will clear all local data and reset the app. Continue?')) {
                     localStorage.clear();
-                    if (currentUser && isFirebaseReady) {
-                        db.collection('users').doc(currentUser.uid).delete();
-                    }
+                    if (currentUser) db.collection('users').doc(currentUser.uid).delete();
                     location.reload();
                 }
             } else if (tool === 'export') exportToCSV();
@@ -2490,63 +2217,44 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Close Feature Panel
-    const closeFeatureBtn = getEl('closeFeaturePanelBtn');
-    if (closeFeatureBtn) closeFeatureBtn.addEventListener('click', () => {
-        hideFeaturePanel();
-        loadScript('opening');
-    });
+    document.getElementById('closeFeaturePanelBtn')?.addEventListener('click', hideFeaturePanel);
 
     // Smart Import
-    const quickReportBtn = getEl('quickReportBtn');
-    const parseBtn = getEl('parseImportBtn');
-    const saveImportBtn = getEl('saveImportBtn');
-    const closeImportBtn = getEl('closeImportBtn');
-    
-    if (quickReportBtn) quickReportBtn.addEventListener('click', openSmartImport);
-    if (parseBtn) parseBtn.addEventListener('click', () => {
-        const textArea = getEl('importTextArea');
-        if (!textArea) return;
-        const text = textArea.value;
+    document.getElementById('quickReportBtn')?.addEventListener('click', openSmartImport);
+    document.getElementById('parseImportBtn')?.addEventListener('click', function() {
+        const text = document.getElementById('importTextArea').value;
         if (!text.trim()) { showToast('Please paste some text to parse', 'warning'); return; }
         const { result, confidence } = parseAppointmentText(text);
         renderParsedPreview(result, confidence);
     });
-    if (saveImportBtn) saveImportBtn.addEventListener('click', saveImportedAppointment);
-    if (closeImportBtn) closeImportBtn.addEventListener('click', closeSmartImport);
+    document.getElementById('saveImportBtn')?.addEventListener('click', saveImportedAppointment);
+    document.getElementById('closeImportBtn')?.addEventListener('click', closeSmartImport);
 
     // Appointment Detail
-    const copyBtn = getEl('apptCopyBtn');
-    const editBtn = getEl('apptEditBtn');
-    const deleteBtn = getEl('apptDeleteBtn');
-    const closeDetailBtn = getEl('apptCloseBtn');
-    
-    if (copyBtn) copyBtn.addEventListener('click', () => {
+    document.getElementById('apptCopyBtn')?.addEventListener('click', function() {
         const appt = getAppointmentById(currentAppointmentId);
-        if (appt) copyToClipboard(`Business: ${appt.business}\nContact: ${appt.contactName}\nPhone: ${appt.phone || 'N/A'}\nStatus: ${getStatus(appt)}\nDate: ${formatDate(appt.date)}${appt.time ? `\nTime: ${appt.time}` : ''}${appt.notes ? `\nNotes: ${appt.notes}` : ''}`);
+        if (appt) {
+            const text = `Business: ${appt.business}\nContact: ${appt.contactName}\nPhone: ${appt.phone || 'N/A'}\nStatus: ${getStatus(appt)}\nDate: ${formatDate(appt.date)}${appt.time ? `\nTime: ${appt.time}` : ''}${appt.notes ? `\nNotes: ${appt.notes}` : ''}`;
+            copyToClipboard(text);
+        }
     });
-    if (editBtn) editBtn.addEventListener('click', () => {
+    document.getElementById('apptEditBtn')?.addEventListener('click', function() {
         const appt = getAppointmentById(currentAppointmentId);
         if (appt) {
             closeAppointmentDetail();
             openQuickReportWithDate(appt.date);
-            setTimeout(() => {
-                const businessInput = getEl('newApptBusiness');
-                const contactInput = getEl('newApptContact');
-                const phoneInput = getEl('newApptPhone');
-                const timeInput = getEl('newApptTime');
-                const statusSelect = getEl('newApptStatus');
-                const notesInput = getEl('newApptNotes');
-                if (businessInput) businessInput.value = appt.business;
-                if (contactInput) contactInput.value = appt.contactName;
-                if (phoneInput) phoneInput.value = appt.phone || '';
-                if (timeInput) timeInput.value = appt.time || '';
-                if (statusSelect) statusSelect.value = getStatus(appt);
-                if (notesInput) notesInput.value = appt.notes || '';
+            setTimeout(function() {
+                document.getElementById('newApptBusiness').value = appt.business;
+                document.getElementById('newApptContact').value = appt.contactName;
+                document.getElementById('newApptPhone').value = appt.phone || '';
+                document.getElementById('newApptTime').value = appt.time || '';
+                document.getElementById('newApptStatus').value = getStatus(appt);
+                document.getElementById('newApptNotes').value = appt.notes || '';
                 deleteAppointment(appt.date, appt.id);
             }, 100);
         }
     });
-    if (deleteBtn) deleteBtn.addEventListener('click', () => {
+    document.getElementById('apptDeleteBtn')?.addEventListener('click', function() {
         const appt = getAppointmentById(currentAppointmentId);
         if (appt && confirm('Delete this appointment permanently?')) {
             deleteAppointment(appt.date, appt.id);
@@ -2554,64 +2262,53 @@ document.addEventListener('DOMContentLoaded', function() {
             showToast('Appointment deleted', 'info');
         }
     });
-    if (closeDetailBtn) closeDetailBtn.addEventListener('click', closeAppointmentDetail);
+    document.getElementById('apptCloseBtn')?.addEventListener('click', closeAppointmentDetail);
 
     // Script Editing
-    const editScriptBtn = getEl('editScriptBtn');
-    const saveScriptBtn = getEl('saveScriptBtn');
-    const cancelEditBtn = getEl('cancelEditBtn');
-    const copyScriptBtn = getEl('copyScriptBtn');
-    const resetScriptBtn = getEl('resetScriptBtn');
-    const favoriteScriptBtn = getEl('favoriteScriptBtn');
-    
-    if (editScriptBtn) editScriptBtn.addEventListener('click', startEdit);
-    if (saveScriptBtn) saveScriptBtn.addEventListener('click', () => {
-        const textarea = getEl('editTextarea');
-        if (textarea) { saveScriptContent(textarea.value); finishEdit(); }
+    document.getElementById('editScriptBtn')?.addEventListener('click', startEdit);
+    document.getElementById('saveScriptBtn')?.addEventListener('click', function() {
+        const textarea = document.getElementById('editTextarea');
+        if (textarea) {
+            saveScriptContent(textarea.value);
+            finishEdit();
+        }
     });
-    if (cancelEditBtn) cancelEditBtn.addEventListener('click', cancelEdit);
-    if (copyScriptBtn) copyScriptBtn.addEventListener('click', () => {
+    document.getElementById('cancelEditBtn')?.addEventListener('click', cancelEdit);
+    document.getElementById('copyScriptBtn')?.addEventListener('click', function() {
         const script = scripts[currentScriptId];
         if (script) copyToClipboard(script.content);
     });
-    if (resetScriptBtn) resetScriptBtn.addEventListener('click', () => {
+    document.getElementById('resetScriptBtn')?.addEventListener('click', function() {
         if (confirm('Reset this script to its original content?')) {
             if (currentUser && currentScriptId) {
-                if (isFirebaseReady) {
-                    db.collection('users').doc(currentUser.uid).collection('scripts').doc(currentScriptId).set({
-                        name: scripts[currentScriptId].name,
-                        content: scripts[currentScriptId].content,
-                        version: 1
-                    }, { merge: true }).then(() => { showToast('Script reset', 'info'); loadUserData(true); });
-                } else {
-                    scripts[currentScriptId].version = 1;
-                    localStorage.setItem('scripts_fallback', JSON.stringify(scripts));
-                    showToast('Script reset locally', 'info');
-                    loadScript(currentScriptId);
-                }
+                db.collection('users').doc(currentUser.uid).collection('scripts').doc(currentScriptId).set({
+                    name: scripts[currentScriptId].name,
+                    content: scripts[currentScriptId].content,
+                    version: 1
+                }, { merge: true }).then(function() {
+                    showToast('Script reset', 'info');
+                    loadUserData(true);
+                });
             }
         }
     });
-    if (favoriteScriptBtn) favoriteScriptBtn.addEventListener('click', () => toggleFavorite(currentScriptId));
+    document.getElementById('favoriteScriptBtn')?.addEventListener('click', function() {
+        toggleFavorite(currentScriptId);
+    });
 
     // Bulk Actions
-    const bulkActionsBtn = getEl('bulkActionsBtn');
-    const closeBulkBtn = getEl('closeBulkModalBtn');
-    const executeBulkBtn = getEl('executeBulkActionBtn');
-    const bulkActionSelect = getEl('bulkActionSelect');
-    
-    if (bulkActionsBtn) bulkActionsBtn.addEventListener('click', openBulkActions);
-    if (closeBulkBtn) closeBulkBtn.addEventListener('click', () => {
-        const modal = getEl('bulkActionsModal');
-        if (modal) modal.style.display = 'none';
+    document.getElementById('bulkActionsBtn')?.addEventListener('click', openBulkActions);
+    document.getElementById('closeBulkModalBtn')?.addEventListener('click', function() {
+        document.getElementById('bulkActionsModal').style.display = 'none';
     });
-    if (executeBulkBtn) executeBulkBtn.addEventListener('click', () => {
-        const action = bulkActionSelect?.value || 'status';
+    document.getElementById('executeBulkActionBtn')?.addEventListener('click', function() {
+        const action = document.getElementById('bulkActionSelect').value;
         const selected = Array.from(selectedAppointments);
         if (selected.length === 0) { showToast('Please select at least one appointment', 'warning'); return; }
+
         if (action === 'delete') {
             if (!confirm(`Delete ${selected.length} appointment(s)?`)) return;
-            selected.forEach(id => {
+            selected.forEach(function(id) {
                 for (let date in appointments) {
                     if (appointments[date].reports) {
                         const found = appointments[date].reports.find(r => r.id === id);
@@ -2621,9 +2318,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             showToast(`${selected.length} appointment(s) deleted`, 'success');
         } else if (action === 'status') {
-            const statusSelect = getEl('bulkStatusSelect');
-            const newStatus = statusSelect?.value || 'Pending';
-            selected.forEach(id => {
+            const newStatus = document.getElementById('bulkStatusSelect').value;
+            selected.forEach(function(id) {
                 for (let date in appointments) {
                     if (appointments[date].reports) {
                         const found = appointments[date].reports.find(r => r.id === id);
@@ -2633,9 +2329,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             showToast(`${selected.length} appointment(s) updated to ${newStatus}`, 'success');
         } else if (action === 'tag') {
-            const tagSelect = getEl('bulkTagSelect');
-            const tag = tagSelect?.value || '';
-            selected.forEach(id => {
+            const tag = document.getElementById('bulkTagSelect').value;
+            selected.forEach(function(id) {
                 for (let date in appointments) {
                     if (appointments[date].reports) {
                         const found = appointments[date].reports.find(r => r.id === id);
@@ -2651,29 +2346,25 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (action === 'export') {
             exportSelectedToCSV(selected);
         }
-        const modal = getEl('bulkActionsModal');
-        if (modal) modal.style.display = 'none';
+        document.getElementById('bulkActionsModal').style.display = 'none';
         refreshCurrentView();
     });
-    if (bulkActionSelect) bulkActionSelect.addEventListener('change', () => {
-        const value = bulkActionSelect.value;
-        const statusGroup = getEl('bulkStatusGroup');
-        const tagGroup = getEl('bulkTagGroup');
-        const options = getEl('bulkActionOptions');
-        if (statusGroup) statusGroup.style.display = value === 'status' ? 'block' : 'none';
-        if (tagGroup) tagGroup.style.display = value === 'tag' ? 'block' : 'none';
-        if (options) options.style.display = (value === 'status' || value === 'tag') ? 'block' : 'none';
+
+    document.getElementById('bulkActionSelect')?.addEventListener('change', function() {
+        const value = this.value;
+        document.getElementById('bulkStatusGroup').style.display = value === 'status' ? 'block' : 'none';
+        document.getElementById('bulkTagGroup').style.display = value === 'tag' ? 'block' : 'none';
+        document.getElementById('bulkActionOptions').style.display = (value === 'status' || value === 'tag') ? 'block' : 'none';
     });
 
     // Sign Out
-    const signOutBtn = getEl('signOutBtn');
-    if (signOutBtn) signOutBtn.addEventListener('click', signOut);
+    document.getElementById('signOutBtn')?.addEventListener('click', signOut);
 
     // Refresh
-    const refreshBtn = getEl('refreshBtn');
-    if (refreshBtn) refreshBtn.addEventListener('click', async () => {
+    document.getElementById('refreshBtn')?.addEventListener('click', async function() {
         if (isRefreshing) return;
         isRefreshing = true;
+        const refreshBtn = document.getElementById('refreshBtn');
         refreshBtn.classList.add('spinning');
         refreshBtn.disabled = true;
         try {
@@ -2690,59 +2381,45 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Add Script
-    const addScriptBtn = getEl('addScriptBtnSide');
-    if (addScriptBtn) addScriptBtn.addEventListener('click', () => {
+    document.getElementById('addScriptBtnSide')?.addEventListener('click', function() {
         if (!currentUser) { showToast('Please sign in first', 'error'); return; }
         const name = prompt('Enter script name:');
         if (name && name.trim()) {
             const id = 'script_' + generateUniqueId();
-            if (isFirebaseReady) {
-                db.collection('users').doc(currentUser.uid).collection('scripts').doc(id).set({
-                    name: name.trim(),
-                    content: 'New script content...',
-                    version: 1,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                }).then(() => { showToast('Script created!', 'success'); loadUserData(true); })
-                .catch(err => handleError(err, 'Creating script'));
-            } else {
-                scripts[id] = { name: name.trim(), content: 'New script content...', version: 1 };
-                localStorage.setItem('scripts_fallback', JSON.stringify(scripts));
-                showToast('Script created locally!', 'success');
-                renderSidebar();
-                loadScript(id);
-            }
+            db.collection('users').doc(currentUser.uid).collection('scripts').doc(id).set({
+                name: name.trim(),
+                content: 'New script content...',
+                version: 1,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(function() { showToast('Script created!', 'success'); loadUserData(true); })
+            .catch(function(err) { handleError(err, 'Creating script'); });
         }
     });
 
     // Search Scripts
-    const scriptSearch = getEl('scriptSearch');
-    if (scriptSearch) scriptSearch.addEventListener('input', (e) => {
+    document.getElementById('scriptSearch')?.addEventListener('input', function(e) {
         searchTerm = e.target.value.toLowerCase();
-        document.querySelectorAll('.script-item').forEach(item => {
+        document.querySelectorAll('.script-item').forEach(function(item) {
             const name = item.querySelector('.script-name')?.textContent?.toLowerCase() || '';
             item.style.display = name.includes(searchTerm) ? 'flex' : 'none';
         });
     });
 
     // Global Search
-    const searchGlobalBtn = getEl('searchGlobalBtn');
-    const globalSearchInput = getEl('globalSearchInput');
-    const globalSearchClose = getEl('globalSearchCloseBtn');
-    
-    if (searchGlobalBtn) searchGlobalBtn.addEventListener('click', openGlobalSearch);
-    if (globalSearchInput) globalSearchInput.addEventListener('input', (e) => performGlobalSearch(e.target.value));
-    if (globalSearchClose) globalSearchClose.addEventListener('click', () => {
-        const modal = getEl('globalSearchModal');
-        if (modal) modal.style.display = 'none';
+    document.getElementById('searchGlobalBtn')?.addEventListener('click', openGlobalSearch);
+    document.getElementById('globalSearchInput')?.addEventListener('input', function(e) {
+        performGlobalSearch(e.target.value);
+    });
+    document.getElementById('globalSearchCloseBtn')?.addEventListener('click', function() {
+        document.getElementById('globalSearchModal').style.display = 'none';
     });
 
     // CSV Upload
-    const csvFileInput = getEl('csvFileInput');
-    if (csvFileInput) csvFileInput.addEventListener('change', (e) => {
+    document.getElementById('csvFileInput')?.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onload = (event) => {
+            reader.onload = function(event) {
                 try {
                     const csvText = event.target.result;
                     const lines = csvText.split('\n').filter(line => line.trim());
@@ -2752,7 +2429,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         for (let i = 1; i < lines.length; i++) {
                             const values = lines[i].split(',').map(v => v.trim());
                             const data = {};
-                            headers.forEach((h, idx) => data[h] = values[idx] || '');
+                            headers.forEach((h, idx) => { data[h] = values[idx] || ''; });
                             if (data.name || data.business) {
                                 addAppointment(
                                     data.date || getTodayStr(),
@@ -2779,7 +2456,7 @@ document.addEventListener('DOMContentLoaded', function() {
         e.target.value = '';
     });
 
-    // Export functions
+    // Export to CSV function
     function exportToCSV() {
         let csv = 'Business,Contact,Phone,Email,Date,Time,Status,Notes,Assigned\n';
         for (let date in appointments) {
@@ -2801,7 +2478,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function exportSelectedToCSV(selectedIds) {
         let csv = 'Business,Contact,Phone,Email,Date,Time,Status,Notes,Assigned\n';
-        selectedIds.forEach(id => {
+        selectedIds.forEach(function(id) {
             for (let date in appointments) {
                 if (appointments[date].reports) {
                     const appt = appointments[date].reports.find(r => r.id === id);
@@ -2823,11 +2500,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // History button
-    const historyBtn = getEl('historyBtn');
-    if (historyBtn) historyBtn.addEventListener('click', () => showToast('Version history coming soon!', 'info'));
+    document.getElementById('historyBtn')?.addEventListener('click', function() {
+        showToast('Version history coming soon!', 'info');
+    });
 
     // Keyboard Shortcuts - Global
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', function(e) {
         // Script shortcuts (1-9)
         if (e.key >= '1' && e.key <= '9') {
             const index = parseInt(e.key) - 1;
@@ -2846,6 +2524,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const shift = keys.includes('Shift');
                 const alt = keys.includes('Alt');
                 const key = keys.find(k => !['Ctrl', 'Shift', 'Alt'].includes(k));
+                
                 if (e.ctrlKey === ctrl && e.shiftKey === shift && e.altKey === alt && e.key === key) {
                     e.preventDefault();
                     handleShortcutAction(action);
@@ -2858,81 +2537,42 @@ document.addEventListener('DOMContentLoaded', function() {
         switch(action) {
             case 'Smart Import': openSmartImport(); break;
             case 'Appointment Calendar': showFeaturePanel('calendar', '📅 Appointment & Handoff Calendar'); break;
-            case 'Call Scripts': hideFeaturePanel(); loadScript('opening'); break;
+            case 'Call Scripts': hideFeaturePanel(); break;
             case 'Global Search': openGlobalSearch(); break;
             case 'Quick Add Appointment': openQuickReportWithDate(getTodayStr()); break;
             case 'Floating Notepad': showToast('📝 Notes feature coming soon!', 'info'); break;
-            case 'Analytics Hub': analyticsTab = 'insights'; showFeaturePanel('analytics', '📊 Analytics Hub'); break;
+            case 'Analytics Hub': showFeaturePanel('analytics', '📊 Pipeline Performance'); break;
             case 'Keyboard Shortcuts': showFeaturePanel('shortcuts', '⌨️ Keyboard Shortcuts'); break;
             case 'Export to CSV': exportToCSV(); break;
             case 'Toggle Theme': document.body.classList.toggle('dark'); showToast('Theme toggled', 'info'); break;
-            case 'Refresh Data': { const btn = getEl('refreshBtn'); if (btn) btn.click(); break; }
+            case 'Refresh Data': document.getElementById('refreshBtn')?.click(); break;
             case 'Bulk Actions': openBulkActions(); break;
-            case 'Close Panel': handleEscapeKey(); break;
             default: showToast(`Action: ${action}`, 'info');
         }
     }
 
     // Auth state listener
-    try {
-        if (isFirebaseReady) {
-            auth.onAuthStateChanged(async (user) => {
-                if (user) {
-                    currentUser = user;
-                    updateSidebarProfile(currentUser);
-                    await loadUserData();
-                } else {
-                    // Try loading from local storage
-                    const localData = localStorage.getItem('userData_fallback');
-                    if (localData) {
-                        try {
-                            const data = JSON.parse(localData);
-                            scripts = data.scripts || {};
-                            scriptOrder = data.scriptOrder || [];
-                            appointments = data.appointments || {};
-                            tasks = data.tasks || {};
-                            updateStats();
-                            renderSidebar();
-                            loadScript('opening');
-                            showToast('Loaded offline data', 'info');
-                        } catch (e) {}
-                    }
-                    showAuthModal();
-                }
-            });
+    auth.onAuthStateChanged(async function(user) {
+        if (user) {
+            currentUser = user;
+            updateSidebarProfile(currentUser);
+            await loadUserData();
         } else {
-            // Offline mode - try loading from local storage
-            const localData = localStorage.getItem('userData_fallback');
-            if (localData) {
-                try {
-                    const data = JSON.parse(localData);
-                    scripts = data.scripts || {};
-                    scriptOrder = data.scriptOrder || [];
-                    appointments = data.appointments || {};
-                    tasks = data.tasks || {};
-                    updateStats();
-                    renderSidebar();
-                    loadScript('opening');
-                } catch (e) {}
-            }
             showAuthModal();
         }
-    } catch (error) {
-        console.warn('Auth setup error:', error);
-        showAuthModal();
-    }
+    });
 
     // Close modals on overlay click
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', function(e) {
         if (e.target.classList.contains('modal-overlay')) {
             e.target.style.display = 'none';
         }
     });
 
     // Close modals with Escape key
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            document.querySelectorAll('.modal-overlay').forEach(modal => {
+            document.querySelectorAll('.modal-overlay').forEach(function(modal) {
                 if (modal.style.display !== 'none') modal.style.display = 'none';
             });
             if (isEditing) cancelEdit();
@@ -2944,103 +2584,49 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('🎯 Drag & drop enabled for scripts and appointments');
     console.log('✨ Smart import ready with field validation');
     console.log('⌨️ Keyboard shortcuts loaded:', Object.keys(shortcuts).length);
-    console.log('📈 Analytics tabs: Insights, Reports, Team');
-    console.log('🔑 Press ESC to return to Opening Script');
-    console.log(`🔌 Firebase status: ${isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
 });
 
-// Export functions for global access
-window.showAppointmentDetail = showAppointmentDetail;
+// Make functions globally accessible
 window.loadScript = loadScript;
+window.showAppointmentDetail = showAppointmentDetail;
 window.openShortcutEdit = openShortcutEdit;
 window.toggleFavorite = toggleFavorite;
+window.startEdit = startEdit;
+window.cancelEdit = cancelEdit;
+window.signOut = signOut;
+window.openSmartImport = openSmartImport;
+window.closeSmartImport = closeSmartImport;
+window.saveImportedAppointment = saveImportedAppointment;
+window.closeAppointmentDetail = closeAppointmentDetail;
+window.exportToCSV = exportToCSV;
+window.openBulkActions = openBulkActions;
+window.openGlobalSearch = openGlobalSearch;
 window.performGlobalSearch = performGlobalSearch;
-
-// ============================================================
-// GLOBAL SEARCH
-// ============================================================
-
-function openGlobalSearch() {
-    const modal = getEl('globalSearchModal');
-    if (!modal) return;
-    modal.style.display = 'flex';
-    const input = getEl('globalSearchInput');
-    if (input) { input.value = ''; input.focus(); }
-    const results = getEl('globalSearchResults');
-    if (results) results.innerHTML = '';
-}
-
-function performGlobalSearch(query) {
-    const results = getEl('globalSearchResults');
-    if (!results) return;
-    if (!query || query.length < 2) {
-        results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">Type at least 2 characters to search...</p>';
-        return;
-    }
-    
-    const searchResults = [];
-    const q = query.toLowerCase();
-    
-    for (let date in appointments) {
-        if (appointments[date].reports) {
-            appointments[date].reports.forEach(appt => {
-                const searchable = `${appt.business} ${appt.contactName} ${appt.phone || ''} ${appt.email || ''} ${appt.notes || ''}`.toLowerCase();
-                if (searchable.includes(q)) {
-                    searchResults.push({ type: 'appointment', data: appt, date: date });
-                }
-            });
-        }
-    }
-    
-    tasks.forEach(task => {
-        if (task.description.toLowerCase().includes(q)) {
-            searchResults.push({ type: 'task', data: task });
-        }
-    });
-    
-    for (const [id, script] of Object.entries(scripts)) {
-        if (script.name.toLowerCase().includes(q) || script.content.toLowerCase().includes(q)) {
-            searchResults.push({ type: 'script', data: { id, ...script } });
-        }
-    }
-    
-    if (searchResults.length === 0) {
-        results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">No results found.</p>';
-        return;
-    }
-    
-    let html = `<div style="display:flex; flex-direction:column; gap:8px;">`;
-    searchResults.slice(0, 20).forEach(result => {
-        if (result.type === 'appointment') {
-            html += `
-                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="showAppointmentDetail('${result.data.id}')">
-                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
-                        <span style="font-weight:600;">${escapeHtml(result.data.business)}</span>
-                        <span style="font-size:0.75rem; color:var(--text-muted);">${formatDate(result.data.date)}</span>
-                    </div>
-                    <div style="font-size:0.8rem; color:var(--text-secondary);">${escapeHtml(result.data.contactName)}</div>
-                </div>
-            `;
-        } else if (result.type === 'task') {
-            html += `
-                <div class="list-item" style="padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);">
-                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
-                        <span style="font-weight:600;">${escapeHtml(result.data.description)}</span>
-                        <span style="font-size:0.75rem; color:var(--text-muted);">${result.data.completed ? '✅ Done' : '⏳ Pending'}</span>
-                    </div>
-                </div>
-            `;
-        } else if (result.type === 'script') {
-            html += `
-                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="loadScript('${result.data.id}')">
-                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
-                        <span style="font-weight:600;">${escapeHtml(result.data.name)}</span>
-                        <span style="font-size:0.75rem; color:var(--text-muted);">📜 Script</span>
-                    </div>
-                </div>
-            `;
-        }
-    });
-    html += `</div>`;
-    results.innerHTML = html;
-}
+window.showFeaturePanel = showFeaturePanel;
+window.hideFeaturePanel = hideFeaturePanel;
+window.refreshCurrentView = refreshCurrentView;
+window.updateShortcut = updateShortcut;
+window.resetShortcutsToDefaults = resetShortcutsToDefaults;
+window.renderShortcutsList = renderShortcutsList;
+window.getOrderedVisible = getOrderedVisible;
+window.renderSidebar = renderSidebar;
+window.updateKeyHints = updateKeyHints;
+window.loadUserData = loadUserData;
+window.updateStats = updateStats;
+window.addAppointment = addAppointment;
+window.deleteAppointment = deleteAppointment;
+window.updateAppointment = updateAppointment;
+window.getAppointmentById = getAppointmentById;
+window.addTask = addTask;
+window.toggleTaskComplete = toggleTaskComplete;
+window.deleteTask = deleteTask;
+window.calculateLeadScore = calculateLeadScore;
+window.formatDate = formatDate;
+window.getTodayStr = getTodayStr;
+window.showToast = showToast;
+window.copyToClipboard = copyToClipboard;
+window.escapeHtml = escapeHtml;
+window.generateUniqueId = generateUniqueId;
+window.getStatus = getStatus;
+window.getStatusClassSmall = getStatusClassSmall;
+window.getScoreColor = getScoreColor;
