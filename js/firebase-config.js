@@ -2,7 +2,6 @@
 // FIREBASE CONFIGURATION
 // ============================================================
 
-// 🔑 REPLACE WITH YOUR FIREBASE CONFIG FROM FIREBASE CONSOLE
 const FIREBASE_CONFIG = {
     apiKey: "AIzaSyD_Ry0pM7EKSDJeTegt0rY5muiw-xCgrhw",
     authDomain: "scriptflow-pro-2cf4c.firebaseapp.com",
@@ -22,10 +21,8 @@ try {
     console.error('❌ Firebase initialization error:', error);
 }
 
-// Initialize Firestore
 const db = firebase.firestore();
 
-// Apply settings
 try {
     db.settings({
         cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
@@ -35,7 +32,6 @@ try {
     console.warn('Firestore settings already applied:', error);
 }
 
-// Enable offline persistence
 try {
     db.enablePersistence({ synchronizeTabs: true })
         .catch(err => {
@@ -47,10 +43,8 @@ try {
     console.warn('Firebase persistence setup:', err);
 }
 
-// Initialize Auth
 const auth = firebase.auth();
 
-// Enable persistence for auth
 try {
     auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
         .catch(err => {
@@ -60,7 +54,6 @@ try {
     console.warn('Auth persistence setup:', err);
 }
 
-// Make available globally
 window.db = db;
 window.auth = auth;
 window.firebase = firebase;

@@ -786,7 +786,6 @@ function updateKeyHints() {
         }
     });
     
-    // Update active shortcut hint
     const activeHint = document.getElementById('activeShortcutHint');
     if (activeHint) {
         const idx = visible.indexOf(currentScriptId);
@@ -821,18 +820,15 @@ function parseAppointmentText(text) {
     const confidence = {};
     const lines = text.split('\n').filter(line => line.trim());
     
-    // Try to detect format: either key: value or plain text
     const hasKeyValue = lines.some(line => line.includes(':'));
     
     if (hasKeyValue) {
-        // Parse key: value format
         lines.forEach(line => {
             const [key, ...valueParts] = line.split(':');
             const rawKey = key.trim().toLowerCase();
             const rawValue = valueParts.join(':').trim();
             
             if (rawValue) {
-                // Find matching field
                 let matchedField = null;
                 let matchScore = 0;
                 
@@ -851,45 +847,38 @@ function parseAppointmentText(text) {
             }
         });
     } else {
-        // Try to intelligently parse plain text
         const fullText = lines.join(' ');
         
-        // Try to extract name (look for patterns like "Client: John" or just names)
         const nameMatch = fullText.match(/(?:name|client|contact|prospect)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i);
         if (nameMatch) {
             result.name = nameMatch[1];
             confidence.name = 0.7;
         }
         
-        // Try to extract business
         const businessMatch = fullText.match(/(?:business|company|org)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i);
         if (businessMatch) {
             result.business = businessMatch[1];
             confidence.business = 0.7;
         }
         
-        // Try to extract phone
         const phoneMatch = fullText.match(/(?:\+?1?[\s-]?)?\(?([0-9]{3})\)?[\s-]?([0-9]{3})[\s-]?([0-9]{4})/);
         if (phoneMatch) {
             result.phone = `${phoneMatch[1]}-${phoneMatch[2]}-${phoneMatch[3]}`;
             confidence.phone = 0.9;
         }
         
-        // Try to extract email
         const emailMatch = fullText.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
         if (emailMatch) {
             result.email = emailMatch[0];
             confidence.email = 0.9;
         }
         
-        // Try to extract date
         const dateMatch = fullText.match(/\b(\d{4}-\d{1,2}-\d{1,2})|\b(\d{1,2}\/\d{1,2}\/\d{2,4})/);
         if (dateMatch) {
             result.date = dateMatch[0];
             confidence.date = 0.7;
         }
         
-        // Try to extract status from common phrases
         const statusMatch = fullText.match(/(?:status|state|stage)[:\s]+([A-Za-z\s]+)/i);
         if (statusMatch) {
             const statusText = statusMatch[1].trim();
@@ -902,7 +891,6 @@ function parseAppointmentText(text) {
             }
         }
         
-        // Try to extract time
         const timeMatch = fullText.match(/\b(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?|\d{1,2}\s*(?:AM|PM|am|pm))\b/);
         if (timeMatch) {
             result.time = timeMatch[0];
@@ -910,7 +898,6 @@ function parseAppointmentText(text) {
         }
     }
     
-    // Set default confidence for fields without specific match
     for (const field of ['name', 'business', 'phone', 'email', 'date', 'time', 'status']) {
         if (result[field] && !confidence[field]) {
             confidence[field] = 0.5;
@@ -974,7 +961,6 @@ function renderParsedPreview(data, confidence) {
     
     preview.style.display = 'block';
     
-    // Render parsed fields
     let fieldsHtml = '';
     let totalConfidence = 0;
     let fieldCount = 0;
@@ -999,13 +985,11 @@ function renderParsedPreview(data, confidence) {
             </div>
         `;
         
-        // Check required fields
         if (requiredFields.includes(field) && !value) {
             missingFields.push(field);
         }
     }
     
-    // Check for missing required fields
     for (const field of requiredFields) {
         if (!data[field] || !data[field].trim()) {
             missingFields.push(field);
@@ -1014,7 +998,6 @@ function renderParsedPreview(data, confidence) {
     
     fieldsContainer.innerHTML = fieldsHtml;
     
-    // Add edit functionality
     fieldsContainer.querySelectorAll('.field-value').forEach(el => {
         el.addEventListener('blur', function() {
             const field = this.getAttribute('data-field');
@@ -1030,7 +1013,6 @@ function renderParsedPreview(data, confidence) {
             const valueEl = fieldsContainer.querySelector(`.field-value[data-field="${field}"]`);
             if (valueEl) {
                 valueEl.focus();
-                // Select all text
                 const range = document.createRange();
                 range.selectNodeContents(valueEl);
                 const sel = window.getSelection();
@@ -1040,11 +1022,9 @@ function renderParsedPreview(data, confidence) {
         });
     });
     
-    // Update parsed data
     parsedImportData = { ...data };
     importConfidence = { ...confidence };
     
-    // Calculate average confidence
     const avgConf = fieldCount > 0 ? totalConfidence / fieldCount : 0;
     confidenceContainer.innerHTML = `
         <strong>Overall Confidence:</strong> ${Math.round(avgConf * 100)}% 
@@ -1053,7 +1033,6 @@ function renderParsedPreview(data, confidence) {
         </span>
     `;
     
-    // Check for duplicates
     const duplicate = checkDuplicate(data);
     if (duplicate) {
         duplicateContainer.style.display = 'block';
@@ -1066,7 +1045,6 @@ function renderParsedPreview(data, confidence) {
         duplicateContainer.style.display = 'none';
     }
     
-    // Check for missing required fields
     if (missingFields.length > 0) {
         missingContainer.innerHTML = `
             ⚠️ <strong>Missing required fields:</strong> ${missingFields.join(', ')}
@@ -1109,7 +1087,6 @@ function saveImportedAppointment() {
     
     const data = parsedImportData;
     
-    // Validate required fields
     if (!data.name || !data.business) {
         showToast('Name and Business are required', 'error');
         return;
@@ -1123,7 +1100,6 @@ function saveImportedAppointment() {
     const notes = data.notes || '';
     const assigned = data.assigned || 'Daniel';
     
-    // Check for duplicate
     const duplicate = checkDuplicate(data);
     if (duplicate) {
         if (!confirm(`This appears to be a duplicate appointment with ${duplicate.business}. Do you still want to add it?`)) {
@@ -1292,18 +1268,18 @@ function renderCalendarPanel(container) {
 
     container.innerHTML = `
         <div class="calendar-section">
-            <div class="calendar-nav" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <div class="calendar-nav">
                 <h3><i class="fas fa-calendar-alt"></i> ${new Date(year, month).toLocaleString('default', { month: 'long' })} ${year}</h3>
-                <div class="calendar-nav-actions" style="display:flex; gap:6px;">
+                <div class="calendar-nav-actions">
                     <button id="calPrevBtn" class="btn-icon">Prev</button>
                     <button id="calTodayBtn" class="btn-icon">Today</button>
                     <button id="calNextBtn" class="btn-icon">Next</button>
                 </div>
             </div>
-            <div class="calendar-grid" style="display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; margin-bottom:20px;">
+            <div class="calendar-grid">
                 ${daysHtml}
             </div>
-            <div class="kpi-row" style="margin-bottom:16px;">
+            <div class="kpi-row">
                 <div class="kpi-card"><div class="kpi-value" style="color:#dc2626;">${stats.hotTransfers}</div><div class="kpi-label">🔥 Hot Transfers</div></div>
                 <div class="kpi-card"><div class="kpi-value" style="color:var(--warning);">${stats.warmCallbacks}</div><div class="kpi-label">📞 Warm Callbacks</div></div>
                 <div class="kpi-card"><div class="kpi-value" style="color:var(--success);">${stats.completed}</div><div class="kpi-label">✅ Completed</div></div>
@@ -1344,7 +1320,6 @@ function renderCalendarPanel(container) {
         </div>
     `;
 
-    // Calendar day click events
     container.querySelectorAll('.calendar-day[data-date]').forEach(el => {
         el.addEventListener('click', () => {
             selectedCalDate = el.getAttribute('data-date');
@@ -1352,7 +1327,6 @@ function renderCalendarPanel(container) {
         });
     });
     
-    // Calendar navigation
     document.getElementById('calPrevBtn')?.addEventListener('click', () => {
         currentCalDate.setMonth(currentCalDate.getMonth() - 1);
         renderCalendarPanel(container);
@@ -1369,12 +1343,10 @@ function renderCalendarPanel(container) {
         renderCalendarPanel(container);
     });
 
-    // Add appointment
     document.getElementById('quickAddCalBtn')?.addEventListener('click', () => {
         openQuickReportWithDate(selectedCalDate);
     });
 
-    // Delete appointment
     container.querySelectorAll('.delete-appt-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1387,7 +1359,6 @@ function renderCalendarPanel(container) {
         });
     });
 
-    // Initialize Sortable for appointments
     const appointmentsList = document.getElementById('appointmentsList');
     if (appointmentsList) {
         new Sortable(appointmentsList, {
@@ -1397,15 +1368,12 @@ function renderCalendarPanel(container) {
             chosenClass: 'sortable-chosen',
             dragClass: 'sortable-drag',
             onEnd: function(evt) {
-                // Reorder appointments within the same date
                 const items = appointmentsList.querySelectorAll('.appointment-card');
                 const newOrder = [];
                 items.forEach(item => {
                     const id = item.getAttribute('data-id');
                     if (id) newOrder.push(id);
                 });
-                
-                // Update appointment order (store in local state)
                 if (appointments[selectedCalDate]) {
                     const sortedReports = [];
                     newOrder.forEach(id => {
@@ -1475,7 +1443,6 @@ function openQuickReportWithDate(defaultDate) {
     `;
     document.body.appendChild(modal);
 
-    // Validate fields on input
     const businessInput = document.getElementById('newApptBusiness');
     const contactInput = document.getElementById('newApptContact');
     
@@ -1501,7 +1468,6 @@ function openQuickReportWithDate(defaultDate) {
         const status = document.getElementById('newApptStatus').value;
         const notes = document.getElementById('newApptNotes').value.trim();
 
-        // Validate required fields
         let hasError = false;
         if (!bus) {
             document.getElementById('newApptBusiness').closest('.form-group').classList.add('has-error');
@@ -1526,7 +1492,6 @@ function openQuickReportWithDate(defaultDate) {
 
     document.getElementById('cancelQuickApptBtn').addEventListener('click', () => modal.remove());
     
-    // Close on overlay click
     modal.addEventListener('click', (e) => {
         if (e.target === modal) modal.remove();
     });
@@ -1545,7 +1510,7 @@ function showFeaturePanel(featureType, title) {
     if (!scriptPanel || !featurePanel) return;
     
     currentView = featureType;
-    featureTitle.innerHTML = `<i class="fas ${featureType === 'notepad' ? 'fa-sticky-note' : 'fa-globe'}"></i> ${title}`;
+    featureTitle.innerHTML = `<i class="fas ${featureType === 'notepad' ? 'fa-sticky-note' : ''}"></i> ${title}`;
     
     scriptPanel.style.display = 'none';
     featurePanel.style.display = 'block';
@@ -1556,8 +1521,10 @@ function showFeaturePanel(featureType, title) {
         renderTasksPanel(featureBody);
     } else if (featureType === 'analytics') {
         renderAnalyticsHub(featureBody);
-    } else if (featureType === 'smartworkspace') {
-        renderSmartWorkspace(featureBody);
+    } else if (featureType === 'notepad') {
+        showToast('📝 Notes feature coming soon!', 'info');
+        featurePanel.style.display = 'none';
+        scriptPanel.style.display = 'block';
     }
 }
 
@@ -1571,7 +1538,6 @@ function refreshCurrentView() {
     if (!body) return;
     if (currentView === 'calendar') renderCalendarPanel(body);
     else if (currentView === 'tasks') renderTasksPanel(body);
-    else if (currentView === 'smartworkspace') renderSmartWorkspace(body);
     else if (currentView === 'analytics') renderAnalyticsHub(body);
 }
 
@@ -1620,7 +1586,6 @@ function renderTasksPanel(container) {
         </div>
     `;
 
-    // Task filter buttons
     document.getElementById('taskFilterAll')?.addEventListener('click', () => {
         taskFilter = 'all';
         renderTasksPanel(container);
@@ -1631,7 +1596,6 @@ function renderTasksPanel(container) {
         renderTasksPanel(container);
     });
 
-    // Add new task
     document.getElementById('addNewTaskBtn')?.addEventListener('click', () => {
         const desc = prompt('Enter task description:');
         if (desc && desc.trim()) {
@@ -1642,7 +1606,6 @@ function renderTasksPanel(container) {
         }
     });
 
-    // Toggle task completion
     container.querySelectorAll('.toggle-task-checkbox').forEach(cb => {
         cb.addEventListener('change', () => {
             toggleTaskComplete(cb.getAttribute('data-id'));
@@ -1650,7 +1613,6 @@ function renderTasksPanel(container) {
         });
     });
 
-    // Delete task
     container.querySelectorAll('.delete-task-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             if (confirm('Delete this task?')) {
@@ -1686,7 +1648,6 @@ function renderAnalyticsHub(container) {
         }
     }
 
-    // Calculate conversion rates
     const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
     const hotTransferRate = total > 0 ? Math.round((hTransfers / total) * 100) : 0;
     const warmCallbackRate = total > 0 ? Math.round((wCallbacks / total) * 100) : 0;
@@ -1695,7 +1656,7 @@ function renderAnalyticsHub(container) {
         <div class="analytics-container">
             <h3><i class="fas fa-chart-pie"></i> Pipeline Performance Dashboard</h3>
             
-            <div class="report-metrics" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:12px; margin:16px 0;">
+            <div class="report-metrics">
                 <div class="metric-card">
                     <div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div>
                     <div class="metric-label">Total Pipeline</div>
@@ -1764,81 +1725,8 @@ function renderAnalyticsHub(container) {
                     </div>
                 </div>
             </div>
-            
-            <div class="feature-card" style="margin-top:8px;">
-                <h4>📋 Quick Insights</h4>
-                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-top:8px;">
-                    <div style="padding:12px; background:var(--bg-primary); border-radius:8px; border-left:3px solid var(--success);">
-                        <div style="font-weight:600; font-size:1.1rem;">${completedCount}</div>
-                        <div style="font-size:0.75rem; color:var(--text-muted);">Completed Leads</div>
-                    </div>
-                    <div style="padding:12px; background:var(--bg-primary); border-radius:8px; border-left:3px solid #dc2626;">
-                        <div style="font-weight:600; font-size:1.1rem;">${hTransfers}</div>
-                        <div style="font-size:0.75rem; color:var(--text-muted);">Hot Transfers</div>
-                    </div>
-                    <div style="padding:12px; background:var(--bg-primary); border-radius:8px; border-left:3px solid var(--warning);">
-                        <div style="font-weight:600; font-size:1.1rem;">${wCallbacks}</div>
-                        <div style="font-size:0.75rem; color:var(--text-muted);">Warm Callbacks</div>
-                    </div>
-                    <div style="padding:12px; background:var(--bg-primary); border-radius:8px; border-left:3px solid var(--text-muted);">
-                        <div style="font-weight:600; font-size:1.1rem;">${pendingCount}</div>
-                        <div style="font-size:0.75rem; color:var(--text-muted);">Pending Leads</div>
-                    </div>
-                </div>
-            </div>
         </div>
     `;
-}
-
-// ============================================================
-// SMART WORKSPACE
-// ============================================================
-
-function renderSmartWorkspace(container) {
-    if (!container) return;
-    container.innerHTML = `
-        <div class="workspace-container">
-            <div class="url-bar">
-                <input type="text" id="wsInputUrl" value="https://sales.regen-digital.com/campaigns" />
-                <button id="wsNavigateBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-arrow-right"></i> Go</button>
-                <button id="wsRefreshBtn" class="btn-icon" title="Refresh"><i class="fas fa-sync-alt"></i></button>
-                <button id="wsOpenInNewBtn" class="btn-icon" title="Open in new tab"><i class="fas fa-external-link-alt"></i></button>
-            </div>
-            <div class="iframe-container">
-                <iframe id="wsIframe" src="https://sales.regen-digital.com/campaigns"></iframe>
-            </div>
-        </div>
-    `;
-
-    document.getElementById('wsNavigateBtn').addEventListener('click', () => {
-        const url = document.getElementById('wsInputUrl').value;
-        const iframe = document.getElementById('wsIframe');
-        if (iframe && url) {
-            iframe.src = url;
-        }
-    });
-
-    document.getElementById('wsRefreshBtn').addEventListener('click', () => {
-        const iframe = document.getElementById('wsIframe');
-        if (iframe) {
-            iframe.src = iframe.src;
-            showToast('Refreshed', 'info');
-        }
-    });
-
-    document.getElementById('wsOpenInNewBtn').addEventListener('click', () => {
-        const url = document.getElementById('wsInputUrl').value;
-        if (url) {
-            window.open(url, '_blank');
-        }
-    });
-
-    // Enter key in URL input
-    document.getElementById('wsInputUrl').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            document.getElementById('wsNavigateBtn').click();
-        }
-    });
 }
 
 // ============================================================
@@ -1915,8 +1803,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 showFeaturePanel('calendar', '📅 Appointment & Handoff Calendar');
             } else if (tool === 'tasks') {
                 showFeaturePanel('tasks', '📋 Follow-up Tasks Manager');
-            } else if (tool === 'smartworkspace') {
-                showFeaturePanel('smartworkspace', '🚀 CRM Workspace');
             } else if (tool === 'analytics') {
                 showFeaturePanel('analytics', '📊 Pipeline Performance');
             } else if (tool === 'theme') {
@@ -1948,7 +1834,6 @@ document.addEventListener('DOMContentLoaded', () => {
         openSmartImport();
     });
 
-    // Smart Import Modal Events
     document.getElementById('parseImportBtn')?.addEventListener('click', () => {
         const text = document.getElementById('importTextArea').value;
         if (!text.trim()) {
@@ -1965,7 +1850,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('closeImportBtn')?.addEventListener('click', closeSmartImport);
 
-    // Appointment Detail Modal Events
+    // Appointment Detail Modal
     document.getElementById('apptCopyBtn')?.addEventListener('click', () => {
         const appt = getAppointmentById(currentAppointmentId);
         if (appt) {
@@ -1979,7 +1864,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (appt) {
             closeAppointmentDetail();
             openQuickReportWithDate(appt.date);
-            // Pre-fill the form
             setTimeout(() => {
                 document.getElementById('newApptBusiness').value = appt.business;
                 document.getElementById('newApptContact').value = appt.contactName;
@@ -1987,7 +1871,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('newApptTime').value = appt.time || '';
                 document.getElementById('newApptStatus').value = getStatus(appt);
                 document.getElementById('newApptNotes').value = appt.notes || '';
-                // Remove the old appointment
                 deleteAppointment(appt.date, appt.id);
             }, 100);
         }
@@ -2074,7 +1957,6 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshCurrentView();
     });
 
-    // Bulk action select change
     document.getElementById('bulkActionSelect')?.addEventListener('change', () => {
         const value = document.getElementById('bulkActionSelect').value;
         document.getElementById('bulkStatusGroup').style.display = value === 'status' ? 'block' : 'none';
@@ -2084,11 +1966,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Sign Out
     document.getElementById('signOutBtn')?.addEventListener('click', signOut);
-
-    // Workspace Launcher
-    document.getElementById('workspaceLauncherBtn')?.addEventListener('click', () => {
-        showFeaturePanel('smartworkspace', '🚀 CRM Workspace');
-    });
 
     // Refresh
     document.getElementById('refreshBtn')?.addEventListener('click', async () => {
@@ -2155,11 +2032,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast(`Switched to: ${scripts[visible[index]]?.name}`, 'info');
             }
         }
-        // Ctrl+K or Cmd+K for command palette
-        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-            e.preventDefault();
-            showToast('Command palette coming soon!', 'info');
-        }
     });
 
     // CSV Upload
@@ -2205,7 +2077,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             reader.readAsText(file);
         }
-        e.target.value = ''; // Reset file input
+        e.target.value = '';
     });
 
     // Export to CSV

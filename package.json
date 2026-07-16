@@ -1,7 +1,7 @@
 {
   "name": "scriptflow-pro",
   "version": "1.0.0",
-  "description": "ScriptFlow Pro - Smart CRM & Notes Manager with Handoff Integration",
+  "description": "ScriptFlow Pro - Smart CRM with Handoff Integration",
   "main": "index.html",
   "scripts": {
     "start": "npx serve . -p $PORT",

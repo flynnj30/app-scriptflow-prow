@@ -1,22 +1,13 @@
-# ============================================================
-# RENDER.YAML - ScriptFlow Pro Deployment Configuration
-# ============================================================
-
 services:
-  # Static Site Service
   - type: web
-    name: scriptflow-pro
+    name: app-scriptflow-pro
     runtime: static
-    repo: https://github.com/your-username/scriptflow-pro
-    branch: main
     buildCommand: echo "Static site - no build needed"
     staticPublishPath: ./
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
-    
-    # Environment Variables
     envVars:
       - key: NODE_VERSION
         value: 18.0.0
@@ -24,8 +15,6 @@ services:
         value: production
       - key: PORT
         value: 10000
-    
-    # Headers for security and performance
     headers:
       - path: /*
         name: X-Content-Type-Options
@@ -36,20 +25,8 @@ services:
       - path: /*
         name: X-XSS-Protection
         value: 1; mode=block
-      - path: /*
-        name: Referrer-Policy
-        value: strict-origin-when-cross-origin
-      - path: /*
-        name: Permissions-Policy
-        value: geolocation=(), microphone=(), camera=()
-    
-    # Health Check
     healthCheckPath: /
-    
-    # Scaling Configuration
     scaling:
       minInstances: 1
       maxInstances: 1
-    
-    # Plan (Free tier is sufficient for static sites)
     plan: free

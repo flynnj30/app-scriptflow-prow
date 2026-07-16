@@ -64,7 +64,6 @@
                     <div class="tool-item" data-tool="analytics" role="menuitem"><i class="fas fa-chart-pie" aria-hidden="true"></i> <span>Analytics Hub</span></div>
                     <div class="tool-item" data-tool="calendar" role="menuitem"><i class="fas fa-calendar-alt" aria-hidden="true"></i> <span>Appointment Calendar</span></div>
                     <div class="tool-item" data-tool="tasks" role="menuitem"><i class="fas fa-tasks" aria-hidden="true"></i> <span>Follow-up Tasks</span></div>
-                    <div class="tool-item" data-tool="smartworkspace" role="menuitem"><i class="fas fa-globe" aria-hidden="true"></i> <span>CRM Smart Workspace</span></div>
                     <div class="tool-item" data-tool="export" role="menuitem"><i class="fas fa-file-csv" aria-hidden="true"></i> <span>Export to CSV</span></div>
                     <div class="tool-item" data-tool="theme" role="menuitem"><i class="fas fa-moon" aria-hidden="true"></i> <span>Dark/Light Mode</span></div>
                     <div class="tool-item" data-tool="help" role="menuitem"><i class="fas fa-question-circle" aria-hidden="true"></i> <span>Help Guide</span></div>
@@ -114,9 +113,6 @@
                         <input type="file" id="csvFileInput" name="csvFileInput" accept=".csv" aria-label="Upload CSV file" />
                     </label>
                     <button class="btn-icon" id="historyBtn" aria-label="Version History"><i class="fas fa-history" aria-hidden="true"></i> History</button>
-                    <button class="btn-icon" id="workspaceLauncherBtn" aria-label="Open CRM Smart Workspace" style="background:var(--primary); color:white;">
-                        <i class="fas fa-globe" aria-hidden="true"></i> Workspace
-                    </button>
                     <div style="display:flex; align-items:center; gap:6px;">
                         <button class="btn-icon" id="refreshBtn" title="Refresh data from server" aria-label="Refresh data" style="padding:8px 12px;">
                             <i class="fas fa-sync-alt" aria-hidden="true"></i>
@@ -143,8 +139,6 @@
                             <button class="btn-icon" id="cancelEditBtn" style="display:none;" aria-label="Cancel editing"><i class="fas fa-times" aria-hidden="true"></i> Cancel</button>
                             <button class="btn-icon" id="copyScriptBtn" aria-label="Copy script"><i class="fas fa-copy" aria-hidden="true"></i> Copy</button>
                             <button class="btn-icon" id="resetScriptBtn" aria-label="Reset script"><i class="fas fa-undo-alt" aria-hidden="true"></i> Reset</button>
-                            <button class="btn-icon" id="undoBtn" aria-label="Undo"><i class="fas fa-undo" aria-hidden="true"></i> Undo</button>
-                            <button class="btn-icon" id="redoBtn" aria-label="Redo"><i class="fas fa-redo" aria-hidden="true"></i> Redo</button>
                         </div>
                     </div>
                     <div class="script-body" id="scriptBody">
@@ -172,10 +166,6 @@
                             <div class="view-toggle" id="taskViewToggle" style="display:none;">
                                 <button id="taskListViewBtn" class="view-btn active" aria-label="All Tasks"><i class="fas fa-list" aria-hidden="true"></i> All Tasks</button>
                                 <button id="taskPendingBtn" class="view-btn" aria-label="Pending Tasks"><i class="fas fa-clock" aria-hidden="true"></i> Pending</button>
-                            </div>
-                            <div class="view-toggle" id="workspaceViewToggle" style="display:none;">
-                                <button id="browserViewBtn" class="view-btn active" aria-label="Browser"><i class="fas fa-globe" aria-hidden="true"></i> Browser</button>
-                                <button id="toolsViewBtn" class="view-btn" aria-label="Tools"><i class="fas fa-tools" aria-hidden="true"></i> Tools</button>
                             </div>
                         </div>
                         <button id="closeFeaturePanelBtn" class="btn-icon" aria-label="Close panel"><i class="fas fa-times" aria-hidden="true"></i> Close</button>
