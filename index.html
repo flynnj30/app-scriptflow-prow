@@ -22,6 +22,24 @@
     
     <!-- Styles -->
     <link rel="stylesheet" href="style.css" />
+    
+    <!-- Prevent extension errors -->
+    <script>
+        // Prevent chrome extension errors
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+            chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+                return true;
+            });
+        }
+        // Suppress console errors from extensions
+        console.error = function() {
+            const args = Array.from(arguments);
+            if (args.some(arg => typeof arg === 'string' && arg.includes('chrome-extension'))) {
+                return;
+            }
+            console.log.apply(console, args);
+        };
+    </script>
 </head>
 <body class="dark">
     <div class="app-wrapper">
@@ -64,8 +82,8 @@
                     <div class="tool-item" data-tool="analytics" role="menuitem"><i class="fas fa-chart-pie" aria-hidden="true"></i> <span>Analytics Hub</span></div>
                     <div class="tool-item" data-tool="calendar" role="menuitem"><i class="fas fa-calendar-alt" aria-hidden="true"></i> <span>Appointment Calendar</span></div>
                     <div class="tool-item" data-tool="tasks" role="menuitem"><i class="fas fa-tasks" aria-hidden="true"></i> <span>Follow-up Tasks</span></div>
+                    <div class="tool-item" data-tool="shortcuts" role="menuitem"><i class="fas fa-keyboard" aria-hidden="true"></i> <span>⌨️ Shortcuts</span></div>
                     <div class="tool-item" data-tool="export" role="menuitem"><i class="fas fa-file-csv" aria-hidden="true"></i> <span>Export to CSV</span></div>
-                    <div class="tool-item" data-tool="shortcuts" role="menuitem"><i class="fas fa-keyboard" aria-hidden="true"></i> <span>⌨️ Keyboard Shortcuts</span></div>
                     <div class="tool-item" data-tool="theme" role="menuitem"><i class="fas fa-moon" aria-hidden="true"></i> <span>Dark/Light Mode</span></div>
                     <div class="tool-item" data-tool="help" role="menuitem"><i class="fas fa-question-circle" aria-hidden="true"></i> <span>Help Guide</span></div>
                     <div class="tool-item" data-tool="reset" role="menuitem"><i class="fas fa-trash-alt" aria-hidden="true"></i> <span>Factory Reset</span></div>
@@ -154,26 +172,7 @@
                 <div id="featurePanel" class="feature-panel" style="display:none;">
                     <div class="feature-panel-header">
                         <h2 id="featurePanelTitle">Feature</h2>
-                        <div id="viewToggleContainer" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                            <div class="view-toggle" id="calendarViewToggle" style="display:none;">
-                                <button id="calendarViewBtn" class="view-btn active" aria-label="Calendar View"><i class="fas fa-calendar-alt" aria-hidden="true"></i> Calendar</button>
-                                <button id="listViewBtn" class="view-btn" aria-label="List View"><i class="fas fa-list" aria-hidden="true"></i> List</button>
-                            </div>
-                            <div class="view-toggle" id="analyticsTabContainer" style="display:none;">
-                                <button id="insightsTabBtn" class="view-btn active" aria-label="Insights Dashboard"><i class="fas fa-chart-pie" aria-hidden="true"></i> Insights</button>
-                                <button id="reportsTabBtn" class="view-btn" aria-label="Advanced Reports"><i class="fas fa-chart-line" aria-hidden="true"></i> Reports</button>
-                                <button id="teamTabBtn" class="view-btn" aria-label="Team Performance"><i class="fas fa-users" aria-hidden="true"></i> Team</button>
-                            </div>
-                            <div class="view-toggle" id="taskViewToggle" style="display:none;">
-                                <button id="taskListViewBtn" class="view-btn active" aria-label="All Tasks"><i class="fas fa-list" aria-hidden="true"></i> All</button>
-                                <button id="taskPendingBtn" class="view-btn" aria-label="Pending Tasks"><i class="fas fa-clock" aria-hidden="true"></i> Pending</button>
-                                <button id="taskTodayBtn" class="view-btn" aria-label="Today's Tasks"><i class="fas fa-calendar-day" aria-hidden="true"></i> Today</button>
-                            </div>
-                            <div class="view-toggle" id="shortcutsViewToggle" style="display:none;">
-                                <button id="shortcutsListBtn" class="view-btn active" aria-label="All Shortcuts"><i class="fas fa-list" aria-hidden="true"></i> All</button>
-                                <button id="shortcutsCustomBtn" class="view-btn" aria-label="Custom Shortcuts"><i class="fas fa-pen" aria-hidden="true"></i> Customize</button>
-                            </div>
-                        </div>
+                        <div id="viewToggleContainer" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;"></div>
                         <button id="closeFeaturePanelBtn" class="btn-icon" aria-label="Close panel"><i class="fas fa-times" aria-hidden="true"></i> Close</button>
                     </div>
                     <div class="feature-panel-body" id="featurePanelBody">
@@ -311,34 +310,6 @@
             <div id="quickCopyList" style="max-height:400px; overflow-y:auto;"></div>
             <div style="margin-top:16px; display:flex; justify-content:flex-end;">
                 <button id="closeQuickCopyBtn" class="btn-icon">Close</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Add Quick Copy Template Modal -->
-    <div id="addQuickCopyTemplateModal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true">
-        <div class="modal-card" style="max-width: 500px;">
-            <h3><i class="fas fa-plus-circle"></i> New Template</h3>
-            <div class="form-group">
-                <label>Name</label>
-                <input type="text" id="quickCopyNameInput" placeholder="e.g., Follow-up Email" />
-            </div>
-            <div class="form-group">
-                <label>Category</label>
-                <select id="quickCopyCategorySelect">
-                    <option value="email">📧 Email</option>
-                    <option value="sms">💬 SMS</option>
-                    <option value="script">📜 Script</option>
-                    <option value="response">💡 Response</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Content</label>
-                <textarea id="quickCopyContentArea" rows="6" placeholder="Paste your template content here..."></textarea>
-            </div>
-            <div style="display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap;">
-                <button id="saveQuickCopyBtn" class="btn-icon" style="background:var(--success); color:white;">Save</button>
-                <button id="cancelQuickCopyBtn" class="btn-icon">Cancel</button>
             </div>
         </div>
     </div>
