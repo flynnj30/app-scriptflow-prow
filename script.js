@@ -13,6 +13,7 @@ let appointments = {};
 let goals = { daily: 3, weekly: 15, monthly: 60 };
 let scripts = {};
 let scriptOrder = [];
+let scriptFavorites = JSON.parse(localStorage.getItem('scriptFavorites') || '[]');
 let currentScriptId = "opening";
 let isEditing = false;
 let searchTerm = "";
@@ -20,18 +21,41 @@ let tasks = [];
 let taskFilter = 'all';
 let isRefreshing = false;
 let sortableInstance = null;
+let autoSaveTimer = null;
+let currentEditContent = '';
 
 let appointmentsUnsubscribe = null;
 let tasksUnsubscribe = null;
 
 let currentCalDate = new Date();
 let selectedCalDate = getTodayStr();
+let calendarView = 'calendar'; // 'calendar' or 'list'
 
 let currentView = 'calendar';
 let selectedAppointments = new Set();
 let currentAppointmentId = null;
 
 let toolsOpen = localStorage.getItem('toolsMenuOpen') === 'true';
+let chartInstances = {};
+
+// Keyboard Shortcuts
+const DEFAULT_SHORTCUTS = {
+    'Smart Import': { keys: ['Ctrl', 'Shift', 'I'], description: 'Open Smart Import modal' },
+    'Appointment Calendar': { keys: ['Ctrl', 'Shift', 'C'], description: 'Open Appointment Calendar' },
+    'Call Scripts': { keys: ['Ctrl', 'Shift', 'S'], description: 'Open Call Scripts' },
+    'Global Search': { keys: ['Ctrl', 'Shift', 'F'], description: 'Open Global Search' },
+    'Quick Add Appointment': { keys: ['Ctrl', 'Shift', 'A'], description: 'Quick Add Appointment' },
+    'Floating Notepad': { keys: ['Ctrl', 'Shift', 'N'], description: 'Open Floating Notepad' },
+    'Analytics Hub': { keys: ['Ctrl', 'Shift', 'H'], description: 'Open Analytics Hub' },
+    'Keyboard Shortcuts': { keys: ['Ctrl', 'Shift', '?'], description: 'Open Keyboard Shortcuts' },
+    'Export to CSV': { keys: ['Ctrl', 'Shift', 'E'], description: 'Export data to CSV' },
+    'Toggle Theme': { keys: ['Ctrl', 'Shift', 'T'], description: 'Toggle Dark/Light Mode' },
+    'Refresh Data': { keys: ['Ctrl', 'Shift', 'R'], description: 'Refresh data from server' },
+    'Bulk Actions': { keys: ['Ctrl', 'Shift', 'B'], description: 'Open Bulk Actions' }
+};
+
+let customShortcuts = JSON.parse(localStorage.getItem('customShortcuts') || '{}');
+let shortcuts = { ...DEFAULT_SHORTCUTS, ...customShortcuts };
 
 // Handoffs Integrated directly into main status pathways
 const STATUS_OPTIONS = [
@@ -169,7 +193,7 @@ function showToast(msg, type = 'success') {
     t.className = `toast ${type === 'error' ? 'error' : (type === 'info' ? 'info' : (type === 'warning' ? 'warning' : ''))}`;
     t.innerHTML = `${type === 'success' ? '✓' : (type === 'error' ? '⚠️' : (type === 'warning' ? '⚠️' : 'ℹ️'))} ${msg}`;
     document.body.appendChild(t);
-    setTimeout(() => t.remove(), 3000);
+    setTimeout(() => t.remove(), 3500);
 }
 
 function copyToClipboard(text) {
@@ -201,6 +225,424 @@ function handleError(error, context = '') {
     }
     showToast(message, 'error');
     return { success: false, message };
+}
+
+// ============================================================
+// KEYBOARD SHORTCUTS MANAGER
+// ============================================================
+
+function getShortcutDisplay(keys) {
+    if (!keys || !Array.isArray(keys)) return '';
+    return keys.map(k => {
+        if (k === 'Ctrl') return '⌘' || 'Ctrl';
+        if (k === 'Shift') return '⇧' || 'Shift';
+        if (k === 'Alt') return '⌥' || 'Alt';
+        return k;
+    }).join(' + ');
+}
+
+function formatShortcutForDisplay(keys) {
+    if (!keys || !Array.isArray(keys)) return '';
+    return keys.map(k => {
+        if (k === 'Ctrl') return 'Ctrl';
+        if (k === 'Shift') return 'Shift';
+        if (k === 'Alt') return 'Alt';
+        return k;
+    }).join('+');
+}
+
+function checkShortcutConflict(newKeys, excludeAction = null) {
+    const conflicts = [];
+    for (const [action, shortcut] of Object.entries(shortcuts)) {
+        if (action === excludeAction) continue;
+        if (shortcut.keys && shortcut.keys.length === newKeys.length) {
+            const sorted1 = [...shortcut.keys].sort();
+            const sorted2 = [...newKeys].sort();
+            if (sorted1.every((k, i) => k === sorted2[i])) {
+                conflicts.push(action);
+            }
+        }
+    }
+    return conflicts;
+}
+
+function updateShortcut(action, newKeys) {
+    const conflicts = checkShortcutConflict(newKeys, action);
+    if (conflicts.length > 0) {
+        showToast(`Conflict with: ${conflicts.join(', ')}`, 'warning');
+        return false;
+    }
+    
+    if (shortcuts[action]) {
+        shortcuts[action].keys = newKeys;
+        customShortcuts[action] = shortcuts[action];
+        localStorage.setItem('customShortcuts', JSON.stringify(customShortcuts));
+        showToast(`Shortcut updated for ${action}`, 'success');
+        return true;
+    }
+    return false;
+}
+
+function resetShortcutsToDefaults() {
+    if (confirm('Reset all keyboard shortcuts to default values?')) {
+        customShortcuts = {};
+        localStorage.removeItem('customShortcuts');
+        shortcuts = { ...DEFAULT_SHORTCUTS };
+        showToast('Shortcuts reset to defaults', 'success');
+        renderShortcutsList();
+    }
+}
+
+function renderShortcutsList() {
+    const container = document.getElementById('shortcutsList');
+    if (!container) return;
+    
+    let html = '';
+    for (const [action, shortcut] of Object.entries(shortcuts)) {
+        const isDefault = DEFAULT_SHORTCUTS[action] && 
+            JSON.stringify(DEFAULT_SHORTCUTS[action].keys) === JSON.stringify(shortcut.keys);
+        const conflict = checkShortcutConflict(shortcut.keys, action);
+        
+        html += `
+            <div class="shortcut-item ${conflict.length > 0 ? 'conflict' : ''}">
+                <div class="shortcut-info">
+                    <div class="shortcut-name">${action}</div>
+                    <div class="shortcut-description">${shortcut.description || ''}</div>
+                </div>
+                <div class="shortcut-keys">
+                    ${shortcut.keys.map(k => `<kbd>${k}</kbd>`).join(' <span class="shortcut-separator">+</span> ')}
+                    ${!isDefault ? ' <span style="font-size:0.65rem; color:var(--text-muted);">(custom)</span>' : ''}
+                    ${conflict.length > 0 ? ` <span class="shortcut-conflict">⚠️ Conflict: ${conflict.join(', ')}</span>` : ''}
+                    <i class="fas fa-pen shortcut-edit" onclick="openShortcutEdit('${action}')" title="Edit shortcut"></i>
+                </div>
+            </div>
+        `;
+    }
+    container.innerHTML = html;
+}
+
+function openShortcutEdit(action) {
+    const currentKeys = shortcuts[action]?.keys || [];
+    const keysString = currentKeys.join('+');
+    const newKeysString = prompt(`Enter new shortcut for "${action}" (e.g., Ctrl+Shift+I):`, keysString);
+    if (newKeysString && newKeysString !== keysString) {
+        const newKeys = newKeysString.split('+').map(k => k.trim());
+        updateShortcut(action, newKeys);
+        renderShortcutsList();
+    }
+}
+
+// ============================================================
+// GLOBAL SEARCH
+// ============================================================
+
+function openGlobalSearch() {
+    const modal = document.getElementById('globalSearchModal');
+    modal.style.display = 'flex';
+    const input = document.getElementById('globalSearchInput');
+    input.value = '';
+    input.focus();
+    document.getElementById('globalSearchResults').innerHTML = '';
+}
+
+function performGlobalSearch(query) {
+    const results = document.getElementById('globalSearchResults');
+    if (!query || query.length < 2) {
+        results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">Type at least 2 characters to search...</p>';
+        return;
+    }
+    
+    const searchResults = [];
+    const q = query.toLowerCase();
+    
+    // Search appointments
+    for (let date in appointments) {
+        if (appointments[date].reports) {
+            appointments[date].reports.forEach(appt => {
+                const searchable = `${appt.business} ${appt.contactName} ${appt.phone || ''} ${appt.email || ''} ${appt.notes || ''}`.toLowerCase();
+                if (searchable.includes(q)) {
+                    searchResults.push({ type: 'appointment', data: appt, date: date });
+                }
+            });
+        }
+    }
+    
+    // Search tasks
+    tasks.forEach(task => {
+        if (task.description.toLowerCase().includes(q)) {
+            searchResults.push({ type: 'task', data: task });
+        }
+    });
+    
+    // Search scripts
+    for (const [id, script] of Object.entries(scripts)) {
+        if (script.name.toLowerCase().includes(q) || script.content.toLowerCase().includes(q)) {
+            searchResults.push({ type: 'script', data: { id, ...script } });
+        }
+    }
+    
+    if (searchResults.length === 0) {
+        results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">No results found.</p>';
+        return;
+    }
+    
+    let html = `<div style="display:flex; flex-direction:column; gap:8px;">`;
+    searchResults.slice(0, 20).forEach(result => {
+        if (result.type === 'appointment') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="showAppointmentDetail('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${escapeHtml(result.data.business)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">${formatDate(result.data.date)}</span>
+                    </div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary);">${escapeHtml(result.data.contactName)}</div>
+                </div>
+            `;
+        } else if (result.type === 'task') {
+            html += `
+                <div class="list-item" style="padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${escapeHtml(result.data.description)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">${result.data.completed ? '✅ Done' : '⏳ Pending'}</span>
+                    </div>
+                </div>
+            `;
+        } else if (result.type === 'script') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="loadScript('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${escapeHtml(result.data.name)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">📜 Script</span>
+                    </div>
+                </div>
+            `;
+        }
+    });
+    html += `</div>`;
+    results.innerHTML = html;
+}
+
+// ============================================================
+// SCRIPT MANAGEMENT WITH DRAG & DROP
+// ============================================================
+
+function loadScript(id) {
+    if (!scripts[id]) return;
+    if (isEditing) {
+        if (!confirm('You have unsaved changes. Discard them?')) return;
+        cancelEdit();
+    }
+    currentScriptId = id;
+    const script = scripts[id];
+    document.getElementById('currentScriptName').innerHTML = script.name;
+    document.getElementById('scriptContent').innerHTML = `<div class="script-display">${escapeHtml(script.content).replace(/\n/g, '<br>')}</div>`;
+    document.getElementById('versionNumber').textContent = script.version || 1;
+    
+    // Update favorite star
+    updateFavoriteStar();
+    renderSidebar();
+    updateKeyHints();
+}
+
+function getOrderedVisible() {
+    if (scriptOrder && scriptOrder.length > 0) {
+        return scriptOrder.filter(id => scripts[id]);
+    }
+    return Object.keys(scripts);
+}
+
+function renderSidebar() {
+    const container = document.getElementById('scriptListContainer');
+    if (!container) return;
+    
+    const visible = getOrderedVisible();
+    // Sort favorites to top
+    const sorted = [...visible].sort((a, b) => {
+        const aFav = scriptFavorites.includes(a);
+        const bFav = scriptFavorites.includes(b);
+        if (aFav && !bFav) return -1;
+        if (!aFav && bFav) return 1;
+        return visible.indexOf(a) - visible.indexOf(b);
+    });
+    
+    let html = '';
+    sorted.forEach((id, idx) => {
+        const s = scripts[id];
+        if (!s) return;
+        const active = currentScriptId === id;
+        const isFavorite = scriptFavorites.includes(id);
+        html += `
+            <div class="script-item ${active ? 'active' : ''}" data-id="${id}">
+                <i class="fas fa-grip-vertical drag-handle" aria-hidden="true"></i>
+                <span class="script-name">${escapeHtml(s.name)}</span>
+                <i class="fas fa-star favorite-star ${isFavorite ? 'active' : ''}" data-id="${id}" aria-hidden="true"></i>
+                <span class="key-hint">${idx < 9 ? idx + 1 : ''}</span>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+    
+    // Initialize Sortable
+    if (sortableInstance) {
+        sortableInstance.destroy();
+    }
+    
+    sortableInstance = new Sortable(container, {
+        handle: '.drag-handle',
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        dragClass: 'sortable-drag',
+        onEnd: async function(evt) {
+            const items = container.querySelectorAll('.script-item');
+            const newOrder = [];
+            items.forEach(item => {
+                const id = item.getAttribute('data-id');
+                if (id) newOrder.push(id);
+            });
+            scriptOrder = newOrder;
+            await saveScriptOrder();
+            renderSidebar();
+            updateKeyHints();
+        }
+    });
+    
+    // Click handlers
+    container.querySelectorAll('.script-item').forEach(el => {
+        el.addEventListener('click', (e) => {
+            if (e.target.closest('.drag-handle')) return;
+            if (e.target.closest('.favorite-star')) return;
+            loadScript(el.getAttribute('data-id'));
+        });
+    });
+    
+    // Favorite star handlers
+    container.querySelectorAll('.favorite-star').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const id = el.getAttribute('data-id');
+            toggleFavorite(id);
+        });
+    });
+    
+    updateKeyHints();
+}
+
+function toggleFavorite(id) {
+    const index = scriptFavorites.indexOf(id);
+    if (index > -1) {
+        scriptFavorites.splice(index, 1);
+    } else {
+        scriptFavorites.push(id);
+    }
+    localStorage.setItem('scriptFavorites', JSON.stringify(scriptFavorites));
+    renderSidebar();
+    updateFavoriteStar();
+    showToast(index > -1 ? 'Removed from favorites' : 'Added to favorites', 'info');
+}
+
+function updateFavoriteStar() {
+    const star = document.getElementById('favoriteScriptBtn');
+    if (star) {
+        const isFavorite = scriptFavorites.includes(currentScriptId);
+        star.innerHTML = `<i class="fas fa-star" style="color:${isFavorite ? 'var(--favorite-color)' : 'var(--text-muted)'}"></i>`;
+        star.title = isFavorite ? 'Remove from favorites' : 'Add to favorites';
+    }
+}
+
+// ============================================================
+// SCRIPT EDITING
+// ============================================================
+
+function startEdit() {
+    if (!scripts[currentScriptId]) return;
+    isEditing = true;
+    const script = scripts[currentScriptId];
+    currentEditContent = script.content;
+    
+    document.getElementById('editScriptBtn').style.display = 'none';
+    document.getElementById('saveScriptBtn').style.display = 'inline-flex';
+    document.getElementById('cancelEditBtn').style.display = 'inline-flex';
+    document.getElementById('editStatusBadge').style.display = 'inline-flex';
+    
+    const contentDiv = document.getElementById('scriptContent');
+    contentDiv.innerHTML = `
+        <textarea class="edit-textarea" id="editTextarea">${escapeHtml(script.content)}</textarea>
+        <div class="auto-save-indicator">Auto-saving...</div>
+    `;
+    
+    const textarea = document.getElementById('editTextarea');
+    textarea.focus();
+    
+    // Auto-save on input
+    textarea.addEventListener('input', () => {
+        currentEditContent = textarea.value;
+        const indicator = document.querySelector('.auto-save-indicator');
+        if (indicator) {
+            indicator.textContent = 'Saving...';
+            indicator.style.color = 'var(--warning)';
+        }
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = setTimeout(() => {
+            saveScriptContent(textarea.value);
+            const indicator = document.querySelector('.auto-save-indicator');
+            if (indicator) {
+                indicator.textContent = '✓ Auto-saved';
+                indicator.style.color = 'var(--success)';
+            }
+        }, 1000);
+    });
+    
+    // Keyboard shortcuts for editing
+    textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            cancelEdit();
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            saveScriptContent(textarea.value);
+            finishEdit();
+        }
+    });
+}
+
+function saveScriptContent(content) {
+    if (!currentUser || !currentScriptId) return;
+    const script = scripts[currentScriptId];
+    if (!script) return;
+    
+    const updatedScript = {
+        ...script,
+        content: content,
+        version: (script.version || 1) + 1
+    };
+    
+    db.collection('users').doc(currentUser.uid).collection('scripts').doc(currentScriptId).set(updatedScript, { merge: true })
+        .then(() => {
+            scripts[currentScriptId] = updatedScript;
+            showToast('Script saved!', 'success');
+        })
+        .catch(err => handleError(err, 'Saving script'));
+}
+
+function finishEdit() {
+    isEditing = false;
+    document.getElementById('editScriptBtn').style.display = 'inline-flex';
+    document.getElementById('saveScriptBtn').style.display = 'none';
+    document.getElementById('cancelEditBtn').style.display = 'none';
+    document.getElementById('editStatusBadge').style.display = 'none';
+    loadScript(currentScriptId);
+    showToast('Changes saved', 'success');
+}
+
+function cancelEdit() {
+    if (!confirm('Discard your changes?')) return;
+    isEditing = false;
+    document.getElementById('editScriptBtn').style.display = 'inline-flex';
+    document.getElementById('saveScriptBtn').style.display = 'none';
+    document.getElementById('cancelEditBtn').style.display = 'none';
+    document.getElementById('editStatusBadge').style.display = 'none';
+    loadScript(currentScriptId);
 }
 
 // ============================================================
@@ -468,7 +910,7 @@ async function loadUserData(showLoading = true) {
         scripts = {};
         scriptsSnapshot.forEach(doc => {
             const data = doc.data();
-            scripts[doc.id] = { name: data.name, content: data.content };
+            scripts[doc.id] = { name: data.name, content: data.content, version: data.version || 1 };
         });
         if (Object.keys(scripts).length === 0) {
             await createDefaultScripts();
@@ -545,6 +987,17 @@ async function createDefaultScripts() {
         batch.set(scriptsRef.doc(id), { name: script.name, content: script.content, version: 1, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
     }
     await batch.commit();
+}
+
+async function saveScriptOrder() {
+    if (!currentUser) return;
+    try {
+        await db.collection('users').doc(currentUser.uid).update({
+            scriptOrder: scriptOrder
+        });
+    } catch (error) {
+        console.error('Error saving script order:', error);
+    }
 }
 
 // ============================================================
@@ -655,14 +1108,10 @@ function getAverageScore() {
 }
 
 function updateStats() {
-    const todayElem = document.getElementById('statToday');
-    if (todayElem) todayElem.innerText = getTodayCount();
-    const weekElem = document.getElementById('statWeek');
-    if (weekElem) weekElem.innerText = getWeekCount();
-    const monthElem = document.getElementById('statMonth');
-    if (monthElem) monthElem.innerText = getMonthCount();
-    const avgScoreElem = document.getElementById('avgScore');
-    if (avgScoreElem) avgScoreElem.innerText = getAverageScore();
+    document.getElementById('statToday').innerText = getTodayCount();
+    document.getElementById('statWeek').innerText = getWeekCount();
+    document.getElementById('statMonth').innerText = getMonthCount();
+    document.getElementById('avgScore').innerText = getAverageScore();
     updateTaskStats();
 }
 
@@ -696,116 +1145,7 @@ function deleteTask(id) {
 
 function updateTaskStats() {
     const pending = tasks.filter(t => !t.completed).length;
-    const pendingTasksElem = document.getElementById('pendingTasks');
-    if (pendingTasksElem) pendingTasksElem.innerText = pending;
-}
-
-// ============================================================
-// SCRIPT MANAGEMENT WITH DRAG & DROP
-// ============================================================
-
-function loadScript(id) {
-    if (!scripts[id] || isEditing) return;
-    currentScriptId = id;
-    document.getElementById('currentScriptName').innerHTML = scripts[id].name;
-    document.getElementById('scriptContent').innerHTML = `<div class="script-display">${escapeHtml(scripts[id].content).replace(/\n/g, '<br>')}</div>`;
-    renderSidebar();
-}
-
-function getOrderedVisible() {
-    if (scriptOrder && scriptOrder.length > 0) {
-        return scriptOrder.filter(id => scripts[id]);
-    }
-    return Object.keys(scripts);
-}
-
-function renderSidebar() {
-    const container = document.getElementById('scriptListContainer');
-    if (!container) return;
-    
-    const visible = getOrderedVisible();
-    let html = '';
-    visible.forEach((id, idx) => {
-        const s = scripts[id];
-        if (!s) return;
-        const active = currentScriptId === id;
-        html += `
-            <div class="script-item ${active ? 'active' : ''}" data-id="${id}">
-                <i class="fas fa-grip-vertical drag-handle" aria-hidden="true"></i>
-                <span class="script-name">${escapeHtml(s.name)}</span>
-                <span class="key-hint">${idx < 9 ? idx + 1 : ''}</span>
-            </div>
-        `;
-    });
-    container.innerHTML = html;
-    
-    // Initialize Sortable
-    if (sortableInstance) {
-        sortableInstance.destroy();
-    }
-    
-    sortableInstance = new Sortable(container, {
-        handle: '.drag-handle',
-        animation: 150,
-        ghostClass: 'sortable-ghost',
-        chosenClass: 'sortable-chosen',
-        dragClass: 'sortable-drag',
-        onEnd: async function(evt) {
-            const items = container.querySelectorAll('.script-item');
-            const newOrder = [];
-            items.forEach(item => {
-                const id = item.getAttribute('data-id');
-                if (id) newOrder.push(id);
-            });
-            scriptOrder = newOrder;
-            await saveScriptOrder();
-            renderSidebar();
-            updateKeyHints();
-        }
-    });
-    
-    container.querySelectorAll('.script-item').forEach(el => {
-        el.addEventListener('click', (e) => {
-            if (e.target.closest('.drag-handle')) return;
-            loadScript(el.getAttribute('data-id'));
-        });
-    });
-    
-    updateKeyHints();
-}
-
-function updateKeyHints() {
-    const visible = getOrderedVisible();
-    const items = document.querySelectorAll('.script-item');
-    items.forEach((item, idx) => {
-        const hint = item.querySelector('.key-hint');
-        if (hint && idx < 9) {
-            hint.textContent = idx + 1;
-        } else if (hint) {
-            hint.textContent = '';
-        }
-    });
-    
-    const activeHint = document.getElementById('activeShortcutHint');
-    if (activeHint) {
-        const idx = visible.indexOf(currentScriptId);
-        if (idx >= 0 && idx < 9) {
-            activeHint.textContent = idx + 1;
-        } else {
-            activeHint.textContent = '—';
-        }
-    }
-}
-
-async function saveScriptOrder() {
-    if (!currentUser) return;
-    try {
-        await db.collection('users').doc(currentUser.uid).update({
-            scriptOrder: scriptOrder
-        });
-    } catch (error) {
-        console.error('Error saving script order:', error);
-    }
+    document.getElementById('pendingTasks').innerText = pending;
 }
 
 // ============================================================
@@ -830,19 +1170,15 @@ function parseAppointmentText(text) {
             
             if (rawValue) {
                 let matchedField = null;
-                let matchScore = 0;
-                
                 for (const [field, aliases] of Object.entries(FIELD_MAPPINGS)) {
                     if (aliases.some(alias => rawKey.includes(alias) || alias.includes(rawKey))) {
                         matchedField = field;
-                        matchScore = 1.0;
                         break;
                     }
                 }
-                
                 if (matchedField) {
                     result[matchedField] = rawValue;
-                    confidence[matchedField] = matchScore;
+                    confidence[matchedField] = 1.0;
                 }
             }
         });
@@ -850,58 +1186,26 @@ function parseAppointmentText(text) {
         const fullText = lines.join(' ');
         
         const nameMatch = fullText.match(/(?:name|client|contact|prospect)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i);
-        if (nameMatch) {
-            result.name = nameMatch[1];
-            confidence.name = 0.7;
-        }
+        if (nameMatch) { result.name = nameMatch[1]; confidence.name = 0.7; }
         
         const businessMatch = fullText.match(/(?:business|company|org)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i);
-        if (businessMatch) {
-            result.business = businessMatch[1];
-            confidence.business = 0.7;
-        }
+        if (businessMatch) { result.business = businessMatch[1]; confidence.business = 0.7; }
         
         const phoneMatch = fullText.match(/(?:\+?1?[\s-]?)?\(?([0-9]{3})\)?[\s-]?([0-9]{3})[\s-]?([0-9]{4})/);
-        if (phoneMatch) {
-            result.phone = `${phoneMatch[1]}-${phoneMatch[2]}-${phoneMatch[3]}`;
-            confidence.phone = 0.9;
-        }
+        if (phoneMatch) { result.phone = `${phoneMatch[1]}-${phoneMatch[2]}-${phoneMatch[3]}`; confidence.phone = 0.9; }
         
         const emailMatch = fullText.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
-        if (emailMatch) {
-            result.email = emailMatch[0];
-            confidence.email = 0.9;
-        }
+        if (emailMatch) { result.email = emailMatch[0]; confidence.email = 0.9; }
         
         const dateMatch = fullText.match(/\b(\d{4}-\d{1,2}-\d{1,2})|\b(\d{1,2}\/\d{1,2}\/\d{2,4})/);
-        if (dateMatch) {
-            result.date = dateMatch[0];
-            confidence.date = 0.7;
-        }
-        
-        const statusMatch = fullText.match(/(?:status|state|stage)[:\s]+([A-Za-z\s]+)/i);
-        if (statusMatch) {
-            const statusText = statusMatch[1].trim();
-            for (const option of STATUS_OPTIONS) {
-                if (statusText.toLowerCase().includes(option.toLowerCase())) {
-                    result.status = option;
-                    confidence.status = 0.8;
-                    break;
-                }
-            }
-        }
+        if (dateMatch) { result.date = dateMatch[0]; confidence.date = 0.7; }
         
         const timeMatch = fullText.match(/\b(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?|\d{1,2}\s*(?:AM|PM|am|pm))\b/);
-        if (timeMatch) {
-            result.time = timeMatch[0];
-            confidence.time = 0.7;
-        }
+        if (timeMatch) { result.time = timeMatch[0]; confidence.time = 0.7; }
     }
     
     for (const field of ['name', 'business', 'phone', 'email', 'date', 'time', 'status']) {
-        if (result[field] && !confidence[field]) {
-            confidence[field] = 0.5;
-        }
+        if (result[field] && !confidence[field]) confidence[field] = 0.5;
     }
     
     return { result, confidence };
@@ -913,9 +1217,7 @@ function checkDuplicate(appointment) {
     for (let date in appointments) {
         if (appointments[date].reports) {
             for (const existing of appointments[date].reports) {
-                let matchCount = 0;
-                let totalChecks = 0;
-                
+                let matchCount = 0, totalChecks = 0;
                 if (appointment.name && existing.contactName) {
                     totalChecks++;
                     if (appointment.name.toLowerCase() === existing.contactName.toLowerCase()) matchCount++;
@@ -932,10 +1234,7 @@ function checkDuplicate(appointment) {
                     totalChecks++;
                     if (appointment.business.toLowerCase() === existing.business.toLowerCase()) matchCount++;
                 }
-                
-                if (totalChecks > 0 && matchCount / totalChecks >= 0.6) {
-                    return existing;
-                }
+                if (totalChecks > 0 && matchCount / totalChecks >= 0.6) return existing;
             }
         }
     }
@@ -943,8 +1242,7 @@ function checkDuplicate(appointment) {
 }
 
 function openSmartImport() {
-    const modal = document.getElementById('smartImportModal');
-    modal.style.display = 'flex';
+    document.getElementById('smartImportModal').style.display = 'flex';
     document.getElementById('importTextArea').value = '';
     document.getElementById('importPreview').style.display = 'none';
     document.getElementById('saveImportBtn').style.display = 'none';
@@ -961,9 +1259,7 @@ function renderParsedPreview(data, confidence) {
     
     preview.style.display = 'block';
     
-    let fieldsHtml = '';
-    let totalConfidence = 0;
-    let fieldCount = 0;
+    let fieldsHtml = '', totalConfidence = 0, fieldCount = 0;
     const requiredFields = ['name', 'business'];
     const missingFields = [];
     
@@ -972,10 +1268,8 @@ function renderParsedPreview(data, confidence) {
         const conf = confidence[field] || 0.5;
         totalConfidence += conf;
         fieldCount++;
-        
         const confClass = conf >= 0.7 ? 'high' : (conf >= 0.4 ? 'medium' : 'low');
         const confLabel = conf >= 0.7 ? 'High' : (conf >= 0.4 ? 'Medium' : 'Low');
-        
         fieldsHtml += `
             <div class="parsed-field">
                 <span class="field-label">${field.charAt(0).toUpperCase() + field.slice(1)}</span>
@@ -984,16 +1278,11 @@ function renderParsedPreview(data, confidence) {
                 <i class="fas fa-pen field-edit" data-field="${field}" title="Edit value"></i>
             </div>
         `;
-        
-        if (requiredFields.includes(field) && !value) {
-            missingFields.push(field);
-        }
+        if (requiredFields.includes(field) && !value) missingFields.push(field);
     }
     
     for (const field of requiredFields) {
-        if (!data[field] || !data[field].trim()) {
-            missingFields.push(field);
-        }
+        if (!data[field] || !data[field].trim()) missingFields.push(field);
     }
     
     fieldsContainer.innerHTML = fieldsHtml;
@@ -1001,8 +1290,7 @@ function renderParsedPreview(data, confidence) {
     fieldsContainer.querySelectorAll('.field-value').forEach(el => {
         el.addEventListener('blur', function() {
             const field = this.getAttribute('data-field');
-            const value = this.textContent.trim();
-            parsedImportData[field] = value;
+            parsedImportData[field] = this.textContent.trim();
             updateImportValidation();
         });
     });
@@ -1011,14 +1299,7 @@ function renderParsedPreview(data, confidence) {
         el.addEventListener('click', function() {
             const field = this.getAttribute('data-field');
             const valueEl = fieldsContainer.querySelector(`.field-value[data-field="${field}"]`);
-            if (valueEl) {
-                valueEl.focus();
-                const range = document.createRange();
-                range.selectNodeContents(valueEl);
-                const sel = window.getSelection();
-                sel.removeAllRanges();
-                sel.addRange(range);
-            }
+            if (valueEl) { valueEl.focus(); }
         });
     });
     
@@ -1028,28 +1309,19 @@ function renderParsedPreview(data, confidence) {
     const avgConf = fieldCount > 0 ? totalConfidence / fieldCount : 0;
     confidenceContainer.innerHTML = `
         <strong>Overall Confidence:</strong> ${Math.round(avgConf * 100)}% 
-        <span style="font-size:0.75rem; color:var(--text-muted); margin-left:8px;">
-            (${fieldCount} fields parsed)
-        </span>
+        <span style="font-size:0.75rem; color:var(--text-muted); margin-left:8px;">(${fieldCount} fields parsed)</span>
     `;
     
     const duplicate = checkDuplicate(data);
     if (duplicate) {
         duplicateContainer.style.display = 'block';
-        duplicateContainer.innerHTML = `
-            ⚠️ <strong>Potential duplicate found!</strong> 
-            Similar appointment exists: ${duplicate.business} - ${duplicate.contactName} 
-            on ${formatDate(duplicate.date)}
-        `;
+        duplicateContainer.innerHTML = `⚠️ <strong>Potential duplicate found!</strong> Similar appointment exists: ${duplicate.business} - ${duplicate.contactName} on ${formatDate(duplicate.date)}`;
     } else {
         duplicateContainer.style.display = 'none';
     }
     
     if (missingFields.length > 0) {
-        missingContainer.innerHTML = `
-            ⚠️ <strong>Missing required fields:</strong> ${missingFields.join(', ')}
-            <br><span style="font-size:0.75rem;">Please fill in all required fields before saving.</span>
-        `;
+        missingContainer.innerHTML = `⚠️ <strong>Missing required fields:</strong> ${missingFields.join(', ')}<br><span style="font-size:0.75rem;">Please fill in all required fields before saving.</span>`;
         missingContainer.style.color = 'var(--danger)';
         document.getElementById('saveImportBtn').disabled = true;
     } else {
@@ -1057,16 +1329,12 @@ function renderParsedPreview(data, confidence) {
         missingContainer.style.color = 'var(--success)';
         document.getElementById('saveImportBtn').disabled = false;
     }
-    
     updateImportValidation();
 }
 
 function updateImportValidation() {
     const requiredFields = ['name', 'business'];
-    const allFilled = requiredFields.every(field => 
-        parsedImportData[field] && parsedImportData[field].trim()
-    );
-    
+    const allFilled = requiredFields.every(field => parsedImportData[field] && parsedImportData[field].trim());
     const saveBtn = document.getElementById('saveImportBtn');
     if (allFilled) {
         saveBtn.style.display = 'inline-flex';
@@ -1080,17 +1348,9 @@ function updateImportValidation() {
 }
 
 function saveImportedAppointment() {
-    if (!currentUser) {
-        showToast('Please sign in first', 'error');
-        return;
-    }
-    
+    if (!currentUser) { showToast('Please sign in first', 'error'); return; }
     const data = parsedImportData;
-    
-    if (!data.name || !data.business) {
-        showToast('Name and Business are required', 'error');
-        return;
-    }
+    if (!data.name || !data.business) { showToast('Name and Business are required', 'error'); return; }
     
     const date = data.date || getTodayStr();
     const status = data.status || 'Pending';
@@ -1101,30 +1361,12 @@ function saveImportedAppointment() {
     const assigned = data.assigned || 'Daniel';
     
     const duplicate = checkDuplicate(data);
-    if (duplicate) {
-        if (!confirm(`This appears to be a duplicate appointment with ${duplicate.business}. Do you still want to add it?`)) {
-            return;
-        }
-    }
+    if (duplicate && !confirm(`This appears to be a duplicate appointment with ${duplicate.business}. Do you still want to add it?`)) return;
     
-    const newAppt = addAppointment(
-        date,
-        data.business,
-        data.name,
-        'Owner',
-        phone,
-        time,
-        notes + (email ? `\nEmail: ${email}` : ''),
-        assigned,
-        null,
-        status
-    );
-    
-    if (newAppt) {
-        showToast('Appointment imported successfully! 🎉', 'success');
-        closeSmartImport();
-        refreshCurrentView();
-    }
+    addAppointment(date, data.business, data.name, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), assigned, null, status);
+    showToast('Appointment imported successfully! 🎉', 'success');
+    closeSmartImport();
+    refreshCurrentView();
 }
 
 function closeSmartImport() {
@@ -1139,69 +1381,25 @@ function closeSmartImport() {
 
 function showAppointmentDetail(appointmentId) {
     const appt = getAppointmentById(appointmentId);
-    if (!appt) {
-        showToast('Appointment not found', 'error');
-        return;
-    }
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
     
     currentAppointmentId = appointmentId;
     const modal = document.getElementById('appointmentDetailModal');
-    const title = document.getElementById('appointmentDetailTitle');
-    const content = document.getElementById('appointmentDetailContent');
+    document.getElementById('appointmentDetailTitle').textContent = `📋 ${appt.business} - ${appt.contactName}`;
     
-    title.textContent = `📋 ${appt.business} - ${appt.contactName}`;
-    
-    content.innerHTML = `
-        <div class="detail-row">
-            <span class="detail-label">Business</span>
-            <span class="detail-value">${escapeHtml(appt.business)}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Contact</span>
-            <span class="detail-value">${escapeHtml(appt.contactName)}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Phone</span>
-            <span class="detail-value">${escapeHtml(appt.phone || 'N/A')}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Email</span>
-            <span class="detail-value">${escapeHtml(appt.email || 'N/A')}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Date</span>
-            <span class="detail-value">${formatDate(appt.date)}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Time</span>
-            <span class="detail-value">${escapeHtml(appt.time || 'N/A')}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Status</span>
-            <span class="detail-value"><span class="status-tag ${getStatusClassSmall(getStatus(appt))}">${getStatus(appt)}</span></span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Assigned</span>
-            <span class="detail-value">${escapeHtml(appt.assigned || 'Daniel')}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Lead Score</span>
-            <span class="detail-value"><span class="score-badge ${getScoreColor(calculateLeadScore(appt))}">${calculateLeadScore(appt)} Pts</span></span>
-        </div>
-        ${appt.notes ? `
-        <div class="detail-row">
-            <span class="detail-label">Notes</span>
-            <span class="detail-value" style="white-space:pre-wrap;">${escapeHtml(appt.notes)}</span>
-        </div>
-        ` : ''}
-        ${appt.tags && appt.tags.length > 0 ? `
-        <div class="detail-row">
-            <span class="detail-label">Tags</span>
-            <span class="detail-value">${appt.tags.map(t => `#${t}`).join(' ')}</span>
-        </div>
-        ` : ''}
+    document.getElementById('appointmentDetailContent').innerHTML = `
+        <div class="detail-row"><span class="detail-label">Business</span><span class="detail-value">${escapeHtml(appt.business)}</span></div>
+        <div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">${escapeHtml(appt.contactName)}</span></div>
+        <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value">${escapeHtml(appt.phone || 'N/A')}</span></div>
+        <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${escapeHtml(appt.email || 'N/A')}</span></div>
+        <div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">${formatDate(appt.date)}</span></div>
+        <div class="detail-row"><span class="detail-label">Time</span><span class="detail-value">${escapeHtml(appt.time || 'N/A')}</span></div>
+        <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value"><span class="status-tag ${getStatusClassSmall(getStatus(appt))}">${getStatus(appt)}</span></span></div>
+        <div class="detail-row"><span class="detail-label">Assigned</span><span class="detail-value">${escapeHtml(appt.assigned || 'Daniel')}</span></div>
+        <div class="detail-row"><span class="detail-label">Lead Score</span><span class="detail-value"><span class="score-badge ${getScoreColor(calculateLeadScore(appt))}">${calculateLeadScore(appt)} Pts</span></span></div>
+        ${appt.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value" style="white-space:pre-wrap;">${escapeHtml(appt.notes)}</span></div>` : ''}
+        ${appt.tags && appt.tags.length > 0 ? `<div class="detail-row"><span class="detail-label">Tags</span><span class="detail-value">${appt.tags.map(t => `#${t}`).join(' ')}</span></div>` : ''}
     `;
-    
     modal.style.display = 'flex';
 }
 
@@ -1211,11 +1409,64 @@ function closeAppointmentDetail() {
 }
 
 // ============================================================
+// QUICK ADD APPOINTMENT
+// ============================================================
+
+function openQuickReportWithDate(defaultDate) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'quickAddModal';
+    modal.innerHTML = `
+        <div class="modal-card">
+            <h3><i class="fas fa-plus-circle"></i> Add New Appointment</h3>
+            <div class="form-group"><label>Date</label><input type="date" id="newApptDate" value="${defaultDate}" /></div>
+            <div class="form-group"><label>Business Name *</label><input type="text" id="newApptBusiness" placeholder="Enter business name" /><div class="error-message">Business name is required</div></div>
+            <div class="form-group"><label>Contact Name *</label><input type="text" id="newApptContact" placeholder="Enter contact name" /><div class="error-message">Contact name is required</div></div>
+            <div class="form-group"><label>Phone</label><input type="text" id="newApptPhone" placeholder="Enter phone number" /></div>
+            <div class="form-group"><label>Email</label><input type="email" id="newApptEmail" placeholder="Enter email address" /></div>
+            <div class="form-group"><label>Time</label><input type="time" id="newApptTime" /></div>
+            <div class="form-group"><label>Lead Status</label><select id="newApptStatus">${STATUS_OPTIONS.map(s => `<option value="${s}" ${s === 'Pending' ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+            <div class="form-group"><label>Notes</label><textarea id="newApptNotes" rows="3" placeholder="Add any additional notes..."></textarea></div>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px; flex-wrap:wrap;">
+                <button id="saveQuickApptBtn" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-save"></i> Save</button>
+                <button id="cancelQuickApptBtn" class="btn-icon">Cancel</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    document.getElementById('saveQuickApptBtn').addEventListener('click', () => {
+        const date = document.getElementById('newApptDate').value;
+        const bus = document.getElementById('newApptBusiness').value.trim();
+        const contact = document.getElementById('newApptContact').value.trim();
+        const phone = document.getElementById('newApptPhone').value.trim();
+        const email = document.getElementById('newApptEmail').value.trim();
+        const time = document.getElementById('newApptTime').value;
+        const status = document.getElementById('newApptStatus').value;
+        const notes = document.getElementById('newApptNotes').value.trim();
+
+        if (!bus || !contact) { showToast('Please fill in all required fields', 'error'); return; }
+        addAppointment(date, bus, contact, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), 'Daniel', null, status);
+        modal.remove();
+        showToast('Appointment added successfully! 🎉', 'success');
+        refreshCurrentView();
+    });
+
+    document.getElementById('cancelQuickApptBtn').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+}
+
+// ============================================================
 // CALENDAR PANEL WITH DRAG & DROP
 // ============================================================
 
 function renderCalendarPanel(container) {
     if (!container) return;
+    if (calendarView === 'list') {
+        renderListView(container);
+        return;
+    }
+    
     const year = currentCalDate.getFullYear();
     const month = currentCalDate.getMonth();
     const firstDay = new Date(year, month, 1).getDay();
@@ -1224,29 +1475,22 @@ function renderCalendarPanel(container) {
     let daysHtml = '';
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     dayNames.forEach(d => daysHtml += `<div class="day-name">${d}</div>`);
-    
-    for (let i = 0; i < firstDay; i++) { daysHtml += `<div class="calendar-day empty"></div>`; }
+    for (let i = 0; i < firstDay; i++) daysHtml += `<div class="calendar-day empty"></div>`;
     
     for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         const appts = appointments[dateStr]?.reports || [];
         const count = appts.length;
         const isSelected = dateStr === selectedCalDate;
-        
         let indicatorHtml = '';
         if (count > 0) {
             const dots = appts.slice(0, 3).map(a => {
-                let color = 'var(--primary)';
                 const s = getStatus(a);
-                if (s === 'Hot Transfer') color = '#dc2626';
-                else if (s === 'Completed') color = 'var(--success)';
-                else if (s === 'Warm Callback') color = 'var(--warning)';
-                else if (s === 'Pending') color = 'var(--text-muted)';
-                return `<span class="appt-dot" style="background:${color};"></span>`;
+                const colors = { 'Hot Transfer': '#dc2626', 'Completed': 'var(--success)', 'Warm Callback': 'var(--warning)', 'Pending': 'var(--text-muted)' };
+                return `<span class="appt-dot" style="background:${colors[s] || 'var(--primary)'};"></span>`;
             }).join('');
             indicatorHtml = `<div class="appt-indicator">${dots}</div>`;
         }
-        
         daysHtml += `
             <div class="calendar-day ${isSelected ? 'selected' : ''}" data-date="${dateStr}">
                 <span class="day-number">${d}</span>
@@ -1257,7 +1501,6 @@ function renderCalendarPanel(container) {
     }
 
     const selectedAppts = appointments[selectedCalDate]?.reports || [];
-    
     const stats = {
         hotTransfers: selectedAppts.filter(a => getStatus(a) === 'Hot Transfer').length,
         warmCallbacks: selectedAppts.filter(a => getStatus(a) === 'Warm Callback').length,
@@ -1276,9 +1519,7 @@ function renderCalendarPanel(container) {
                     <button id="calNextBtn" class="btn-icon">Next</button>
                 </div>
             </div>
-            <div class="calendar-grid">
-                ${daysHtml}
-            </div>
+            <div class="calendar-grid">${daysHtml}</div>
             <div class="kpi-row">
                 <div class="kpi-card"><div class="kpi-value" style="color:#dc2626;">${stats.hotTransfers}</div><div class="kpi-label">🔥 Hot Transfers</div></div>
                 <div class="kpi-card"><div class="kpi-value" style="color:var(--warning);">${stats.warmCallbacks}</div><div class="kpi-label">📞 Warm Callbacks</div></div>
@@ -1286,9 +1527,12 @@ function renderCalendarPanel(container) {
                 <div class="kpi-card"><div class="kpi-value" style="color:var(--text-muted);">${stats.pending}</div><div class="kpi-label">⏳ Pending</div></div>
             </div>
             <div class="appointments-section">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
                     <h4>Appointments (${selectedAppts.length})</h4>
-                    <button id="quickAddCalBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> Add Lead</button>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button id="quickAddCalBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> Add Lead</button>
+                        <button id="switchToListView" class="btn-icon"><i class="fas fa-list"></i> List View</button>
+                    </div>
                 </div>
                 <div class="appointments-list" id="appointmentsList">
                     ${selectedAppts.map(a => {
@@ -1320,45 +1564,28 @@ function renderCalendarPanel(container) {
         </div>
     `;
 
+    // Event listeners
     container.querySelectorAll('.calendar-day[data-date]').forEach(el => {
-        el.addEventListener('click', () => {
-            selectedCalDate = el.getAttribute('data-date');
-            renderCalendarPanel(container);
-        });
+        el.addEventListener('click', () => { selectedCalDate = el.getAttribute('data-date'); renderCalendarPanel(container); });
     });
-    
-    document.getElementById('calPrevBtn')?.addEventListener('click', () => {
-        currentCalDate.setMonth(currentCalDate.getMonth() - 1);
-        renderCalendarPanel(container);
-    });
-    
-    document.getElementById('calNextBtn')?.addEventListener('click', () => {
-        currentCalDate.setMonth(currentCalDate.getMonth() + 1);
-        renderCalendarPanel(container);
-    });
-    
-    document.getElementById('calTodayBtn')?.addEventListener('click', () => {
-        currentCalDate = new Date();
-        selectedCalDate = getTodayStr();
-        renderCalendarPanel(container);
-    });
-
-    document.getElementById('quickAddCalBtn')?.addEventListener('click', () => {
-        openQuickReportWithDate(selectedCalDate);
-    });
+    document.getElementById('calPrevBtn')?.addEventListener('click', () => { currentCalDate.setMonth(currentCalDate.getMonth() - 1); renderCalendarPanel(container); });
+    document.getElementById('calNextBtn')?.addEventListener('click', () => { currentCalDate.setMonth(currentCalDate.getMonth() + 1); renderCalendarPanel(container); });
+    document.getElementById('calTodayBtn')?.addEventListener('click', () => { currentCalDate = new Date(); selectedCalDate = getTodayStr(); renderCalendarPanel(container); });
+    document.getElementById('quickAddCalBtn')?.addEventListener('click', () => openQuickReportWithDate(selectedCalDate));
+    document.getElementById('switchToListView')?.addEventListener('click', () => { calendarView = 'list'; renderCalendarPanel(container); });
 
     container.querySelectorAll('.delete-appt-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const id = btn.getAttribute('data-id');
             if (confirm('Delete this appointment permanently?')) {
-                deleteAppointment(selectedCalDate, id);
+                deleteAppointment(selectedCalDate, btn.getAttribute('data-id'));
                 renderCalendarPanel(container);
                 showToast('Appointment deleted', 'info');
             }
         });
     });
 
+    // Sortable for appointments
     const appointmentsList = document.getElementById('appointmentsList');
     if (appointmentsList) {
         new Sortable(appointmentsList, {
@@ -1367,7 +1594,7 @@ function renderCalendarPanel(container) {
             ghostClass: 'sortable-ghost',
             chosenClass: 'sortable-chosen',
             dragClass: 'sortable-drag',
-            onEnd: function(evt) {
+            onEnd: function() {
                 const items = appointmentsList.querySelectorAll('.appointment-card');
                 const newOrder = [];
                 items.forEach(item => {
@@ -1389,111 +1616,96 @@ function renderCalendarPanel(container) {
 }
 
 // ============================================================
-// QUICK ADD APPOINTMENT
+// LIST VIEW
 // ============================================================
 
-function openQuickReportWithDate(defaultDate) {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'quickAddModal';
-    modal.innerHTML = `
-        <div class="modal-card">
-            <h3><i class="fas fa-plus-circle"></i> Add New Appointment</h3>
-            <div class="form-group">
-                <label>Date</label>
-                <input type="date" id="newApptDate" value="${defaultDate}" />
-            </div>
-            <div class="form-group">
-                <label>Business Name *</label>
-                <input type="text" id="newApptBusiness" placeholder="Enter business name" />
-                <div class="error-message">Business name is required</div>
-            </div>
-            <div class="form-group">
-                <label>Contact Name *</label>
-                <input type="text" id="newApptContact" placeholder="Enter contact name" />
-                <div class="error-message">Contact name is required</div>
-            </div>
-            <div class="form-group">
-                <label>Phone</label>
-                <input type="text" id="newApptPhone" placeholder="Enter phone number" />
-            </div>
-            <div class="form-group">
-                <label>Email</label>
-                <input type="email" id="newApptEmail" placeholder="Enter email address" />
-            </div>
-            <div class="form-group">
-                <label>Time</label>
-                <input type="time" id="newApptTime" />
-            </div>
-            <div class="form-group">
-                <label>Lead Status</label>
-                <select id="newApptStatus">
-                    ${STATUS_OPTIONS.map(s => `<option value="${s}" ${s === 'Pending' ? 'selected' : ''}>${s}</option>`).join('')}
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Notes</label>
-                <textarea id="newApptNotes" rows="3" placeholder="Add any additional notes..."></textarea>
-            </div>
-            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
-                <button id="saveQuickApptBtn" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-save"></i> Save</button>
-                <button id="cancelQuickApptBtn" class="btn-icon">Cancel</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-
-    const businessInput = document.getElementById('newApptBusiness');
-    const contactInput = document.getElementById('newApptContact');
-    
-    function validateField(input, errorMsg) {
-        const formGroup = input.closest('.form-group');
-        if (input.value.trim()) {
-            formGroup.classList.remove('has-error');
-        } else {
-            formGroup.classList.add('has-error');
+function renderListView(container) {
+    const allAppointments = [];
+    for (let date in appointments) {
+        if (appointments[date].reports) {
+            appointments[date].reports.forEach(appt => {
+                allAppointments.push({ ...appt, dateKey: date });
+            });
         }
     }
-    
-    businessInput.addEventListener('input', () => validateField(businessInput));
-    contactInput.addEventListener('input', () => validateField(contactInput));
+    allAppointments.sort((a, b) => new Date(a.dateKey) - new Date(b.dateKey));
 
-    document.getElementById('saveQuickApptBtn').addEventListener('click', () => {
-        const date = document.getElementById('newApptDate').value;
-        const bus = document.getElementById('newApptBusiness').value.trim();
-        const contact = document.getElementById('newApptContact').value.trim();
-        const phone = document.getElementById('newApptPhone').value.trim();
-        const email = document.getElementById('newApptEmail').value.trim();
-        const time = document.getElementById('newApptTime').value;
-        const status = document.getElementById('newApptStatus').value;
-        const notes = document.getElementById('newApptNotes').value.trim();
+    container.innerHTML = `
+        <div class="list-view-container">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                <h4><i class="fas fa-list"></i> All Appointments (${allAppointments.length})</h4>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button id="switchToCalendarView" class="btn-icon"><i class="fas fa-calendar-alt"></i> Calendar View</button>
+                    <button id="addApptFromList" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> Add</button>
+                </div>
+            </div>
+            <div class="appointments-toolbar">
+                <div class="search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="listSearchInput" placeholder="Search appointments..." />
+                </div>
+                <select id="listStatusFilter"><option value="all">All Status</option>${STATUS_OPTIONS.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
+                <select id="listTagFilter"><option value="all">All Tags</option>${TAG_OPTIONS.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}</select>
+            </div>
+            <div class="list-header">
+                <span>Business</span><span>Contact</span><span>Status</span><span>Date</span><span>Score</span><span>Actions</span>
+            </div>
+            <div id="listItemsContainer">
+                ${allAppointments.map(appt => `
+                    <div class="list-item" onclick="showAppointmentDetail('${appt.id}')">
+                        <span class="list-business"><strong>${escapeHtml(appt.business)}</strong></span>
+                        <span class="list-contact">${escapeHtml(appt.contactName)}</span>
+                        <span class="list-status ${getStatusClassSmall(getStatus(appt))}">${getStatus(appt)}</span>
+                        <span>${formatDate(appt.dateKey)}</span>
+                        <span><span class="score-badge ${getScoreColor(calculateLeadScore(appt))}">${calculateLeadScore(appt)}</span></span>
+                        <span><button class="delete-appt-btn" data-id="${appt.id}" data-date="${appt.dateKey}" style="background:none; border:none; cursor:pointer; color:var(--danger);"><i class="fas fa-trash"></i></button></span>
+                    </div>
+                `).join('')}
+            </div>
+            ${allAppointments.length === 0 ? '<div class="empty-state"><i class="fas fa-calendar-check"></i><p>No appointments found</p></div>' : ''}
+        </div>
+    `;
 
-        let hasError = false;
-        if (!bus) {
-            document.getElementById('newApptBusiness').closest('.form-group').classList.add('has-error');
-            hasError = true;
-        }
-        if (!contact) {
-            document.getElementById('newApptContact').closest('.form-group').classList.add('has-error');
-            hasError = true;
-        }
-        
-        if (hasError) {
-            showToast('Please fill in all required fields', 'error');
-            return;
-        }
+    // Event listeners
+    document.getElementById('switchToCalendarView')?.addEventListener('click', () => { calendarView = 'calendar'; renderCalendarPanel(container); });
+    document.getElementById('addApptFromList')?.addEventListener('click', () => openQuickReportWithDate(getTodayStr()));
 
-        const notesWithEmail = notes + (email ? `\nEmail: ${email}` : '');
-        addAppointment(date, bus, contact, 'Owner', phone, time, notesWithEmail, 'Daniel', null, status);
-        modal.remove();
-        showToast('Appointment added successfully! 🎉', 'success');
-        refreshCurrentView();
+    // Search and filter
+    document.getElementById('listSearchInput')?.addEventListener('input', filterListItems);
+    document.getElementById('listStatusFilter')?.addEventListener('change', filterListItems);
+    document.getElementById('listTagFilter')?.addEventListener('change', filterListItems);
+
+    // Delete from list
+    container.querySelectorAll('.delete-appt-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm('Delete this appointment?')) {
+                deleteAppointment(btn.getAttribute('data-date'), btn.getAttribute('data-id'));
+                renderListView(container);
+                showToast('Appointment deleted', 'info');
+            }
+        });
     });
+}
 
-    document.getElementById('cancelQuickApptBtn').addEventListener('click', () => modal.remove());
+function filterListItems() {
+    const search = document.getElementById('listSearchInput')?.value.toLowerCase() || '';
+    const statusFilter = document.getElementById('listStatusFilter')?.value || 'all';
+    const tagFilter = document.getElementById('listTagFilter')?.value || 'all';
+    const items = document.querySelectorAll('#listItemsContainer .list-item');
     
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.remove();
+    items.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        const status = item.querySelector('.list-status')?.textContent || '';
+        const tags = item.querySelectorAll('.list-tag') || [];
+        let show = true;
+        if (search && !text.includes(search)) show = false;
+        if (statusFilter !== 'all' && status !== statusFilter) show = false;
+        if (tagFilter !== 'all') {
+            const hasTag = Array.from(tags).some(t => t.textContent === tagFilter);
+            if (!hasTag) show = false;
+        }
+        item.style.display = show ? 'grid' : 'none';
     });
 }
 
@@ -1510,7 +1722,15 @@ function showFeaturePanel(featureType, title) {
     if (!scriptPanel || !featurePanel) return;
     
     currentView = featureType;
-    featureTitle.innerHTML = `<i class="fas ${featureType === 'notepad' ? 'fa-sticky-note' : ''}"></i> ${title}`;
+    featureTitle.innerHTML = `<i class="fas ${featureType === 'calendar' ? 'fa-calendar-alt' : featureType === 'tasks' ? 'fa-tasks' : featureType === 'analytics' ? 'fa-chart-pie' : 'fa-sticky-note'}"></i> ${title}`;
+    
+    // Show appropriate view toggles
+    document.getElementById('calendarViewToggle').style.display = featureType === 'calendar' ? 'flex' : 'none';
+    document.getElementById('analyticsTabContainer').style.display = featureType === 'analytics' ? 'flex' : 'none';
+    document.getElementById('taskViewToggle').style.display = featureType === 'tasks' ? 'flex' : 'none';
+    document.getElementById('shortcutsViewToggle').style.display = featureType === 'shortcuts' ? 'flex' : 'none';
+    document.getElementById('notepadTabContainer').style.display = 'none';
+    document.getElementById('workspaceViewToggle').style.display = 'none';
     
     scriptPanel.style.display = 'none';
     featurePanel.style.display = 'block';
@@ -1521,6 +1741,8 @@ function showFeaturePanel(featureType, title) {
         renderTasksPanel(featureBody);
     } else if (featureType === 'analytics') {
         renderAnalyticsHub(featureBody);
+    } else if (featureType === 'shortcuts') {
+        renderShortcutsPanel(featureBody);
     } else if (featureType === 'notepad') {
         showToast('📝 Notes feature coming soon!', 'info');
         featurePanel.style.display = 'none';
@@ -1539,6 +1761,29 @@ function refreshCurrentView() {
     if (currentView === 'calendar') renderCalendarPanel(body);
     else if (currentView === 'tasks') renderTasksPanel(body);
     else if (currentView === 'analytics') renderAnalyticsHub(body);
+    else if (currentView === 'shortcuts') renderShortcutsPanel(body);
+}
+
+// ============================================================
+// SHORTCUTS PANEL
+// ============================================================
+
+function renderShortcutsPanel(container) {
+    if (!container) return;
+    container.innerHTML = `
+        <div class="shortcuts-container">
+            <h3><i class="fas fa-keyboard"></i> Keyboard Shortcuts Manager</h3>
+            <p style="color:var(--text-muted); margin-bottom:16px;">View and customize keyboard shortcuts for quick access to features.</p>
+            <div style="margin-bottom:16px; display:flex; gap:8px; flex-wrap:wrap;">
+                <button id="shortcutsResetDefaultsBtn" class="btn-icon" style="background:var(--warning); color:#1e293b;"><i class="fas fa-undo"></i> Reset Defaults</button>
+                <span style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center;">⚠️ Conflicts are highlighted in red</span>
+            </div>
+            <div id="shortcutsListContainer" style="max-height:450px; overflow-y:auto;"></div>
+        </div>
+    `;
+    
+    renderShortcutsList();
+    document.getElementById('shortcutsResetDefaultsBtn')?.addEventListener('click', resetShortcutsToDefaults);
 }
 
 // ============================================================
@@ -1553,19 +1798,16 @@ function renderTasksPanel(container) {
         <div class="tasks-section">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
                 <h3><i class="fas fa-tasks"></i> Follow-up Tasks</h3>
-                <div style="display:flex; gap:8px; align-items:center;">
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                     <button id="taskFilterAll" class="view-btn ${taskFilter === 'all' ? 'active' : ''}">All</button>
                     <button id="taskFilterPending" class="view-btn ${taskFilter === 'pending' ? 'active' : ''}">Pending</button>
+                    <button id="taskFilterToday" class="view-btn ${taskFilter === 'today' ? 'active' : ''}">Today</button>
                     <button id="addNewTaskBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> New</button>
                 </div>
             </div>
             <div class="tasks-list">
-                ${filteredTasks.length === 0 ? `
-                    <div class="empty-state">
-                        <i class="fas fa-check-circle"></i>
-                        <p>No tasks ${taskFilter === 'pending' ? 'pending' : ''}</p>
-                    </div>
-                ` : filteredTasks.map(t => `
+                ${filteredTasks.length === 0 ? '<div class="empty-state"><i class="fas fa-check-circle"></i><p>No tasks found</p></div>' : 
+                filteredTasks.map(t => `
                     <div class="task-card ${t.completed ? 'task-completed' : ''}">
                         <div class="task-row">
                             <div class="task-title">
@@ -1586,15 +1828,9 @@ function renderTasksPanel(container) {
         </div>
     `;
 
-    document.getElementById('taskFilterAll')?.addEventListener('click', () => {
-        taskFilter = 'all';
-        renderTasksPanel(container);
-    });
-    
-    document.getElementById('taskFilterPending')?.addEventListener('click', () => {
-        taskFilter = 'pending';
-        renderTasksPanel(container);
-    });
+    document.getElementById('taskFilterAll')?.addEventListener('click', () => { taskFilter = 'all'; renderTasksPanel(container); });
+    document.getElementById('taskFilterPending')?.addEventListener('click', () => { taskFilter = 'pending'; renderTasksPanel(container); });
+    document.getElementById('taskFilterToday')?.addEventListener('click', () => { taskFilter = 'today'; renderTasksPanel(container); });
 
     document.getElementById('addNewTaskBtn')?.addEventListener('click', () => {
         const desc = prompt('Enter task description:');
@@ -1624,7 +1860,7 @@ function renderTasksPanel(container) {
 }
 
 // ============================================================
-// ANALYTICS HUB
+// ANALYTICS HUB WITH CHARTS
 // ============================================================
 
 function renderAnalyticsHub(container) {
@@ -1632,6 +1868,7 @@ function renderAnalyticsHub(container) {
     
     let total = 0, hTransfers = 0, wCallbacks = 0, completedCount = 0, pendingCount = 0, canceledCount = 0;
     let statusCounts = {};
+    let dailyData = {};
     
     for (let date in appointments) {
         if (appointments[date].reports) {
@@ -1644,6 +1881,8 @@ function renderAnalyticsHub(container) {
                 else if (status === 'Completed') completedCount++;
                 else if (status === 'Pending') pendingCount++;
                 else if (status === 'Canceled') canceledCount++;
+                
+                dailyData[date] = (dailyData[date] || 0) + 1;
             });
         }
     }
@@ -1656,60 +1895,35 @@ function renderAnalyticsHub(container) {
         <div class="analytics-container">
             <h3><i class="fas fa-chart-pie"></i> Pipeline Performance Dashboard</h3>
             
+            <div class="analytics-filters">
+                <label>Date Range</label>
+                <input type="date" id="analyticsStartDate" value="${getTodayStr()}" />
+                <input type="date" id="analyticsEndDate" value="${getTodayStr()}" />
+                <label>View</label>
+                <select id="analyticsViewSelect">
+                    <option value="overview">Overview</option>
+                    <option value="status">By Status</option>
+                    <option value="team">Team Performance</option>
+                </select>
+                <button id="analyticsApplyFilters" class="btn-icon" style="background:var(--primary); color:white;">Apply</button>
+                <button id="analyticsExportPDF" class="btn-icon" style="background:var(--secondary); color:white;"><i class="fas fa-file-pdf"></i> Export PDF</button>
+            </div>
+            
             <div class="report-metrics">
-                <div class="metric-card">
-                    <div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div>
-                    <div class="metric-label">Total Pipeline</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div>
-                    <div class="metric-label">🔥 Hot Transfers</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div>
-                    <div class="metric-label">📞 Warm Callbacks</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div>
-                    <div class="metric-label">✅ Completed</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--text-muted);">${pendingCount}</div>
-                    <div class="metric-label">⏳ Pending</div>
-                </div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">Total Pipeline</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--text-muted);">${pendingCount}</div><div class="metric-label">⏳ Pending</div></div>
             </div>
             
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
                 <div class="feature-card">
                     <h4>📊 Conversion Rates</h4>
                     <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
-                        <div>
-                            <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
-                                <span>Completed Rate</span>
-                                <span>${conversionRate}%</span>
-                            </div>
-                            <div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px;">
-                                <div style="background:var(--success); width:${conversionRate}%; height:100%; border-radius:4px; transition:width 0.5s;"></div>
-                            </div>
-                        </div>
-                        <div>
-                            <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
-                                <span>Hot Transfer Rate</span>
-                                <span>${hotTransferRate}%</span>
-                            </div>
-                            <div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px;">
-                                <div style="background:#dc2626; width:${hotTransferRate}%; height:100%; border-radius:4px; transition:width 0.5s;"></div>
-                            </div>
-                        </div>
-                        <div>
-                            <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
-                                <span>Warm Callback Rate</span>
-                                <span>${warmCallbackRate}%</span>
-                            </div>
-                            <div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px;">
-                                <div style="background:var(--warning); width:${warmCallbackRate}%; height:100%; border-radius:4px; transition:width 0.5s;"></div>
-                            </div>
-                        </div>
+                        <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Completed Rate</span><span>${conversionRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px;"><div style="background:var(--success); width:${conversionRate}%; height:100%; border-radius:4px; transition:width 0.5s;"></div></div></div>
+                        <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Hot Transfer Rate</span><span>${hotTransferRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px;"><div style="background:#dc2626; width:${hotTransferRate}%; height:100%; border-radius:4px; transition:width 0.5s;"></div></div></div>
+                        <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Warm Callback Rate</span><span>${warmCallbackRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px;"><div style="background:var(--warning); width:${warmCallbackRate}%; height:100%; border-radius:4px; transition:width 0.5s;"></div></div></div>
                     </div>
                 </div>
                 
@@ -1725,8 +1939,160 @@ function renderAnalyticsHub(container) {
                     </div>
                 </div>
             </div>
+            
+            <div class="feature-card" style="margin-top:8px;">
+                <h4>📈 Appointment Trend</h4>
+                <div class="chart-container" style="height:200px;">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;">
+                <div class="feature-card">
+                    <h4>🍩 Status Distribution</h4>
+                    <div class="chart-container-sm" style="height:180px;">
+                        <canvas id="donutChart"></canvas>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <h4>📊 Weekly Performance</h4>
+                    <div class="chart-container-sm" style="height:180px;">
+                        <canvas id="barChart"></canvas>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
+
+    // Initialize charts after render
+    setTimeout(() => {
+        initAnalyticsCharts(dailyData, statusCounts);
+    }, 100);
+
+    // Event listeners
+    document.getElementById('analyticsApplyFilters')?.addEventListener('click', () => {
+        showToast('Filters applied', 'info');
+        // Re-render with filters
+    });
+
+    document.getElementById('analyticsExportPDF')?.addEventListener('click', () => {
+        showToast('PDF export coming soon!', 'info');
+    });
+}
+
+function initAnalyticsCharts(dailyData, statusCounts) {
+    // Destroy existing charts
+    Object.values(chartInstances).forEach(chart => {
+        if (chart) chart.destroy();
+    });
+    chartInstances = {};
+
+    const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#f97316', '#06b6d4', '#ec4899'];
+
+    // Trend Chart (Line)
+    const trendCtx = document.getElementById('trendChart')?.getContext('2d');
+    if (trendCtx) {
+        const dates = Object.keys(dailyData).sort();
+        const values = dates.map(d => dailyData[d]);
+        chartInstances.trend = new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: dates.map(d => formatDate(d)),
+                datasets: [{
+                    label: 'Appointments',
+                    data: values,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }
+
+    // Donut Chart
+    const donutCtx = document.getElementById('donutChart')?.getContext('2d');
+    if (donutCtx) {
+        const labels = Object.keys(statusCounts);
+        const data = Object.values(statusCounts);
+        const backgroundColors = labels.map((_, i) => colors[i % colors.length]);
+        chartInstances.donut = new Chart(donutCtx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: backgroundColors,
+                    borderWidth: 2,
+                    borderColor: 'var(--bg-secondary)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 12, padding: 8, font: { size: 10 } }
+                    }
+                },
+                cutout: '60%'
+            }
+        });
+    }
+
+    // Bar Chart
+    const barCtx = document.getElementById('barChart')?.getContext('2d');
+    if (barCtx) {
+        const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const weekData = weekDays.map(() => 0);
+        const now = new Date();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+        
+        for (let date in dailyData) {
+            const d = new Date(date);
+            const dayIndex = (d.getDay() + 6) % 7;
+            if (d >= startOfWeek && d <= now) {
+                weekData[dayIndex] += dailyData[date];
+            }
+        }
+
+        chartInstances.bar = new Chart(barCtx, {
+            type: 'bar',
+            data: {
+                labels: weekDays,
+                datasets: [{
+                    label: 'This Week',
+                    data: weekData,
+                    backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                    borderColor: '#3b82f6',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }
 }
 
 // ============================================================
@@ -1756,11 +2122,8 @@ function openBulkActions() {
     
     container.querySelectorAll('.bulk-checkbox').forEach(cb => {
         cb.addEventListener('change', () => {
-            if (cb.checked) {
-                selectedAppointments.add(cb.value);
-            } else {
-                selectedAppointments.delete(cb.value);
-            }
+            if (cb.checked) selectedAppointments.add(cb.value);
+            else selectedAppointments.delete(cb.value);
         });
     });
 }
@@ -1775,11 +2138,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const toolsMenu = document.getElementById('toolsMenu');
     const toolsChevron = document.getElementById('toolsChevron');
     
-    if (toolsOpen) {
-        toolsMenu.classList.add('open');
-        toolsChevron.classList.add('rotated');
-    }
-    
+    if (toolsOpen) { toolsMenu.classList.add('open'); toolsChevron.classList.add('rotated'); }
     toolsHeader?.addEventListener('click', () => {
         toolsOpen = !toolsOpen;
         toolsMenu.classList.toggle('open');
@@ -1797,60 +2156,38 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.tool-item').forEach(item => {
         item.addEventListener('click', () => {
             const tool = item.getAttribute('data-tool');
-            if (tool === 'notepad') {
-                showToast('📝 Notes feature coming soon!', 'info');
-            } else if (tool === 'calendar') {
-                showFeaturePanel('calendar', '📅 Appointment & Handoff Calendar');
-            } else if (tool === 'tasks') {
-                showFeaturePanel('tasks', '📋 Follow-up Tasks Manager');
-            } else if (tool === 'analytics') {
-                showFeaturePanel('analytics', '📊 Pipeline Performance');
-            } else if (tool === 'theme') {
-                document.body.classList.toggle('dark');
-                showToast('Theme toggled', 'info');
-            } else if (tool === 'help') {
-                showToast('Handoffs: Warm Callback, Completed, Canceled, Pending, Hot Transfer - All integrated!', 'info');
-            } else if (tool === 'reset') {
+            if (tool === 'notepad') showToast('📝 Notes feature coming soon!', 'info');
+            else if (tool === 'calendar') showFeaturePanel('calendar', '📅 Appointment & Handoff Calendar');
+            else if (tool === 'tasks') showFeaturePanel('tasks', '📋 Follow-up Tasks Manager');
+            else if (tool === 'analytics') showFeaturePanel('analytics', '📊 Pipeline Performance');
+            else if (tool === 'shortcuts') showFeaturePanel('shortcuts', '⌨️ Keyboard Shortcuts');
+            else if (tool === 'theme') { document.body.classList.toggle('dark'); showToast('Theme toggled', 'info'); }
+            else if (tool === 'help') showToast('Handoffs: Warm Callback, Completed, Canceled, Pending, Hot Transfer - All integrated!', 'info');
+            else if (tool === 'reset') {
                 if (confirm('⚠️ This will clear all local data and reset the app. Continue?')) {
                     localStorage.clear();
-                    if (currentUser) {
-                        db.collection('users').doc(currentUser.uid).delete();
-                    }
+                    if (currentUser) db.collection('users').doc(currentUser.uid).delete();
                     location.reload();
                 }
-            } else if (tool === 'export') {
-                exportToCSV();
-            }
+            } else if (tool === 'export') exportToCSV();
         });
     });
 
     // Close Feature Panel
-    document.getElementById('closeFeaturePanelBtn')?.addEventListener('click', () => {
-        hideFeaturePanel();
-    });
+    document.getElementById('closeFeaturePanelBtn')?.addEventListener('click', hideFeaturePanel);
 
     // Smart Import
-    document.getElementById('quickReportBtn')?.addEventListener('click', () => {
-        openSmartImport();
-    });
-
+    document.getElementById('quickReportBtn')?.addEventListener('click', openSmartImport);
     document.getElementById('parseImportBtn')?.addEventListener('click', () => {
         const text = document.getElementById('importTextArea').value;
-        if (!text.trim()) {
-            showToast('Please paste some text to parse', 'warning');
-            return;
-        }
+        if (!text.trim()) { showToast('Please paste some text to parse', 'warning'); return; }
         const { result, confidence } = parseAppointmentText(text);
         renderParsedPreview(result, confidence);
     });
-
-    document.getElementById('saveImportBtn')?.addEventListener('click', () => {
-        saveImportedAppointment();
-    });
-
+    document.getElementById('saveImportBtn')?.addEventListener('click', saveImportedAppointment);
     document.getElementById('closeImportBtn')?.addEventListener('click', closeSmartImport);
 
-    // Appointment Detail Modal
+    // Appointment Detail
     document.getElementById('apptCopyBtn')?.addEventListener('click', () => {
         const appt = getAppointmentById(currentAppointmentId);
         if (appt) {
@@ -1858,7 +2195,6 @@ document.addEventListener('DOMContentLoaded', () => {
             copyToClipboard(text);
         }
     });
-
     document.getElementById('apptEditBtn')?.addEventListener('click', () => {
         const appt = getAppointmentById(currentAppointmentId);
         if (appt) {
@@ -1875,7 +2211,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 100);
         }
     });
-
     document.getElementById('apptDeleteBtn')?.addEventListener('click', () => {
         const appt = getAppointmentById(currentAppointmentId);
         if (appt && confirm('Delete this appointment permanently?')) {
@@ -1884,24 +2219,49 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('Appointment deleted', 'info');
         }
     });
-
     document.getElementById('apptCloseBtn')?.addEventListener('click', closeAppointmentDetail);
+
+    // Script Editing
+    document.getElementById('editScriptBtn')?.addEventListener('click', startEdit);
+    document.getElementById('saveScriptBtn')?.addEventListener('click', () => {
+        const textarea = document.getElementById('editTextarea');
+        if (textarea) {
+            saveScriptContent(textarea.value);
+            finishEdit();
+        }
+    });
+    document.getElementById('cancelEditBtn')?.addEventListener('click', cancelEdit);
+    document.getElementById('copyScriptBtn')?.addEventListener('click', () => {
+        const script = scripts[currentScriptId];
+        if (script) copyToClipboard(script.content);
+    });
+    document.getElementById('resetScriptBtn')?.addEventListener('click', () => {
+        if (confirm('Reset this script to its original content?')) {
+            if (currentUser && currentScriptId) {
+                db.collection('users').doc(currentUser.uid).collection('scripts').doc(currentScriptId).set({
+                    name: scripts[currentScriptId].name,
+                    content: scripts[currentScriptId].content,
+                    version: 1
+                }, { merge: true }).then(() => {
+                    showToast('Script reset', 'info');
+                    loadUserData(true);
+                });
+            }
+        }
+    });
+    document.getElementById('favoriteScriptBtn')?.addEventListener('click', () => {
+        toggleFavorite(currentScriptId);
+    });
 
     // Bulk Actions
     document.getElementById('bulkActionsBtn')?.addEventListener('click', openBulkActions);
-
     document.getElementById('closeBulkModalBtn')?.addEventListener('click', () => {
         document.getElementById('bulkActionsModal').style.display = 'none';
     });
-
     document.getElementById('executeBulkActionBtn')?.addEventListener('click', () => {
         const action = document.getElementById('bulkActionSelect').value;
         const selected = Array.from(selectedAppointments);
-        
-        if (selected.length === 0) {
-            showToast('Please select at least one appointment', 'warning');
-            return;
-        }
+        if (selected.length === 0) { showToast('Please select at least one appointment', 'warning'); return; }
 
         if (action === 'delete') {
             if (!confirm(`Delete ${selected.length} appointment(s)?`)) return;
@@ -1909,10 +2269,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 for (let date in appointments) {
                     if (appointments[date].reports) {
                         const found = appointments[date].reports.find(r => r.id === id);
-                        if (found) {
-                            deleteAppointment(date, id);
-                            break;
-                        }
+                        if (found) { deleteAppointment(date, id); break; }
                     }
                 }
             });
@@ -1923,10 +2280,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 for (let date in appointments) {
                     if (appointments[date].reports) {
                         const found = appointments[date].reports.find(r => r.id === id);
-                        if (found) {
-                            updateAppointment(date, id, { status: newStatus });
-                            break;
-                        }
+                        if (found) { updateAppointment(date, id, { status: newStatus }); break; }
                     }
                 }
             });
@@ -1939,10 +2293,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const found = appointments[date].reports.find(r => r.id === id);
                         if (found) {
                             const tags = found.tags || [];
-                            if (!tags.includes(tag)) {
-                                tags.push(tag);
-                                updateAppointment(date, id, { tags: tags });
-                            }
+                            if (!tags.includes(tag)) { tags.push(tag); updateAppointment(date, id, { tags }); }
                             break;
                         }
                     }
@@ -1952,7 +2303,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (action === 'export') {
             exportSelectedToCSV(selected);
         }
-        
         document.getElementById('bulkActionsModal').style.display = 'none';
         refreshCurrentView();
     });
@@ -1979,16 +2329,15 @@ document.addEventListener('DOMContentLoaded', () => {
             await loadUserData(true);
             refreshCurrentView();
             showToast('Data refreshed!', 'success');
-        } catch (error) {
-            handleError(error, 'Refresh');
-        } finally {
+        } catch (error) { handleError(error, 'Refresh'); }
+        finally {
             isRefreshing = false;
             refreshBtn.classList.remove('spinning');
             refreshBtn.disabled = false;
         }
     });
 
-    // Add Script Button
+    // Add Script
     document.getElementById('addScriptBtnSide')?.addEventListener('click', () => {
         if (!currentUser) { showToast('Please sign in first', 'error'); return; }
         const name = prompt('Enter script name:');
@@ -1999,39 +2348,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 content: 'New script content...',
                 version: 1,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            }).then(() => {
-                showToast('Script created!', 'success');
-                loadUserData(true);
-            }).catch(err => {
-                handleError(err, 'Creating script');
-            });
+            }).then(() => { showToast('Script created!', 'success'); loadUserData(true); })
+            .catch(err => handleError(err, 'Creating script'));
         }
     });
 
     // Search Scripts
     document.getElementById('scriptSearch')?.addEventListener('input', (e) => {
         searchTerm = e.target.value.toLowerCase();
-        const items = document.querySelectorAll('.script-item');
-        items.forEach(item => {
+        document.querySelectorAll('.script-item').forEach(item => {
             const name = item.querySelector('.script-name')?.textContent?.toLowerCase() || '';
-            if (name.includes(searchTerm)) {
-                item.style.display = 'flex';
-            } else {
-                item.style.display = 'none';
-            }
+            item.style.display = name.includes(searchTerm) ? 'flex' : 'none';
         });
     });
 
-    // Keyboard shortcuts for scripts (1-9)
-    document.addEventListener('keydown', (e) => {
-        if (e.key >= '1' && e.key <= '9') {
-            const index = parseInt(e.key) - 1;
-            const visible = getOrderedVisible();
-            if (index < visible.length) {
-                loadScript(visible[index]);
-                showToast(`Switched to: ${scripts[visible[index]]?.name}`, 'info');
-            }
-        }
+    // Global Search
+    document.getElementById('searchGlobalBtn')?.addEventListener('click', openGlobalSearch);
+    document.getElementById('globalSearchInput')?.addEventListener('input', (e) => {
+        performGlobalSearch(e.target.value);
+    });
+    document.getElementById('globalSearchCloseBtn')?.addEventListener('click', () => {
+        document.getElementById('globalSearchModal').style.display = 'none';
     });
 
     // CSV Upload
@@ -2049,9 +2386,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         for (let i = 1; i < lines.length; i++) {
                             const values = lines[i].split(',').map(v => v.trim());
                             const data = {};
-                            headers.forEach((h, idx) => {
-                                data[h] = values[idx] || '';
-                            });
+                            headers.forEach((h, idx) => { data[h] = values[idx] || ''; });
                             if (data.name || data.business) {
                                 addAppointment(
                                     data.date || getTodayStr(),
@@ -2071,9 +2406,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         showToast(`Imported ${imported} appointments from CSV!`, 'success');
                         refreshCurrentView();
                     }
-                } catch (err) {
-                    showToast('Error parsing CSV: ' + err.message, 'error');
-                }
+                } catch (err) { showToast('Error parsing CSV: ' + err.message, 'error'); }
             };
             reader.readAsText(file);
         }
@@ -2128,6 +2461,53 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Version history coming soon!', 'info');
     });
 
+    // Keyboard Shortcuts - Global
+    document.addEventListener('keydown', (e) => {
+        // Script shortcuts (1-9)
+        if (e.key >= '1' && e.key <= '9') {
+            const index = parseInt(e.key) - 1;
+            const visible = getOrderedVisible();
+            if (index < visible.length) {
+                loadScript(visible[index]);
+                showToast(`Switched to: ${scripts[visible[index]]?.name}`, 'info');
+            }
+        }
+
+        // Check for custom shortcuts
+        for (const [action, shortcut] of Object.entries(shortcuts)) {
+            if (shortcut.keys && shortcut.keys.length > 0) {
+                const keys = shortcut.keys;
+                const ctrl = keys.includes('Ctrl');
+                const shift = keys.includes('Shift');
+                const alt = keys.includes('Alt');
+                const key = keys.find(k => !['Ctrl', 'Shift', 'Alt'].includes(k));
+                
+                if (e.ctrlKey === ctrl && e.shiftKey === shift && e.altKey === alt && e.key === key) {
+                    e.preventDefault();
+                    handleShortcutAction(action);
+                }
+            }
+        }
+    });
+
+    function handleShortcutAction(action) {
+        switch(action) {
+            case 'Smart Import': openSmartImport(); break;
+            case 'Appointment Calendar': showFeaturePanel('calendar', '📅 Appointment & Handoff Calendar'); break;
+            case 'Call Scripts': hideFeaturePanel(); break;
+            case 'Global Search': openGlobalSearch(); break;
+            case 'Quick Add Appointment': openQuickReportWithDate(getTodayStr()); break;
+            case 'Floating Notepad': showToast('📝 Notes feature coming soon!', 'info'); break;
+            case 'Analytics Hub': showFeaturePanel('analytics', '📊 Pipeline Performance'); break;
+            case 'Keyboard Shortcuts': showFeaturePanel('shortcuts', '⌨️ Keyboard Shortcuts'); break;
+            case 'Export to CSV': exportToCSV(); break;
+            case 'Toggle Theme': document.body.classList.toggle('dark'); showToast('Theme toggled', 'info'); break;
+            case 'Refresh Data': document.getElementById('refreshBtn')?.click(); break;
+            case 'Bulk Actions': openBulkActions(); break;
+            default: showToast(`Action: ${action}`, 'info');
+        }
+    }
+
     // Auth state listener
     auth.onAuthStateChanged(async (user) => {
         if (user) {
@@ -2150,10 +2530,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             document.querySelectorAll('.modal-overlay').forEach(modal => {
-                if (modal.style.display !== 'none') {
-                    modal.style.display = 'none';
-                }
+                if (modal.style.display !== 'none') modal.style.display = 'none';
             });
+            if (isEditing) cancelEdit();
         }
     });
 
@@ -2161,4 +2540,5 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('📊 Handoff statuses integrated:', STATUS_OPTIONS.join(', '));
     console.log('🎯 Drag & drop enabled for scripts and appointments');
     console.log('✨ Smart import ready with field validation');
+    console.log('⌨️ Keyboard shortcuts loaded:', Object.keys(shortcuts).length);
 });
