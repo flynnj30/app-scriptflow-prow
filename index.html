@@ -8,11 +8,19 @@
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%233b82f6'/%3E%3Ctext x='50' y='68' font-size='48' text-anchor='middle' fill='white' font-family='Arial'%3E🎯%3C/text%3E%3C/svg%3E" />
     
-    <!-- External Libraries - CDN -->
+    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- html2pdf -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <!-- SortableJS -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     
     <!-- Firebase SDK -->
@@ -20,14 +28,10 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     
-    <!-- ============================================================
-         STYLES - Correct relative path
-         ============================================================ -->
+    <!-- Styles - Segregated CSS -->
     <link rel="stylesheet" href="style.css" />
     
-    <!-- ============================================================
-         SUPPRESS EXTENSION ERRORS & WARNINGS
-         ============================================================ -->
+    <!-- Error Suppression -->
     <script>
         // Suppress chrome extension errors
         if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
@@ -36,7 +40,7 @@
             });
         }
         
-        // Suppress console errors from extensions and blocked requests
+        // Suppress console errors from extensions
         const originalConsoleError = console.error;
         console.error = function() {
             const args = Array.from(arguments);
@@ -52,7 +56,7 @@
             originalConsoleError.apply(console, arguments);
         };
         
-        // Suppress specific Firebase warnings
+        // Suppress Firebase deprecation warnings
         const originalConsoleWarn = console.warn;
         console.warn = function() {
             const args = Array.from(arguments);
@@ -64,17 +68,6 @@
                 return;
             }
             originalConsoleWarn.apply(console, arguments);
-        };
-        
-        // Suppress specific network errors
-        const originalFetch = window.fetch;
-        window.fetch = function() {
-            try {
-                return originalFetch.apply(this, arguments);
-            } catch (e) {
-                // Silently handle fetch errors from extensions
-                return Promise.reject(e);
-            }
         };
     </script>
 </head>
@@ -92,9 +85,10 @@
     </div>
 
     <!-- ============================================================
-         MAIN APP WRAPPER
+         MAIN APP
          ============================================================ -->
     <div class="app-wrapper" style="display:none;">
+        <!-- Menu Toggle -->
         <button class="menu-toggle" id="menuToggleBtn" aria-label="Toggle Sidebar"><i class="fas fa-bars"></i></button>
 
         <!-- ============================================================
@@ -252,12 +246,10 @@
         <div class="modal-card" style="max-width: 800px;">
             <h3><i class="fas fa-magic" aria-hidden="true"></i> Smart Appointment Import</h3>
             <p style="color:var(--text-muted); margin-bottom:16px;">Paste appointment details below. The system will intelligently parse and extract all relevant information.</p>
-            
             <div class="form-group">
                 <label for="importTextArea">Paste Appointment Text</label>
                 <textarea id="importTextArea" rows="6" placeholder="Example:&#10;Client: John Smith&#10;Company: Acme Corp&#10;Phone: 555-123-4567&#10;Email: john@acme.com&#10;Date: 2026-07-20&#10;Time: 2:30 PM&#10;Status: Warm Callback"></textarea>
             </div>
-            
             <div id="importPreview" style="display:none; background:var(--bg-primary); border-radius:12px; padding:16px; margin-bottom:16px;">
                 <h4 style="margin-bottom:12px;">📋 Parsed Information</h4>
                 <div id="parsedFields" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;"></div>
@@ -265,7 +257,6 @@
                 <div id="duplicateWarning" style="margin-top:8px; display:none; color:var(--warning);"></div>
                 <div id="missingFields" style="margin-top:8px; color:var(--danger);"></div>
             </div>
-            
             <div style="display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap;">
                 <button id="parseImportBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-robot"></i> Parse & Preview</button>
                 <button id="saveImportBtn" class="btn-icon" style="background:var(--success); color:white; display:none;"><i class="fas fa-save"></i> Save Appointment</button>
@@ -293,14 +284,11 @@
         <div class="modal-card" style="max-width: 700px;">
             <h3><i class="fas fa-keyboard"></i> Keyboard Shortcuts Manager</h3>
             <p style="color:var(--text-muted); margin-bottom:16px;">View and customize keyboard shortcuts for quick access to features.</p>
-            
             <div style="margin-bottom:16px; display:flex; gap:8px; flex-wrap:wrap;">
                 <button id="shortcutsResetDefaults" class="btn-icon" style="background:var(--warning); color:#1e293b;"><i class="fas fa-undo"></i> Reset Defaults</button>
                 <span style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center;">⚠️ Conflicts are highlighted in red</span>
             </div>
-            
             <div id="shortcutsList" style="max-height:400px; overflow-y:auto;"></div>
-            
             <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px; flex-wrap:wrap;">
                 <button id="shortcutsSaveBtn" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-save"></i> Save Shortcuts</button>
                 <button id="shortcutsCloseBtn" class="btn-icon">Close</button>
@@ -417,7 +405,7 @@
     </div>
 
     <!-- ============================================================
-         JAVASCRIPT - Correct relative paths with fallbacks
+         JAVASCRIPT - Segregated Loading
          ============================================================ -->
     <script>
         // Update loading progress
@@ -444,75 +432,61 @@
         // Start loading
         updateLoadingProgress(10);
         
-        // ============================================================
-        // LOAD FIREBASE CONFIG WITH FALLBACK
-        // ============================================================
-        function loadScriptWithFallback(src, fallbackSrc, onLoad) {
-            const script = document.createElement('script');
-            script.src = src;
-            script.onload = function() {
-                if (onLoad) onLoad();
+        // Load Firebase Config
+        const firebaseScript = document.createElement('script');
+        firebaseScript.src = 'js/firebase-config.js';
+        firebaseScript.onload = function() {
+            updateLoadingProgress(50);
+            // Load Main Script
+            const appScript = document.createElement('script');
+            appScript.src = 'script.js';
+            appScript.onload = function() {
+                updateLoadingProgress(100);
+                setTimeout(hideLoading, 300);
             };
-            script.onerror = function() {
-                console.warn('⚠️ Failed to load:', src);
-                if (fallbackSrc) {
-                    console.log('🔄 Trying fallback:', fallbackSrc);
-                    const fallbackScript = document.createElement('script');
-                    fallbackScript.src = fallbackSrc;
-                    fallbackScript.onload = function() {
-                        if (onLoad) onLoad();
-                    };
-                    fallbackScript.onerror = function() {
-                        console.warn('⚠️ Fallback also failed. App may not work correctly.');
-                        if (onLoad) onLoad();
-                    };
-                    document.body.appendChild(fallbackScript);
-                } else {
-                    if (onLoad) onLoad();
-                }
+            appScript.onerror = function() {
+                updateLoadingProgress(100);
+                setTimeout(hideLoading, 300);
+                console.warn('⚠️ Main script loaded with errors');
             };
-            document.body.appendChild(script);
-        }
-        
-        // Try to load firebase-config.js from js/ folder first
-        updateLoadingProgress(20);
-        
-        loadScriptWithFallback(
-            'js/firebase-config.js',  // Primary path
-            'firebase-config.js',      // Fallback path (root)
-            function() {
+            document.body.appendChild(appScript);
+        };
+        firebaseScript.onerror = function() {
+            // Try fallback from root
+            console.warn('⚠️ Firebase config not found in js/, trying root...');
+            const fallbackScript = document.createElement('script');
+            fallbackScript.src = 'firebase-config.js';
+            fallbackScript.onload = function() {
                 updateLoadingProgress(50);
-                console.log('✅ Firebase config loaded');
-                
-                // ============================================================
-                // LOAD MAIN SCRIPT
-                // ============================================================
-                loadScriptWithFallback(
-                    'script.js',         // Primary path
-                    'script.js',         // Same path
-                    function() {
-                        updateLoadingProgress(100);
-                        console.log('✅ Main script loaded');
-                        setTimeout(hideLoading, 300);
-                    }
-                );
-            }
-        );
-        
-        // If Firebase config takes too long, try loading from root
-        setTimeout(function() {
-            const firebaseConfigLoaded = document.querySelector('script[src="js/firebase-config.js"]');
-            if (!firebaseConfigLoaded || !firebaseConfigLoaded.onload) {
-                console.log('🔄 Trying fallback firebase-config from root...');
-                const fallbackScript = document.createElement('script');
-                fallbackScript.src = 'firebase-config.js';
-                fallbackScript.onload = function() {
-                    console.log('✅ Firebase config loaded from root');
-                    updateLoadingProgress(50);
+                const appScript = document.createElement('script');
+                appScript.src = 'script.js';
+                appScript.onload = function() {
+                    updateLoadingProgress(100);
+                    setTimeout(hideLoading, 300);
                 };
-                document.body.appendChild(fallbackScript);
-            }
-        }, 3000);
+                appScript.onerror = function() {
+                    updateLoadingProgress(100);
+                    setTimeout(hideLoading, 300);
+                };
+                document.body.appendChild(appScript);
+            };
+            fallbackScript.onerror = function() {
+                updateLoadingProgress(50);
+                const appScript = document.createElement('script');
+                appScript.src = 'script.js';
+                appScript.onload = function() {
+                    updateLoadingProgress(100);
+                    setTimeout(hideLoading, 300);
+                };
+                appScript.onerror = function() {
+                    updateLoadingProgress(100);
+                    setTimeout(hideLoading, 300);
+                };
+                document.body.appendChild(appScript);
+            };
+            document.body.appendChild(fallbackScript);
+        };
+        document.body.appendChild(firebaseScript);
     </script>
 </body>
 </html>
