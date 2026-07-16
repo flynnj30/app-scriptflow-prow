@@ -1,36 +1,8 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION
+// SCRIPTFLOW PRO - COMPLETE APPLICATION LOGIC
 // ================================================================
 
-const FIREBASE_CONFIG = {
-    apiKey: "AIzaSyD_Ry0pM7EKSDJeTegt0rY5muiw-xCgrhw",
-    authDomain: "scriptflow-pro-2cf4c.firebaseapp.com",
-    projectId: "scriptflow-pro-2cf4c",
-    storageBucket: "scriptflow-pro-2cf4c.firebasestorage.app",
-    messagingSenderId: "250157640936",
-    appId: "1:250157640936:web:cd6218470c302b305aed5d"
-};
-
-try {
-    if (!firebase.apps.length) {
-        firebase.initializeApp(FIREBASE_CONFIG);
-    }
-} catch (error) {
-    console.error('Firebase initialization error:', error);
-}
-
-const db = firebase.firestore();
-const auth = firebase.auth();
-
-try {
-    db.settings({ cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED, merge: true });
-    db.enablePersistence({ synchronizeTabs: true }).catch(err => {});
-    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(err => {});
-} catch (err) {}
-
-// ============================================================
-// GLOBAL STATE
-// ============================================================
+// Global State
 let currentUser = null;
 let appointments = {};
 let scripts = {};
@@ -41,35 +13,28 @@ let selectedCalDate = getTodayStr();
 let tasks = [];
 let currentView = 'calendar';
 let selectedAppointments = new Set();
+let notes = [];
+let currentNoteId = null;
+let quickCopyItems = JSON.parse(localStorage.getItem('workspace_quickcopy') || '[]');
+let shownReminders = new Set();
 
 const STATUS_OPTIONS = [
-    'Warm Callback',
-    'Completed',
-    'Canceled',
-    'Pending',
-    'Hot Transfer',
-    'Warm Call Booked',
-    'Meeting Booked',
-    'Rescheduled',
-    'Held'
+    'Warm Callback', 'Completed', 'Canceled', 'Pending',
+    'Hot Transfer', 'Warm Call Booked', 'Meeting Booked',
+    'Rescheduled', 'Held'
 ];
 
-// ============================================================
-// UTILITY FUNCTIONS
-// ============================================================
-function getTodayStr() {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+const TAG_OPTIONS = [
+    { id: 'qualified_warm_call', name: 'Qualified Warm Call', color: '#10b981' },
+    { id: 'unqualified_warm_callback', name: 'Unqualified Warm Callback', color: '#f59e0b' },
+    { id: 'vip', name: 'VIP', color: '#3b82f6' },
+    { id: 'negligent_warm_callback', name: 'Negligent Warm Callback', color: '#ef4444' }
+];
 
-function generateUniqueId() {
-    return Date.now().toString() + '_' + Math.random().toString(36).substring(2, 11);
-}
-
-function escapeHtml(s) {
-    return s ? String(s).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])) : '';
-}
-
+// ========== UTILITY FUNCTIONS ==========
+function getTodayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function generateUniqueId() { return Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9); }
+function escapeHtml(s) { return s ? String(s).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])) : ''; }
 function showToast(msg, type = 'success') {
     document.querySelectorAll('.toast').forEach(t => t.remove());
     const t = document.createElement('div');
@@ -78,42 +43,23 @@ function showToast(msg, type = 'success') {
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 3000);
 }
-
-function getStatus(appt) {
-    return appt?.status || 'Pending';
-}
-
-function getStatusClassSmall(status) {
-    const map = {
-        'Warm Callback': 'status-warm-callback-sm',
-        'Completed': 'status-completed-sm',
-        'Canceled': 'status-canceled-sm',
-        'Pending': 'status-pending-sm',
-        'Hot Transfer': 'status-hot-transfer-sm',
-        'Warm Call Booked': 'status-warm-call-booked-sm',
-        'Meeting Booked': 'status-meeting-booked-sm',
-        'Rescheduled': 'status-rescheduled-sm',
+function getStatus(a) { return a?.status || 'Pending'; }
+function getStatusClassSmall(s) {
+    const m = {
+        'Warm Callback': 'status-warm-callback-sm', 'Completed': 'status-completed-sm',
+        'Canceled': 'status-canceled-sm', 'Pending': 'status-pending-sm',
+        'Hot Transfer': 'status-hot-transfer-sm', 'Warm Call Booked': 'status-warm-call-booked-sm',
+        'Meeting Booked': 'status-meeting-booked-sm', 'Rescheduled': 'status-rescheduled-sm',
         'Held': 'status-held-sm'
     };
-    return map[status] || 'status-pending-sm';
+    return m[s] || 'status-pending-sm';
 }
-
-function getScoreColor(score) {
-    if (score >= 70) return 'score-hot';
-    if (score >= 40) return 'score-warm';
-    return 'score-cold';
-}
-
-function getScoreLabel(score) {
-    if (score >= 70) return '🔥 Hot';
-    if (score >= 40) return 'Warm';
-    return '❄️ Cold';
-}
+function getScoreColor(s) { return s >= 70 ? 'score-hot' : (s >= 40 ? 'score-warm' : 'score-cold'); }
+function getScoreLabel(s) { return s >= 70 ? '🔥 Hot' : (s >= 40 ? 'Warm' : '❄️ Cold'); }
 
 function calculateLeadScore(appt) {
     let score = 0;
     const status = getStatus(appt);
-    
     if (status === 'Hot Transfer') score += 50;
     else if (status === 'Completed') score += 40;
     else if (status === 'Warm Callback') score += 30;
@@ -122,7 +68,6 @@ function calculateLeadScore(appt) {
     else if (status === 'Pending') score += 10;
     else if (status === 'Rescheduled') score += 5;
     else if (status === 'Canceled') score -= 20;
-
     if (appt.tags) {
         if (appt.tags.includes('vip')) score += 20;
         if (appt.tags.includes('qualified_warm_call')) score += 15;
@@ -133,34 +78,15 @@ function calculateLeadScore(appt) {
     return Math.max(0, Math.min(100, score));
 }
 
-function formatDateShort(dateStr) {
-    if (!dateStr) return '';
-    const d = new Date(dateStr.replace(/-/g, '/'));
-    if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-// ============================================================
-// APPOINTMENT MANAGEMENT
-// ============================================================
+// ========== APPOINTMENT MANAGEMENT ==========
 function addAppointment(dateStr, business, contactName, phone, time, notes, status = 'Pending', crmLink = '', tags = []) {
     if (!currentUser) { showToast('Please sign in first', 'error'); return; }
     if (!STATUS_OPTIONS.includes(status)) status = 'Pending';
-    
     const newAppt = {
-        id: generateUniqueId(),
-        business,
-        contactName,
-        phone: phone || '',
-        time: time || '',
-        notes: notes || '',
-        status,
-        crmLink: crmLink || '',
-        tags: tags || [],
-        date: dateStr,
+        id: generateUniqueId(), business, contactName, phone: phone || '', time: time || '',
+        notes: notes || '', status, crmLink: crmLink || '', tags: tags || [], date: dateStr,
         createdAt: new Date().toISOString()
     };
-    
     syncAppointment(newAppt);
     return newAppt;
 }
@@ -169,9 +95,7 @@ async function syncAppointment(appointment) {
     if (!currentUser) return;
     try {
         await db.collection('users').doc(currentUser.uid).collection('appointments').doc(appointment.id.toString()).set(appointment, { merge: true });
-    } catch (e) {
-        console.error('Error syncing appointment:', e);
-    }
+    } catch (e) { console.error('Error syncing appointment:', e); }
 }
 
 function deleteAppointment(dateStr, id) {
@@ -190,6 +114,9 @@ function updateAppointmentStatus(dateStr, id, newStatus) {
         const appt = appointments[dateStr].reports.find(r => r.id === id);
         if (appt) {
             appt.status = newStatus;
+            if (newStatus === 'Warm Callback' && appt.tags) {
+                appt.tags = appt.tags.filter(t => t !== 'qualified_warm_call' && t !== 'unqualified_warm_callback');
+            }
             syncAppointment(appt);
             updateStats();
             return true;
@@ -198,75 +125,39 @@ function updateAppointmentStatus(dateStr, id, newStatus) {
     return false;
 }
 
-// ============================================================
-// TASK MANAGEMENT
-// ============================================================
-function addTask(description, dueDate, priority = 'medium', appointmentId = null) {
+// ========== TASK MANAGEMENT ==========
+function addTask(desc, dueDate, priority = 'medium', appointmentId = null) {
     if (!currentUser) return;
-    const task = {
-        id: generateUniqueId(),
-        description,
-        dueDate,
-        priority,
-        appointmentId,
-        completed: false,
-        createdAt: new Date().toISOString()
-    };
+    const task = { id: generateUniqueId(), description: desc, dueDate, priority, appointmentId, completed: false, createdAt: new Date().toISOString() };
     db.collection('users').doc(currentUser.uid).collection('tasks').doc(task.id).set(task);
 }
 
 function toggleTaskComplete(id) {
     const task = tasks.find(t => t.id === id);
-    if (task) {
-        task.completed = !task.completed;
-        db.collection('users').doc(currentUser.uid).collection('tasks').doc(id).update({ completed: task.completed });
-    }
+    if (task) { task.completed = !task.completed; db.collection('users').doc(currentUser.uid).collection('tasks').doc(id).update({ completed: task.completed }); }
 }
 
-function deleteTask(id) {
-    db.collection('users').doc(currentUser.uid).collection('tasks').doc(id).delete();
-}
+function deleteTask(id) { db.collection('users').doc(currentUser.uid).collection('tasks').doc(id).delete(); }
 
-// ============================================================
-// STATISTICS
-// ============================================================
-function getTodayCount() {
-    return appointments[getTodayStr()]?.reports?.length || 0;
-}
-
+// ========== STATISTICS ==========
+function getTodayCount() { return appointments[getTodayStr()]?.reports?.length || 0; }
 function getWeekCount() {
-    const now = new Date();
-    const start = new Date(now);
-    start.setDate(now.getDate() - now.getDay());
+    const now = new Date(); const start = new Date(now); start.setDate(now.getDate() - now.getDay());
     let total = 0;
-    for (let d in appointments) {
-        if (new Date(d) >= start && appointments[d].reports) {
-            total += appointments[d].reports.length;
-        }
-    }
+    for (let d in appointments) { if (new Date(d) >= start && appointments[d].reports) total += appointments[d].reports.length; }
     return total;
 }
-
 function getMonthCount() {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const now = new Date(); const start = new Date(now.getFullYear(), now.getMonth(), 1);
     let total = 0;
-    for (let d in appointments) {
-        if (new Date(d) >= start && appointments[d].reports) {
-            total += appointments[d].reports.length;
-        }
-    }
+    for (let d in appointments) { if (new Date(d) >= start && appointments[d].reports) total += appointments[d].reports.length; }
     return total;
 }
-
 function getAverageScore() {
     let total = 0, count = 0;
     for (let date in appointments) {
         if (appointments[date].reports) {
-            appointments[date].reports.forEach(appt => {
-                total += calculateLeadScore(appt);
-                count++;
-            });
+            appointments[date].reports.forEach(appt => { total += calculateLeadScore(appt); count++; });
         }
     }
     return count > 0 ? Math.round(total / count) : 0;
@@ -280,9 +171,7 @@ function updateStats() {
     document.getElementById('pendingTasks').innerText = tasks.filter(t => !t.completed).length;
 }
 
-// ============================================================
-// SCRIPT MANAGEMENT
-// ============================================================
+// ========== SCRIPT MANAGEMENT ==========
 function loadScript(id) {
     if (!scripts[id] || isEditing) return;
     currentScriptId = id;
@@ -299,33 +188,21 @@ function renderSidebar() {
     visible.forEach((id, idx) => {
         const s = scripts[id];
         const active = currentScriptId === id;
-        html += `
-            <div class="script-item ${active ? 'active' : ''}" data-id="${id}">
-                <span class="script-name">${escapeHtml(s.name)}</span>
-                <span class="key-hint">${idx < 9 ? idx + 1 : ''}</span>
-            </div>
-        `;
+        html += `<div class="script-item ${active ? 'active' : ''}" data-id="${id}"><span class="script-name">${escapeHtml(s.name)}</span><span class="key-hint">${idx < 9 ? idx + 1 : ''}</span></div>`;
     });
     container.innerHTML = html;
-    
-    container.querySelectorAll('.script-item').forEach(el => {
-        el.addEventListener('click', () => loadScript(el.getAttribute('data-id')));
-    });
+    container.querySelectorAll('.script-item').forEach(el => el.addEventListener('click', () => loadScript(el.getAttribute('data-id'))));
 }
 
-// ============================================================
-// CALENDAR PANEL
-// ============================================================
+// ========== CALENDAR PANEL ==========
 function renderCalendarPanel(container) {
     if (!container) return;
-    const year = currentCalDate.getFullYear();
-    const month = currentCalDate.getMonth();
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const year = currentCalDate.getFullYear(), month = currentCalDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay(), daysInMonth = new Date(year, month + 1, 0).getDate();
     
     let daysHtml = '';
     ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(d => daysHtml += `<div class="day-name">${d}</div>`);
-    for (let i = 0; i < firstDay; i++) daysHtml += `<div class="calendar-day empty"></div>`;
+    for (let i = 0; i < firstDay; i++) daysHtml += '<div class="calendar-day empty"></div>';
     
     for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -345,16 +222,10 @@ function renderCalendarPanel(container) {
             }).join('');
             indicatorHtml = `<div class="appt-indicator">${dots}</div>`;
         }
-        daysHtml += `
-            <div class="calendar-day ${isSelected ? 'selected' : ''}" data-date="${dateStr}">
-                <span class="day-number">${d}</span>
-                ${indicatorHtml}
-            </div>
-        `;
+        daysHtml += `<div class="calendar-day ${isSelected ? 'selected' : ''}" data-date="${dateStr}"><span class="day-number">${d}</span>${indicatorHtml}</div>`;
     }
 
     const selectedAppts = appointments[selectedCalDate]?.reports || [];
-    
     const stats = {
         hotTransfers: selectedAppts.filter(a => getStatus(a) === 'Hot Transfer').length,
         warmCallbacks: selectedAppts.filter(a => getStatus(a) === 'Warm Callback').length,
@@ -365,12 +236,12 @@ function renderCalendarPanel(container) {
 
     container.innerHTML = `
         <div class="calendar-section">
-            <div class="calendar-nav">
+            <div class="calendar-nav" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                 <h3><i class="fas fa-calendar-alt"></i> ${new Date(year, month).toLocaleString('default', { month: 'long' })} ${year}</h3>
-                <div class="calendar-nav-actions">
-                    <button id="calPrevBtn" class="btn-icon"><i class="fas fa-chevron-left"></i> Prev</button>
+                <div class="calendar-nav-actions" style="display:flex; gap:6px;">
+                    <button id="calPrevBtn" class="btn-icon"><i class="fas fa-chevron-left"></i></button>
                     <button id="calTodayBtn" class="btn-icon">Today</button>
-                    <button id="calNextBtn" class="btn-icon">Next <i class="fas fa-chevron-right"></i></button>
+                    <button id="calNextBtn" class="btn-icon"><i class="fas fa-chevron-right"></i></button>
                 </div>
             </div>
             <div class="calendar-grid">${daysHtml}</div>
@@ -381,7 +252,7 @@ function renderCalendarPanel(container) {
                 <div class="kpi-card"><div class="kpi-value" style="color:var(--text-muted);">${stats.pending}</div><div class="kpi-label">⏳ Pending</div></div>
             </div>
             <div class="appointments-section">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                     <h4>Appointments (${selectedAppts.length})</h4>
                     <button id="quickAddCalBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> Add Lead</button>
                 </div>
@@ -393,13 +264,13 @@ function renderCalendarPanel(container) {
                             <div class="appointment-card">
                                 <div class="card-row">
                                     <div class="business-name">
-                                        <input type="checkbox" class="bulk-checkbox" data-id="${a.id}" style="margin-right:8px;" />
+                                        <input type="checkbox" class="bulk-checkbox" data-id="${a.id}" />
                                         <strong>${escapeHtml(a.business)}</strong>
                                         <span class="status-tag ${getStatusClassSmall(getStatus(a))}">${getStatus(a)}</span>
                                         <span class="score-badge ${getScoreColor(score)}">${score} Pts ${getScoreLabel(score)}</span>
                                     </div>
                                     <div class="card-actions">
-                                        <select class="status-change-select" data-id="${a.id}" data-date="${selectedCalDate}" style="font-size:0.7rem; padding:4px 8px; border-radius:8px;">
+                                        <select class="status-change-select" data-id="${a.id}" data-date="${selectedCalDate}">
                                             ${STATUS_OPTIONS.map(s => `<option value="${s}" ${getStatus(a) === s ? 'selected' : ''}>${s}</option>`).join('')}
                                         </select>
                                         <button class="delete-appt-btn" data-id="${a.id}" title="Delete"><i class="fas fa-trash"></i></button>
@@ -420,64 +291,32 @@ function renderCalendarPanel(container) {
 
 function attachCalendarEvents(container) {
     container.querySelectorAll('.calendar-day[data-date]').forEach(el => {
-        el.addEventListener('click', () => {
-            selectedCalDate = el.getAttribute('data-date');
-            renderCalendarPanel(container);
-        });
+        el.addEventListener('click', () => { selectedCalDate = el.getAttribute('data-date'); renderCalendarPanel(container); });
     });
-    
-    document.getElementById('calPrevBtn')?.addEventListener('click', () => {
-        currentCalDate.setMonth(currentCalDate.getMonth() - 1);
-        renderCalendarPanel(container);
-    });
-    document.getElementById('calNextBtn')?.addEventListener('click', () => {
-        currentCalDate.setMonth(currentCalDate.getMonth() + 1);
-        renderCalendarPanel(container);
-    });
-    document.getElementById('calTodayBtn')?.addEventListener('click', () => {
-        currentCalDate = new Date();
-        selectedCalDate = getTodayStr();
-        renderCalendarPanel(container);
-    });
+    document.getElementById('calPrevBtn')?.addEventListener('click', () => { currentCalDate.setMonth(currentCalDate.getMonth() - 1); renderCalendarPanel(container); });
+    document.getElementById('calNextBtn')?.addEventListener('click', () => { currentCalDate.setMonth(currentCalDate.getMonth() + 1); renderCalendarPanel(container); });
+    document.getElementById('calTodayBtn')?.addEventListener('click', () => { currentCalDate = new Date(); selectedCalDate = getTodayStr(); renderCalendarPanel(container); });
     document.getElementById('quickAddCalBtn')?.addEventListener('click', () => openQuickReportWithDate(selectedCalDate));
     
     container.querySelectorAll('.delete-appt-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (confirm('Delete this lead registration?')) {
-                deleteAppointment(selectedCalDate, btn.getAttribute('data-id'));
-                renderCalendarPanel(container);
-                showToast('Appointment deleted', 'info');
-            }
+            if (confirm('Delete this lead registration?')) { deleteAppointment(selectedCalDate, btn.getAttribute('data-id')); renderCalendarPanel(container); showToast('Appointment deleted', 'info'); }
         });
     });
-
     container.querySelectorAll('.status-change-select').forEach(select => {
         select.addEventListener('change', (e) => {
             e.stopPropagation();
-            const id = select.getAttribute('data-id');
-            const date = select.getAttribute('data-date');
-            const newStatus = select.value;
-            updateAppointmentStatus(date, id, newStatus);
-            showToast(`Status changed to ${newStatus}`, 'success');
+            updateAppointmentStatus(selectedCalDate, select.getAttribute('data-id'), select.value);
+            showToast('Status updated successfully', 'success');
         });
     });
-
     container.querySelectorAll('.bulk-checkbox').forEach(cb => {
-        cb.addEventListener('change', () => {
-            const id = cb.getAttribute('data-id');
-            if (cb.checked) {
-                selectedAppointments.add(id);
-            } else {
-                selectedAppointments.delete(id);
-            }
-        });
+        cb.addEventListener('change', () => { if (cb.checked) selectedAppointments.add(cb.getAttribute('data-id')); else selectedAppointments.delete(cb.getAttribute('data-id')); });
     });
 }
 
-// ============================================================
-// QUICK REPORT MODAL
-// ============================================================
+// ========== QUICK REPORT MODAL ==========
 function openQuickReportWithDate(defaultDate) {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
@@ -490,12 +329,7 @@ function openQuickReportWithDate(defaultDate) {
             <div class="form-group"><label>Contact Name *</label><input type="text" id="newApptContact" placeholder="Full name" /></div>
             <div class="form-group"><label>Phone</label><input type="text" id="newApptPhone" placeholder="+1 (555) 000-0000" /></div>
             <div class="form-group"><label>Time</label><input type="time" id="newApptTime" /></div>
-            <div class="form-group">
-                <label>Lead Handoff Status</label>
-                <select id="newApptStatus">
-                    ${STATUS_OPTIONS.map(s => `<option value="${s}">${s}</option>`).join('')}
-                </select>
-            </div>
+            <div class="form-group"><label>Lead Handoff Status</label><select id="newApptStatus">${STATUS_OPTIONS.map(s => `<option value="${s}">${s}</option>`).join('')}</select></div>
             <div class="form-group"><label>Notes</label><textarea id="newApptNotes" rows="3" placeholder="Additional details..."></textarea></div>
             <div style="display:flex; gap:12px; justify-content:flex-end;">
                 <button id="saveNewApptBtn" class="btn-icon" style="background:var(--success); color:white;">💾 Save Entry</button>
@@ -504,7 +338,6 @@ function openQuickReportWithDate(defaultDate) {
         </div>
     `;
     document.body.appendChild(modal);
-
     document.getElementById('saveNewApptBtn').addEventListener('click', () => {
         const date = document.getElementById('newApptDate').value;
         const bus = document.getElementById('newApptBusiness').value.trim();
@@ -513,125 +346,69 @@ function openQuickReportWithDate(defaultDate) {
         const time = document.getElementById('newApptTime').value;
         const status = document.getElementById('newApptStatus').value;
         const notes = document.getElementById('newApptNotes').value.trim();
-
         if (!bus || !contact) { showToast('Business and Contact fields are required', 'error'); return; }
         if (!date) { showToast('Please select a date', 'error'); return; }
-
         addAppointment(date, bus, contact, phone, time, notes, status);
         modal.remove();
-        showToast('✅ CRM Registration Added!', 'success');
+        showToast('✅ CRM Registration Added Successfully!', 'success');
         refreshCurrentView();
     });
-
     document.getElementById('cancelNewApptBtn').addEventListener('click', () => modal.remove());
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
 }
 
-// ============================================================
-// NOTES PANEL
-// ============================================================
-let notes = [];
-let currentNoteId = null;
-
+// ========== NOTES PANEL ==========
 function loadNotes() {
     notes = JSON.parse(localStorage.getItem('sf_local_notes') || '[]');
     if (notes.length > 0 && !currentNoteId) currentNoteId = notes[0].id;
 }
-
 function saveNote(id, title, content) {
     const updatedNote = { title: title || 'Untitled Note', content: content || '', updatedAt: new Date().toISOString() };
     const idx = notes.findIndex(n => n.id === id);
-    if (idx !== -1) {
-        notes[idx] = { ...notes[idx], ...updatedNote };
-    } else {
-        updatedNote.id = id;
-        updatedNote.createdAt = new Date().toISOString();
-        notes.unshift(updatedNote);
-    }
+    if (idx !== -1) notes[idx] = { ...notes[idx], ...updatedNote };
+    else { updatedNote.id = id; updatedNote.createdAt = new Date().toISOString(); notes.unshift(updatedNote); }
     localStorage.setItem('sf_local_notes', JSON.stringify(notes));
-    if (currentUser) {
-        db.collection('users').doc(currentUser.uid).collection('notes').doc(id).set(updatedNote, { merge: true }).catch(() => {});
-    }
+    if (currentUser) db.collection('users').doc(currentUser.uid).collection('notes').doc(id).set(updatedNote, { merge: true }).catch(() => {});
 }
-
 function deleteNote(id) {
     notes = notes.filter(n => n.id !== id);
     localStorage.setItem('sf_local_notes', JSON.stringify(notes));
     if (currentNoteId === id) currentNoteId = notes.length > 0 ? notes[0].id : null;
-    if (currentUser) {
-        db.collection('users').doc(currentUser.uid).collection('notes').doc(id).delete().catch(() => {});
-    }
+    if (currentUser) db.collection('users').doc(currentUser.uid).collection('notes').doc(id).delete().catch(() => {});
 }
-
 function renderNotesPanel(container) {
     if (!container) return;
     loadNotes();
     const currentNote = notes.find(n => n.id === currentNoteId) || { id: '', title: '', content: '' };
-    
     container.innerHTML = `
         <div class="notepad-wrapper">
             <div class="notepad-sidebar">
                 <button id="npNewNoteBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--primary); color:white; margin-bottom:10px;"><i class="fas fa-plus"></i> New Note</button>
                 <div id="npNotesList" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
-                    ${notes.map(n => `
-                        <div class="np-note-item ${n.id === currentNoteId ? 'active' : ''}" data-id="${n.id}" style="background:${n.id === currentNoteId ? 'var(--primary)' : 'var(--bg-primary)'}; color:${n.id === currentNoteId ? 'white' : 'var(--text-primary)'};">
-                            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:120px;">${escapeHtml(n.title)}</span>
-                            <i class="fas fa-trash np-delete-note-icon" data-id="${n.id}" style="font-size:0.7rem; opacity:0.6; cursor:pointer;"></i>
-                        </div>
-                    `).join('')}
+                    ${notes.map(n => `<div class="np-note-item ${n.id === currentNoteId ? 'active' : ''}" data-id="${n.id}" style="background:${n.id === currentNoteId ? 'var(--primary)' : 'var(--bg-primary)'}; color:${n.id === currentNoteId ? 'white' : 'var(--text-primary)'};"><span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:120px;">${escapeHtml(n.title)}</span><i class="fas fa-trash np-delete-note-icon" data-id="${n.id}" style="font-size:0.7rem; opacity:0.6; cursor:pointer;"></i></div>`).join('')}
                 </div>
             </div>
             <div class="notepad-editor">
                 <input type="text" id="npNoteTitle" placeholder="Note Title" value="${escapeHtml(currentNote.title || '')}" style="font-size:1.2rem; font-weight:700; padding:10px; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); width:100%;" />
                 <textarea id="npNoteContent" placeholder="Write your notes here..." style="flex:1; padding:12px; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-family:inherit; font-size:0.95rem; line-height:1.5; resize:none; min-height:300px;">${escapeHtml(currentNote.content || '')}</textarea>
-                <div style="text-align:right; font-size:0.75rem; color:var(--text-muted);">Auto-saved locally</div>
+                <div style="text-align:right; font-size:0.75rem; color:var(--text-muted);">Auto-saved locally and to cloud</div>
             </div>
         </div>
     `;
-
-    document.getElementById('npNewNoteBtn')?.addEventListener('click', () => {
-        const id = 'note_' + generateUniqueId();
-        saveNote(id, 'New Note', '');
-        currentNoteId = id;
-        renderNotesPanel(container);
-    });
-
+    document.getElementById('npNewNoteBtn')?.addEventListener('click', () => { const id = 'note_' + generateUniqueId(); saveNote(id, 'New Note', ''); currentNoteId = id; renderNotesPanel(container); });
     container.querySelectorAll('.np-note-item').forEach(item => {
-        item.addEventListener('click', (e) => {
-            if (e.target.classList.contains('np-delete-note-icon')) return;
-            currentNoteId = item.getAttribute('data-id');
-            renderNotesPanel(container);
-        });
+        item.addEventListener('click', (e) => { if (e.target.classList.contains('np-delete-note-icon')) return; currentNoteId = item.getAttribute('data-id'); renderNotesPanel(container); });
     });
-
     container.querySelectorAll('.np-delete-note-icon').forEach(icon => {
-        icon.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (confirm('Delete this note permanently?')) {
-                deleteNote(icon.getAttribute('data-id'));
-                renderNotesPanel(container);
-                showToast('Note deleted', 'info');
-            }
-        });
+        icon.addEventListener('click', (e) => { e.stopPropagation(); if (confirm('Delete this note permanently?')) { deleteNote(icon.getAttribute('data-id')); renderNotesPanel(container); showToast('Note deleted', 'info'); } });
     });
-
     let saveTimeout;
-    const autoSave = () => {
-        clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(() => {
-            if (currentNoteId) {
-                saveNote(currentNoteId, document.getElementById('npNoteTitle').value, document.getElementById('npNoteContent').value);
-            }
-        }, 500);
-    };
-
-    document.getElementById('npNoteTitle')?.addEventListener('input', autoSave);
-    document.getElementById('npNoteContent')?.addEventListener('input', autoSave);
+    const triggerAutoSave = () => { clearTimeout(saveTimeout); saveTimeout = setTimeout(() => { if (currentNoteId) saveNote(currentNoteId, document.getElementById('npNoteTitle').value, document.getElementById('npNoteContent').value); }, 500); };
+    document.getElementById('npNoteTitle')?.addEventListener('input', triggerAutoSave);
+    document.getElementById('npNoteContent')?.addEventListener('input', triggerAutoSave);
 }
 
-// ============================================================
-// TASKS PANEL
-// ============================================================
+// ========== TASKS PANEL ==========
 function renderTasksPanel(container) {
     if (!container) return;
     container.innerHTML = `
@@ -647,61 +424,25 @@ function renderTasksPanel(container) {
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <span style="font-weight:600;">${escapeHtml(t.description)}</span>
                             <div style="display:flex; gap:6px;">
-                                <button class="toggle-task-btn btn-icon" data-id="${t.id}" style="padding:4px 8px;">
-                                    <i class="fas ${t.completed ? 'fa-undo' : 'fa-check'}"></i>
-                                </button>
-                                <button class="delete-task-btn btn-icon" data-id="${t.id}" style="padding:4px 8px;">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                <button class="toggle-task-btn btn-icon" data-id="${t.id}" style="padding:4px 8px;"><i class="fas ${t.completed ? 'fa-undo' : 'fa-check'}"></i></button>
+                                <button class="delete-task-btn btn-icon" data-id="${t.id}" style="padding:4px 8px;"><i class="fas fa-trash"></i></button>
                             </div>
                         </div>
-                        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">
-                            Due: ${t.dueDate || 'N/A'} | Priority: <span style="color:${t.priority === 'high' ? 'var(--danger)' : t.priority === 'medium' ? 'var(--warning)' : 'var(--success)'};">${t.priority}</span>
-                        </div>
+                        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Due: ${t.dueDate || 'N/A'} | Priority: <span style="color:${t.priority === 'high' ? 'var(--danger)' : t.priority === 'medium' ? 'var(--warning)' : 'var(--success)'};">${t.priority}</span></div>
                     </div>
                 `).join('')}
             </div>
         </div>
     `;
-
-    document.getElementById('addNewTaskBtn')?.addEventListener('click', () => {
-        const desc = prompt('Enter task description:');
-        if (desc && desc.trim()) {
-            const dueDate = prompt('Due date (YYYY-MM-DD):', getTodayStr());
-            const priority = prompt('Priority (high/medium/low):', 'medium');
-            addTask(desc.trim(), dueDate || getTodayStr(), priority || 'medium');
-            refreshCurrentView();
-            showToast('Task added!', 'success');
-        }
-    });
-
-    container.querySelectorAll('.toggle-task-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            toggleTaskComplete(btn.getAttribute('data-id'));
-            refreshCurrentView();
-        });
-    });
-
-    container.querySelectorAll('.delete-task-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            if (confirm('Delete this task?')) {
-                deleteTask(btn.getAttribute('data-id'));
-                refreshCurrentView();
-                showToast('Task deleted', 'info');
-            }
-        });
-    });
+    document.getElementById('addNewTaskBtn')?.addEventListener('click', () => { const desc = prompt('Enter task description:'); if (desc && desc.trim()) { addTask(desc.trim(), getTodayStr(), 'medium'); refreshCurrentView(); showToast('Task added!', 'success'); } });
+    container.querySelectorAll('.toggle-task-btn').forEach(btn => { btn.addEventListener('click', () => { toggleTaskComplete(btn.getAttribute('data-id')); refreshCurrentView(); }); });
+    container.querySelectorAll('.delete-task-btn').forEach(btn => { btn.addEventListener('click', () => { if (confirm('Delete this task?')) { deleteTask(btn.getAttribute('data-id')); refreshCurrentView(); showToast('Task deleted', 'info'); } }); });
 }
 
-// ============================================================
-// ANALYTICS HUB
-// ============================================================
+// ========== ANALYTICS HUB ==========
 function renderAnalyticsHub(container) {
     if (!container) return;
-    
     let total = 0, hTransfers = 0, wCallbacks = 0, completedCount = 0, pendingCount = 0, canceledCount = 0;
-    let scoreTotal = 0, scoreCount = 0;
-    
     for (let date in appointments) {
         if (appointments[date].reports) {
             appointments[date].reports.forEach(a => {
@@ -712,15 +453,10 @@ function renderAnalyticsHub(container) {
                 else if (status === 'Completed') completedCount++;
                 else if (status === 'Pending') pendingCount++;
                 else if (status === 'Canceled') canceledCount++;
-                scoreTotal += calculateLeadScore(a);
-                scoreCount++;
             });
         }
     }
-
-    const avgScore = scoreCount > 0 ? Math.round(scoreTotal / scoreCount) : 0;
     const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
-
     container.innerHTML = `
         <div class="analytics-container">
             <h3><i class="fas fa-chart-pie"></i> Lead Conversion Dynamics</h3>
@@ -731,100 +467,90 @@ function renderAnalyticsHub(container) {
                 <div class="metric-card"><div class="metric-value" style="color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
                 <div class="metric-card"><div class="metric-value">${pendingCount}</div><div class="metric-label">⏳ Pending</div></div>
                 <div class="metric-card"><div class="metric-value" style="color:var(--danger);">${canceledCount}</div><div class="metric-label">❌ Canceled</div></div>
-                <div class="metric-card"><div class="metric-value" style="color:var(--secondary);">${avgScore}</div><div class="metric-label">⭐ Avg Score</div></div>
                 <div class="metric-card"><div class="metric-value" style="color:var(--success);">${conversionRate}%</div><div class="metric-label">📈 Conversion Rate</div></div>
             </div>
-            
             <div class="feature-card">
                 <h4>📊 Pipeline Performance</h4>
                 <div style="display:flex; flex-direction:column; gap:12px; margin-top:12px;">
-                    ${[
-                        { label: '🔥 Hot Transfers', value: hTransfers, color: '#dc2626' },
-                        { label: '📞 Warm Callbacks', value: wCallbacks, color: '#f59e0b' },
-                        { label: '✅ Completed', value: completedCount, color: '#10b981' },
-                        { label: '⏳ Pending', value: pendingCount, color: '#94a3b8' },
-                        { label: '❌ Canceled', value: canceledCount, color: '#ef4444' }
-                    ].map(item => `
+                    ${[{ label: '🔥 Hot Transfers', value: hTransfers, color: '#dc2626' }, { label: '📞 Warm Callbacks', value: wCallbacks, color: '#f59e0b' }, { label: '✅ Completed', value: completedCount, color: '#10b981' }, { label: '⏳ Pending', value: pendingCount, color: '#94a3b8' }, { label: '❌ Canceled', value: canceledCount, color: '#ef4444' }].map(item => `
                         <div>
-                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                                <span>${item.label} (${item.value})</span>
-                                <span>${total > 0 ? Math.round((item.value/total)*100) : 0}%</span>
-                            </div>
-                            <div style="background:var(--bg-primary); height:8px; border-radius:4px;">
-                                <div style="background:${item.color}; width:${total > 0 ? (item.value/total)*100 : 0}%; height:100%; border-radius:4px; transition: width 0.5s ease;"></div>
-                            </div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>${item.label} (${item.value})</span><span>${total > 0 ? Math.round((item.value/total)*100) : 0}%</span></div>
+                            <div style="background:var(--bg-primary); height:8px; border-radius:4px;"><div style="background:${item.color}; width:${total > 0 ? (item.value/total)*100 : 0}%; height:100%; border-radius:4px;"></div></div>
                         </div>
                     `).join('')}
                 </div>
             </div>
         </div>
     `;
-
-    // Render chart if Chart.js is available
-    if (typeof Chart !== 'undefined' && total > 0) {
-        setTimeout(() => {
-            const chartContainer = document.createElement('div');
-            chartContainer.className = 'feature-card';
-            chartContainer.innerHTML = '<h4>📈 Status Distribution</h4><canvas id="statusChart" style="max-height:300px;"></canvas>';
-            container.appendChild(chartContainer);
-            
-            const ctx = document.getElementById('statusChart')?.getContext('2d');
-            if (ctx) {
-                new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled'],
-                        datasets: [{
-                            data: [hTransfers, wCallbacks, completedCount, pendingCount, canceledCount],
-                            backgroundColor: ['#dc2626', '#f59e0b', '#10b981', '#94a3b8', '#ef4444']
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: { legend: { position: 'bottom' } }
-                    }
-                });
-            }
-        }, 100);
-    }
 }
 
-// ============================================================
-// BULK ACTIONS
-// ============================================================
+// ========== APPOINTMENT REMINDER POPUP ==========
+function checkAppointmentReminders() {
+    if (!currentUser) return;
+    const now = new Date();
+    const today = getTodayStr();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const todayAppts = appointments[today]?.reports || [];
+    
+    todayAppts.forEach(a => {
+        if (!a.time || a.time === '') return;
+        const [ah, am] = a.time.split(':').map(Number);
+        if (isNaN(ah) || isNaN(am)) return;
+        
+        const apptTotalMinutes = ah * 60 + am;
+        const nowTotalMinutes = currentHour * 60 + currentMinute;
+        const diffMinutes = Math.abs(apptTotalMinutes - nowTotalMinutes);
+        
+        if (diffMinutes <= 2 && !shownReminders.has(a.id)) {
+            shownReminders.add(a.id);
+            showReminderPopup(a);
+        }
+    });
+}
+
+function showReminderPopup(appt) {
+    const popup = document.getElementById('appointmentReminderPopup');
+    if (!popup) return;
+    
+    document.getElementById('reminderBusiness').textContent = appt.business;
+    document.getElementById('reminderContact').textContent = `👤 ${appt.contactName}`;
+    document.getElementById('reminderTime').textContent = `🕐 ${appt.time}`;
+    document.getElementById('reminderStatus').textContent = `Status: ${getStatus(appt)}`;
+    
+    popup.style.display = 'flex';
+    setTimeout(() => { popup.classList.add('show'); }, 50);
+    
+    const autoClose = setTimeout(() => {
+        popup.classList.remove('show');
+        setTimeout(() => { popup.style.display = 'none'; }, 400);
+    }, 5000);
+    
+    document.getElementById('closeReminderPopup').onclick = () => {
+        clearTimeout(autoClose);
+        popup.classList.remove('show');
+        setTimeout(() => { popup.style.display = 'none'; }, 400);
+    };
+}
+
+// ========== BULK ACTIONS ==========
 function showBulkActionsModal() {
     const modal = document.getElementById('bulkActionsModal');
     const container = document.getElementById('bulkSelectionContainer');
-    
-    let html = '<p style="font-size:0.8rem; color:var(--text-muted);">Selected appointments will be affected.</p>';
-    const selectedAppts = [];
-    
+    let selectedAppts = [];
     for (let date in appointments) {
         if (appointments[date].reports) {
             appointments[date].reports.forEach(a => {
-                if (selectedAppointments.has(a.id)) {
-                    selectedAppts.push(a);
-                    html += `
-                        <div class="bulk-item">
-                            <input type="checkbox" checked disabled />
-                            <span>${escapeHtml(a.business)} - ${getStatus(a)}</span>
-                        </div>
-                    `;
-                }
+                if (selectedAppointments.has(a.id)) selectedAppts.push(a);
             });
         }
     }
-    
-    if (selectedAppts.length === 0) {
-        html = '<p style="text-align:center; padding:20px; color:var(--text-muted);">No appointments selected. Use checkboxes in calendar view.</p>';
-    }
-    
-    container.innerHTML = html;
+    container.innerHTML = selectedAppts.length === 0 ? '<p style="text-align:center; padding:20px; color:var(--text-muted);">No appointments selected. Use checkboxes in calendar view.</p>' : selectedAppts.map(a => `<div class="bulk-item"><input type="checkbox" checked disabled /> <span>${escapeHtml(a.business)} - ${getStatus(a)}</span></div>`).join('');
     modal.style.display = 'flex';
     
-    document.getElementById('bulkActionSelect').addEventListener('change', function() {
+    document.getElementById('bulkActionSelect').onchange = function() {
         document.getElementById('bulkActionOptions').style.display = this.value === 'status' ? 'block' : 'none';
-    });
+    };
     
     document.getElementById('executeBulkActionBtn').onclick = () => {
         const action = document.getElementById('bulkActionSelect').value;
@@ -843,14 +569,10 @@ function showBulkActionsModal() {
         refreshCurrentView();
     };
     
-    document.getElementById('closeBulkModalBtn').onclick = () => {
-        modal.style.display = 'none';
-    };
+    document.getElementById('closeBulkModalBtn').onclick = () => { modal.style.display = 'none'; };
 }
 
-// ============================================================
-// CSV EXPORT
-// ============================================================
+// ========== CSV EXPORT ==========
 function exportToCSV() {
     let csv = 'Date,Business,Contact,Phone,Time,Status,Notes,Score\n';
     for (let date in appointments) {
@@ -870,15 +592,12 @@ function exportToCSV() {
     showToast('CSV exported successfully!', 'success');
 }
 
-// ============================================================
-// FEATURE PANEL MANAGEMENT
-// ============================================================
+// ========== FEATURE PANEL MANAGEMENT ==========
 function showFeaturePanel(featureType, title) {
     document.getElementById('scriptPanel').style.display = 'none';
     document.getElementById('featurePanel').style.display = 'block';
     document.getElementById('featurePanelTitle').innerHTML = title;
     currentView = featureType;
-    
     const body = document.getElementById('featurePanelBody');
     if (featureType === 'calendar') renderCalendarPanel(body);
     else if (featureType === 'tasks') renderTasksPanel(body);
@@ -900,9 +619,7 @@ function refreshCurrentView() {
     else if (currentView === 'notepad') renderNotesPanel(body);
 }
 
-// ============================================================
-// DATA LOADING
-// ============================================================
+// ========== DATA LOADING ==========
 async function loadUserData() {
     if (!currentUser) return;
     try {
@@ -943,27 +660,17 @@ async function loadUserData() {
         document.getElementById('saveStatus').innerHTML = '<i class="fas fa-check"></i> Synced';
     } catch (error) {
         console.error('Data Load Error:', error);
-        showToast('Error loading data', 'error');
+        showToast('Error loading data. Please refresh.', 'error');
     }
 }
 
 async function createDefaultScripts() {
     if (!currentUser) return;
     const defaultScripts = {
-        "opening": {
-            name: "🎯 Opening Script",
-            content: "\"Hey, is this [Company Name]?\"\n\n\"Awesome — this is Flynn. We created a free, modern preview version inspired by your current site. There's no cost or obligation. Would you be open to taking a quick look later today and sharing your thoughts?\""
-        },
-        "owner_yes": {
-            name: "👑 Owner - Yes",
-            content: "Perfect! Daniel will call you shortly to showcase your preview concept. Is this the best number to connect with you?"
-        },
-        "owner_no": {
-            name: "🤝 Not Owner",
-            content: "No worries! Who usually drives your design or advertising decisions? What is the best coordinate to reach them today?"
-        }
+        "opening": { name: "🎯 Opening Script", content: "\"Hey, is this [Company Name]?\"\n\n\"Awesome — this is Flynn. We created a free, modern preview version inspired by your current site. There's no cost or obligation. Would you be open to taking a quick look later today and sharing your thoughts?\"" },
+        "owner_yes": { name: "👑 Owner - Yes", content: "Perfect! Daniel will call you shortly to showcase your preview concept. Is this the best number to connect with you?" },
+        "owner_no": { name: "🤝 Not Owner", content: "No worries! Who usually drives your design or advertising decisions? What is the best coordinate to reach them today?" }
     };
-    
     const batch = db.batch();
     const scriptsRef = db.collection('users').doc(currentUser.uid).collection('scripts');
     for (const [id, script] of Object.entries(defaultScripts)) {
@@ -972,14 +679,13 @@ async function createDefaultScripts() {
     await batch.commit();
 }
 
-// ============================================================
-// AUTHENTICATION
-// ============================================================
+// ========== AUTHENTICATION ==========
 function signOut() {
     currentUser = null;
     appointments = {};
     tasks = [];
     scripts = {};
+    notes = [];
     updateStats();
     auth.signOut();
     showToast('Signed out successfully', 'info');
@@ -995,15 +701,9 @@ function showAuthModal() {
     modal.id = 'authModal';
     modal.innerHTML = `
         <div class="modal-card" style="max-width: 420px;">
-            <h2 style="text-align:center; margin-bottom: 20px;">
-                <i class="fas fa-microphone-alt" style="color:var(--primary);"></i> ScriptFlow Pro
-            </h2>
-            <p style="text-align:center; color:var(--text-muted); margin-bottom:20px; font-size:0.9rem;">
-                Sign in to manage and hand off your leads
-            </p>
-            <button id="googleSignInBtn" class="btn-icon" style="width:100%; justify-content:center; background:#ffffff; color:#333; border:1px solid #dadce0; margin-bottom:16px; padding:10px;">
-                <span style="font-weight:500;">🔵 Sign in with Google</span>
-            </button>
+            <h2 style="text-align:center; margin-bottom: 20px;"><i class="fas fa-microphone-alt" style="color:var(--primary);"></i> ScriptFlow Pro</h2>
+            <p style="text-align:center; color:var(--text-muted); margin-bottom:20px; font-size:0.9rem;">Sign in to manage and hand off your leads</p>
+            <button id="googleSignInBtn" class="btn-icon" style="width:100%; justify-content:center; background:#ffffff; color:#333; border:1px solid #dadce0; margin-bottom:16px; padding:10px;"><span style="font-weight:500;">🔵 Sign in with Google</span></button>
             <div style="text-align:center; margin:12px 0; color:var(--text-muted); font-size:0.8rem;">or continue with email</div>
             <div class="form-group"><label>Email</label><input type="email" id="loginEmailInput" placeholder="you@example.com" /></div>
             <div class="form-group"><label>Password</label><input type="password" id="loginPasswordInput" placeholder="••••••••" /></div>
@@ -1036,15 +736,13 @@ function showAuthModal() {
     });
 }
 
-// ============================================================
-// INITIALIZATION
-// ============================================================
+// ========== INITIALIZATION ==========
 document.addEventListener('DOMContentLoaded', () => {
     auth.onAuthStateChanged(async (user) => {
         if (user) {
             currentUser = user;
             document.getElementById('userInfo').style.display = 'block';
-            document.getElementById('userEmail').innerText = user.email;
+            document.getElementById('userEmail').textContent = user.email;
             await loadUserData();
             hideFeaturePanel();
         } else {
@@ -1126,30 +824,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Tool Items Navigation (delegated)
-    document.addEventListener('click', (e) => {
-        const toolItem = e.target.closest('.tool-item');
-        if (!toolItem) return;
-        const tool = toolItem.getAttribute('data-tool');
-        
-        switch(tool) {
-            case 'calendar': showFeaturePanel('calendar', '📅 Appointment & Handoff Calendar'); break;
-            case 'tasks': showFeaturePanel('tasks', '📋 Follow-up Tasks Manager'); break;
-            case 'analytics': showFeaturePanel('analytics', '📊 Pipeline Performance'); break;
-            case 'notepad': showFeaturePanel('notepad', '📝 Notes'); break;
-            case 'export': exportToCSV(); break;
-            case 'theme': document.body.classList.toggle('dark'); break;
-            case 'help': showToast('Handoffs: Warm callback, Completed, Canceled, Pending, Hot transfers integrated! Use calendar for full management.', 'info'); break;
-            case 'reset': 
-                if (confirm('Clear all local data? This cannot be undone.')) { 
-                    localStorage.clear(); 
-                    location.reload(); 
-                } 
-                break;
-        }
-    });
-
-    // Add Script Button
+    // Add Script
     document.getElementById('addScriptBtnSide')?.addEventListener('click', () => {
         const name = prompt('Script name:');
         if (name && name.trim()) {
@@ -1193,6 +868,34 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.readAsText(file);
         e.target.value = '';
     });
+
+    // Tool Items Navigation (delegated)
+    document.addEventListener('click', (e) => {
+        const toolItem = e.target.closest('.tool-item');
+        if (!toolItem) return;
+        const tool = toolItem.getAttribute('data-tool');
+        
+        switch(tool) {
+            case 'calendar': showFeaturePanel('calendar', '📅 Appointment & Handoff Calendar'); break;
+            case 'tasks': showFeaturePanel('tasks', '📋 Follow-up Tasks Manager'); break;
+            case 'analytics': showFeaturePanel('analytics', '📊 Pipeline Performance'); break;
+            case 'notepad': showFeaturePanel('notepad', '📝 Notes'); break;
+            case 'export': exportToCSV(); break;
+            case 'theme': document.body.classList.toggle('dark'); break;
+            case 'help': showToast('Handoffs: Warm callback, Completed, Canceled, Pending, Hot transfers fully integrated! 📞 Use calendar for full management.', 'info'); break;
+            case 'reset': 
+                if (confirm('Clear all local data? This cannot be undone.')) { 
+                    localStorage.clear(); 
+                    location.reload(); 
+                } 
+                break;
+        }
+    });
+
+    // Appointment Reminder Check (every 30 seconds)
+    setInterval(checkAppointmentReminders, 30000);
+    // Initial check
+    setTimeout(checkAppointmentReminders, 5000);
 
     // Keyboard Shortcuts
     document.addEventListener('keydown', (e) => {
