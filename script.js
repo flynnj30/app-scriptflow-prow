@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION WITH ALL ENHANCEMENTS
+// SCRIPTFLOW PRO - COMPLETE APPLICATION LOGIC
 // ================================================================
 
 // Global State
@@ -16,7 +16,7 @@ let selectedAppointments = new Set();
 let notes = [];
 let currentNoteId = null;
 let shownReminders = new Set();
-let scriptOrder = []; // NEW: Track script ordering
+let scriptOrder = [];
 
 const STATUS_OPTIONS = [
     'Warm Callback', 'Completed', 'Canceled', 'Pending',
@@ -25,9 +25,19 @@ const STATUS_OPTIONS = [
 ];
 
 // ========== UTILITY FUNCTIONS ==========
-function getTodayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
-function generateUniqueId() { return Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9); }
-function escapeHtml(s) { return s ? String(s).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])) : ''; }
+function getTodayStr() { 
+    const d = new Date(); 
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; 
+}
+
+function generateUniqueId() { 
+    return Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9); 
+}
+
+function escapeHtml(s) { 
+    return s ? String(s).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])) : ''; 
+}
+
 function showToast(msg, type = 'success') {
     document.querySelectorAll('.toast').forEach(t => t.remove());
     const t = document.createElement('div');
@@ -36,7 +46,9 @@ function showToast(msg, type = 'success') {
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 3000);
 }
+
 function getStatus(a) { return a?.status || 'Pending'; }
+
 function getStatusClassSmall(s) {
     const m = {
         'Warm Callback': 'status-warm-callback-sm', 'Completed': 'status-completed-sm',
@@ -47,6 +59,7 @@ function getStatusClassSmall(s) {
     };
     return m[s] || 'status-pending-sm';
 }
+
 function getScoreColor(s) { return s >= 70 ? 'score-hot' : (s >= 40 ? 'score-warm' : 'score-cold'); }
 function getScoreLabel(s) { return s >= 70 ? '🔥 Hot' : (s >= 40 ? 'Warm' : '❄️ Cold'); }
 
@@ -69,6 +82,195 @@ function calculateLeadScore(appt) {
     if (appt.notes && appt.notes.length > 10) score += 5;
     if (appt.phone) score += 5;
     return Math.max(0, Math.min(100, score));
+}
+
+// ========== APPOINTMENT MANAGEMENT ==========
+function addAppointment(dateStr, business, contactName, phone, time, notes, status = 'Pending', crmLink = '', tags = []) {
+    if (!currentUser) { showToast('Please sign in first', 'error'); return null; }
+    if (!STATUS_OPTIONS.includes(status)) status = 'Pending';
+    
+    // Check if db is available
+    if (typeof db === 'undefined') {
+        showToast('Database not initialized. Please reload the page.', 'error');
+        return null;
+    }
+    
+    const newAppt = {
+        id: generateUniqueId(), 
+        business, 
+        contactName, 
+        phone: phone || '', 
+        time: time || '',
+        notes: notes || '', 
+        status, 
+        crmLink: crmLink || '', 
+        tags: tags || [], 
+        date: dateStr,
+        createdAt: new Date().toISOString()
+    };
+    syncAppointment(newAppt);
+    return newAppt;
+}
+
+async function syncAppointment(appointment) {
+    if (!currentUser || typeof db === 'undefined') return;
+    try {
+        await db.collection('users').doc(currentUser.uid).collection('appointments')
+            .doc(appointment.id.toString()).set(appointment, { merge: true });
+    } catch (e) { 
+        console.error('Error syncing appointment:', e);
+        showToast('Error saving appointment. Please try again.', 'error');
+    }
+}
+
+function deleteAppointment(dateStr, id) {
+    if (appointments[dateStr]?.reports) {
+        appointments[dateStr].reports = appointments[dateStr].reports.filter(r => r.id !== id);
+        if (appointments[dateStr].reports.length === 0) delete appointments[dateStr];
+        if (currentUser && typeof db !== 'undefined') {
+            db.collection('users').doc(currentUser.uid).collection('appointments')
+                .doc(id.toString()).delete().catch(e => console.error('Delete error:', e));
+        }
+        updateStats();
+        return true;
+    }
+    return false;
+}
+
+function updateAppointmentStatus(dateStr, id, newStatus) {
+    if (appointments[dateStr]?.reports) {
+        const appt = appointments[dateStr].reports.find(r => r.id === id);
+        if (appt) {
+            appt.status = newStatus;
+            if (newStatus === 'Warm Callback' && appt.tags) {
+                appt.tags = appt.tags.filter(t => t !== 'qualified_warm_call' && t !== 'unqualified_warm_callback');
+            }
+            syncAppointment(appt);
+            updateStats();
+            return true;
+        }
+    }
+    return false;
+}
+
+function updateAppointment(appt) {
+    syncAppointment(appt);
+}
+
+function findAppointmentById(id) {
+    for (let date in appointments) {
+        if (appointments[date].reports) {
+            const found = appointments[date].reports.find(a => a.id === id);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+
+function moveAppointmentToDate(apptId, newDate) {
+    const appt = findAppointmentById(apptId);
+    if (appt && appt.date !== newDate) {
+        deleteAppointment(appt.date, apptId);
+        appt.date = newDate;
+        syncAppointment(appt);
+        showToast(`Appointment moved to ${newDate}`, 'success');
+    }
+}
+
+function copyAppointment(appt) {
+    const newAppt = {
+        ...appt,
+        id: generateUniqueId(),
+        createdAt: new Date().toISOString()
+    };
+    syncAppointment(newAppt);
+    showToast('📋 Appointment copied!', 'success');
+    refreshCurrentView();
+}
+
+// ========== TASK MANAGEMENT ==========
+function addTask(desc, dueDate, priority = 'medium', appointmentId = null) {
+    if (!currentUser || typeof db === 'undefined') return;
+    const task = { 
+        id: generateUniqueId(), 
+        description: desc, 
+        dueDate, 
+        priority, 
+        appointmentId, 
+        completed: false, 
+        createdAt: new Date().toISOString() 
+    };
+    db.collection('users').doc(currentUser.uid).collection('tasks')
+        .doc(task.id).set(task).catch(e => console.error('Task save error:', e));
+}
+
+function toggleTaskComplete(id) {
+    const task = tasks.find(t => t.id === id);
+    if (task && typeof db !== 'undefined') { 
+        task.completed = !task.completed; 
+        db.collection('users').doc(currentUser.uid).collection('tasks')
+            .doc(id).update({ completed: task.completed }).catch(e => console.error('Task update error:', e));
+    }
+}
+
+function deleteTask(id) { 
+    if (typeof db !== 'undefined') {
+        db.collection('users').doc(currentUser.uid).collection('tasks')
+            .doc(id).delete().catch(e => console.error('Task delete error:', e)); 
+    }
+}
+
+// ========== STATISTICS ==========
+function getTodayCount() { return appointments[getTodayStr()]?.reports?.length || 0; }
+
+function getWeekCount() {
+    const now = new Date(); 
+    const start = new Date(now); 
+    start.setDate(now.getDate() - now.getDay());
+    let total = 0;
+    for (let d in appointments) { 
+        if (new Date(d) >= start && appointments[d].reports) 
+            total += appointments[d].reports.length; 
+    }
+    return total;
+}
+
+function getMonthCount() {
+    const now = new Date(); 
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    let total = 0;
+    for (let d in appointments) { 
+        if (new Date(d) >= start && appointments[d].reports) 
+            total += appointments[d].reports.length; 
+    }
+    return total;
+}
+
+function getAverageScore() {
+    let total = 0, count = 0;
+    for (let date in appointments) {
+        if (appointments[date].reports) {
+            appointments[date].reports.forEach(appt => { 
+                total += calculateLeadScore(appt); 
+                count++; 
+            });
+        }
+    }
+    return count > 0 ? Math.round(total / count) : 0;
+}
+
+function updateStats() {
+    const todayElem = document.getElementById('statToday');
+    const weekElem = document.getElementById('statWeek');
+    const monthElem = document.getElementById('statMonth');
+    const avgElem = document.getElementById('avgScore');
+    const taskElem = document.getElementById('pendingTasks');
+    
+    if (todayElem) todayElem.innerText = getTodayCount();
+    if (weekElem) weekElem.innerText = getWeekCount();
+    if (monthElem) monthElem.innerText = getMonthCount();
+    if (avgElem) avgElem.innerText = getAverageScore();
+    if (taskElem) taskElem.innerText = tasks.filter(t => !t.completed).length;
 }
 
 // ========== SMART IMPORT PARSER ==========
@@ -119,7 +321,7 @@ function smartParseBooking(text) {
         /(\d{1,2}\s*(?:am|pm))/i
     ];
 
-    // Try to extract business name
+    // Extract business name
     for (const pattern of businessPatterns) {
         const match = text.match(pattern);
         if (match && match[1] && match[1].trim().length > 2) {
@@ -128,7 +330,7 @@ function smartParseBooking(text) {
         }
     }
 
-    // Try to extract contact name
+    // Extract contact name
     for (const pattern of contactPatterns) {
         const match = text.match(pattern);
         if (match && match[1] && match[1].trim().length > 2 && !match[1].match(/^\d/)) {
@@ -137,7 +339,7 @@ function smartParseBooking(text) {
         }
     }
 
-    // Try to extract phone
+    // Extract phone
     for (const pattern of phonePatterns) {
         const match = text.match(pattern);
         if (match) {
@@ -149,7 +351,7 @@ function smartParseBooking(text) {
         }
     }
 
-    // Try to extract date
+    // Extract date
     for (const pattern of datePatterns) {
         const match = text.match(pattern);
         if (match) {
@@ -164,7 +366,7 @@ function smartParseBooking(text) {
         }
     }
 
-    // Try to extract time
+    // Extract time
     for (const pattern of timePatterns) {
         const match = text.match(pattern);
         if (match) {
@@ -173,233 +375,23 @@ function smartParseBooking(text) {
         }
     }
 
-    // If no business found, use first line
+    // Fallback: use first line as business
     if (!result.business) {
         const lines = text.split('\n').filter(l => l.trim());
-        if (lines.length > 0) {
-            result.business = lines[0].trim().substring(0, 100);
-        }
+        if (lines.length > 0) result.business = lines[0].trim().substring(0, 100);
     }
 
-    // If no contact found, try second line
+    // Fallback: use second line as contact
     if (!result.contactName) {
         const lines = text.split('\n').filter(l => l.trim());
         if (lines.length > 1) {
             const secondLine = lines[1].trim();
-            if (!secondLine.match(/^\d/)) {
-                result.contactName = secondLine.substring(0, 100);
-            }
+            if (!secondLine.match(/^\d/)) result.contactName = secondLine.substring(0, 100);
         }
     }
 
     result.notes = text.substring(0, 500);
-
     return result;
-}
-
-// ========== APPOINTMENT MANAGEMENT ==========
-function addAppointment(dateStr, business, contactName, phone, time, notes, status = 'Pending', crmLink = '', tags = []) {
-    if (!currentUser) { showToast('Please sign in first', 'error'); return null; }
-    if (!STATUS_OPTIONS.includes(status)) status = 'Pending';
-    const newAppt = {
-        id: generateUniqueId(), business, contactName, phone: phone || '', time: time || '',
-        notes: notes || '', status, crmLink: crmLink || '', tags: tags || [], date: dateStr,
-        createdAt: new Date().toISOString()
-    };
-    syncAppointment(newAppt);
-    return newAppt;
-}
-
-async function syncAppointment(appointment) {
-    if (!currentUser) return;
-    try {
-        await db.collection('users').doc(currentUser.uid).collection('appointments').doc(appointment.id.toString()).set(appointment, { merge: true });
-    } catch (e) { console.error('Error syncing appointment:', e); }
-}
-
-function deleteAppointment(dateStr, id) {
-    if (appointments[dateStr]?.reports) {
-        appointments[dateStr].reports = appointments[dateStr].reports.filter(r => r.id !== id);
-        if (appointments[dateStr].reports.length === 0) delete appointments[dateStr];
-        db.collection('users').doc(currentUser.uid).collection('appointments').doc(id.toString()).delete();
-        updateStats();
-        return true;
-    }
-    return false;
-}
-
-function updateAppointmentStatus(dateStr, id, newStatus) {
-    if (appointments[dateStr]?.reports) {
-        const appt = appointments[dateStr].reports.find(r => r.id === id);
-        if (appt) {
-            appt.status = newStatus;
-            if (newStatus === 'Warm Callback' && appt.tags) {
-                appt.tags = appt.tags.filter(t => t !== 'qualified_warm_call' && t !== 'unqualified_warm_callback');
-            }
-            syncAppointment(appt);
-            updateStats();
-            return true;
-        }
-    }
-    return false;
-}
-
-function updateAppointment(appt) {
-    syncAppointment(appt);
-}
-
-// ========== TASK MANAGEMENT ==========
-function addTask(desc, dueDate, priority = 'medium', appointmentId = null) {
-    if (!currentUser) return;
-    const task = { id: generateUniqueId(), description: desc, dueDate, priority, appointmentId, completed: false, createdAt: new Date().toISOString() };
-    db.collection('users').doc(currentUser.uid).collection('tasks').doc(task.id).set(task);
-}
-
-function toggleTaskComplete(id) {
-    const task = tasks.find(t => t.id === id);
-    if (task) { task.completed = !task.completed; db.collection('users').doc(currentUser.uid).collection('tasks').doc(id).update({ completed: task.completed }); }
-}
-
-function deleteTask(id) { db.collection('users').doc(currentUser.uid).collection('tasks').doc(id).delete(); }
-
-// ========== STATISTICS ==========
-function getTodayCount() { return appointments[getTodayStr()]?.reports?.length || 0; }
-function getWeekCount() {
-    const now = new Date(); const start = new Date(now); start.setDate(now.getDate() - now.getDay());
-    let total = 0;
-    for (let d in appointments) { if (new Date(d) >= start && appointments[d].reports) total += appointments[d].reports.length; }
-    return total;
-}
-function getMonthCount() {
-    const now = new Date(); const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    let total = 0;
-    for (let d in appointments) { if (new Date(d) >= start && appointments[d].reports) total += appointments[d].reports.length; }
-    return total;
-}
-function getAverageScore() {
-    let total = 0, count = 0;
-    for (let date in appointments) {
-        if (appointments[date].reports) {
-            appointments[date].reports.forEach(appt => { total += calculateLeadScore(appt); count++; });
-        }
-    }
-    return count > 0 ? Math.round(total / count) : 0;
-}
-
-function updateStats() {
-    document.getElementById('statToday').innerText = getTodayCount();
-    document.getElementById('statWeek').innerText = getWeekCount();
-    document.getElementById('statMonth').innerText = getMonthCount();
-    document.getElementById('avgScore').innerText = getAverageScore();
-    document.getElementById('pendingTasks').innerText = tasks.filter(t => !t.completed).length;
-}
-
-// ========== SCRIPT MANAGEMENT WITH REORDERING ==========
-function loadScript(id) {
-    if (!scripts[id] || isEditing) return;
-    currentScriptId = id;
-    document.getElementById('currentScriptName').innerHTML = scripts[id].name;
-    document.getElementById('scriptContent').innerHTML = `<div class="script-display">${escapeHtml(scripts[id].content).replace(/\n/g, '<br>')}</div>`;
-    renderSidebar();
-}
-
-function getOrderedScriptIds() {
-    if (scriptOrder.length > 0 && scriptOrder.every(id => scripts[id])) {
-        return scriptOrder;
-    }
-    return Object.keys(scripts);
-}
-
-function renderSidebar() {
-    const container = document.getElementById('scriptListContainer');
-    if (!container) return;
-    const orderedIds = getOrderedScriptIds();
-    let html = '';
-    orderedIds.forEach((id, idx) => {
-        const s = scripts[id];
-        const active = currentScriptId === id;
-        html += `
-            <div class="script-item ${active ? 'active' : ''}" data-id="${id}" draggable="true">
-                <span class="script-order-badge">${idx + 1}</span>
-                <i class="fas fa-grip-vertical script-drag-handle" title="Drag to reorder"></i>
-                <span class="script-name">${escapeHtml(s.name)}</span>
-                <span class="key-hint">${idx < 9 ? idx + 1 : ''}</span>
-            </div>
-        `;
-    });
-    container.innerHTML = html;
-    
-    // Click to select
-    container.querySelectorAll('.script-item').forEach(el => {
-        el.addEventListener('click', (e) => {
-            if (e.target.closest('.script-drag-handle')) return;
-            loadScript(el.getAttribute('data-id'));
-        });
-    });
-
-    // Drag and Drop for reordering
-    let draggedItem = null;
-    container.querySelectorAll('.script-item').forEach(item => {
-        item.addEventListener('dragstart', (e) => {
-            draggedItem = item;
-            item.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-        });
-
-        item.addEventListener('dragend', (e) => {
-            item.classList.remove('dragging');
-            container.querySelectorAll('.script-item').forEach(el => el.classList.remove('drag-over'));
-            draggedItem = null;
-        });
-
-        item.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            if (item !== draggedItem) {
-                item.classList.add('drag-over');
-            }
-        });
-
-        item.addEventListener('dragleave', () => {
-            item.classList.remove('drag-over');
-        });
-
-        item.addEventListener('drop', (e) => {
-            e.preventDefault();
-            item.classList.remove('drag-over');
-            if (draggedItem && draggedItem !== item) {
-                const allItems = [...container.querySelectorAll('.script-item')];
-                const fromIndex = allItems.indexOf(draggedItem);
-                const toIndex = allItems.indexOf(item);
-                
-                const orderedIds = getOrderedScriptIds();
-                const [movedId] = orderedIds.splice(fromIndex, 1);
-                orderedIds.splice(toIndex, 0, movedId);
-                
-                scriptOrder = orderedIds;
-                saveScriptOrder();
-                renderSidebar();
-            }
-        });
-    });
-}
-
-function saveScriptOrder() {
-    if (currentUser) {
-        db.collection('users').doc(currentUser.uid).collection('settings').doc('scriptOrder').set({ order: scriptOrder });
-    }
-    localStorage.setItem('sf_script_order', JSON.stringify(scriptOrder));
-}
-
-function loadScriptOrder() {
-    const saved = localStorage.getItem('sf_script_order');
-    if (saved) {
-        try {
-            scriptOrder = JSON.parse(saved);
-        } catch (e) {
-            scriptOrder = [];
-        }
-    }
 }
 
 // ========== SMART IMPORT MODAL ==========
@@ -416,13 +408,13 @@ function showSmartImportModal() {
             <div class="form-group">
                 <label>Paste Booking Text</label>
                 <textarea id="smartImportText" class="smart-import-textarea" placeholder="Example:
-    Business: ABC Corp
-    Contact: John Smith
-    Phone: (555) 123-4567
-    Date: 2024-12-25
-    Time: 2:00 PM
-    Status: Hot Transfer
-    Notes: Follow up next week"></textarea>
+Business: ABC Corp
+Contact: John Smith
+Phone: (555) 123-4567
+Date: 2024-12-25
+Time: 2:00 PM
+Status: Hot Transfer
+Notes: Follow up next week"></textarea>
             </div>
             <div id="parsedPreview" class="parsed-preview" style="display:none;">
                 <h4 style="margin-bottom:12px;"><i class="fas fa-search"></i> Parsed Results</h4>
@@ -441,44 +433,22 @@ function showSmartImportModal() {
 
     document.getElementById('parseSmartImportBtn').addEventListener('click', () => {
         const text = document.getElementById('smartImportText').value.trim();
-        if (!text) {
-            showToast('Please paste booking details first', 'error');
-            return;
-        }
+        if (!text) { showToast('Please paste booking details first', 'error'); return; }
 
         parsedData = smartParseBooking(text);
         const preview = document.getElementById('parsedPreview');
         const fields = document.getElementById('parsedFields');
         
         fields.innerHTML = `
-            <div class="parsed-field">
-                <span class="field-label">Business</span>
-                <span class="field-value ${parsedData.business ? '' : 'missing'}">${parsedData.business || '❌ Not detected'}</span>
-            </div>
-            <div class="parsed-field">
-                <span class="field-label">Contact</span>
-                <span class="field-value ${parsedData.contactName ? '' : 'missing'}">${parsedData.contactName || '❌ Not detected'}</span>
-            </div>
-            <div class="parsed-field">
-                <span class="field-label">Phone</span>
-                <span class="field-value ${parsedData.phone ? '' : 'missing'}">${parsedData.phone || '❌ Not detected'}</span>
-            </div>
-            <div class="parsed-field">
-                <span class="field-label">Date</span>
-                <span class="field-value">${parsedData.date}</span>
-            </div>
-            <div class="parsed-field">
-                <span class="field-label">Time</span>
-                <span class="field-value ${parsedData.time ? '' : 'missing'}">${parsedData.time || 'Not detected'}</span>
-            </div>
-            <div class="parsed-field">
-                <span class="field-label">Status</span>
-                <span class="field-value">${parsedData.status}</span>
-            </div>
+            <div class="parsed-field"><span class="field-label">Business</span><span class="field-value ${parsedData.business ? '' : 'missing'}">${parsedData.business || '❌ Not detected'}</span></div>
+            <div class="parsed-field"><span class="field-label">Contact</span><span class="field-value ${parsedData.contactName ? '' : 'missing'}">${parsedData.contactName || '❌ Not detected'}</span></div>
+            <div class="parsed-field"><span class="field-label">Phone</span><span class="field-value ${parsedData.phone ? '' : 'missing'}">${parsedData.phone || '❌ Not detected'}</span></div>
+            <div class="parsed-field"><span class="field-label">Date</span><span class="field-value">${parsedData.date}</span></div>
+            <div class="parsed-field"><span class="field-label">Time</span><span class="field-value ${parsedData.time ? '' : 'missing'}">${parsedData.time || 'Not detected'}</span></div>
+            <div class="parsed-field"><span class="field-label">Status</span><span class="field-value">${parsedData.status}</span></div>
         `;
 
         preview.style.display = 'block';
-        
         const canSave = parsedData.business && parsedData.contactName;
         document.getElementById('saveSmartImportBtn').style.display = canSave ? 'inline-flex' : 'none';
         
@@ -494,7 +464,6 @@ function showSmartImportModal() {
             showToast('Cannot save without Business and Contact details', 'error');
             return;
         }
-        
         addAppointment(parsedData.date, parsedData.business, parsedData.contactName, parsedData.phone, parsedData.time, parsedData.notes, parsedData.status);
         modal.remove();
         showToast('✅ Booking imported successfully!', 'success');
@@ -539,12 +508,10 @@ function openEditAppointmentModal(appt) {
 
         if (!business || !contact) { showToast('Business and Contact are required', 'error'); return; }
 
-        // Remove from old date if changed
         if (newDate !== appt.date) {
             deleteAppointment(appt.date, appt.id);
         }
 
-        // Update appointment
         appt.date = newDate;
         appt.business = business;
         appt.contactName = contact;
@@ -563,16 +530,97 @@ function openEditAppointmentModal(appt) {
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
 }
 
-// ========== COPY APPOINTMENT ==========
-function copyAppointment(appt) {
-    const newAppt = {
-        ...appt,
-        id: generateUniqueId(),
-        createdAt: new Date().toISOString()
-    };
-    syncAppointment(newAppt);
-    showToast('📋 Appointment copied!', 'success');
-    refreshCurrentView();
+// ========== SCRIPT MANAGEMENT WITH REORDERING ==========
+function loadScript(id) {
+    if (!scripts[id] || isEditing) return;
+    currentScriptId = id;
+    document.getElementById('currentScriptName').innerHTML = scripts[id].name;
+    document.getElementById('scriptContent').innerHTML = `<div class="script-display">${escapeHtml(scripts[id].content).replace(/\n/g, '<br>')}</div>`;
+    renderSidebar();
+}
+
+function getOrderedScriptIds() {
+    if (scriptOrder.length > 0 && scriptOrder.every(id => scripts[id])) {
+        return scriptOrder;
+    }
+    return Object.keys(scripts);
+}
+
+function renderSidebar() {
+    const container = document.getElementById('scriptListContainer');
+    if (!container) return;
+    const orderedIds = getOrderedScriptIds();
+    let html = '';
+    orderedIds.forEach((id, idx) => {
+        const s = scripts[id];
+        const active = currentScriptId === id;
+        html += `
+            <div class="script-item ${active ? 'active' : ''}" data-id="${id}" draggable="true">
+                <span class="script-order-badge">${idx + 1}</span>
+                <i class="fas fa-grip-vertical script-drag-handle" title="Drag to reorder"></i>
+                <span class="script-name">${escapeHtml(s.name)}</span>
+                <span class="key-hint">${idx < 9 ? idx + 1 : ''}</span>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+    
+    container.querySelectorAll('.script-item').forEach(el => {
+        el.addEventListener('click', (e) => {
+            if (e.target.closest('.script-drag-handle')) return;
+            loadScript(el.getAttribute('data-id'));
+        });
+    });
+
+    let draggedItem = null;
+    container.querySelectorAll('.script-item').forEach(item => {
+        item.addEventListener('dragstart', (e) => {
+            draggedItem = item;
+            item.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        item.addEventListener('dragend', () => {
+            item.classList.remove('dragging');
+            container.querySelectorAll('.script-item').forEach(el => el.classList.remove('drag-over'));
+            draggedItem = null;
+        });
+        item.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (item !== draggedItem) item.classList.add('drag-over');
+        });
+        item.addEventListener('dragleave', () => { item.classList.remove('drag-over'); });
+        item.addEventListener('drop', (e) => {
+            e.preventDefault();
+            item.classList.remove('drag-over');
+            if (draggedItem && draggedItem !== item) {
+                const allItems = [...container.querySelectorAll('.script-item')];
+                const fromIndex = allItems.indexOf(draggedItem);
+                const toIndex = allItems.indexOf(item);
+                const orderedIds = getOrderedScriptIds();
+                const [movedId] = orderedIds.splice(fromIndex, 1);
+                orderedIds.splice(toIndex, 0, movedId);
+                scriptOrder = orderedIds;
+                saveScriptOrder();
+                renderSidebar();
+            }
+        });
+    });
+}
+
+function saveScriptOrder() {
+    if (currentUser && typeof db !== 'undefined') {
+        db.collection('users').doc(currentUser.uid).collection('settings')
+            .doc('scriptOrder').set({ order: scriptOrder }).catch(() => {});
+    }
+    localStorage.setItem('sf_script_order', JSON.stringify(scriptOrder));
+}
+
+function loadScriptOrder() {
+    const saved = localStorage.getItem('sf_script_order');
+    if (saved) {
+        try { scriptOrder = JSON.parse(saved); } catch (e) { scriptOrder = []; }
+    }
 }
 
 // ========== CALENDAR PANEL WITH DRAG-DROP ==========
@@ -653,16 +701,10 @@ function renderCalendarPanel(container) {
                                 </div>
                                 <div style="font-size:0.8rem; margin-top:4px;">👤 ${escapeHtml(a.contactName)} ${a.phone ? '| 📞 ' + escapeHtml(a.phone) : ''} ${a.time ? '| 🕐 ' + a.time : ''}</div>
                                 <div class="appointment-actions">
-                                    <button class="appointment-action-btn copy-btn" data-id="${a.id}" title="Copy appointment">
-                                        <i class="fas fa-copy"></i> Copy
-                                    </button>
-                                    <button class="appointment-action-btn edit-btn" data-id="${a.id}" title="Edit appointment">
-                                        <i class="fas fa-edit"></i> Edit
-                                    </button>
-                                    <button class="appointment-action-btn delete-btn" data-id="${a.id}" title="Delete appointment">
-                                        <i class="fas fa-trash"></i> Delete
-                                    </button>
-                                    <select class="status-change-select" data-id="${a.id}" data-date="${selectedCalDate}" style="margin-left:auto; font-size:0.7rem; padding:4px 8px; border-radius:8px; border:1px solid var(--border-color);">
+                                    <button class="appointment-action-btn copy-btn" data-id="${a.id}" title="Copy"><i class="fas fa-copy"></i> Copy</button>
+                                    <button class="appointment-action-btn edit-btn" data-id="${a.id}" title="Edit"><i class="fas fa-edit"></i> Edit</button>
+                                    <button class="appointment-action-btn delete-btn" data-id="${a.id}" title="Delete"><i class="fas fa-trash"></i> Delete</button>
+                                    <select class="status-change-select" data-id="${a.id}" data-date="${selectedCalDate}" style="margin-left:auto;">
                                         ${STATUS_OPTIONS.map(s => `<option value="${s}" ${getStatus(a) === s ? 'selected' : ''}>${s}</option>`).join('')}
                                     </select>
                                 </div>
@@ -678,21 +720,10 @@ function renderCalendarPanel(container) {
 }
 
 function attachCalendarEvents(container) {
-    // Calendar day click
     container.querySelectorAll('.calendar-day[data-date]').forEach(el => {
         el.addEventListener('click', () => { selectedCalDate = el.getAttribute('data-date'); renderCalendarPanel(container); });
-        
-        // Drop target for appointments
-        el.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            el.style.background = 'var(--cal-day-hover)';
-        });
-        
-        el.addEventListener('dragleave', () => {
-            el.style.background = '';
-        });
-        
+        el.addEventListener('dragover', (e) => { e.preventDefault(); el.style.background = 'var(--cal-day-hover)'; });
+        el.addEventListener('dragleave', () => { el.style.background = ''; });
         el.addEventListener('drop', (e) => {
             e.preventDefault();
             el.style.background = '';
@@ -710,20 +741,15 @@ function attachCalendarEvents(container) {
     document.getElementById('calTodayBtn')?.addEventListener('click', () => { currentCalDate = new Date(); selectedCalDate = getTodayStr(); renderCalendarPanel(container); });
     document.getElementById('quickAddCalBtn')?.addEventListener('click', () => openQuickReportWithDate(selectedCalDate));
     
-    // Appointment card drag
     container.querySelectorAll('.appointment-card[draggable]').forEach(card => {
         card.addEventListener('dragstart', (e) => {
             card.classList.add('dragging');
             e.dataTransfer.setData('text/plain', card.getAttribute('data-id'));
             e.dataTransfer.effectAllowed = 'move';
         });
-        
-        card.addEventListener('dragend', () => {
-            card.classList.remove('dragging');
-        });
+        card.addEventListener('dragend', () => { card.classList.remove('dragging'); });
     });
 
-    // Appointment action buttons
     container.querySelectorAll('.copy-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -768,26 +794,6 @@ function attachCalendarEvents(container) {
     });
 }
 
-function findAppointmentById(id) {
-    for (let date in appointments) {
-        if (appointments[date].reports) {
-            const found = appointments[date].reports.find(a => a.id === id);
-            if (found) return found;
-        }
-    }
-    return null;
-}
-
-function moveAppointmentToDate(apptId, newDate) {
-    const appt = findAppointmentById(apptId);
-    if (appt && appt.date !== newDate) {
-        deleteAppointment(appt.date, apptId);
-        appt.date = newDate;
-        syncAppointment(appt);
-        showToast(`Appointment moved to ${newDate}`, 'success');
-    }
-}
-
 // ========== QUICK REPORT MODAL ==========
 function openQuickReportWithDate(defaultDate) {
     const modal = document.createElement('div');
@@ -816,11 +822,7 @@ function openQuickReportWithDate(defaultDate) {
     `;
     document.body.appendChild(modal);
 
-    document.getElementById('switchToSmartImportBtn').addEventListener('click', () => {
-        modal.remove();
-        showSmartImportModal();
-    });
-
+    document.getElementById('switchToSmartImportBtn').addEventListener('click', () => { modal.remove(); showSmartImportModal(); });
     document.getElementById('saveNewApptBtn').addEventListener('click', () => {
         const date = document.getElementById('newApptDate').value;
         const bus = document.getElementById('newApptBusiness').value.trim();
@@ -835,7 +837,6 @@ function openQuickReportWithDate(defaultDate) {
         showToast('✅ CRM Registration Added!', 'success');
         refreshCurrentView();
     });
-
     document.getElementById('cancelNewApptBtn').addEventListener('click', () => modal.remove());
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
 }
@@ -845,20 +846,29 @@ function loadNotes() {
     notes = JSON.parse(localStorage.getItem('sf_local_notes') || '[]');
     if (notes.length > 0 && !currentNoteId) currentNoteId = notes[0].id;
 }
+
 function saveNote(id, title, content) {
     const updatedNote = { title: title || 'Untitled Note', content: content || '', updatedAt: new Date().toISOString() };
     const idx = notes.findIndex(n => n.id === id);
     if (idx !== -1) notes[idx] = { ...notes[idx], ...updatedNote };
     else { updatedNote.id = id; updatedNote.createdAt = new Date().toISOString(); notes.unshift(updatedNote); }
     localStorage.setItem('sf_local_notes', JSON.stringify(notes));
-    if (currentUser) db.collection('users').doc(currentUser.uid).collection('notes').doc(id).set(updatedNote, { merge: true }).catch(() => {});
+    if (currentUser && typeof db !== 'undefined') {
+        db.collection('users').doc(currentUser.uid).collection('notes')
+            .doc(id).set(updatedNote, { merge: true }).catch(() => {});
+    }
 }
+
 function deleteNote(id) {
     notes = notes.filter(n => n.id !== id);
     localStorage.setItem('sf_local_notes', JSON.stringify(notes));
     if (currentNoteId === id) currentNoteId = notes.length > 0 ? notes[0].id : null;
-    if (currentUser) db.collection('users').doc(currentUser.uid).collection('notes').doc(id).delete().catch(() => {});
+    if (currentUser && typeof db !== 'undefined') {
+        db.collection('users').doc(currentUser.uid).collection('notes')
+            .doc(id).delete().catch(() => {});
+    }
 }
+
 function renderNotesPanel(container) {
     if (!container) return;
     loadNotes();
@@ -958,6 +968,7 @@ function checkAppointmentReminders() {
     appts.forEach(a => {
         if (!a.time) return;
         const [ah, am] = a.time.split(':').map(Number);
+        if (isNaN(ah) || isNaN(am)) return;
         const diff = Math.abs((ah*60+am) - (now.getHours()*60+now.getMinutes()));
         if (diff <= 2 && !shownReminders.has(a.id)) {
             shownReminders.add(a.id);
@@ -968,6 +979,7 @@ function checkAppointmentReminders() {
 
 function showReminderPopup(appt) {
     const popup = document.getElementById('appointmentReminderPopup');
+    if (!popup) return;
     document.getElementById('reminderBusiness').textContent = appt.business;
     document.getElementById('reminderContact').textContent = appt.contactName;
     document.getElementById('reminderTime').textContent = `🕐 ${appt.time}`;
@@ -996,7 +1008,7 @@ function showBulkActionsModal() {
     document.getElementById('closeBulkModalBtn').onclick = () => modal.style.display = 'none';
 }
 
-// ========== CSV ==========
+// ========== CSV EXPORT ==========
 function exportToCSV() {
     let csv = 'Date,Business,Contact,Phone,Time,Status,Notes\n';
     for (let d in appointments) if (appointments[d].reports) appointments[d].reports.forEach(a => csv += `"${d}","${a.business}","${a.contactName}","${a.phone}","${a.time}","${getStatus(a)}","${a.notes}"\n`);
@@ -1015,7 +1027,12 @@ function showFeaturePanel(type, title) {
     else if (type === 'analytics') renderAnalyticsHub(body);
     else if (type === 'notepad') renderNotesPanel(body);
 }
-function hideFeaturePanel() { document.getElementById('featurePanel').style.display = 'none'; document.getElementById('scriptPanel').style.display = 'block'; }
+
+function hideFeaturePanel() { 
+    document.getElementById('featurePanel').style.display = 'none'; 
+    document.getElementById('scriptPanel').style.display = 'block'; 
+}
+
 function refreshCurrentView() {
     const body = document.getElementById('featurePanelBody');
     if (document.getElementById('featurePanel').style.display === 'none') return;
@@ -1027,54 +1044,281 @@ function refreshCurrentView() {
 
 // ========== DATA LOADING ==========
 async function loadUserData() {
-    if (!currentUser) return;
+    if (!currentUser || typeof db === 'undefined') {
+        showToast('Database connection error. Please reload.', 'error');
+        return;
+    }
+    
     document.getElementById('saveStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
-    db.collection('users').doc(currentUser.uid).collection('appointments').onSnapshot(snap => { appointments = {}; snap.forEach(doc => { const a = doc.data(); if (!appointments[a.date]) appointments[a.date] = { count: 0, reports: [] }; appointments[a.date].reports.push({ ...a, id: doc.id }); }); updateStats(); refreshCurrentView(); });
-    db.collection('users').doc(currentUser.uid).collection('tasks').onSnapshot(snap => { tasks = []; snap.forEach(doc => tasks.push({ ...doc.data(), id: doc.id })); updateStats(); });
-    const ss = await db.collection('users').doc(currentUser.uid).collection('scripts').get(); scripts = {}; ss.forEach(doc => { const d = doc.data(); scripts[doc.id] = { name: d.name, content: d.content }; });
-    if (Object.keys(scripts).length === 0) { await createDefaultScripts(); return loadUserData(); }
-    loadScriptOrder();
-    loadScript('opening'); renderSidebar();
-    document.getElementById('saveStatus').innerHTML = '<i class="fas fa-check"></i> Synced';
+    
+    try {
+        db.collection('users').doc(currentUser.uid).collection('appointments')
+            .orderBy('createdAt', 'desc')
+            .onSnapshot(snap => { 
+                appointments = {}; 
+                snap.forEach(doc => { 
+                    const a = doc.data(); 
+                    if (!appointments[a.date]) appointments[a.date] = { count: 0, reports: [] }; 
+                    appointments[a.date].reports.push({ ...a, id: doc.id }); 
+                }); 
+                updateStats(); 
+                refreshCurrentView(); 
+            }, error => {
+                console.error('Appointments listener error:', error);
+            });
+
+        db.collection('users').doc(currentUser.uid).collection('tasks')
+            .orderBy('createdAt', 'desc')
+            .onSnapshot(snap => { 
+                tasks = []; 
+                snap.forEach(doc => tasks.push({ ...doc.data(), id: doc.id })); 
+                updateStats(); 
+            }, error => {
+                console.error('Tasks listener error:', error);
+            });
+
+        const scriptsSnapshot = await db.collection('users').doc(currentUser.uid).collection('scripts').get();
+        scripts = {}; 
+        scriptsSnapshot.forEach(doc => { 
+            const d = doc.data(); 
+            scripts[doc.id] = { name: d.name, content: d.content }; 
+        });
+        
+        if (Object.keys(scripts).length === 0) { 
+            await createDefaultScripts(); 
+            return loadUserData(); 
+        }
+        
+        loadScriptOrder();
+        loadScript('opening'); 
+        renderSidebar();
+        document.getElementById('saveStatus').innerHTML = '<i class="fas fa-check"></i> Synced';
+    } catch (error) {
+        console.error('Data Load Error:', error);
+        showToast('Error loading data. Please refresh.', 'error');
+    }
 }
+
 async function createDefaultScripts() {
-    const def = { opening: { name: "🎯 Opening Script", content: "Hey, is this [Company Name]?\nAwesome — this is Flynn. We created a free preview. Would you take a quick look?" }, owner_yes: { name: "👑 Owner - Yes", content: "Perfect! Daniel will call you shortly." }, owner_no: { name: "🤝 Not Owner", content: "Who drives your design decisions?" } };
-    const batch = db.batch(); const ref = db.collection('users').doc(currentUser.uid).collection('scripts');
+    if (typeof db === 'undefined') return;
+    const def = { 
+        opening: { name: "🎯 Opening Script", content: "Hey, is this [Company Name]?\nAwesome — this is Flynn. We created a free preview. Would you take a quick look?" }, 
+        owner_yes: { name: "👑 Owner - Yes", content: "Perfect! Daniel will call you shortly." }, 
+        owner_no: { name: "🤝 Not Owner", content: "Who drives your design decisions?" } 
+    };
+    const batch = db.batch(); 
+    const ref = db.collection('users').doc(currentUser.uid).collection('scripts');
     for (let [id, s] of Object.entries(def)) batch.set(ref.doc(id), { name: s.name, content: s.content });
     await batch.commit();
 }
 
 // ========== AUTH ==========
-function signOut() { currentUser = null; auth.signOut(); showToast('Signed out', 'info'); setTimeout(() => location.reload(), 500); }
-function showAuthModal() {
-    const m = document.createElement('div'); m.className = 'modal-overlay'; m.id = 'authModal';
-    m.innerHTML = `<div class="modal-card" style="max-width:400px;"><h2>ScriptFlow Pro</h2><button id="googleSignInBtn" class="btn-icon" style="width:100%;background:white;color:#333;">Sign in with Google</button><hr><input id="loginEmail" placeholder="Email"><input id="loginPass" type="password" placeholder="Password"><button id="loginBtn" class="btn-icon" style="width:100%;background:var(--primary);color:white;">Sign In</button></div>`;
-    document.body.appendChild(m);
-    document.getElementById('googleSignInBtn').onclick = async () => { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); };
-    document.getElementById('loginBtn').onclick = async () => { await auth.signInWithEmailAndPassword(document.getElementById('loginEmail').value, document.getElementById('loginPass').value); };
+function signOut() { 
+    currentUser = null; 
+    if (typeof auth !== 'undefined') auth.signOut(); 
+    showToast('Signed out', 'info'); 
+    setTimeout(() => location.reload(), 500); 
 }
 
-// ========== INIT ==========
+function showAuthModal() {
+    if (typeof auth === 'undefined') {
+        showToast('Authentication service not available. Please reload.', 'error');
+        return;
+    }
+    const m = document.createElement('div'); 
+    m.className = 'modal-overlay'; 
+    m.id = 'authModal';
+    m.innerHTML = `
+        <div class="modal-card" style="max-width:400px;">
+            <h2>ScriptFlow Pro</h2>
+            <button id="googleSignInBtn" class="btn-icon" style="width:100%;background:white;color:#333;">Sign in with Google</button>
+            <hr>
+            <input id="loginEmail" placeholder="Email" style="width:100%;padding:10px;margin:8px 0;border-radius:8px;border:1px solid var(--border-color);">
+            <input id="loginPass" type="password" placeholder="Password" style="width:100%;padding:10px;margin:8px 0;border-radius:8px;border:1px solid var(--border-color);">
+            <button id="loginBtn" class="btn-icon" style="width:100%;background:var(--primary);color:white;">Sign In</button>
+        </div>`;
+    document.body.appendChild(m);
+    
+    document.getElementById('googleSignInBtn').onclick = async () => { 
+        try {
+            await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); 
+        } catch (e) {
+            showToast('Google sign-in failed: ' + e.message, 'error');
+        }
+    };
+    
+    document.getElementById('loginBtn').onclick = async () => { 
+        try {
+            await auth.signInWithEmailAndPassword(
+                document.getElementById('loginEmail').value, 
+                document.getElementById('loginPass').value
+            ); 
+        } catch (e) {
+            showToast('Login failed: ' + e.message, 'error');
+        }
+    };
+}
+
+// ========== INITIALIZATION ==========
 document.addEventListener('DOMContentLoaded', () => {
+    // Check if Firebase services are available
+    if (typeof auth === 'undefined' || typeof db === 'undefined') {
+        console.warn('Firebase services not ready. Waiting...');
+        // Retry after a short delay
+        setTimeout(() => {
+            if (typeof auth !== 'undefined' && typeof db !== 'undefined') {
+                initApp();
+            } else {
+                showToast('Unable to connect to database. Please check your internet connection and reload.', 'error');
+            }
+        }, 2000);
+        return;
+    }
+    
+    initApp();
+});
+
+function initApp() {
     auth.onAuthStateChanged(async user => {
-        if (user) { currentUser = user; document.getElementById('userInfo').style.display = 'block'; document.getElementById('userEmail').textContent = user.email; await loadUserData(); hideFeaturePanel(); }
+        if (user) { 
+            currentUser = user; 
+            document.getElementById('userInfo').style.display = 'block'; 
+            document.getElementById('userEmail').textContent = user.email; 
+            await loadUserData(); 
+            hideFeaturePanel(); 
+        }
         else showAuthModal();
     });
-    document.getElementById('toolsHeader').onclick = () => { document.getElementById('toolsMenu').classList.toggle('open'); document.getElementById('toolsChevron').classList.toggle('rotated'); };
-    document.getElementById('menuToggleBtn').onclick = () => { document.getElementById('mainSidebar').classList.toggle('closed'); document.getElementById('mainContent').classList.toggle('expanded'); };
-    document.getElementById('closeFeaturePanelBtn').onclick = hideFeaturePanel;
-    document.getElementById('quickReportBtn').onclick = () => openQuickReportWithDate(getTodayStr());
-    document.getElementById('bulkActionsBtn').onclick = showBulkActionsModal;
-    document.getElementById('signOutBtn').onclick = signOut;
-    document.getElementById('refreshBtn').onclick = async () => { if (currentUser) { document.getElementById('refreshBtn').classList.add('spinning'); await loadUserData(); setTimeout(() => document.getElementById('refreshBtn').classList.remove('spinning'), 1000); } };
-    document.getElementById('editScriptBtn').onclick = () => { isEditing = true; document.getElementById('scriptContent').innerHTML = `<textarea class="edit-textarea" id="editTextarea">${escapeHtml(scripts[currentScriptId].content)}</textarea>`; document.getElementById('editScriptBtn').style.display = 'none'; document.getElementById('saveScriptBtn').style.display = 'inline-flex'; document.getElementById('cancelEditBtn').style.display = 'inline-flex'; };
-    document.getElementById('saveScriptBtn').onclick = async () => { scripts[currentScriptId].content = document.getElementById('editTextarea').value; await db.collection('users').doc(currentUser.uid).collection('scripts').doc(currentScriptId).update({ content: scripts[currentScriptId].content }); isEditing = false; loadScript(currentScriptId); document.getElementById('editScriptBtn').style.display = 'inline-flex'; document.getElementById('saveScriptBtn').style.display = 'none'; document.getElementById('cancelEditBtn').style.display = 'none'; };
-    document.getElementById('cancelEditBtn').onclick = () => { isEditing = false; loadScript(currentScriptId); document.getElementById('editScriptBtn').style.display = 'inline-flex'; document.getElementById('saveScriptBtn').style.display = 'none'; document.getElementById('cancelEditBtn').style.display = 'none'; };
-    document.getElementById('copyScriptBtn').onclick = () => { navigator.clipboard.writeText(scripts[currentScriptId].content); showToast('Copied!'); };
-    document.getElementById('addScriptBtnSide').onclick = () => { const n = prompt('Script name:'); if (n) { const id = 'script_' + generateUniqueId(); scripts[id] = { name: n, content: '' }; db.collection('users').doc(currentUser.uid).collection('scripts').doc(id).set({ name: n, content: '' }); renderSidebar(); loadScript(id); } };
-    document.getElementById('csvFileInput').onchange = e => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = ev => { const lines = ev.target.result.split('\n'); for (let i = 1; i < lines.length; i++) { const c = lines[i].split(','); if (c.length >= 4) addAppointment(c[0]?.replace(/"/g,'').trim()||getTodayStr(), c[1]?.replace(/"/g,'').trim(), c[2]?.replace(/"/g,'').trim(), c[3]?.replace(/"/g,'').trim(), c[4]?.replace(/"/g,'').trim()||'', c[5]?.replace(/"/g,'').trim()||'Pending'); } showToast('Imported!'); refreshCurrentView(); }; reader.readAsText(file); e.target.value = ''; };
-    document.addEventListener('click', e => {
-        const tool = e.target.closest('.tool-item'); if (!tool) return;
+
+    // Tools Menu Toggle
+    document.getElementById('toolsHeader')?.addEventListener('click', () => {
+        document.getElementById('toolsMenu').classList.toggle('open');
+        document.getElementById('toolsChevron').classList.toggle('rotated');
+    });
+
+    // Sidebar Toggle
+    document.getElementById('menuToggleBtn')?.addEventListener('click', () => {
+        document.getElementById('mainSidebar').classList.toggle('closed');
+        document.getElementById('mainContent').classList.toggle('expanded');
+    });
+
+    // Close Feature Panel
+    document.getElementById('closeFeaturePanelBtn')?.addEventListener('click', hideFeaturePanel);
+
+    // Quick Report
+    document.getElementById('quickReportBtn')?.addEventListener('click', () => openQuickReportWithDate(getTodayStr()));
+
+    // Bulk Actions
+    document.getElementById('bulkActionsBtn')?.addEventListener('click', showBulkActionsModal);
+
+    // Sign Out
+    document.getElementById('signOutBtn')?.addEventListener('click', signOut);
+
+    // Refresh
+    document.getElementById('refreshBtn')?.addEventListener('click', async () => {
+        if (currentUser) {
+            document.getElementById('refreshBtn').classList.add('spinning');
+            await loadUserData();
+            setTimeout(() => document.getElementById('refreshBtn').classList.remove('spinning'), 1000);
+            showToast('Data refreshed!', 'success');
+        }
+    });
+
+    // Edit Script
+    document.getElementById('editScriptBtn')?.addEventListener('click', () => {
+        if (!currentScriptId || !scripts[currentScriptId]) return;
+        isEditing = true;
+        document.getElementById('scriptContent').innerHTML = `<textarea class="edit-textarea" id="editTextarea">${escapeHtml(scripts[currentScriptId].content)}</textarea>`;
+        document.getElementById('editScriptBtn').style.display = 'none';
+        document.getElementById('saveScriptBtn').style.display = 'inline-flex';
+        document.getElementById('cancelEditBtn').style.display = 'inline-flex';
+    });
+
+    // Save Script
+    document.getElementById('saveScriptBtn')?.addEventListener('click', async () => {
+        const newContent = document.getElementById('editTextarea').value;
+        scripts[currentScriptId].content = newContent;
+        if (typeof db !== 'undefined') {
+            await db.collection('users').doc(currentUser.uid).collection('scripts')
+                .doc(currentScriptId).update({ content: newContent });
+        }
+        isEditing = false;
+        loadScript(currentScriptId);
+        document.getElementById('editScriptBtn').style.display = 'inline-flex';
+        document.getElementById('saveScriptBtn').style.display = 'none';
+        document.getElementById('cancelEditBtn').style.display = 'none';
+        showToast('Script saved!', 'success');
+    });
+
+    // Cancel Edit
+    document.getElementById('cancelEditBtn')?.addEventListener('click', () => {
+        isEditing = false;
+        loadScript(currentScriptId);
+        document.getElementById('editScriptBtn').style.display = 'inline-flex';
+        document.getElementById('saveScriptBtn').style.display = 'none';
+        document.getElementById('cancelEditBtn').style.display = 'none';
+    });
+
+    // Copy Script
+    document.getElementById('copyScriptBtn')?.addEventListener('click', () => {
+        if (scripts[currentScriptId]) {
+            navigator.clipboard.writeText(scripts[currentScriptId].content);
+            showToast('Script copied to clipboard!', 'success');
+        }
+    });
+
+    // Add Script
+    document.getElementById('addScriptBtnSide')?.addEventListener('click', () => {
+        const name = prompt('Script name:');
+        if (name && name.trim()) {
+            const id = 'script_' + generateUniqueId();
+            scripts[id] = { name: name.trim(), content: 'Enter your script content here...' };
+            if (typeof db !== 'undefined') {
+                db.collection('users').doc(currentUser.uid).collection('scripts')
+                    .doc(id).set({ name: name.trim(), content: 'Enter your script content here...' });
+            }
+            renderSidebar();
+            loadScript(id);
+            showToast('Script created!', 'success');
+        }
+    });
+
+    // CSV Upload
+    document.getElementById('csvFileInput')?.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const text = event.target.result;
+            const lines = text.split('\n').filter(l => l.trim());
+            let imported = 0;
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',');
+                if (cols.length >= 4) {
+                    const date = cols[0]?.replace(/"/g, '').trim() || getTodayStr();
+                    const business = cols[1]?.replace(/"/g, '').trim();
+                    const contact = cols[2]?.replace(/"/g, '').trim();
+                    const phone = cols[3]?.replace(/"/g, '').trim();
+                    const time = cols[4]?.replace(/"/g, '').trim() || '';
+                    const status = cols[5]?.replace(/"/g, '').trim() || 'Pending';
+                    const notes = cols[6]?.replace(/"/g, '').trim() || '';
+                    if (business && contact) {
+                        addAppointment(date, business, contact, phone, time, notes, status);
+                        imported++;
+                    }
+                }
+            }
+            showToast(`Imported ${imported} appointments!`, 'success');
+            refreshCurrentView();
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    });
+
+    // Tool Items Navigation
+    document.addEventListener('click', (e) => {
+        const tool = e.target.closest('.tool-item');
+        if (!tool) return;
         const t = tool.dataset.tool;
         if (t === 'calendar') showFeaturePanel('calendar', '📅 Calendar');
         else if (t === 'tasks') showFeaturePanel('tasks', '📋 Tasks');
@@ -1085,7 +1329,18 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (t === 'help') showToast('Handoffs: Warm callback, Completed, Canceled, Pending, Hot transfers integrated!', 'info');
         else if (t === 'reset') { if (confirm('Clear all?')) { localStorage.clear(); location.reload(); } }
     });
+
+    // Appointment Reminders
     setInterval(checkAppointmentReminders, 30000);
     setTimeout(checkAppointmentReminders, 5000);
-    document.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return; const k = parseInt(e.key); if (k >= 1 && k <= 9) { const ids = getOrderedScriptIds(); if (ids[k-1]) loadScript(ids[k-1]); } });
-});
+
+    // Keyboard Shortcuts
+    document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        const k = parseInt(e.key);
+        if (k >= 1 && k <= 9) {
+            const ids = getOrderedScriptIds();
+            if (ids[k-1]) loadScript(ids[k-1]);
+        }
+    });
+}
