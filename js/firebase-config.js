@@ -23,10 +23,11 @@ try {
         firebaseInitialized = true;
     } else {
         firebaseInitialized = true;
+        console.log('✅ Using existing Firebase app');
     }
 } catch (error) {
     console.warn('⚠️ Firebase initialization error:', error.message);
-    // Fallback: Try to use existing app
+    // Try to use existing app
     try {
         if (firebase.apps.length > 0) {
             firebaseInitialized = true;
@@ -41,7 +42,7 @@ try {
     if (firebaseInitialized) {
         db = firebase.firestore();
         
-        // Apply settings with error handling
+        // Apply settings with error handling - FIX: Only use one persistence option
         try {
             db.settings({
                 cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
@@ -51,19 +52,25 @@ try {
             console.warn('Firestore settings already applied:', error);
         }
 
-        // Enable offline persistence with error handling
+        // Enable offline persistence - FIX: Removed experimentalForceOwningTab
         try {
             db.enablePersistence({ 
-                synchronizeTabs: true,
-                experimentalForceOwningTab: true 
+                synchronizeTabs: true
+                // experimentalForceOwningTab removed - cannot be used with synchronizeTabs
             }).catch(err => {
                 // If persistence fails, continue without it
-                if (err.code !== 'failed-precondition' && err.code !== 'unavailable') {
-                    console.warn('Firebase persistence error:', err);
+                if (err.code === 'failed-precondition') {
+                    console.warn('⚠️ Firestore persistence: Multiple tabs open. Using online-only mode.');
+                } else if (err.code === 'unavailable') {
+                    console.warn('⚠️ Firestore persistence: Browser does not support persistence. Using online-only mode.');
+                } else {
+                    console.warn('⚠️ Firestore persistence error:', err);
                 }
+                // Continue without persistence - app will still work
             });
         } catch (err) {
-            console.warn('Firebase persistence setup:', err);
+            console.warn('⚠️ Firestore persistence setup error:', err);
+            // Continue without persistence
         }
 
         // Initialize Auth
@@ -114,8 +121,8 @@ function checkFirebaseConnection() {
     }
 }
 
-// Check connection every 30 seconds
-if (firebaseInitialized) {
+// Check connection every 30 seconds if Firebase is available
+if (firebaseInitialized && db) {
     connectionCheckInterval = setInterval(checkFirebaseConnection, 30000);
     // Initial check after 2 seconds
     setTimeout(checkFirebaseConnection, 2000);
@@ -123,3 +130,4 @@ if (firebaseInitialized) {
 
 console.log('✅ Firebase services ready');
 console.log('📡 Connection monitoring enabled');
+console.log('💾 Offline persistence: ' + (db ? 'enabled (synchronizeTabs)' : 'disabled'));
