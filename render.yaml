@@ -23,9 +23,6 @@ services:
       - path: /*
         name: X-XSS-Protection
         value: 1; mode=block
-      - path: /*
-        name: Referrer-Policy
-        value: strict-origin-when-cross-origin
     healthCheckPath: /
     scaling:
       minInstances: 1
