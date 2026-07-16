@@ -32,6 +32,7 @@ let selectedCalDate = getTodayStr();
 let calendarView = 'calendar';
 
 let currentView = 'calendar';
+let analyticsTab = 'insights'; // 'insights', 'reports', 'team'
 let selectedAppointments = new Set();
 let currentAppointmentId = null;
 
@@ -50,7 +51,8 @@ const DEFAULT_SHORTCUTS = {
     'Export to CSV': { keys: ['Ctrl', 'Shift', 'E'], description: 'Export data to CSV' },
     'Toggle Theme': { keys: ['Ctrl', 'Shift', 'T'], description: 'Toggle Dark/Light Mode' },
     'Refresh Data': { keys: ['Ctrl', 'Shift', 'R'], description: 'Refresh data from server' },
-    'Bulk Actions': { keys: ['Ctrl', 'Shift', 'B'], description: 'Open Bulk Actions' }
+    'Bulk Actions': { keys: ['Ctrl', 'Shift', 'B'], description: 'Open Bulk Actions' },
+    'Close Panel': { keys: ['Escape'], description: 'Close current panel and return to scripts' }
 };
 
 let customShortcuts = JSON.parse(localStorage.getItem('customShortcuts') || '{}');
@@ -79,6 +81,15 @@ const FIELD_MAPPINGS = {
     'notes': ['notes', 'note', 'comment', 'remarks', 'additional notes', 'info', 'details'],
     'assigned': ['assigned', 'assigned to', 'owner', 'agent', 'representative', 'rep', 'assigned agent']
 };
+
+// Team Members Data
+const TEAM_MEMBERS = [
+    { id: 'daniel', name: 'Daniel', role: 'Team Lead', avatar: '👨‍💼', color: '#3b82f6' },
+    { id: 'sarah', name: 'Sarah', role: 'Senior Agent', avatar: '👩‍💼', color: '#8b5cf6' },
+    { id: 'mike', name: 'Mike', role: 'Agent', avatar: '👨‍💻', color: '#10b981' },
+    { id: 'jessica', name: 'Jessica', role: 'Agent', avatar: '👩‍💻', color: '#f59e0b' },
+    { id: 'david', name: 'David', role: 'Junior Agent', avatar: '👨‍🎓', color: '#ef4444' }
+];
 
 // ============================================================
 // UTILITY HELPERS
@@ -232,6 +243,34 @@ function setText(id, text) {
 function setHTML(id, html) {
     const el = getEl(id);
     if (el) el.innerHTML = html;
+}
+
+// ============================================================
+// ESC KEY HANDLER - Return to Opening Script
+// ============================================================
+
+function handleEscapeKey() {
+    if (isEditing) {
+        cancelEdit();
+        return true;
+    }
+    
+    const featurePanel = getEl('featurePanel');
+    if (featurePanel && featurePanel.style.display !== 'none') {
+        hideFeaturePanel();
+        loadScript('opening');
+        showToast('Returned to Opening Script', 'info');
+        return true;
+    }
+    
+    // Close any open modals
+    const openModals = document.querySelectorAll('.modal-overlay');
+    openModals.forEach(modal => {
+        if (modal.style.display !== 'none') {
+            modal.style.display = 'none';
+        }
+    });
+    return true;
 }
 
 // ============================================================
@@ -1445,9 +1484,9 @@ function showFeaturePanel(featureType, title) {
         } else if (featureType === 'analytics') {
             html = `
                 <div class="view-toggle" id="analyticsTabContainer">
-                    <button id="insightsTabBtn" class="view-btn active">📊 Insights</button>
-                    <button id="reportsTabBtn" class="view-btn">📈 Reports</button>
-                    <button id="teamTabBtn" class="view-btn">👥 Team</button>
+                    <button id="insightsTabBtn" class="view-btn ${analyticsTab === 'insights' ? 'active' : ''}">📊 Insights</button>
+                    <button id="reportsTabBtn" class="view-btn ${analyticsTab === 'reports' ? 'active' : ''}">📈 Reports</button>
+                    <button id="teamTabBtn" class="view-btn ${analyticsTab === 'team' ? 'active' : ''}">👥 Team</button>
                 </div>
             `;
         } else if (featureType === 'tasks') {
@@ -1467,6 +1506,41 @@ function showFeaturePanel(featureType, title) {
             `;
         }
         container.innerHTML = html;
+        
+        // Attach event listeners for analytics tabs
+        if (featureType === 'analytics') {
+            const insightsBtn = getEl('insightsTabBtn');
+            const reportsBtn = getEl('reportsTabBtn');
+            const teamBtn = getEl('teamTabBtn');
+            
+            if (insightsBtn) {
+                insightsBtn.addEventListener('click', () => {
+                    analyticsTab = 'insights';
+                    insightsBtn.classList.add('active');
+                    if (reportsBtn) reportsBtn.classList.remove('active');
+                    if (teamBtn) teamBtn.classList.remove('active');
+                    renderAnalyticsHub(featureBody);
+                });
+            }
+            if (reportsBtn) {
+                reportsBtn.addEventListener('click', () => {
+                    analyticsTab = 'reports';
+                    reportsBtn.classList.add('active');
+                    if (insightsBtn) insightsBtn.classList.remove('active');
+                    if (teamBtn) teamBtn.classList.remove('active');
+                    renderAnalyticsHub(featureBody);
+                });
+            }
+            if (teamBtn) {
+                teamBtn.addEventListener('click', () => {
+                    analyticsTab = 'team';
+                    teamBtn.classList.add('active');
+                    if (insightsBtn) insightsBtn.classList.remove('active');
+                    if (reportsBtn) reportsBtn.classList.remove('active');
+                    renderAnalyticsHub(featureBody);
+                });
+            }
+        }
     }
     
     scriptPanel.style.display = 'none';
@@ -1502,13 +1576,453 @@ function refreshCurrentView() {
 }
 
 // ============================================================
+// ANALYTICS HUB WITH ALL TABS
+// ============================================================
+
+function renderAnalyticsHub(container) {
+    if (!container) return;
+    
+    if (analyticsTab === 'insights') {
+        renderAnalyticsInsights(container);
+    } else if (analyticsTab === 'reports') {
+        renderAnalyticsReports(container);
+    } else if (analyticsTab === 'team') {
+        renderAnalyticsTeam(container);
+    }
+}
+
+// ============================================================
+// ANALYTICS - INSIGHTS TAB
+// ============================================================
+
+function renderAnalyticsInsights(container) {
+    let total = 0, hTransfers = 0, wCallbacks = 0, completedCount = 0, pendingCount = 0, canceledCount = 0;
+    let statusCounts = {};
+    let dailyData = {};
+    
+    for (let date in appointments) {
+        if (appointments[date].reports) {
+            appointments[date].reports.forEach(a => {
+                total++;
+                const status = getStatus(a);
+                statusCounts[status] = (statusCounts[status] || 0) + 1;
+                if (status === 'Hot Transfer') hTransfers++;
+                else if (status === 'Warm Callback') wCallbacks++;
+                else if (status === 'Completed') completedCount++;
+                else if (status === 'Pending') pendingCount++;
+                else if (status === 'Canceled') canceledCount++;
+                dailyData[date] = (dailyData[date] || 0) + 1;
+            });
+        }
+    }
+
+    const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+    const hotTransferRate = total > 0 ? Math.round((hTransfers / total) * 100) : 0;
+    const warmCallbackRate = total > 0 ? Math.round((wCallbacks / total) * 100) : 0;
+
+    container.innerHTML = `
+        <div class="analytics-container fade-in">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
+                <h3><i class="fas fa-chart-pie"></i> Pipeline Insights Dashboard</h3>
+                <span class="version-chip"><i class="fas fa-sync-alt"></i> Live Data</span>
+            </div>
+            
+            <div class="analytics-filters slide-up">
+                <label>Date Range</label>
+                <input type="date" id="analyticsStartDate" value="${getTodayStr()}" />
+                <input type="date" id="analyticsEndDate" value="${getTodayStr()}" />
+                <label>View</label>
+                <select id="analyticsViewSelect">
+                    <option value="overview">Overview</option>
+                    <option value="status">By Status</option>
+                </select>
+                <button id="analyticsApplyFilters" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-filter"></i> Apply</button>
+                <button id="analyticsExportPDF" class="btn-icon" style="background:var(--secondary); color:white;"><i class="fas fa-file-pdf"></i> Export PDF</button>
+            </div>
+            
+            <div class="report-metrics scale-in">
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">Total Pipeline</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--text-muted);">${pendingCount}</div><div class="metric-label">⏳ Pending</div></div>
+            </div>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div class="feature-card slide-up">
+                    <h4>📊 Conversion Rates</h4>
+                    <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
+                        <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Completed Rate</span><span>${conversionRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--success); width:${conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
+                        <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Hot Transfer Rate</span><span>${hotTransferRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:#dc2626; width:${hotTransferRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
+                        <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Warm Callback Rate</span><span>${warmCallbackRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--warning); width:${warmCallbackRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
+                    </div>
+                </div>
+                
+                <div class="feature-card slide-up">
+                    <h4>📈 Status Distribution</h4>
+                    <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px; max-height:200px; overflow-y:auto;">
+                        ${Object.entries(statusCounts).map(([status, count]) => `
+                            <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px; transition:all 0.3s ease;">
+                                <span>${status}</span>
+                                <span style="font-weight:600;">${count} (${Math.round((count/total)*100)}%)</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="feature-card scale-in" style="margin-top:8px;">
+                <h4>📈 Appointment Trend</h4>
+                <div class="chart-container" style="height:200px;">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;">
+                <div class="feature-card scale-in">
+                    <h4>🍩 Status Distribution</h4>
+                    <div class="chart-container-sm" style="height:180px;">
+                        <canvas id="donutChart"></canvas>
+                    </div>
+                </div>
+                <div class="feature-card scale-in">
+                    <h4>📊 Weekly Performance</h4>
+                    <div class="chart-container-sm" style="height:180px;">
+                        <canvas id="barChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    setTimeout(() => {
+        initAnalyticsCharts(dailyData, statusCounts);
+    }, 200);
+
+    const applyBtn = getEl('analyticsApplyFilters');
+    const exportBtn = getEl('analyticsExportPDF');
+    if (applyBtn) applyBtn.addEventListener('click', () => showToast('Filters applied', 'info'));
+    if (exportBtn) exportBtn.addEventListener('click', () => showToast('PDF export coming soon!', 'info'));
+}
+
+// ============================================================
+// ANALYTICS - REPORTS TAB
+// ============================================================
+
+function renderAnalyticsReports(container) {
+    let total = 0, completedCount = 0, hTransfers = 0, wCallbacks = 0;
+    let dailyData = {};
+    let assignedStats = {};
+    
+    for (let date in appointments) {
+        if (appointments[date].reports) {
+            appointments[date].reports.forEach(a => {
+                total++;
+                const status = getStatus(a);
+                if (status === 'Completed') completedCount++;
+                if (status === 'Hot Transfer') hTransfers++;
+                if (status === 'Warm Callback') wCallbacks++;
+                dailyData[date] = (dailyData[date] || 0) + 1;
+                
+                const assigned = a.assigned || 'Unassigned';
+                assignedStats[assigned] = (assignedStats[assigned] || 0) + 1;
+            });
+        }
+    }
+
+    const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+    const avgScore = getAverageScore();
+
+    container.innerHTML = `
+        <div class="analytics-container fade-in">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
+                <h3><i class="fas fa-chart-line"></i> Advanced Reports</h3>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button id="reportsExportCSV" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-file-csv"></i> Export CSV</button>
+                    <button id="reportsExportPDF" class="btn-icon" style="background:var(--secondary); color:white;"><i class="fas fa-file-pdf"></i> Export PDF</button>
+                </div>
+            </div>
+            
+            <div class="report-metrics scale-in">
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">Total Appointments</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--primary);">${conversionRate}%</div><div class="metric-label">Conversion Rate</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--secondary);">${avgScore}</div><div class="metric-label">Avg Lead Score</div></div>
+            </div>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div class="feature-card slide-up">
+                    <h4>📈 Daily Trend</h4>
+                    <div class="chart-container" style="height:180px;">
+                        <canvas id="reportsTrendChart"></canvas>
+                    </div>
+                </div>
+                <div class="feature-card slide-up">
+                    <h4>👤 Assigned Distribution</h4>
+                    <div class="chart-container" style="height:180px;">
+                        <canvas id="reportsAssignedChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="feature-card scale-in">
+                <h4>📋 Detailed Breakdown</h4>
+                <div style="overflow-x:auto; margin-top:8px;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                        <thead>
+                            <tr style="border-bottom:2px solid var(--border-color);">
+                                <th style="padding:8px; text-align:left;">Metric</th>
+                                <th style="padding:8px; text-align:center;">Count</th>
+                                <th style="padding:8px; text-align:center;">Percentage</th>
+                                <th style="padding:8px; text-align:center;">Trend</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${Object.entries(assignedStats).map(([name, count]) => `
+                                <tr style="border-bottom:1px solid var(--border-color);">
+                                    <td style="padding:8px; font-weight:500;">${name}</td>
+                                    <td style="padding:8px; text-align:center;">${count}</td>
+                                    <td style="padding:8px; text-align:center;">${Math.round((count/total)*100)}%</td>
+                                    <td style="padding:8px; text-align:center;">${count > total/2 ? '📈' : count > total/4 ? '➡️' : '📉'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+
+    setTimeout(() => {
+        const trendCtx = getEl('reportsTrendChart')?.getContext('2d');
+        if (trendCtx) {
+            const dates = Object.keys(dailyData).sort().slice(-7);
+            const values = dates.map(d => dailyData[d]);
+            new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: dates.map(d => formatDate(d)),
+                    datasets: [{ label: 'Appointments', data: values, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            });
+        }
+        
+        const assignedCtx = getEl('reportsAssignedChart')?.getContext('2d');
+        if (assignedCtx) {
+            const labels = Object.keys(assignedStats);
+            const data = Object.values(assignedStats);
+            const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#f97316'];
+            new Chart(assignedCtx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{ label: 'Appointments', data: data, backgroundColor: colors.slice(0, labels.length), borderRadius: 4 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            });
+        }
+    }, 200);
+
+    const exportCSV = getEl('reportsExportCSV');
+    const exportPDF = getEl('reportsExportPDF');
+    if (exportCSV) exportCSV.addEventListener('click', () => showToast('CSV export coming soon!', 'info'));
+    if (exportPDF) exportPDF.addEventListener('click', () => showToast('PDF export coming soon!', 'info'));
+}
+
+// ============================================================
+// ANALYTICS - TEAM TAB
+// ============================================================
+
+function renderAnalyticsTeam(container) {
+    let teamStats = {};
+    TEAM_MEMBERS.forEach(member => {
+        teamStats[member.id] = {
+            ...member,
+            appointments: 0,
+            completed: 0,
+            hotTransfers: 0,
+            warmCallbacks: 0,
+            score: 0
+        };
+    });
+
+    let totalAppts = 0;
+    for (let date in appointments) {
+        if (appointments[date].reports) {
+            appointments[date].reports.forEach(a => {
+                totalAppts++;
+                const assigned = a.assigned || 'unassigned';
+                const status = getStatus(a);
+                
+                if (teamStats[assigned]) {
+                    teamStats[assigned].appointments++;
+                    if (status === 'Completed') teamStats[assigned].completed++;
+                    if (status === 'Hot Transfer') teamStats[assigned].hotTransfers++;
+                    if (status === 'Warm Callback') teamStats[assigned].warmCallbacks++;
+                    teamStats[assigned].score += calculateLeadScore(a);
+                }
+            });
+        }
+    }
+
+    Object.values(teamStats).forEach(member => {
+        if (member.appointments > 0) {
+            member.score = Math.round(member.score / member.appointments);
+        }
+        member.conversionRate = member.appointments > 0 ? Math.round((member.completed / member.appointments) * 100) : 0;
+    });
+
+    const topPerformer = Object.values(teamStats).sort((a, b) => b.score - a.score)[0];
+
+    container.innerHTML = `
+        <div class="analytics-container fade-in">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
+                <h3><i class="fas fa-users"></i> Team Performance Dashboard</h3>
+                <span class="version-chip"><i class="fas fa-crown"></i> ${topPerformer ? `${topPerformer.avatar} ${topPerformer.name} is leading!` : 'No data yet'}</span>
+            </div>
+            
+            <div class="report-metrics scale-in">
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${TEAM_MEMBERS.length}</div><div class="metric-label">👥 Team Members</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${totalAppts}</div><div class="metric-label">📋 Total Appointments</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--primary);">${topPerformer ? topPerformer.score : 0}</div><div class="metric-label">🏆 Top Score</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${topPerformer ? topPerformer.conversionRate : 0}%</div><div class="metric-label">📈 Top Conversion</div></div>
+            </div>
+            
+            <div class="feature-card slide-up">
+                <h4>👤 Team Member Performance</h4>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-top:12px;">
+                    ${Object.values(teamStats).map(member => `
+                        <div style="background:var(--bg-primary); border-radius:12px; padding:16px; border-left: 4px solid ${member.color}; transition:all 0.3s ease;">
+                            <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+                                <span style="font-size:2rem;">${member.avatar}</span>
+                                <div>
+                                    <div style="font-weight:600;">${member.name}</div>
+                                    <div style="font-size:0.7rem; color:var(--text-muted);">${member.role}</div>
+                                </div>
+                                ${member.id === topPerformer?.id ? '<span style="margin-left:auto; font-size:1.2rem;">👑</span>' : ''}
+                            </div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:0.8rem;">
+                                <span>📋 ${member.appointments}</span>
+                                <span>✅ ${member.completed}</span>
+                                <span>🔥 ${member.hotTransfers}</span>
+                                <span>📞 ${member.warmCallbacks}</span>
+                                <span style="font-weight:600;">Score: ${member.score}</span>
+                                <span style="font-weight:600;">Conv: ${member.conversionRate}%</span>
+                            </div>
+                            <div style="margin-top:8px; background:var(--bg-card); height:4px; border-radius:4px; overflow:hidden;">
+                                <div style="background:${member.color}; width:${member.conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <div class="feature-card scale-in">
+                <h4>📊 Team Performance Chart</h4>
+                <div class="chart-container" style="height:200px;">
+                    <canvas id="teamChart"></canvas>
+                </div>
+            </div>
+        </div>
+    `;
+
+    setTimeout(() => {
+        const teamCtx = getEl('teamChart')?.getContext('2d');
+        if (teamCtx) {
+            const labels = Object.values(teamStats).map(m => m.name);
+            const scores = Object.values(teamStats).map(m => m.score);
+            const colors = Object.values(teamStats).map(m => m.color);
+            new Chart(teamCtx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Lead Score',
+                        data: scores,
+                        backgroundColor: colors.map(c => c + '80'),
+                        borderColor: colors,
+                        borderWidth: 2,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+    }, 200);
+}
+
+// ============================================================
+// ANALYTICS - CHART HELPERS
+// ============================================================
+
+function initAnalyticsCharts(dailyData, statusCounts) {
+    Object.values(chartInstances).forEach(chart => { if (chart) chart.destroy(); });
+    chartInstances = {};
+    const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#f97316', '#06b6d4', '#ec4899'];
+
+    const trendCtx = getEl('trendChart')?.getContext('2d');
+    if (trendCtx) {
+        const dates = Object.keys(dailyData).sort();
+        const values = dates.map(d => dailyData[d]);
+        chartInstances.trend = new Chart(trendCtx, {
+            type: 'line',
+            data: { labels: dates.map(d => formatDate(d)), datasets: [{ label: 'Appointments', data: values, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        });
+    }
+
+    const donutCtx = getEl('donutChart')?.getContext('2d');
+    if (donutCtx) {
+        const labels = Object.keys(statusCounts);
+        const data = Object.values(statusCounts);
+        const backgroundColors = labels.map((_, i) => colors[i % colors.length]);
+        chartInstances.donut = new Chart(donutCtx, {
+            type: 'doughnut',
+            data: { labels, datasets: [{ data, backgroundColor: backgroundColors, borderWidth: 2, borderColor: 'var(--bg-secondary)' }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 10 } } } }, cutout: '60%' }
+        });
+    }
+
+    const barCtx = getEl('barChart')?.getContext('2d');
+    if (barCtx) {
+        const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const weekData = weekDays.map(() => 0);
+        const now = new Date();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+        for (let date in dailyData) {
+            const d = new Date(date);
+            const dayIndex = (d.getDay() + 6) % 7;
+            if (d >= startOfWeek && d <= now) weekData[dayIndex] += dailyData[date];
+        }
+        chartInstances.bar = new Chart(barCtx, {
+            type: 'bar',
+            data: { labels: weekDays, datasets: [{ label: 'This Week', data: weekData, backgroundColor: 'rgba(59,130,246,0.7)', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        });
+    }
+}
+
+// ============================================================
 // SHORTCUTS PANEL
 // ============================================================
 
 function renderShortcutsPanel(container) {
     if (!container) return;
     container.innerHTML = `
-        <div class="shortcuts-container">
+        <div class="shortcuts-container fade-in">
             <h3><i class="fas fa-keyboard"></i> Keyboard Shortcuts Manager</h3>
             <p style="color:var(--text-muted); margin-bottom:16px;">View and customize keyboard shortcuts for quick access to features.</p>
             <div style="margin-bottom:16px; display:flex; gap:8px; flex-wrap:wrap;">
@@ -1532,7 +2046,7 @@ function renderTasksPanel(container) {
     const filteredTasks = taskFilter === 'all' ? tasks : tasks.filter(t => !t.completed);
     
     container.innerHTML = `
-        <div class="tasks-section">
+        <div class="tasks-section fade-in">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
                 <h3><i class="fas fa-tasks"></i> Follow-up Tasks</h3>
                 <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
@@ -1654,7 +2168,7 @@ function renderCalendarPanel(container) {
     };
 
     container.innerHTML = `
-        <div class="calendar-section">
+        <div class="calendar-section fade-in">
             <div class="calendar-nav">
                 <h3><i class="fas fa-calendar-alt"></i> ${new Date(year, month).toLocaleString('default', { month: 'long' })} ${year}</h3>
                 <div class="calendar-nav-actions">
@@ -1780,7 +2294,7 @@ function renderListView(container) {
     allAppointments.sort((a, b) => new Date(a.dateKey) - new Date(b.dateKey));
 
     container.innerHTML = `
-        <div class="list-view-container">
+        <div class="list-view-container fade-in">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
                 <h4><i class="fas fa-list"></i> All Appointments (${allAppointments.length})</h4>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -1860,167 +2374,6 @@ function filterListItems() {
 }
 
 // ============================================================
-// ANALYTICS HUB
-// ============================================================
-
-function renderAnalyticsHub(container) {
-    if (!container) return;
-    let total = 0, hTransfers = 0, wCallbacks = 0, completedCount = 0, pendingCount = 0, canceledCount = 0;
-    let statusCounts = {};
-    let dailyData = {};
-    
-    for (let date in appointments) {
-        if (appointments[date].reports) {
-            appointments[date].reports.forEach(a => {
-                total++;
-                const status = getStatus(a);
-                statusCounts[status] = (statusCounts[status] || 0) + 1;
-                if (status === 'Hot Transfer') hTransfers++;
-                else if (status === 'Warm Callback') wCallbacks++;
-                else if (status === 'Completed') completedCount++;
-                else if (status === 'Pending') pendingCount++;
-                else if (status === 'Canceled') canceledCount++;
-                dailyData[date] = (dailyData[date] || 0) + 1;
-            });
-        }
-    }
-
-    const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
-    const hotTransferRate = total > 0 ? Math.round((hTransfers / total) * 100) : 0;
-    const warmCallbackRate = total > 0 ? Math.round((wCallbacks / total) * 100) : 0;
-
-    container.innerHTML = `
-        <div class="analytics-container">
-            <h3><i class="fas fa-chart-pie"></i> Pipeline Performance Dashboard</h3>
-            
-            <div class="analytics-filters">
-                <label>Date Range</label>
-                <input type="date" id="analyticsStartDate" value="${getTodayStr()}" />
-                <input type="date" id="analyticsEndDate" value="${getTodayStr()}" />
-                <label>View</label>
-                <select id="analyticsViewSelect">
-                    <option value="overview">Overview</option>
-                    <option value="status">By Status</option>
-                    <option value="team">Team Performance</option>
-                </select>
-                <button id="analyticsApplyFilters" class="btn-icon" style="background:var(--primary); color:white;">Apply</button>
-                <button id="analyticsExportPDF" class="btn-icon" style="background:var(--secondary); color:white;"><i class="fas fa-file-pdf"></i> Export PDF</button>
-            </div>
-            
-            <div class="report-metrics">
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">Total Pipeline</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--text-muted);">${pendingCount}</div><div class="metric-label">⏳ Pending</div></div>
-            </div>
-            
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-                <div class="feature-card">
-                    <h4>📊 Conversion Rates</h4>
-                    <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
-                        <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Completed Rate</span><span>${conversionRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px;"><div style="background:var(--success); width:${conversionRate}%; height:100%; border-radius:4px; transition:width 0.5s;"></div></div></div>
-                        <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Hot Transfer Rate</span><span>${hotTransferRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px;"><div style="background:#dc2626; width:${hotTransferRate}%; height:100%; border-radius:4px; transition:width 0.5s;"></div></div></div>
-                        <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Warm Callback Rate</span><span>${warmCallbackRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px;"><div style="background:var(--warning); width:${warmCallbackRate}%; height:100%; border-radius:4px; transition:width 0.5s;"></div></div></div>
-                    </div>
-                </div>
-                
-                <div class="feature-card">
-                    <h4>📈 Status Distribution</h4>
-                    <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px; max-height:200px; overflow-y:auto;">
-                        ${Object.entries(statusCounts).map(([status, count]) => `
-                            <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px;">
-                                <span>${status}</span>
-                                <span style="font-weight:600;">${count} (${Math.round((count/total)*100)}%)</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-            
-            <div class="feature-card" style="margin-top:8px;">
-                <h4>📈 Appointment Trend</h4>
-                <div class="chart-container" style="height:200px;">
-                    <canvas id="trendChart"></canvas>
-                </div>
-            </div>
-            
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;">
-                <div class="feature-card">
-                    <h4>🍩 Status Distribution</h4>
-                    <div class="chart-container-sm" style="height:180px;">
-                        <canvas id="donutChart"></canvas>
-                    </div>
-                </div>
-                <div class="feature-card">
-                    <h4>📊 Weekly Performance</h4>
-                    <div class="chart-container-sm" style="height:180px;">
-                        <canvas id="barChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    setTimeout(() => {
-        initAnalyticsCharts(dailyData, statusCounts);
-    }, 100);
-
-    const applyBtn = getEl('analyticsApplyFilters');
-    const exportBtn = getEl('analyticsExportPDF');
-    if (applyBtn) applyBtn.addEventListener('click', () => showToast('Filters applied', 'info'));
-    if (exportBtn) exportBtn.addEventListener('click', () => showToast('PDF export coming soon!', 'info'));
-}
-
-function initAnalyticsCharts(dailyData, statusCounts) {
-    Object.values(chartInstances).forEach(chart => { if (chart) chart.destroy(); });
-    chartInstances = {};
-    const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#f97316', '#06b6d4', '#ec4899'];
-
-    const trendCtx = getEl('trendChart')?.getContext('2d');
-    if (trendCtx) {
-        const dates = Object.keys(dailyData).sort();
-        const values = dates.map(d => dailyData[d]);
-        chartInstances.trend = new Chart(trendCtx, {
-            type: 'line',
-            data: { labels: dates.map(d => formatDate(d)), datasets: [{ label: 'Appointments', data: values, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-        });
-    }
-
-    const donutCtx = getEl('donutChart')?.getContext('2d');
-    if (donutCtx) {
-        const labels = Object.keys(statusCounts);
-        const data = Object.values(statusCounts);
-        const backgroundColors = labels.map((_, i) => colors[i % colors.length]);
-        chartInstances.donut = new Chart(donutCtx, {
-            type: 'doughnut',
-            data: { labels, datasets: [{ data, backgroundColor: backgroundColors, borderWidth: 2, borderColor: 'var(--bg-secondary)' }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 10 } } } }, cutout: '60%' }
-        });
-    }
-
-    const barCtx = getEl('barChart')?.getContext('2d');
-    if (barCtx) {
-        const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-        const weekData = weekDays.map(() => 0);
-        const now = new Date();
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay() + 1);
-        for (let date in dailyData) {
-            const d = new Date(date);
-            const dayIndex = (d.getDay() + 6) % 7;
-            if (d >= startOfWeek && d <= now) weekData[dayIndex] += dailyData[date];
-        }
-        chartInstances.bar = new Chart(barCtx, {
-            type: 'bar',
-            data: { labels: weekDays, datasets: [{ label: 'This Week', data: weekData, backgroundColor: 'rgba(59,130,246,0.7)', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-        });
-    }
-}
-
-// ============================================================
 // BULK ACTIONS
 // ============================================================
 
@@ -2083,6 +2436,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // ESC Key Handler
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            handleEscapeKey();
+        }
+    });
+
     // Tool Items
     document.querySelectorAll('.tool-item').forEach(item => {
         item.addEventListener('click', function() {
@@ -2090,7 +2450,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (tool === 'notepad') showToast('📝 Notes feature coming soon!', 'info');
             else if (tool === 'calendar') showFeaturePanel('calendar', '📅 Appointment & Handoff Calendar');
             else if (tool === 'tasks') showFeaturePanel('tasks', '📋 Follow-up Tasks Manager');
-            else if (tool === 'analytics') showFeaturePanel('analytics', '📊 Pipeline Performance');
+            else if (tool === 'analytics') {
+                analyticsTab = 'insights';
+                showFeaturePanel('analytics', '📊 Analytics Hub');
+            }
             else if (tool === 'shortcuts') showFeaturePanel('shortcuts', '⌨️ Keyboard Shortcuts');
             else if (tool === 'theme') { document.body.classList.toggle('dark'); showToast('Theme toggled', 'info'); }
             else if (tool === 'help') showToast('Handoffs: Warm Callback, Completed, Canceled, Pending, Hot Transfer - All integrated!', 'info');
@@ -2106,7 +2469,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Close Feature Panel
     const closeFeatureBtn = getEl('closeFeaturePanelBtn');
-    if (closeFeatureBtn) closeFeatureBtn.addEventListener('click', hideFeaturePanel);
+    if (closeFeatureBtn) closeFeatureBtn.addEventListener('click', () => {
+        hideFeaturePanel();
+        loadScript('opening');
+    });
 
     // Smart Import
     const quickReportBtn = getEl('quickReportBtn');
@@ -2455,16 +2821,17 @@ document.addEventListener('DOMContentLoaded', function() {
         switch(action) {
             case 'Smart Import': openSmartImport(); break;
             case 'Appointment Calendar': showFeaturePanel('calendar', '📅 Appointment & Handoff Calendar'); break;
-            case 'Call Scripts': hideFeaturePanel(); break;
+            case 'Call Scripts': hideFeaturePanel(); loadScript('opening'); break;
             case 'Global Search': openGlobalSearch(); break;
             case 'Quick Add Appointment': openQuickReportWithDate(getTodayStr()); break;
             case 'Floating Notepad': showToast('📝 Notes feature coming soon!', 'info'); break;
-            case 'Analytics Hub': showFeaturePanel('analytics', '📊 Pipeline Performance'); break;
+            case 'Analytics Hub': analyticsTab = 'insights'; showFeaturePanel('analytics', '📊 Analytics Hub'); break;
             case 'Keyboard Shortcuts': showFeaturePanel('shortcuts', '⌨️ Keyboard Shortcuts'); break;
             case 'Export to CSV': exportToCSV(); break;
             case 'Toggle Theme': document.body.classList.toggle('dark'); showToast('Theme toggled', 'info'); break;
             case 'Refresh Data': { const btn = getEl('refreshBtn'); if (btn) btn.click(); break; }
             case 'Bulk Actions': openBulkActions(); break;
+            case 'Close Panel': handleEscapeKey(); break;
             default: showToast(`Action: ${action}`, 'info');
         }
     }
@@ -2487,7 +2854,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Close modals with Escape key
+    // Close modals with Escape key (already handled above)
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             document.querySelectorAll('.modal-overlay').forEach(modal => {
@@ -2502,4 +2869,6 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('🎯 Drag & drop enabled for scripts and appointments');
     console.log('✨ Smart import ready with field validation');
     console.log('⌨️ Keyboard shortcuts loaded:', Object.keys(shortcuts).length);
+    console.log('📈 Analytics tabs: Insights, Reports, Team');
+    console.log('🔑 Press ESC to return to Opening Script');
 });
