@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE CENTRALIZED APPLICATION
+// SCRIPTFLOW PRO - COMPLETE APPLICATION
 // ================================================================
 
 // ============================================================
@@ -47,7 +47,10 @@ try {
     isFirebaseReady = false;
 }
 
-// Keyboard Shortcuts
+// ============================================================
+// KEYBOARD SHORTCUTS
+// ============================================================
+
 const DEFAULT_SHORTCUTS = {
     'Smart Import': { keys: ['Ctrl', 'Shift', 'I'], description: 'Open Smart Import modal' },
     'Appointment Calendar': { keys: ['Ctrl', 'Shift', 'C'], description: 'Open Appointment Calendar' },
@@ -65,6 +68,10 @@ const DEFAULT_SHORTCUTS = {
 
 let customShortcuts = JSON.parse(localStorage.getItem('customShortcuts') || '{}');
 let shortcuts = { ...DEFAULT_SHORTCUTS, ...customShortcuts };
+
+// ============================================================
+// CONSTANTS
+// ============================================================
 
 const STATUS_OPTIONS = [
     'Warm Callback', 'Completed', 'Canceled', 'Pending', 'Hot Transfer',
@@ -90,7 +97,6 @@ const FIELD_MAPPINGS = {
     'assigned': ['assigned', 'assigned to', 'owner', 'agent', 'representative', 'rep', 'assigned agent']
 };
 
-// Team Members Data
 const TEAM_MEMBERS = [
     { id: 'daniel', name: 'Daniel', role: 'Team Lead', avatar: '👨‍💼', color: '#3b82f6' },
     { id: 'sarah', name: 'Sarah', role: 'Senior Agent', avatar: '👩‍💼', color: '#8b5cf6' },
@@ -220,15 +226,13 @@ function handleError(error, context = '') {
         message = 'Incorrect password. Please try again.';
     } else if (error.message) {
         message = error.message;
-    } else if (error.toString().includes('ERR_BLOCKED_BY_CLIENT')) {
-        message = 'Network request blocked. Please disable ad blockers or privacy extensions.';
     }
     showToast(message, 'error');
     return { success: false, message };
 }
 
 // ============================================================
-// DOM ELEMENT SAFETY HELPERS
+// DOM HELPERS
 // ============================================================
 
 function getEl(id) {
@@ -270,18 +274,6 @@ function handleEscapeKey() {
         }
     });
     return true;
-}
-
-// ============================================================
-// FALLBACK FUNCTIONS FOR OFFLINE MODE
-// ============================================================
-
-function isFirebaseAvailable() {
-    try {
-        return typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
-    } catch (e) {
-        return false;
-    }
 }
 
 // ============================================================
@@ -492,7 +484,7 @@ function saveScriptContent(content) {
         version: (script.version || 1) + 1
     };
     
-    if (isFirebaseAvailable()) {
+    if (isFirebaseReady) {
         db.collection('users').doc(currentUser.uid).collection('scripts').doc(currentScriptId).set(updatedScript, { merge: true })
             .then(() => {
                 scripts[currentScriptId] = updatedScript;
@@ -500,10 +492,9 @@ function saveScriptContent(content) {
             })
             .catch(err => handleError(err, 'Saving script'));
     } else {
-        // Fallback: save locally
         scripts[currentScriptId] = updatedScript;
         localStorage.setItem('scripts_fallback', JSON.stringify(scripts));
-        showToast('Script saved locally (offline mode)', 'info');
+        showToast('Script saved locally', 'info');
     }
 }
 
@@ -538,7 +529,7 @@ function cancelEdit() {
 }
 
 // ============================================================
-// AUTHENTICATION - With Fallbacks
+// AUTHENTICATION
 // ============================================================
 
 function updateSidebarProfile(user) {
@@ -550,7 +541,7 @@ function updateSidebarProfile(user) {
 }
 
 async function signInWithGoogle() {
-    if (!isFirebaseAvailable()) {
+    if (!isFirebaseReady) {
         showToast('Firebase is not available. Please check your connection.', 'error');
         return false;
     }
@@ -577,7 +568,7 @@ async function signInWithGoogle() {
 }
 
 async function signUp(email, password, username) {
-    if (!isFirebaseAvailable()) {
+    if (!isFirebaseReady) {
         showToast('Firebase is not available. Please check your connection.', 'error');
         return false;
     }
@@ -612,7 +603,7 @@ async function signUp(email, password, username) {
 }
 
 async function signIn(email, password) {
-    if (!isFirebaseAvailable()) {
+    if (!isFirebaseReady) {
         showToast('Firebase is not available. Please check your connection.', 'error');
         return false;
     }
@@ -649,7 +640,7 @@ async function signOut() {
         updateSidebarProfile(null);
         updateStats();
         renderSidebar();
-        if (isFirebaseAvailable()) {
+        if (isFirebaseReady) {
             await auth.signOut();
         }
         showToast('Signed out successfully', 'info');
@@ -676,7 +667,7 @@ function showAuthModal() {
             <p style="text-align:center; color:var(--text-muted); margin-bottom:20px; font-size:0.9rem;">
                 Sign in to manage and hand off your leads
             </p>
-            ${isFirebaseAvailable() ? `
+            ${isFirebaseReady ? `
             <button id="googleSignInBtn" class="btn-icon" style="width:100%; justify-content:center; background:#ffffff; color:#333; border:1px solid #dadce0; margin-bottom:16px; padding:10px;">
                 <svg style="width:18px; height:18px; margin-right:8px;" viewBox="0 0 48 48">
                     <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -689,7 +680,7 @@ function showAuthModal() {
             <div class="auth-divider">or continue with email</div>
             ` : `
             <div style="padding:16px; background:var(--warning); border-radius:12px; margin-bottom:16px; color:#1e293b;">
-                ⚠️ Offline Mode - Firebase connection unavailable. Please check your internet connection and disable any ad blockers.
+                ⚠️ Offline Mode - Firebase connection unavailable
             </div>
             `}
             <div id="authFormContainer">
@@ -700,13 +691,13 @@ function showAuthModal() {
                 <div id="loginForm">
                     <div class="form-group"><label>Email</label><input type="email" id="loginEmailInput" placeholder="you@example.com" /></div>
                     <div class="form-group"><label>Password</label><input type="password" id="loginPasswordInput" placeholder="••••••••" /></div>
-                    <button id="loginBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--primary); color:white;" ${!isFirebaseAvailable() ? 'disabled' : ''}><i class="fas fa-sign-in-alt"></i> Sign In</button>
+                    <button id="loginBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--primary); color:white;" ${!isFirebaseReady ? 'disabled' : ''}><i class="fas fa-sign-in-alt"></i> Sign In</button>
                 </div>
                 <div id="signupForm" style="display:none;">
                     <div class="form-group"><label>Username</label><input type="text" id="signupUsernameInput" placeholder="Choose a username" /></div>
                     <div class="form-group"><label>Email</label><input type="email" id="signupEmailInput" placeholder="you@example.com" /></div>
                     <div class="form-group"><label>Password</label><input type="password" id="signupPasswordInput" placeholder="•••••••• (min 6 chars)" /></div>
-                    <button id="signupBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--success); color:white;" ${!isFirebaseAvailable() ? 'disabled' : ''}><i class="fas fa-user-plus"></i> Create Account</button>
+                    <button id="signupBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--success); color:white;" ${!isFirebaseReady ? 'disabled' : ''}><i class="fas fa-user-plus"></i> Create Account</button>
                 </div>
             </div>
             <div style="margin-top:16px; text-align:center; font-size:0.8rem; color:var(--text-muted);">🔒 Secure Cloud Data Integration</div>
@@ -714,7 +705,7 @@ function showAuthModal() {
     `;
     document.body.appendChild(modal);
     
-    if (isFirebaseAvailable()) {
+    if (isFirebaseReady) {
         const googleBtn = getEl('googleSignInBtn');
         const loginTab = getEl('loginTabBtn');
         const signupTab = getEl('signupTabBtn');
@@ -762,7 +753,7 @@ function closeAuthModal() {
 }
 
 // ============================================================
-// DATA LOADING - With Fallbacks
+// DATA LOADING
 // ============================================================
 
 async function loadUserData(showLoading = true) {
@@ -775,7 +766,7 @@ async function loadUserData(showLoading = true) {
                 scripts = data.scripts || {};
                 scriptOrder = data.scriptOrder || [];
                 appointments = data.appointments || {};
-                tasks = data.tasks || [];
+                tasks = data.tasks || {};
                 showToast('Loaded offline data', 'info');
                 updateStats();
                 renderSidebar();
@@ -788,7 +779,7 @@ async function loadUserData(showLoading = true) {
         return;
     }
     
-    if (!isFirebaseAvailable()) {
+    if (!isFirebaseReady) {
         showToast('Firebase unavailable - using offline mode', 'warning');
         return;
     }
@@ -849,7 +840,7 @@ async function loadUserData(showLoading = true) {
 }
 
 function subscribeToChanges() {
-    if (!currentUser || !isFirebaseAvailable()) return;
+    if (!currentUser || !isFirebaseReady) return;
     if (appointmentsUnsubscribe) appointmentsUnsubscribe();
     if (tasksUnsubscribe) tasksUnsubscribe();
 
@@ -864,7 +855,6 @@ function subscribeToChanges() {
             });
             updateStats();
             refreshCurrentView();
-            // Save to local storage
             localStorage.setItem('appointments_fallback', JSON.stringify(appointments));
         });
 
@@ -877,7 +867,7 @@ function subscribeToChanges() {
         });
     } catch (error) {
         console.warn('Subscription error:', error);
-        // Try to load from local storage
+        // Load from local storage
         const appointmentsLocal = localStorage.getItem('appointments_fallback');
         const tasksLocal = localStorage.getItem('tasks_fallback');
         if (appointmentsLocal) {
@@ -898,7 +888,7 @@ function subscribeToChanges() {
 }
 
 async function createDefaultScripts() {
-    if (!currentUser || !isFirebaseAvailable()) return;
+    if (!currentUser || !isFirebaseReady) return;
     const defaultScripts = {
         "opening": { name: "🎯 Opening Script", content: '"Hey, is this [Company Name]?"\n\n"Awesome — this is Flynn. We created a free, modern preview version inspired by your current site. There\'s no cost or obligation. Would you be open to taking a quick look later today and sharing your thoughts?"' },
         "owner_yes": { name: "👑 Owner - Yes", content: "Perfect! Daniel will call you shortly to showcase your preview concept. Is this the best number to connect with you?" },
@@ -916,7 +906,7 @@ async function createDefaultScripts() {
 }
 
 async function saveScriptOrder() {
-    if (!currentUser || !isFirebaseAvailable()) return;
+    if (!currentUser || !isFirebaseReady) return;
     try {
         await db.collection('users').doc(currentUser.uid).update({ scriptOrder: scriptOrder });
     } catch (error) {
@@ -925,7 +915,7 @@ async function saveScriptOrder() {
 }
 
 // ============================================================
-// APPOINTMENT HANDLERS - With Fallbacks
+// APPOINTMENT HANDLERS
 // ============================================================
 
 function addAppointment(dateStr, business, contactName, role, phone, time, notes, assigned, editId = null, status = 'Pending', crmLink = '', tags = []) {
@@ -945,16 +935,14 @@ function addAppointment(dateStr, business, contactName, role, phone, time, notes
 
 async function syncAppointment(appointment) {
     if (!currentUser) return;
-    if (isFirebaseAvailable()) {
+    if (isFirebaseReady) {
         try {
             await db.collection('users').doc(currentUser.uid).collection('appointments').doc(appointment.id.toString()).set(appointment, { merge: true });
         } catch (e) {
             console.error('Error syncing appointment:', e);
-            // Save to local storage
             saveAppointmentsToLocal();
         }
     } else {
-        // Offline mode: save to local storage
         saveAppointmentsToLocal();
     }
 }
@@ -971,7 +959,7 @@ function deleteAppointment(dateStr, id) {
     if (appointments[dateStr]?.reports) {
         appointments[dateStr].reports = appointments[dateStr].reports.filter(r => r.id !== id);
         if (appointments[dateStr].reports.length === 0) delete appointments[dateStr];
-        if (isFirebaseAvailable()) {
+        if (isFirebaseReady) {
             db.collection('users').doc(currentUser.uid).collection('appointments').doc(id.toString()).delete();
         }
         saveAppointmentsToLocal();
@@ -1061,7 +1049,7 @@ function updateStats() {
 }
 
 // ============================================================
-// TASKS SYSTEM - With Fallbacks
+// TASKS SYSTEM
 // ============================================================
 
 function addTask(description, dueDate, priority = 'medium', appointmentId = null) {
@@ -1070,7 +1058,7 @@ function addTask(description, dueDate, priority = 'medium', appointmentId = null
         id: generateUniqueId(), description, dueDate, priority,
         appointmentId, completed: false, createdAt: new Date().toISOString()
     };
-    if (isFirebaseAvailable()) {
+    if (isFirebaseReady) {
         db.collection('users').doc(currentUser.uid).collection('tasks').doc(task.id).set(task);
     }
     tasks.push(task);
@@ -1083,7 +1071,7 @@ function toggleTaskComplete(id) {
     const task = tasks.find(t => t.id === id);
     if (task) {
         task.completed = !task.completed;
-        if (isFirebaseAvailable()) {
+        if (isFirebaseReady) {
             db.collection('users').doc(currentUser.uid).collection('tasks').doc(id).update({ completed: task.completed });
         }
         localStorage.setItem('tasks_fallback', JSON.stringify(tasks));
@@ -1094,7 +1082,7 @@ function toggleTaskComplete(id) {
 
 function deleteTask(id) {
     tasks = tasks.filter(t => t.id !== id);
-    if (isFirebaseAvailable()) {
+    if (isFirebaseReady) {
         db.collection('users').doc(currentUser.uid).collection('tasks').doc(id).delete();
     }
     localStorage.setItem('tasks_fallback', JSON.stringify(tasks));
@@ -1109,7 +1097,7 @@ function updateTaskStats() {
 }
 
 // ============================================================
-// SMART IMPORT - Full Implementation
+// SMART IMPORT
 // ============================================================
 
 let parsedImportData = {};
@@ -1463,7 +1451,6 @@ function showFeaturePanel(featureType, title) {
         }
         container.innerHTML = html;
         
-        // Attach event listeners for analytics tabs
         if (featureType === 'analytics') {
             const insightsBtn = getEl('insightsTabBtn');
             const reportsBtn = getEl('reportsTabBtn');
@@ -1532,7 +1519,266 @@ function refreshCurrentView() {
 }
 
 // ============================================================
-// ANALYTICS HUB - All Tabs
+// CALENDAR PANEL
+// ============================================================
+
+function renderCalendarPanel(container) {
+    if (!container) return;
+    if (calendarView === 'list') {
+        renderListView(container);
+        return;
+    }
+    
+    const year = currentCalDate.getFullYear();
+    const month = currentCalDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    let daysHtml = '';
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    dayNames.forEach(d => daysHtml += `<div class="day-name">${d}</div>`);
+    for (let i = 0; i < firstDay; i++) daysHtml += `<div class="calendar-day empty"></div>`;
+    
+    for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const appts = appointments[dateStr]?.reports || [];
+        const count = appts.length;
+        const isSelected = dateStr === selectedCalDate;
+        let indicatorHtml = '';
+        if (count > 0) {
+            const dots = appts.slice(0, 3).map(a => {
+                const s = getStatus(a);
+                const colors = { 'Hot Transfer': '#dc2626', 'Completed': 'var(--success)', 'Warm Callback': 'var(--warning)', 'Pending': 'var(--text-muted)' };
+                return `<span class="appt-dot" style="background:${colors[s] || 'var(--primary)'};"></span>`;
+            }).join('');
+            indicatorHtml = `<div class="appt-indicator">${dots}</div>`;
+        }
+        daysHtml += `
+            <div class="calendar-day ${isSelected ? 'selected' : ''}" data-date="${dateStr}">
+                <span class="day-number">${d}</span>
+                ${indicatorHtml}
+                ${count > 0 ? `<span class="appt-badge">${count}</span>` : ''}
+            </div>
+        `;
+    }
+
+    const selectedAppts = appointments[selectedCalDate]?.reports || [];
+    const stats = {
+        hotTransfers: selectedAppts.filter(a => getStatus(a) === 'Hot Transfer').length,
+        warmCallbacks: selectedAppts.filter(a => getStatus(a) === 'Warm Callback').length,
+        completed: selectedAppts.filter(a => getStatus(a) === 'Completed').length,
+        pending: selectedAppts.filter(a => getStatus(a) === 'Pending').length,
+        canceled: selectedAppts.filter(a => getStatus(a) === 'Canceled').length
+    };
+
+    container.innerHTML = `
+        <div class="calendar-section fade-in">
+            <div class="calendar-nav">
+                <h3><i class="fas fa-calendar-alt"></i> ${new Date(year, month).toLocaleString('default', { month: 'long' })} ${year}</h3>
+                <div class="calendar-nav-actions">
+                    <button id="calPrevBtn" class="btn-icon">Prev</button>
+                    <button id="calTodayBtn" class="btn-icon">Today</button>
+                    <button id="calNextBtn" class="btn-icon">Next</button>
+                </div>
+            </div>
+            <div class="calendar-grid">${daysHtml}</div>
+            <div class="kpi-row">
+                <div class="kpi-card"><div class="kpi-value" style="color:#dc2626;">${stats.hotTransfers}</div><div class="kpi-label">🔥 Hot Transfers</div></div>
+                <div class="kpi-card"><div class="kpi-value" style="color:var(--warning);">${stats.warmCallbacks}</div><div class="kpi-label">📞 Warm Callbacks</div></div>
+                <div class="kpi-card"><div class="kpi-value" style="color:var(--success);">${stats.completed}</div><div class="kpi-label">✅ Completed</div></div>
+                <div class="kpi-card"><div class="kpi-value" style="color:var(--text-muted);">${stats.pending}</div><div class="kpi-label">⏳ Pending</div></div>
+            </div>
+            <div class="appointments-section">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+                    <h4>Appointments (${selectedAppts.length})</h4>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button id="quickAddCalBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> Add Lead</button>
+                        <button id="switchToListView" class="btn-icon"><i class="fas fa-list"></i> List View</button>
+                    </div>
+                </div>
+                <div class="appointments-list" id="appointmentsList">
+                    ${selectedAppts.map(a => {
+                        const score = calculateLeadScore(a);
+                        const isHotTransfer = getStatus(a) === 'Hot Transfer';
+                        return `
+                            <div class="appointment-card" data-id="${a.id}" data-date="${selectedCalDate}" style="border-left: 4px solid ${isHotTransfer ? '#dc2626' : 'var(--border-color)'};">
+                                <i class="fas fa-grip-vertical drag-handle" aria-hidden="true"></i>
+                                <div class="card-row">
+                                    <div class="business-name" onclick="showAppointmentDetail('${a.id}')">
+                                        <strong>${escapeHtml(a.business)}</strong>
+                                        <span class="status-tag ${getStatusClassSmall(getStatus(a))}">${getStatus(a)}</span>
+                                        <span class="score-badge ${getScoreColor(score)}">${score} Pts</span>
+                                    </div>
+                                    <div class="card-actions">
+                                        <button class="delete-appt-btn" data-id="${a.id}" title="Delete"><i class="fas fa-trash"></i></button>
+                                    </div>
+                                </div>
+                                <div style="font-size:0.8rem; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap;">
+                                    <span>Contact: ${escapeHtml(a.contactName)}</span>
+                                    ${a.phone ? `<span>📞 ${escapeHtml(a.phone)}</span>` : ''}
+                                    ${a.time ? `<span>🕐 ${escapeHtml(a.time)}</span>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+
+    container.querySelectorAll('.calendar-day[data-date]').forEach(el => {
+        el.addEventListener('click', () => { selectedCalDate = el.getAttribute('data-date'); renderCalendarPanel(container); });
+    });
+    
+    const prevBtn = getEl('calPrevBtn');
+    const nextBtn = getEl('calNextBtn');
+    const todayBtn = getEl('calTodayBtn');
+    const addBtn = getEl('quickAddCalBtn');
+    const listBtn = getEl('switchToListView');
+    
+    if (prevBtn) prevBtn.addEventListener('click', () => { currentCalDate.setMonth(currentCalDate.getMonth() - 1); renderCalendarPanel(container); });
+    if (nextBtn) nextBtn.addEventListener('click', () => { currentCalDate.setMonth(currentCalDate.getMonth() + 1); renderCalendarPanel(container); });
+    if (todayBtn) todayBtn.addEventListener('click', () => { currentCalDate = new Date(); selectedCalDate = getTodayStr(); renderCalendarPanel(container); });
+    if (addBtn) addBtn.addEventListener('click', () => openQuickReportWithDate(selectedCalDate));
+    if (listBtn) listBtn.addEventListener('click', () => { calendarView = 'list'; renderCalendarPanel(container); });
+
+    container.querySelectorAll('.delete-appt-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm('Delete this appointment permanently?')) {
+                deleteAppointment(selectedCalDate, btn.getAttribute('data-id'));
+                renderCalendarPanel(container);
+                showToast('Appointment deleted', 'info');
+            }
+        });
+    });
+
+    const appointmentsList = getEl('appointmentsList');
+    if (appointmentsList) {
+        new Sortable(appointmentsList, {
+            handle: '.drag-handle',
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            dragClass: 'sortable-drag',
+            onEnd: function() {
+                const items = appointmentsList.querySelectorAll('.appointment-card');
+                const newOrder = [];
+                items.forEach(item => {
+                    const id = item.getAttribute('data-id');
+                    if (id) newOrder.push(id);
+                });
+                if (appointments[selectedCalDate]) {
+                    const sortedReports = [];
+                    newOrder.forEach(id => {
+                        const found = appointments[selectedCalDate].reports.find(r => r.id === id);
+                        if (found) sortedReports.push(found);
+                    });
+                    appointments[selectedCalDate].reports = sortedReports;
+                }
+                showToast('Appointments reordered', 'info');
+            }
+        });
+    }
+}
+
+// ============================================================
+// LIST VIEW
+// ============================================================
+
+function renderListView(container) {
+    const allAppointments = [];
+    for (let date in appointments) {
+        if (appointments[date].reports) {
+            appointments[date].reports.forEach(appt => {
+                allAppointments.push({ ...appt, dateKey: date });
+            });
+        }
+    }
+    allAppointments.sort((a, b) => new Date(a.dateKey) - new Date(b.dateKey));
+
+    container.innerHTML = `
+        <div class="list-view-container fade-in">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                <h4><i class="fas fa-list"></i> All Appointments (${allAppointments.length})</h4>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button id="switchToCalendarView" class="btn-icon"><i class="fas fa-calendar-alt"></i> Calendar View</button>
+                    <button id="addApptFromList" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> Add</button>
+                </div>
+            </div>
+            <div class="appointments-toolbar">
+                <div class="search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="listSearchInput" placeholder="Search appointments..." />
+                </div>
+                <select id="listStatusFilter"><option value="all">All Status</option>${STATUS_OPTIONS.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
+                <select id="listTagFilter"><option value="all">All Tags</option>${TAG_OPTIONS.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}</select>
+            </div>
+            <div class="list-header">
+                <span>Business</span><span>Contact</span><span>Status</span><span>Date</span><span>Score</span><span>Actions</span>
+            </div>
+            <div id="listItemsContainer">
+                ${allAppointments.map(appt => `
+                    <div class="list-item" onclick="showAppointmentDetail('${appt.id}')">
+                        <span class="list-business"><strong>${escapeHtml(appt.business)}</strong></span>
+                        <span class="list-contact">${escapeHtml(appt.contactName)}</span>
+                        <span class="list-status ${getStatusClassSmall(getStatus(appt))}">${getStatus(appt)}</span>
+                        <span>${formatDate(appt.dateKey)}</span>
+                        <span><span class="score-badge ${getScoreColor(calculateLeadScore(appt))}">${calculateLeadScore(appt)}</span></span>
+                        <span><button class="delete-appt-btn" data-id="${appt.id}" data-date="${appt.dateKey}" style="background:none; border:none; cursor:pointer; color:var(--danger);"><i class="fas fa-trash"></i></button></span>
+                    </div>
+                `).join('')}
+            </div>
+            ${allAppointments.length === 0 ? '<div class="empty-state"><i class="fas fa-calendar-check"></i><p>No appointments found</p></div>' : ''}
+        </div>
+    `;
+
+    const calendarBtn = getEl('switchToCalendarView');
+    const addBtn = getEl('addApptFromList');
+    const searchInput = getEl('listSearchInput');
+    const statusFilter = getEl('listStatusFilter');
+    const tagFilter = getEl('listTagFilter');
+    
+    if (calendarBtn) calendarBtn.addEventListener('click', () => { calendarView = 'calendar'; renderCalendarPanel(container); });
+    if (addBtn) addBtn.addEventListener('click', () => openQuickReportWithDate(getTodayStr()));
+    if (searchInput) searchInput.addEventListener('input', filterListItems);
+    if (statusFilter) statusFilter.addEventListener('change', filterListItems);
+    if (tagFilter) tagFilter.addEventListener('change', filterListItems);
+
+    container.querySelectorAll('.delete-appt-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm('Delete this appointment?')) {
+                deleteAppointment(btn.getAttribute('data-date'), btn.getAttribute('data-id'));
+                renderListView(container);
+                showToast('Appointment deleted', 'info');
+            }
+        });
+    });
+}
+
+function filterListItems() {
+    const searchInput = getEl('listSearchInput');
+    const statusFilter = getEl('listStatusFilter');
+    const tagFilter = getEl('listTagFilter');
+    
+    const search = searchInput?.value?.toLowerCase() || '';
+    const statusFilterValue = statusFilter?.value || 'all';
+    const tagFilterValue = tagFilter?.value || 'all';
+    const items = document.querySelectorAll('#listItemsContainer .list-item');
+    
+    items.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        const status = item.querySelector('.list-status')?.textContent || '';
+        let show = true;
+        if (search && !text.includes(search)) show = false;
+        if (statusFilterValue !== 'all' && status !== statusFilterValue) show = false;
+        item.style.display = show ? 'grid' : 'none';
+    });
+}
+
+// ============================================================
+// ANALYTICS HUB - Complete Implementation
 // ============================================================
 
 function renderAnalyticsHub(container) {
@@ -2140,265 +2386,6 @@ function renderTasksPanel(container) {
 }
 
 // ============================================================
-// CALENDAR PANEL
-// ============================================================
-
-function renderCalendarPanel(container) {
-    if (!container) return;
-    if (calendarView === 'list') {
-        renderListView(container);
-        return;
-    }
-    
-    const year = currentCalDate.getFullYear();
-    const month = currentCalDate.getMonth();
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
-    let daysHtml = '';
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    dayNames.forEach(d => daysHtml += `<div class="day-name">${d}</div>`);
-    for (let i = 0; i < firstDay; i++) daysHtml += `<div class="calendar-day empty"></div>`;
-    
-    for (let d = 1; d <= daysInMonth; d++) {
-        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        const appts = appointments[dateStr]?.reports || [];
-        const count = appts.length;
-        const isSelected = dateStr === selectedCalDate;
-        let indicatorHtml = '';
-        if (count > 0) {
-            const dots = appts.slice(0, 3).map(a => {
-                const s = getStatus(a);
-                const colors = { 'Hot Transfer': '#dc2626', 'Completed': 'var(--success)', 'Warm Callback': 'var(--warning)', 'Pending': 'var(--text-muted)' };
-                return `<span class="appt-dot" style="background:${colors[s] || 'var(--primary)'};"></span>`;
-            }).join('');
-            indicatorHtml = `<div class="appt-indicator">${dots}</div>`;
-        }
-        daysHtml += `
-            <div class="calendar-day ${isSelected ? 'selected' : ''}" data-date="${dateStr}">
-                <span class="day-number">${d}</span>
-                ${indicatorHtml}
-                ${count > 0 ? `<span class="appt-badge">${count}</span>` : ''}
-            </div>
-        `;
-    }
-
-    const selectedAppts = appointments[selectedCalDate]?.reports || [];
-    const stats = {
-        hotTransfers: selectedAppts.filter(a => getStatus(a) === 'Hot Transfer').length,
-        warmCallbacks: selectedAppts.filter(a => getStatus(a) === 'Warm Callback').length,
-        completed: selectedAppts.filter(a => getStatus(a) === 'Completed').length,
-        pending: selectedAppts.filter(a => getStatus(a) === 'Pending').length,
-        canceled: selectedAppts.filter(a => getStatus(a) === 'Canceled').length
-    };
-
-    container.innerHTML = `
-        <div class="calendar-section fade-in">
-            <div class="calendar-nav">
-                <h3><i class="fas fa-calendar-alt"></i> ${new Date(year, month).toLocaleString('default', { month: 'long' })} ${year}</h3>
-                <div class="calendar-nav-actions">
-                    <button id="calPrevBtn" class="btn-icon">Prev</button>
-                    <button id="calTodayBtn" class="btn-icon">Today</button>
-                    <button id="calNextBtn" class="btn-icon">Next</button>
-                </div>
-            </div>
-            <div class="calendar-grid">${daysHtml}</div>
-            <div class="kpi-row">
-                <div class="kpi-card"><div class="kpi-value" style="color:#dc2626;">${stats.hotTransfers}</div><div class="kpi-label">🔥 Hot Transfers</div></div>
-                <div class="kpi-card"><div class="kpi-value" style="color:var(--warning);">${stats.warmCallbacks}</div><div class="kpi-label">📞 Warm Callbacks</div></div>
-                <div class="kpi-card"><div class="kpi-value" style="color:var(--success);">${stats.completed}</div><div class="kpi-label">✅ Completed</div></div>
-                <div class="kpi-card"><div class="kpi-value" style="color:var(--text-muted);">${stats.pending}</div><div class="kpi-label">⏳ Pending</div></div>
-            </div>
-            <div class="appointments-section">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
-                    <h4>Appointments (${selectedAppts.length})</h4>
-                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                        <button id="quickAddCalBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> Add Lead</button>
-                        <button id="switchToListView" class="btn-icon"><i class="fas fa-list"></i> List View</button>
-                    </div>
-                </div>
-                <div class="appointments-list" id="appointmentsList">
-                    ${selectedAppts.map(a => {
-                        const score = calculateLeadScore(a);
-                        const isHotTransfer = getStatus(a) === 'Hot Transfer';
-                        return `
-                            <div class="appointment-card" data-id="${a.id}" data-date="${selectedCalDate}" style="border-left: 4px solid ${isHotTransfer ? '#dc2626' : 'var(--border-color)'};">
-                                <i class="fas fa-grip-vertical drag-handle" aria-hidden="true"></i>
-                                <div class="card-row">
-                                    <div class="business-name" onclick="showAppointmentDetail('${a.id}')">
-                                        <strong>${escapeHtml(a.business)}</strong>
-                                        <span class="status-tag ${getStatusClassSmall(getStatus(a))}">${getStatus(a)}</span>
-                                        <span class="score-badge ${getScoreColor(score)}">${score} Pts</span>
-                                    </div>
-                                    <div class="card-actions">
-                                        <button class="delete-appt-btn" data-id="${a.id}" title="Delete"><i class="fas fa-trash"></i></button>
-                                    </div>
-                                </div>
-                                <div style="font-size:0.8rem; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap;">
-                                    <span>Contact: ${escapeHtml(a.contactName)}</span>
-                                    ${a.phone ? `<span>📞 ${escapeHtml(a.phone)}</span>` : ''}
-                                    ${a.time ? `<span>🕐 ${escapeHtml(a.time)}</span>` : ''}
-                                </div>
-                            </div>
-                        `;
-                    }).join('')}
-                </div>
-            </div>
-        </div>
-    `;
-
-    container.querySelectorAll('.calendar-day[data-date]').forEach(el => {
-        el.addEventListener('click', () => { selectedCalDate = el.getAttribute('data-date'); renderCalendarPanel(container); });
-    });
-    
-    const prevBtn = getEl('calPrevBtn');
-    const nextBtn = getEl('calNextBtn');
-    const todayBtn = getEl('calTodayBtn');
-    const addBtn = getEl('quickAddCalBtn');
-    const listBtn = getEl('switchToListView');
-    
-    if (prevBtn) prevBtn.addEventListener('click', () => { currentCalDate.setMonth(currentCalDate.getMonth() - 1); renderCalendarPanel(container); });
-    if (nextBtn) nextBtn.addEventListener('click', () => { currentCalDate.setMonth(currentCalDate.getMonth() + 1); renderCalendarPanel(container); });
-    if (todayBtn) todayBtn.addEventListener('click', () => { currentCalDate = new Date(); selectedCalDate = getTodayStr(); renderCalendarPanel(container); });
-    if (addBtn) addBtn.addEventListener('click', () => openQuickReportWithDate(selectedCalDate));
-    if (listBtn) listBtn.addEventListener('click', () => { calendarView = 'list'; renderCalendarPanel(container); });
-
-    container.querySelectorAll('.delete-appt-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (confirm('Delete this appointment permanently?')) {
-                deleteAppointment(selectedCalDate, btn.getAttribute('data-id'));
-                renderCalendarPanel(container);
-                showToast('Appointment deleted', 'info');
-            }
-        });
-    });
-
-    const appointmentsList = getEl('appointmentsList');
-    if (appointmentsList) {
-        new Sortable(appointmentsList, {
-            handle: '.drag-handle',
-            animation: 150,
-            ghostClass: 'sortable-ghost',
-            chosenClass: 'sortable-chosen',
-            dragClass: 'sortable-drag',
-            onEnd: function() {
-                const items = appointmentsList.querySelectorAll('.appointment-card');
-                const newOrder = [];
-                items.forEach(item => {
-                    const id = item.getAttribute('data-id');
-                    if (id) newOrder.push(id);
-                });
-                if (appointments[selectedCalDate]) {
-                    const sortedReports = [];
-                    newOrder.forEach(id => {
-                        const found = appointments[selectedCalDate].reports.find(r => r.id === id);
-                        if (found) sortedReports.push(found);
-                    });
-                    appointments[selectedCalDate].reports = sortedReports;
-                }
-                showToast('Appointments reordered', 'info');
-            }
-        });
-    }
-}
-
-// ============================================================
-// LIST VIEW
-// ============================================================
-
-function renderListView(container) {
-    const allAppointments = [];
-    for (let date in appointments) {
-        if (appointments[date].reports) {
-            appointments[date].reports.forEach(appt => {
-                allAppointments.push({ ...appt, dateKey: date });
-            });
-        }
-    }
-    allAppointments.sort((a, b) => new Date(a.dateKey) - new Date(b.dateKey));
-
-    container.innerHTML = `
-        <div class="list-view-container fade-in">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-                <h4><i class="fas fa-list"></i> All Appointments (${allAppointments.length})</h4>
-                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <button id="switchToCalendarView" class="btn-icon"><i class="fas fa-calendar-alt"></i> Calendar View</button>
-                    <button id="addApptFromList" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> Add</button>
-                </div>
-            </div>
-            <div class="appointments-toolbar">
-                <div class="search-wrapper">
-                    <i class="fas fa-search"></i>
-                    <input type="text" id="listSearchInput" placeholder="Search appointments..." />
-                </div>
-                <select id="listStatusFilter"><option value="all">All Status</option>${STATUS_OPTIONS.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
-                <select id="listTagFilter"><option value="all">All Tags</option>${TAG_OPTIONS.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}</select>
-            </div>
-            <div class="list-header">
-                <span>Business</span><span>Contact</span><span>Status</span><span>Date</span><span>Score</span><span>Actions</span>
-            </div>
-            <div id="listItemsContainer">
-                ${allAppointments.map(appt => `
-                    <div class="list-item" onclick="showAppointmentDetail('${appt.id}')">
-                        <span class="list-business"><strong>${escapeHtml(appt.business)}</strong></span>
-                        <span class="list-contact">${escapeHtml(appt.contactName)}</span>
-                        <span class="list-status ${getStatusClassSmall(getStatus(appt))}">${getStatus(appt)}</span>
-                        <span>${formatDate(appt.dateKey)}</span>
-                        <span><span class="score-badge ${getScoreColor(calculateLeadScore(appt))}">${calculateLeadScore(appt)}</span></span>
-                        <span><button class="delete-appt-btn" data-id="${appt.id}" data-date="${appt.dateKey}" style="background:none; border:none; cursor:pointer; color:var(--danger);"><i class="fas fa-trash"></i></button></span>
-                    </div>
-                `).join('')}
-            </div>
-            ${allAppointments.length === 0 ? '<div class="empty-state"><i class="fas fa-calendar-check"></i><p>No appointments found</p></div>' : ''}
-        </div>
-    `;
-
-    const calendarBtn = getEl('switchToCalendarView');
-    const addBtn = getEl('addApptFromList');
-    const searchInput = getEl('listSearchInput');
-    const statusFilter = getEl('listStatusFilter');
-    const tagFilter = getEl('listTagFilter');
-    
-    if (calendarBtn) calendarBtn.addEventListener('click', () => { calendarView = 'calendar'; renderCalendarPanel(container); });
-    if (addBtn) addBtn.addEventListener('click', () => openQuickReportWithDate(getTodayStr()));
-    if (searchInput) searchInput.addEventListener('input', filterListItems);
-    if (statusFilter) statusFilter.addEventListener('change', filterListItems);
-    if (tagFilter) tagFilter.addEventListener('change', filterListItems);
-
-    container.querySelectorAll('.delete-appt-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (confirm('Delete this appointment?')) {
-                deleteAppointment(btn.getAttribute('data-date'), btn.getAttribute('data-id'));
-                renderListView(container);
-                showToast('Appointment deleted', 'info');
-            }
-        });
-    });
-}
-
-function filterListItems() {
-    const searchInput = getEl('listSearchInput');
-    const statusFilter = getEl('listStatusFilter');
-    const tagFilter = getEl('listTagFilter');
-    
-    const search = searchInput?.value?.toLowerCase() || '';
-    const statusFilterValue = statusFilter?.value || 'all';
-    const tagFilterValue = tagFilter?.value || 'all';
-    const items = document.querySelectorAll('#listItemsContainer .list-item');
-    
-    items.forEach(item => {
-        const text = item.textContent.toLowerCase();
-        const status = item.querySelector('.list-status')?.textContent || '';
-        let show = true;
-        if (search && !text.includes(search)) show = false;
-        if (statusFilterValue !== 'all' && status !== statusFilterValue) show = false;
-        item.style.display = show ? 'grid' : 'none';
-    });
-}
-
-// ============================================================
 // BULK ACTIONS
 // ============================================================
 
@@ -2438,7 +2425,7 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Starting ScriptFlow Pro...');
     
     // Check Firebase availability
-    if (!isFirebaseAvailable()) {
+    if (!isFirebaseReady) {
         console.warn('⚠️ Firebase not available - running in offline mode');
         showToast('Offline mode - Some features may be limited', 'warning');
     }
@@ -2493,7 +2480,7 @@ document.addEventListener('DOMContentLoaded', function() {
             else if (tool === 'reset') {
                 if (confirm('⚠️ This will clear all local data and reset the app. Continue?')) {
                     localStorage.clear();
-                    if (currentUser && isFirebaseAvailable()) {
+                    if (currentUser && isFirebaseReady) {
                         db.collection('users').doc(currentUser.uid).delete();
                     }
                     location.reload();
@@ -2590,7 +2577,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (resetScriptBtn) resetScriptBtn.addEventListener('click', () => {
         if (confirm('Reset this script to its original content?')) {
             if (currentUser && currentScriptId) {
-                if (isFirebaseAvailable()) {
+                if (isFirebaseReady) {
                     db.collection('users').doc(currentUser.uid).collection('scripts').doc(currentScriptId).set({
                         name: scripts[currentScriptId].name,
                         content: scripts[currentScriptId].content,
@@ -2709,7 +2696,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const name = prompt('Enter script name:');
         if (name && name.trim()) {
             const id = 'script_' + generateUniqueId();
-            if (isFirebaseAvailable()) {
+            if (isFirebaseReady) {
                 db.collection('users').doc(currentUser.uid).collection('scripts').doc(id).set({
                     name: name.trim(),
                     content: 'New script content...',
@@ -2886,9 +2873,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Auth state listener with fallback
+    // Auth state listener
     try {
-        if (isFirebaseAvailable()) {
+        if (isFirebaseReady) {
             auth.onAuthStateChanged(async (user) => {
                 if (user) {
                     currentUser = user;
@@ -2903,7 +2890,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             scripts = data.scripts || {};
                             scriptOrder = data.scriptOrder || [];
                             appointments = data.appointments || {};
-                            tasks = data.tasks || [];
+                            tasks = data.tasks || {};
                             updateStats();
                             renderSidebar();
                             loadScript('opening');
@@ -2942,7 +2929,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Close modals with Escape key (already handled above)
+    // Close modals with Escape key
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             document.querySelectorAll('.modal-overlay').forEach(modal => {
@@ -2959,7 +2946,7 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('⌨️ Keyboard shortcuts loaded:', Object.keys(shortcuts).length);
     console.log('📈 Analytics tabs: Insights, Reports, Team');
     console.log('🔑 Press ESC to return to Opening Script');
-    console.log(`🔌 Firebase status: ${isFirebaseAvailable() ? '✅ Connected' : '❌ Offline mode'}`);
+    console.log(`🔌 Firebase status: ${isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
 });
 
 // Export functions for global access
@@ -2967,3 +2954,93 @@ window.showAppointmentDetail = showAppointmentDetail;
 window.loadScript = loadScript;
 window.openShortcutEdit = openShortcutEdit;
 window.toggleFavorite = toggleFavorite;
+window.performGlobalSearch = performGlobalSearch;
+
+// ============================================================
+// GLOBAL SEARCH
+// ============================================================
+
+function openGlobalSearch() {
+    const modal = getEl('globalSearchModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    const input = getEl('globalSearchInput');
+    if (input) { input.value = ''; input.focus(); }
+    const results = getEl('globalSearchResults');
+    if (results) results.innerHTML = '';
+}
+
+function performGlobalSearch(query) {
+    const results = getEl('globalSearchResults');
+    if (!results) return;
+    if (!query || query.length < 2) {
+        results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">Type at least 2 characters to search...</p>';
+        return;
+    }
+    
+    const searchResults = [];
+    const q = query.toLowerCase();
+    
+    for (let date in appointments) {
+        if (appointments[date].reports) {
+            appointments[date].reports.forEach(appt => {
+                const searchable = `${appt.business} ${appt.contactName} ${appt.phone || ''} ${appt.email || ''} ${appt.notes || ''}`.toLowerCase();
+                if (searchable.includes(q)) {
+                    searchResults.push({ type: 'appointment', data: appt, date: date });
+                }
+            });
+        }
+    }
+    
+    tasks.forEach(task => {
+        if (task.description.toLowerCase().includes(q)) {
+            searchResults.push({ type: 'task', data: task });
+        }
+    });
+    
+    for (const [id, script] of Object.entries(scripts)) {
+        if (script.name.toLowerCase().includes(q) || script.content.toLowerCase().includes(q)) {
+            searchResults.push({ type: 'script', data: { id, ...script } });
+        }
+    }
+    
+    if (searchResults.length === 0) {
+        results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">No results found.</p>';
+        return;
+    }
+    
+    let html = `<div style="display:flex; flex-direction:column; gap:8px;">`;
+    searchResults.slice(0, 20).forEach(result => {
+        if (result.type === 'appointment') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="showAppointmentDetail('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${escapeHtml(result.data.business)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">${formatDate(result.data.date)}</span>
+                    </div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary);">${escapeHtml(result.data.contactName)}</div>
+                </div>
+            `;
+        } else if (result.type === 'task') {
+            html += `
+                <div class="list-item" style="padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${escapeHtml(result.data.description)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">${result.data.completed ? '✅ Done' : '⏳ Pending'}</span>
+                    </div>
+                </div>
+            `;
+        } else if (result.type === 'script') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="loadScript('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${escapeHtml(result.data.name)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">📜 Script</span>
+                    </div>
+                </div>
+            `;
+        }
+    });
+    html += `</div>`;
+    results.innerHTML = html;
+}

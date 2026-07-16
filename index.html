@@ -8,7 +8,7 @@
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%233b82f6'/%3E%3Ctext x='50' y='68' font-size='48' text-anchor='middle' fill='white' font-family='Arial'%3E🎯%3C/text%3E%3C/svg%3E" />
     
-    <!-- External Libraries -->
+    <!-- External Libraries - CDN -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -20,36 +20,68 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     
-    <!-- Suppress Firebase warnings -->
+    <!-- ============================================================
+         STYLES - Correct relative path
+         ============================================================ -->
+    <link rel="stylesheet" href="style.css" />
+    
+    <!-- ============================================================
+         SUPPRESS EXTENSION ERRORS & WARNINGS
+         ============================================================ -->
     <script>
+        // Suppress chrome extension errors
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+            chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+                return true;
+            });
+        }
+        
+        // Suppress console errors from extensions and blocked requests
+        const originalConsoleError = console.error;
+        console.error = function() {
+            const args = Array.from(arguments);
+            const message = args.join(' ');
+            if (message && (
+                message.includes('chrome-extension') ||
+                message.includes('ERR_BLOCKED_BY_CLIENT') ||
+                message.includes('Failed to load resource') ||
+                message.includes('net::ERR_FAILED')
+            )) {
+                return;
+            }
+            originalConsoleError.apply(console, arguments);
+        };
+        
         // Suppress specific Firebase warnings
-        const originalWarn = console.warn;
+        const originalConsoleWarn = console.warn;
         console.warn = function() {
             const args = Array.from(arguments);
             const message = args.join(' ');
-            // Suppress the specific deprecation warning
-            if (message && message.includes('enableMultiTabIndexedDbPersistence() will be deprecated')) {
+            if (message && (
+                message.includes('enableMultiTabIndexedDbPersistence() will be deprecated') ||
+                message.includes('chrome-extension')
+            )) {
                 return;
             }
-            // Also suppress chrome-extension errors
-            if (message && message.includes('chrome-extension')) {
-                return;
-            }
-            originalWarn.apply(console, arguments);
+            originalConsoleWarn.apply(console, arguments);
         };
         
-        // Also suppress the error if it comes from Firebase
-        if (typeof firebase !== 'undefined' && firebase.firestore) {
-            const originalEnablePersistence = firebase.firestore.initializeApp;
-            // Override to prevent the specific error
-        }
+        // Suppress specific network errors
+        const originalFetch = window.fetch;
+        window.fetch = function() {
+            try {
+                return originalFetch.apply(this, arguments);
+            } catch (e) {
+                // Silently handle fetch errors from extensions
+                return Promise.reject(e);
+            }
+        };
     </script>
-    
-    <!-- Styles -->
-    <link rel="stylesheet" href="style.css" />
 </head>
 <body class="dark">
-    <!-- Loading Screen -->
+    <!-- ============================================================
+         LOADING SCREEN
+         ============================================================ -->
     <div id="loadingScreen" style="position:fixed; inset:0; background:var(--bg-primary); display:flex; align-items:center; justify-content:center; z-index:9999; flex-direction:column; gap:16px;">
         <div style="font-size:3rem;">🎯</div>
         <div style="font-size:1.2rem; font-weight:600;">ScriptFlow Pro</div>
@@ -59,10 +91,15 @@
         </div>
     </div>
 
+    <!-- ============================================================
+         MAIN APP WRAPPER
+         ============================================================ -->
     <div class="app-wrapper" style="display:none;">
         <button class="menu-toggle" id="menuToggleBtn" aria-label="Toggle Sidebar"><i class="fas fa-bars"></i></button>
 
-        <!-- SIDEBAR -->
+        <!-- ============================================================
+             SIDEBAR
+             ============================================================ -->
         <aside class="sidebar" id="mainSidebar" role="navigation" aria-label="Main Navigation">
             <div class="sidebar-header">
                 <div class="logo">
@@ -112,7 +149,9 @@
             <div class="sidebar-footer"><i class="fas fa-crown" aria-hidden="true"></i> Press 1-9 to switch scripts</div>
         </aside>
 
-        <!-- MAIN CONTENT -->
+        <!-- ============================================================
+             MAIN CONTENT
+             ============================================================ -->
         <div class="main-content" id="mainContent">
             <!-- Top Bar -->
             <div class="top-bar">
@@ -203,6 +242,10 @@
             </div>
         </div>
     </div>
+
+    <!-- ============================================================
+         MODALS
+         ============================================================ -->
 
     <!-- Smart Import Modal -->
     <div id="smartImportModal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-label="Smart Import">
@@ -331,6 +374,34 @@
         </div>
     </div>
 
+    <!-- Add Quick Copy Template Modal -->
+    <div id="addQuickCopyTemplateModal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true">
+        <div class="modal-card" style="max-width: 500px;">
+            <h3><i class="fas fa-plus-circle"></i> New Template</h3>
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="quickCopyNameInput" placeholder="e.g., Follow-up Email" />
+            </div>
+            <div class="form-group">
+                <label>Category</label>
+                <select id="quickCopyCategorySelect">
+                    <option value="email">📧 Email</option>
+                    <option value="sms">💬 SMS</option>
+                    <option value="script">📜 Script</option>
+                    <option value="response">💡 Response</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Content</label>
+                <textarea id="quickCopyContentArea" rows="6" placeholder="Paste your template content here..."></textarea>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap;">
+                <button id="saveQuickCopyBtn" class="btn-icon" style="background:var(--success); color:white;">Save</button>
+                <button id="cancelQuickCopyBtn" class="btn-icon">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Global Search Modal -->
     <div id="globalSearchModal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true">
         <div class="modal-card" style="max-width: 600px;">
@@ -345,7 +416,9 @@
         </div>
     </div>
 
-    <!-- JavaScript -->
+    <!-- ============================================================
+         JAVASCRIPT - Correct relative paths with fallbacks
+         ============================================================ -->
     <script>
         // Update loading progress
         function updateLoadingProgress(percent) {
@@ -371,39 +444,75 @@
         // Start loading
         updateLoadingProgress(10);
         
-        // Load Firebase config
-        const firebaseScript = document.createElement('script');
-        firebaseScript.src = 'js/firebase-config.js';
-        firebaseScript.onload = function() {
-            updateLoadingProgress(50);
-            // Load main app
-            const appScript = document.createElement('script');
-            appScript.src = 'script.js';
-            appScript.onload = function() {
-                updateLoadingProgress(100);
-                setTimeout(hideLoading, 300);
+        // ============================================================
+        // LOAD FIREBASE CONFIG WITH FALLBACK
+        // ============================================================
+        function loadScriptWithFallback(src, fallbackSrc, onLoad) {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = function() {
+                if (onLoad) onLoad();
             };
-            appScript.onerror = function() {
-                updateLoadingProgress(100);
-                setTimeout(hideLoading, 300);
+            script.onerror = function() {
+                console.warn('⚠️ Failed to load:', src);
+                if (fallbackSrc) {
+                    console.log('🔄 Trying fallback:', fallbackSrc);
+                    const fallbackScript = document.createElement('script');
+                    fallbackScript.src = fallbackSrc;
+                    fallbackScript.onload = function() {
+                        if (onLoad) onLoad();
+                    };
+                    fallbackScript.onerror = function() {
+                        console.warn('⚠️ Fallback also failed. App may not work correctly.');
+                        if (onLoad) onLoad();
+                    };
+                    document.body.appendChild(fallbackScript);
+                } else {
+                    if (onLoad) onLoad();
+                }
             };
-            document.body.appendChild(appScript);
-        };
-        firebaseScript.onerror = function() {
-            updateLoadingProgress(50);
-            const appScript = document.createElement('script');
-            appScript.src = 'script.js';
-            appScript.onload = function() {
-                updateLoadingProgress(100);
-                setTimeout(hideLoading, 300);
-            };
-            appScript.onerror = function() {
-                updateLoadingProgress(100);
-                setTimeout(hideLoading, 300);
-            };
-            document.body.appendChild(appScript);
-        };
-        document.body.appendChild(firebaseScript);
+            document.body.appendChild(script);
+        }
+        
+        // Try to load firebase-config.js from js/ folder first
+        updateLoadingProgress(20);
+        
+        loadScriptWithFallback(
+            'js/firebase-config.js',  // Primary path
+            'firebase-config.js',      // Fallback path (root)
+            function() {
+                updateLoadingProgress(50);
+                console.log('✅ Firebase config loaded');
+                
+                // ============================================================
+                // LOAD MAIN SCRIPT
+                // ============================================================
+                loadScriptWithFallback(
+                    'script.js',         // Primary path
+                    'script.js',         // Same path
+                    function() {
+                        updateLoadingProgress(100);
+                        console.log('✅ Main script loaded');
+                        setTimeout(hideLoading, 300);
+                    }
+                );
+            }
+        );
+        
+        // If Firebase config takes too long, try loading from root
+        setTimeout(function() {
+            const firebaseConfigLoaded = document.querySelector('script[src="js/firebase-config.js"]');
+            if (!firebaseConfigLoaded || !firebaseConfigLoaded.onload) {
+                console.log('🔄 Trying fallback firebase-config from root...');
+                const fallbackScript = document.createElement('script');
+                fallbackScript.src = 'firebase-config.js';
+                fallbackScript.onload = function() {
+                    console.log('✅ Firebase config loaded from root');
+                    updateLoadingProgress(50);
+                };
+                document.body.appendChild(fallbackScript);
+            }
+        }, 3000);
     </script>
 </body>
 </html>

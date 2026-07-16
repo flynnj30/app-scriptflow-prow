@@ -1,16 +1,16 @@
 {
   "name": "scriptflow-pro",
-  "version": "1.0.0",
-  "description": "ScriptFlow Pro - Smart CRM with Handoff Integration",
+  "version": "2.0.0",
+  "description": "ScriptFlow Pro - Smart CRM",
   "main": "index.html",
   "scripts": {
     "start": "npx serve . -p $PORT",
-    "build": "echo 'Static site - no build needed'"
+    "dev": "npx serve . -p 3000"
   },
   "dependencies": {
     "serve": "^14.2.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=18.0.0"
   }
 }

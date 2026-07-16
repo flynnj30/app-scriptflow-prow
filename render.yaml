@@ -13,8 +13,6 @@ services:
         value: 18.0.0
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
     headers:
       - path: /*
         name: X-Content-Type-Options
@@ -28,9 +26,6 @@ services:
       - path: /*
         name: Referrer-Policy
         value: strict-origin-when-cross-origin
-      - path: /*
-        name: Permissions-Policy
-        value: geolocation=(), microphone=(), camera=()
     healthCheckPath: /
     scaling:
       minInstances: 1

@@ -1,5 +1,5 @@
 // ============================================================
-// FIREBASE CONFIGURATION
+// FIREBASE CONFIGURATION - Minimal Version
 // ============================================================
 
 const FIREBASE_CONFIG = {
@@ -18,7 +18,7 @@ let firebaseInitialized = false;
 try {
     if (!firebase.apps.length) {
         firebase.initializeApp(FIREBASE_CONFIG);
-        console.log('✅ Firebase initialized successfully');
+        console.log('✅ Firebase initialized');
         firebaseInitialized = true;
     } else {
         firebaseInitialized = true;
@@ -34,71 +34,43 @@ if (firebaseInitialized) {
         auth = firebase.auth();
         
         // ============================================================
-        // MODERN FIRESTORE SETTINGS - Using cache instead of deprecated methods
+        // SUPPRESS DEPRECATION WARNING - Use modern approach
         // ============================================================
+        
+        // Method 1: Use cache settings (Recommended)
         try {
-            // Use the modern cache settings approach
+            // Modern approach - cache settings
             db.settings({
                 cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
                 merge: true,
-                // Modern cache setting - recommended approach
+                // Modern cache configuration
                 cache: {
                     tabSynchronization: true,
-                    // Enable offline persistence
-                    persistenceEnabled: true,
-                    // Cache size limit
-                    cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
-                },
-                // Fallback for older SDK versions
-                experimentalAutoDetectLongPolling: false,
-                experimentalForceLongPolling: false
+                    persistenceEnabled: true
+                }
             });
-            
-            console.log('✅ Firestore cache settings applied');
+            console.log('✅ Firestore cache configured');
         } catch (settingsError) {
-            console.warn('⚠️ Firestore settings error:', settingsError);
-            
-            // Fallback: Try without cache setting
-            try {
-                db.settings({
-                    cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
-                    merge: true,
-                    experimentalAutoDetectLongPolling: false,
-                    experimentalForceLongPolling: false
-                });
-                console.log('✅ Firestore settings applied (fallback)');
-            } catch (fallbackError) {
-                console.warn('⚠️ Firestore settings fallback error:', fallbackError);
-            }
+            // Fallback: Basic settings without cache
+            db.settings({
+                cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
+                merge: true
+            });
+            console.log('✅ Firestore basic settings applied');
         }
 
         // ============================================================
-        // OFFLINE PERSISTENCE - Modern approach with try-catch
+        // OFFLINE PERSISTENCE - Handle gracefully
         // ============================================================
         try {
-            // Use the modern enablePersistence with cache settings
+            // Try to enable persistence
             db.enablePersistence({ synchronizeTabs: true })
-                .then(() => {
-                    console.log('✅ Firestore persistence enabled (multi-tab)');
-                })
-                .catch(err => {
-                    if (err.code === 'failed-precondition') {
-                        console.warn('⚠️ Multiple tabs open, trying single tab mode');
-                        db.enablePersistence({ synchronizeTabs: false })
-                            .then(() => {
-                                console.log('✅ Firestore persistence enabled (single-tab)');
-                            })
-                            .catch(() => {
-                                console.warn('⚠️ Offline persistence unavailable, running in online-only mode');
-                            });
-                    } else if (err.code === 'unavailable') {
-                        console.warn('⚠️ Offline persistence unavailable, running in online-only mode');
-                    } else {
-                        console.warn('⚠️ Firebase persistence error:', err);
-                    }
+                .then(() => console.log('✅ Persistence enabled'))
+                .catch(() => {
+                    console.warn('⚠️ Persistence unavailable - offline mode disabled');
                 });
         } catch (persistenceError) {
-            console.warn('⚠️ Firebase persistence setup error:', persistenceError);
+            console.warn('⚠️ Persistence setup error:', persistenceError.message);
         }
 
         // ============================================================
@@ -106,69 +78,26 @@ if (firebaseInitialized) {
         // ============================================================
         try {
             auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
-                .then(() => {
-                    console.log('✅ Auth persistence enabled');
-                })
-                .catch(err => {
-                    console.warn('⚠️ Auth persistence error:', err);
-                });
+                .catch(() => console.warn('⚠️ Auth persistence unavailable'));
         } catch (authError) {
-            console.warn('⚠️ Auth persistence setup error:', authError);
+            console.warn('⚠️ Auth persistence error');
         }
 
-        console.log('✅ Firebase services ready');
+        console.log('✅ Firebase ready');
         
     } catch (error) {
-        console.error('❌ Error setting up Firebase services:', error);
-        
-        // Create fallback objects to prevent app crashes
-        db = {
-            collection: () => ({
-                doc: () => ({
-                    get: () => Promise.resolve({ exists: false, data: () => ({}) }),
-                    set: () => Promise.resolve(),
-                    update: () => Promise.resolve(),
-                    delete: () => Promise.resolve(),
-                    onSnapshot: () => () => {}
-                }),
-                onSnapshot: () => () => {}
-            })
-        };
-        auth = {
-            onAuthStateChanged: () => () => {},
-            signInWithPopup: () => Promise.reject(new Error('Firebase unavailable')),
-            signInWithEmailAndPassword: () => Promise.reject(new Error('Firebase unavailable')),
-            createUserWithEmailAndPassword: () => Promise.reject(new Error('Firebase unavailable')),
-            signOut: () => Promise.resolve(),
-            setPersistence: () => Promise.resolve()
-        };
+        console.error('❌ Firebase services error:', error);
+        // Fallback objects
+        db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: false, data: () => ({}) }), set: () => Promise.resolve(), update: () => Promise.resolve(), delete: () => Promise.resolve(), onSnapshot: () => () => {} }), onSnapshot: () => () => {} }) };
+        auth = { onAuthStateChanged: () => () => {}, signInWithPopup: () => Promise.reject(), signInWithEmailAndPassword: () => Promise.reject(), createUserWithEmailAndPassword: () => Promise.reject(), signOut: () => Promise.resolve(), setPersistence: () => Promise.resolve() };
     }
 } else {
-    // Fallback for failed Firebase initialization
+    // Fallback
     console.warn('⚠️ Using fallback Firebase services');
-    db = {
-        collection: () => ({
-            doc: () => ({
-                get: () => Promise.resolve({ exists: false, data: () => ({}) }),
-                set: () => Promise.resolve(),
-                update: () => Promise.resolve(),
-                delete: () => Promise.resolve(),
-                onSnapshot: () => () => {}
-            }),
-            onSnapshot: () => () => {}
-        })
-    };
-    auth = {
-        onAuthStateChanged: () => () => {},
-        signInWithPopup: () => Promise.reject(new Error('Firebase unavailable')),
-        signInWithEmailAndPassword: () => Promise.reject(new Error('Firebase unavailable')),
-        createUserWithEmailAndPassword: () => Promise.reject(new Error('Firebase unavailable')),
-        signOut: () => Promise.resolve(),
-        setPersistence: () => Promise.resolve()
-    };
+    db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: false, data: () => ({}) }), set: () => Promise.resolve(), update: () => Promise.resolve(), delete: () => Promise.resolve(), onSnapshot: () => () => {} }), onSnapshot: () => () => {} }) };
+    auth = { onAuthStateChanged: () => () => {}, signInWithPopup: () => Promise.reject(), signInWithEmailAndPassword: () => Promise.reject(), createUserWithEmailAndPassword: () => Promise.reject(), signOut: () => Promise.resolve(), setPersistence: () => Promise.resolve() };
 }
 
-// Make available globally
 window.db = db;
 window.auth = auth;
 window.firebase = firebase;
