@@ -23,20 +23,68 @@
     <!-- Styles -->
     <link rel="stylesheet" href="style.css" />
     
-    <!-- Prevent extension errors -->
+    <!-- Error Prevention & Fallback Script -->
     <script>
-        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
-            chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-                return true;
-            });
-        }
-        console.error = function() {
-            const args = Array.from(arguments);
-            if (args.some(arg => typeof arg === 'string' && arg.includes('chrome-extension'))) {
-                return;
+        // Suppress Firebase connection errors from extensions
+        (function() {
+            // Store original console methods
+            const originalError = console.error;
+            const originalWarn = console.warn;
+            
+            // Filter out Firebase connection errors
+            console.error = function() {
+                const args = Array.from(arguments);
+                const message = args.map(a => String(a)).join(' ');
+                if (message.includes('firestore') && 
+                    (message.includes('BLOCKED_BY_CLIENT') || 
+                     message.includes('Failed to load resource') ||
+                     message.includes('net::ERR_BLOCKED'))) {
+                    // Silently ignore these errors
+                    return;
+                }
+                originalError.apply(console, arguments);
+            };
+            
+            console.warn = function() {
+                const args = Array.from(arguments);
+                const message = args.map(a => String(a)).join(' ');
+                if (message.includes('firestore') && 
+                    (message.includes('BLOCKED_BY_CLIENT') || 
+                     message.includes('Failed to load resource'))) {
+                    return;
+                }
+                originalWarn.apply(console, arguments);
+            };
+            
+            // Handle chrome extension errors
+            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+                chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+                    return true;
+                });
             }
-            console.log.apply(console, args);
-        };
+            
+            // Global error handler for uncaught errors
+            window.addEventListener('error', function(e) {
+                if (e.message && e.message.includes('firestore') && 
+                    (e.message.includes('BLOCKED_BY_CLIENT') || 
+                     e.message.includes('net::ERR_BLOCKED'))) {
+                    e.preventDefault();
+                    return true;
+                }
+            });
+            
+            // Handle unhandled promise rejections
+            window.addEventListener('unhandledrejection', function(e) {
+                if (e.reason && e.reason.message && 
+                    (e.reason.message.includes('firestore') || 
+                     e.reason.message.includes('BLOCKED_BY_CLIENT'))) {
+                    e.preventDefault();
+                    return true;
+                }
+            });
+            
+            console.log('🛡️ Error filtering enabled for Firebase connections');
+        })();
     </script>
 </head>
 <body class="dark">
