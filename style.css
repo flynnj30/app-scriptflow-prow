@@ -689,17 +689,6 @@ body {
     overflow-y: auto;
 }
 
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
 /* ============================================================
    CALENDAR
    ============================================================ */
@@ -959,6 +948,94 @@ body {
     border-radius: 10px;
 }
 
+.appointment-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    padding: 14px 18px;
+    transition: var(--transition);
+    cursor: default;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+}
+
+.appointment-card:hover {
+    border-color: var(--primary);
+    box-shadow: var(--shadow-md);
+}
+
+.appointment-card .drag-handle {
+    cursor: grab;
+    color: var(--drag-handle-color);
+    font-size: 0.9rem;
+    padding: 4px;
+    opacity: 0.4;
+    transition: var(--transition);
+    position: absolute;
+    top: 8px;
+    right: 8px;
+}
+
+.appointment-card:hover .drag-handle {
+    opacity: 1;
+}
+
+.appointment-card .drag-handle:active {
+    cursor: grabbing;
+}
+
+.appointment-card .card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.appointment-card .business-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    flex-wrap: wrap;
+}
+
+.appointment-card .business-name:hover {
+    color: var(--primary);
+}
+
+.appointment-card .card-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.appointment-card .card-actions button {
+    background: var(--bg-primary);
+    border: none;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: var(--transition);
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.appointment-card .card-actions button:hover {
+    background: var(--primary);
+    color: white;
+}
+
+.appointment-card .card-actions .delete-appt-btn:hover {
+    background: var(--danger);
+}
+
 /* ============================================================
    LIST VIEW
    ============================================================ */
@@ -1050,37 +1127,6 @@ body {
 .score-hot { background: #ef4444; color: white; }
 .score-warm { background: #f59e0b; color: #1e293b; }
 .score-cold { background: #94a3b8; color: white; }
-
-/* ============================================================
-   APPOINTMENT CARD ACTIONS
-   ============================================================ */
-.appointment-card .card-actions {
-    display: flex;
-    gap: 6px;
-}
-
-.appointment-card .card-actions button {
-    background: var(--bg-primary);
-    border: none;
-    padding: 4px 8px;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-size: 0.75rem;
-    transition: var(--transition);
-    color: var(--text-secondary);
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.appointment-card .card-actions button:hover {
-    background: var(--primary);
-    color: white;
-}
-
-.appointment-card .card-actions .delete-appt-btn:hover {
-    background: var(--danger);
-}
 
 /* ============================================================
    APPOINTMENT DETAIL MODAL
@@ -1863,6 +1909,104 @@ body {
 }
 
 /* ============================================================
+   ANIMATIONS
+   ============================================================ */
+
+/* Base Animations */
+.fade-in {
+    animation: fadeIn 0.4s ease forwards;
+}
+
+.slide-up {
+    animation: slideUp 0.4s ease forwards;
+}
+
+.scale-in {
+    animation: scaleIn 0.4s ease forwards;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* Stagger animations for cards */
+.report-metrics .metric-card:nth-child(1) { animation-delay: 0.05s; }
+.report-metrics .metric-card:nth-child(2) { animation-delay: 0.10s; }
+.report-metrics .metric-card:nth-child(3) { animation-delay: 0.15s; }
+.report-metrics .metric-card:nth-child(4) { animation-delay: 0.20s; }
+.report-metrics .metric-card:nth-child(5) { animation-delay: 0.25s; }
+.report-metrics .metric-card:nth-child(6) { animation-delay: 0.30s; }
+
+.feature-card.slide-up { animation-delay: 0.1s; }
+.feature-card.slide-up:nth-child(2) { animation-delay: 0.2s; }
+.feature-card.scale-in { animation-delay: 0.15s; }
+
+/* Hover animations */
+.metric-card,
+.kpi-card,
+.feature-card,
+.appointment-card,
+.task-card,
+.script-item {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.metric-card:hover,
+.kpi-card:hover,
+.feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+}
+
+/* Pulse animation for notifications */
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.pulse {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+/* Shimmer loading animation */
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.skeleton {
+    background: linear-gradient(90deg, var(--bg-primary) 25%, var(--bg-card) 50%, var(--bg-primary) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 8px;
+}
+
+/* Bounce animation for badges */
+@keyframes bounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+}
+
+.badge-bounce {
+    animation: bounce 0.5s ease;
+}
+
+/* ============================================================
    RESPONSIVE DESIGN
    ============================================================ */
 
@@ -2275,23 +2419,6 @@ body.dark .tasks-list::-webkit-scrollbar-thumb {
     outline-offset: 2px;
 }
 
-/* Loading skeleton animation */
-@keyframes shimmer {
-    0% {
-        background-position: -200% 0;
-    }
-    100% {
-        background-position: 200% 0;
-    }
-}
-
-.skeleton {
-    background: linear-gradient(90deg, var(--bg-primary) 25%, var(--bg-card) 50%, var(--bg-primary) 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-    border-radius: 8px;
-}
-
 /* ============================================================
    SCROLLBAR STYLING
    ============================================================ */
@@ -2312,4 +2439,62 @@ body.dark .tasks-list::-webkit-scrollbar-thumb {
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-muted);
+}
+
+/* ============================================================
+   TEAM PERFORMANCE CARDS
+   ============================================================ */
+.team-member-card {
+    background: var(--bg-primary);
+    border-radius: 12px;
+    padding: 16px;
+    border-left: 4px solid var(--primary);
+    transition: all 0.3s ease;
+}
+
+.team-member-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.team-member-card .member-avatar {
+    font-size: 2rem;
+}
+
+.team-member-card .member-name {
+    font-weight: 600;
+}
+
+.team-member-card .member-role {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+/* ============================================================
+   TABLE STYLES
+   ============================================================ */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+table th {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 2px solid var(--border-color);
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+table td {
+    padding: 8px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.85rem;
+}
+
+table tr:hover td {
+    background: var(--bg-primary);
 }
