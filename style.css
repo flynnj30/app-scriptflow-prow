@@ -306,6 +306,7 @@ body {
     font-size: 0.7rem;
     opacity: 0.3;
     transition: var(--transition);
+    cursor: pointer;
 }
 
 .script-item .favorite-star.active {
@@ -878,7 +879,7 @@ body {
 }
 
 /* ============================================================
-   APPOINTMENT CARDS WITH DRAG & DROP
+   APPOINTMENT CARDS
    ============================================================ */
 .appointments-section {
     display: flex;
@@ -1164,6 +1165,19 @@ body {
 
 #importPreview .parsed-field .field-confidence.low {
     color: var(--danger);
+}
+
+#importPreview .parsed-field .field-edit {
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: var(--transition);
+    padding: 4px;
+    border-radius: 4px;
+}
+
+#importPreview .parsed-field .field-edit:hover {
+    color: var(--primary);
+    background: var(--bg-primary);
 }
 
 /* ============================================================
