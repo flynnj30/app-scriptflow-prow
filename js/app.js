@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - ENHANCED APPLICATION MODULE
+// SCRIPTFLOW PRO - ENHANCED APPLICATION
 // ================================================================
 
 // ================================================================
@@ -14,12 +14,12 @@ const CONFIG = {
         { id: 'vip', name: 'VIP', color: '#3b82f6' },
         { id: 'negligent_warm_callback', name: 'Negligent Warm Callback', color: '#ef4444' }
     ],
-    TEAM_MEMBERS: [
-        { id: 'daniel', name: 'Daniel', email: 'daniel@scriptflow.com', role: 'Team Lead', avatar: '👨‍💼', color: '#3b82f6' },
-        { id: 'sarah', name: 'Sarah', email: 'sarah@scriptflow.com', role: 'Senior Agent', avatar: '👩‍💼', color: '#8b5cf6' },
-        { id: 'mike', name: 'Mike', email: 'mike@scriptflow.com', role: 'Agent', avatar: '👨‍💻', color: '#10b981' },
-        { id: 'jessica', name: 'Jessica', email: 'jessica@scriptflow.com', role: 'Agent', avatar: '👩‍💻', color: '#f59e0b' },
-        { id: 'david', name: 'David', email: 'david@scriptflow.com', role: 'Junior Agent', avatar: '👨‍🎓', color: '#ef4444' }
+    DEFAULT_TEAM_MEMBERS: [
+        { id: 'daniel', name: 'Daniel', role: 'Team Lead', email: 'daniel@company.com', phone: '+1-555-0101', avatar: '👨‍💼', color: '#3b82f6', active: true },
+        { id: 'sarah', name: 'Sarah', role: 'Senior Agent', email: 'sarah@company.com', phone: '+1-555-0102', avatar: '👩‍💼', color: '#8b5cf6', active: true },
+        { id: 'mike', name: 'Mike', role: 'Agent', email: 'mike@company.com', phone: '+1-555-0103', avatar: '👨‍💻', color: '#10b981', active: true },
+        { id: 'jessica', name: 'Jessica', role: 'Agent', email: 'jessica@company.com', phone: '+1-555-0104', avatar: '👩‍💻', color: '#f59e0b', active: true },
+        { id: 'david', name: 'David', role: 'Junior Agent', email: 'david@company.com', phone: '+1-555-0105', avatar: '👨‍🎓', color: '#ef4444', active: true }
     ],
     FIELD_MAPPINGS: {
         'name': ['name', 'client', 'prospect', 'contact', 'customer', 'person', 'full name', 'contact name'],
@@ -39,10 +39,9 @@ const CONFIG = {
         'Global Search': { keys: ['Ctrl', 'Shift', 'F'], description: 'Open Global Search' },
         'Quick Add Appointment': { keys: ['Ctrl', 'Shift', 'A'], description: 'Quick Add Appointment' },
         'Analytics Hub': { keys: ['Ctrl', 'Shift', 'H'], description: 'Open Analytics Hub' },
-        'Team Management': { keys: ['Ctrl', 'Shift', 'T'], description: 'Open Team Management' },
         'Keyboard Shortcuts': { keys: ['Ctrl', 'Shift', '?'], description: 'Open Keyboard Shortcuts' },
         'Export to CSV': { keys: ['Ctrl', 'Shift', 'E'], description: 'Export data to CSV' },
-        'Toggle Theme': { keys: ['Ctrl', 'Shift', 'L'], description: 'Toggle Dark/Light Mode' },
+        'Toggle Theme': { keys: ['Ctrl', 'Shift', 'T'], description: 'Toggle Dark/Light Mode' },
         'Refresh Data': { keys: ['Ctrl', 'Shift', 'R'], description: 'Refresh data from server' },
         'Bulk Actions': { keys: ['Ctrl', 'Shift', 'B'], description: 'Open Bulk Actions' },
         'Close Panel': { keys: ['Escape'], description: 'Close current panel and return to scripts' }
@@ -56,7 +55,6 @@ const CONFIG = {
 const AppState = {
     // User
     currentUser: null,
-    currentUserEmail: null,
     isFirebaseReady: false,
     authInProgress: false,
     authModalOpen: false,
@@ -73,20 +71,19 @@ const AppState = {
     // UI State
     currentScriptId: 'opening',
     isEditing: false,
-    isTyping: false,
     searchTerm: '',
     currentEditContent: '',
     toolsOpen: false,
     currentView: 'calendar',
     calendarView: 'calendar',
     analyticsTab: 'insights',
-    pipelineView: 'my',
+    pipelineView: 'my', // 'my' or 'team'
     taskFilter: 'all',
     selectedAppointments: new Set(),
     currentAppointmentId: null,
     selectedCalDate: null,
     currentCalDate: null,
-    editingTeamMemberId: null,
+    selectedTeamMemberId: null,
 
     // Date Filters
     dateFilter: 'today',
@@ -104,7 +101,6 @@ const AppState = {
     // Shortcuts
     shortcuts: {},
     customShortcuts: {},
-    shortcutsEnabled: true,
 
     // Parsed Import
     parsedImportData: {},
@@ -113,7 +109,7 @@ const AppState = {
     // Loading
     isLoading: false,
     isRefreshing: false,
-    teamSearchTerm: ''
+    shortcutsEnabled: true
 };
 
 // ================================================================
@@ -295,40 +291,49 @@ const Utils = {
         return Object.keys(scripts);
     },
 
-    getTeamMemberStats(memberId, appointments, teamMembers) {
-        let total = 0, hotTransfers = 0, warmCallbacks = 0, completed = 0, pending = 0, canceled = 0;
-        let scoreTotal = 0, scoreCount = 0;
+    getMemberStats(memberId, appointments) {
+        const stats = {
+            total: 0,
+            hotTransfers: 0,
+            warmCallbacks: 0,
+            completed: 0,
+            pending: 0,
+            canceled: 0,
+            score: 0,
+            appointments: []
+        };
 
         for (let date in appointments) {
             if (appointments[date].reports) {
                 appointments[date].reports.forEach(appt => {
                     if (appt.assigned === memberId) {
-                        total++;
+                        stats.total++;
                         const status = Utils.getStatus(appt);
-                        if (status === 'Hot Transfer') hotTransfers++;
-                        else if (status === 'Warm Callback') warmCallbacks++;
-                        else if (status === 'Completed') completed++;
-                        else if (status === 'Pending') pending++;
-                        else if (status === 'Canceled') canceled++;
-                        scoreTotal += Utils.calculateLeadScore(appt);
-                        scoreCount++;
+                        if (status === 'Hot Transfer') stats.hotTransfers++;
+                        else if (status === 'Warm Callback') stats.warmCallbacks++;
+                        else if (status === 'Completed') stats.completed++;
+                        else if (status === 'Pending') stats.pending++;
+                        else if (status === 'Canceled') stats.canceled++;
+                        stats.score += Utils.calculateLeadScore(appt);
+                        stats.appointments.push(appt);
                     }
                 });
             }
         }
 
-        const avgScore = scoreCount > 0 ? Math.round(scoreTotal / scoreCount) : 0;
-        const conversionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
-
-        return { total, hotTransfers, warmCallbacks, completed, pending, canceled, avgScore, conversionRate };
+        if (stats.total > 0) {
+            stats.score = Math.round(stats.score / stats.total);
+        }
+        stats.conversionRate = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
+        return stats;
     },
 
-    getTeamMemberById(id, teamMembers) {
-        return teamMembers.find(m => m.id === id);
-    },
-
-    getTeamMemberByName(name, teamMembers) {
-        return teamMembers.find(m => m.name.toLowerCase() === name.toLowerCase());
+    getAllMemberStats(teamMembers, appointments) {
+        const stats = {};
+        teamMembers.forEach(member => {
+            stats[member.id] = this.getMemberStats(member.id, appointments);
+        });
+        return stats;
     }
 };
 
@@ -369,77 +374,6 @@ const DOM = {
         if (className) el.className = className;
         if (html) el.innerHTML = html;
         return el;
-    },
-
-    qs(selector, context = document) {
-        return context.querySelector(selector);
-    },
-
-    qsa(selector, context = document) {
-        return context.querySelectorAll(selector);
-    }
-};
-
-// ================================================================
-// LOADING SCREEN CONTROLLER
-// ================================================================
-
-const LoadingController = {
-    _progress: 0,
-    _steps: [
-        { progress: 10, message: 'Initializing application...' },
-        { progress: 20, message: 'Loading team data...' },
-        { progress: 35, message: 'Connecting to services...' },
-        { progress: 50, message: 'Setting up UI...' },
-        { progress: 65, message: 'Loading features...' },
-        { progress: 85, message: 'Loading your data...' },
-        { progress: 100, message: 'Ready!' }
-    ],
-
-    update(progress, message) {
-        this._progress = Math.min(progress, 100);
-        const bar = DOM.get('loadingProgress');
-        const percentDisplay = DOM.get('loadingPercent');
-        const subtitle = document.querySelector('.loading-subtitle');
-
-        if (bar) bar.style.width = this._progress + '%';
-        if (percentDisplay) percentDisplay.textContent = this._progress + '%';
-        if (subtitle && message) subtitle.textContent = message;
-    },
-
-    nextStep() {
-        for (const step of this._steps) {
-            if (step.progress > this._progress) {
-                this.update(step.progress, step.message);
-                return step;
-            }
-        }
-        return null;
-    },
-
-    hide() {
-        const screen = DOM.get('loadingScreen');
-        const appWrapper = DOM.get('appWrapper');
-
-        if (screen) {
-            screen.classList.add('hidden');
-            setTimeout(() => {
-                screen.style.display = 'none';
-            }, 600);
-        }
-        if (appWrapper) {
-            appWrapper.style.display = 'flex';
-        }
-    },
-
-    show() {
-        const screen = DOM.get('loadingScreen');
-        if (screen) {
-            screen.classList.remove('hidden');
-            screen.style.display = 'flex';
-        }
-        this._progress = 0;
-        this.update(0, 'Starting up...');
     }
 };
 
@@ -505,46 +439,3498 @@ function handleError(error, context = '') {
 }
 
 // ================================================================
-// KEYBOARD SHORTCUTS MANAGER
+// AUTHENTICATION
 // ================================================================
 
-const ShortcutManager = {
-    enableShortcuts() {
-        AppState.shortcutsEnabled = true;
+const Auth = {
+    signInWithGoogle: async function() {
+        if (AppState.authInProgress || !AppState.isFirebaseReady) return false;
+        AppState.authInProgress = true;
+        try {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            provider.setCustomParameters({ prompt: 'select_account' });
+            const result = await firebase.auth().signInWithPopup(provider);
+            if (result.user) {
+                AppState.currentUser = result.user;
+                this.updateUI();
+                await Data.loadUserData();
+                showToast('Welcome back! 👋', 'success');
+                this.closeModal();
+                AppState.authInProgress = false;
+                return true;
+            }
+        } catch (error) {
+            AppState.authInProgress = false;
+            if (error.code === 'auth/popup-closed-by-user') {
+                showToast('Sign in cancelled', 'info');
+            } else {
+                handleError(error, 'Google Sign-In');
+            }
+            return false;
+        }
     },
 
-    disableShortcuts() {
-        AppState.shortcutsEnabled = false;
+    signUp: async function(email, password, username) {
+        if (AppState.authInProgress || !AppState.isFirebaseReady) return false;
+        AppState.authInProgress = true;
+        try {
+            const result = await firebase.auth().createUserWithEmailAndPassword(email, password);
+            if (result.user) {
+                await result.user.updateProfile({ displayName: username });
+                await firebase.firestore().collection('users').doc(result.user.uid).set({
+                    uid: result.user.uid,
+                    email: email,
+                    username: username,
+                    displayName: username,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    goals: { daily: 3, weekly: 15, monthly: 60 },
+                    scriptOrder: ['opening']
+                });
+                showToast('Account created! 🎉', 'success');
+                AppState.currentUser = result.user;
+                this.updateUI();
+                await Data.loadUserData();
+                this.closeModal();
+                AppState.authInProgress = false;
+                return true;
+            }
+        } catch (error) {
+            AppState.authInProgress = false;
+            handleError(error, 'Sign Up');
+            return false;
+        }
     },
 
-    isTyping() {
-        return AppState.isTyping || AppState.isEditing;
+    signIn: async function(email, password) {
+        if (AppState.authInProgress || !AppState.isFirebaseReady) return false;
+        AppState.authInProgress = true;
+        try {
+            const result = await firebase.auth().signInWithEmailAndPassword(email, password);
+            if (result.user) {
+                AppState.currentUser = result.user;
+                this.updateUI();
+                await Data.loadUserData();
+                showToast('Welcome back! 👋', 'success');
+                this.closeModal();
+                AppState.authInProgress = false;
+                return true;
+            }
+        } catch (error) {
+            AppState.authInProgress = false;
+            handleError(error, 'Sign In');
+            return false;
+        }
     },
 
-    handleKeydown(e) {
-        if (e.key === 'Escape') {
-            AppState.handleEscapeKey();
+    signOut: async function() {
+        try {
+            if (AppState.appointmentsUnsubscribe) {
+                AppState.appointmentsUnsubscribe();
+                AppState.appointmentsUnsubscribe = null;
+            }
+            if (AppState.tasksUnsubscribe) {
+                AppState.tasksUnsubscribe();
+                AppState.tasksUnsubscribe = null;
+            }
+            if (AppState.teamMembersUnsubscribe) {
+                AppState.teamMembersUnsubscribe();
+                AppState.teamMembersUnsubscribe = null;
+            }
+            
+            AppState.currentUser = null;
+            AppState.appointments = {};
+            AppState.tasks = [];
+            AppState.scripts = {};
+            AppState.scriptOrder = [];
+            AppState.teamMembers = [];
+            
+            this.updateUI();
+            Stats.updateAll();
+            Scripts.renderSidebar();
+            
+            if (AppState.isFirebaseReady) {
+                await firebase.auth().signOut();
+            }
+            
+            showToast('Signed out successfully', 'info');
+            setTimeout(() => this.showModal(), 300);
+        } catch (error) {
+            handleError(error, 'Sign Out');
+        }
+    },
+
+    updateUI: function() {
+        const container = DOM.get('userInfo');
+        if (!container) return;
+        if (!AppState.currentUser) {
+            container.style.display = 'none';
             return;
         }
+        container.style.display = 'block';
+        DOM.setText('userEmail', AppState.currentUser.email || '');
+    },
 
-        if (!AppState.shortcutsEnabled || this.isTyping()) {
-            if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
-                return;
+    showModal: function() {
+        if (AppState.authModalOpen) return;
+        AppState.authModalOpen = true;
+
+        const existing = DOM.get('authModal');
+        if (existing) existing.remove();
+
+        const modal = DOM.createElement('div', 'modal-overlay');
+        modal.id = 'authModal';
+        modal.innerHTML = `
+            <div class="modal-card" style="max-width: 420px;">
+                <h2 style="text-align:center; margin-bottom:20px;">
+                    <i class="fas fa-microphone-alt" style="color:var(--primary);"></i>
+                    ScriptFlow Pro
+                </h2>
+                <p style="text-align:center; color:var(--text-muted); margin-bottom:20px; font-size:0.9rem;">
+                    Sign in to manage and hand off your leads
+                </p>
+                ${AppState.isFirebaseReady ? `
+                    <button id="googleSignInBtn" class="btn-icon" style="width:100%; justify-content:center; background:#ffffff; color:#333; border:1px solid #dadce0; margin-bottom:16px; padding:10px;">
+                        <svg style="width:18px; height:18px; margin-right:8px;" viewBox="0 0 48 48">
+                            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                        </svg>
+                        <span style="font-weight:500;">Sign in with Google</span>
+                    </button>
+                    <div class="auth-divider">or continue with email</div>
+                ` : `
+                    <div style="padding:16px; background:var(--warning); border-radius:12px; margin-bottom:16px; color:#1e293b;">
+                        ⚠️ Offline Mode - Firebase connection unavailable
+                    </div>
+                `}
+                <div id="authFormContainer">
+                    <div style="display:flex; gap:8px; margin-bottom:20px;">
+                        <button id="loginTabBtn" class="view-btn active" style="flex:1; justify-content:center;">Sign In</button>
+                        <button id="signupTabBtn" class="view-btn" style="flex:1; justify-content:center;">Sign Up</button>
+                    </div>
+                    <div id="loginForm">
+                        <div class="form-group"><label>Email</label><input type="email" id="loginEmailInput" placeholder="you@example.com" /></div>
+                        <div class="form-group"><label>Password</label><input type="password" id="loginPasswordInput" placeholder="••••••••" /></div>
+                        <button id="loginBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--primary); color:white;" ${!AppState.isFirebaseReady ? 'disabled' : ''}><i class="fas fa-sign-in-alt"></i> Sign In</button>
+                    </div>
+                    <div id="signupForm" style="display:none;">
+                        <div class="form-group"><label>Username</label><input type="text" id="signupUsernameInput" placeholder="Choose a username" /></div>
+                        <div class="form-group"><label>Email</label><input type="email" id="signupEmailInput" placeholder="you@example.com" /></div>
+                        <div class="form-group"><label>Password</label><input type="password" id="signupPasswordInput" placeholder="•••••••• (min 6 chars)" /></div>
+                        <button id="signupBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--success); color:white;" ${!AppState.isFirebaseReady ? 'disabled' : ''}><i class="fas fa-user-plus"></i> Create Account</button>
+                    </div>
+                </div>
+                <div style="margin-top:16px; text-align:center; font-size:0.8rem; color:var(--text-muted);">🔒 Secure Cloud Data Integration</div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        if (AppState.isFirebaseReady) {
+            const googleBtn = DOM.get('googleSignInBtn');
+            const loginTab = DOM.get('loginTabBtn');
+            const signupTab = DOM.get('signupTabBtn');
+            const loginBtn = DOM.get('loginBtn');
+            const signupBtn = DOM.get('signupBtn');
+
+            if (googleBtn) googleBtn.addEventListener('click', (e) => { e.preventDefault(); this.signInWithGoogle(); });
+            if (loginTab) loginTab.addEventListener('click', () => {
+                loginTab.classList.add('active');
+                if (signupTab) signupTab.classList.remove('active');
+                const loginForm = DOM.get('loginForm');
+                const signupForm = DOM.get('signupForm');
+                if (loginForm) loginForm.style.display = 'block';
+                if (signupForm) signupForm.style.display = 'none';
+            });
+            if (signupTab) signupTab.addEventListener('click', () => {
+                signupTab.classList.add('active');
+                if (loginTab) loginTab.classList.remove('active');
+                const loginForm = DOM.get('loginForm');
+                const signupForm = DOM.get('signupForm');
+                if (loginForm) loginForm.style.display = 'none';
+                if (signupForm) signupForm.style.display = 'block';
+            });
+            if (loginBtn) loginBtn.addEventListener('click', async () => {
+                const email = DOM.get('loginEmailInput')?.value;
+                const password = DOM.get('loginPasswordInput')?.value;
+                if (!email || !password) { showToast('Please fill in all fields', 'error'); return; }
+                await this.signIn(email, password);
+            });
+            if (signupBtn) signupBtn.addEventListener('click', async () => {
+                const username = DOM.get('signupUsernameInput')?.value;
+                const email = DOM.get('signupEmailInput')?.value;
+                const password = DOM.get('signupPasswordInput')?.value;
+                if (!username || !email || !password) { showToast('Please fill in all fields', 'error'); return; }
+                if (password.length < 6) { showToast('Password must be at least 6 characters', 'error'); return; }
+                await this.signUp(email, password, username);
+            });
+        }
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) this.closeModal();
+        });
+    },
+
+    closeModal: function() {
+        const modal = DOM.get('authModal');
+        if (modal) modal.remove();
+        AppState.authModalOpen = false;
+    }
+};
+
+// ================================================================
+// DATA LAYER
+// ================================================================
+
+const Data = {
+    loadUserData: async function(showLoading = true) {
+        if (!AppState.currentUser) {
+            const localData = localStorage.getItem('userData_fallback');
+            if (localData) {
+                try {
+                    const data = JSON.parse(localData);
+                    AppState.scripts = data.scripts || {};
+                    AppState.scriptOrder = data.scriptOrder || [];
+                    AppState.appointments = data.appointments || {};
+                    AppState.tasks = data.tasks || {};
+                    AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
+                    showToast('Loaded offline data', 'info');
+                    Stats.updateAll();
+                    Scripts.renderSidebar();
+                    Scripts.loadScript('opening');
+                    TeamManager.renderTeamList();
+                    return;
+                } catch (e) {
+                    console.warn('Failed to load offline data:', e);
+                }
             }
             return;
         }
 
+        if (!AppState.isFirebaseReady) {
+            showToast('Firebase unavailable - using offline mode', 'warning');
+            return;
+        }
+
+        try {
+            const statusEl = DOM.get('saveStatus');
+            if (statusEl && showLoading) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+
+            const db = firebase.firestore();
+            const userRef = db.collection('users').doc(AppState.currentUser.uid);
+            const userDoc = await userRef.get();
+            const userData = userDoc.data();
+            
+            if (!userData) {
+                await userRef.set({
+                    uid: AppState.currentUser.uid,
+                    email: AppState.currentUser.email,
+                    username: AppState.currentUser.displayName || AppState.currentUser.email,
+                    displayName: AppState.currentUser.displayName || AppState.currentUser.email,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    goals: { daily: 3, weekly: 15, monthly: 60 },
+                    scriptOrder: ['opening']
+                });
+                return this.loadUserData();
+            }
+            
+            if (userData.goals) {
+                AppState.goals = {
+                    daily: userData.goals.daily || 3,
+                    weekly: userData.goals.weekly || 15,
+                    monthly: userData.goals.monthly || 60
+                };
+            }
+            AppState.scriptOrder = userData.scriptOrder || [];
+
+            this.subscribeToChanges();
+
+            const scriptsSnapshot = await userRef.collection('scripts').get();
+            AppState.scripts = {};
+            scriptsSnapshot.forEach(doc => {
+                const data = doc.data();
+                AppState.scripts[doc.id] = { name: data.name, content: data.content, version: data.version || 1 };
+            });
+            
+            if (Object.keys(AppState.scripts).length === 0) {
+                await this.createDefaultScripts();
+                return this.loadUserData();
+            }
+
+            localStorage.setItem('userData_fallback', JSON.stringify({
+                scripts: AppState.scripts,
+                scriptOrder: AppState.scriptOrder,
+                appointments: AppState.appointments,
+                tasks: AppState.tasks,
+                teamMembers: AppState.teamMembers
+            }));
+
+            Stats.updateAll();
+            Scripts.renderSidebar();
+            Scripts.loadScript('opening');
+            TeamManager.renderTeamList();
+            Auth.closeModal();
+            if (statusEl) statusEl.innerHTML = '<i class="fas fa-check"></i> Synced';
+        } catch (error) {
+            console.error('Data Load Error:', error);
+            handleError(error, 'Loading Data');
+        }
+    },
+
+    subscribeToChanges: function() {
+        if (!AppState.currentUser || !AppState.isFirebaseReady) return;
+        if (AppState.appointmentsUnsubscribe) AppState.appointmentsUnsubscribe();
+        if (AppState.tasksUnsubscribe) AppState.tasksUnsubscribe();
+        if (AppState.teamMembersUnsubscribe) AppState.teamMembersUnsubscribe();
+
+        try {
+            const db = firebase.firestore();
+            const userRef = db.collection('users').doc(AppState.currentUser.uid);
+
+            AppState.appointmentsUnsubscribe = userRef.collection('appointments').orderBy('createdAt', 'desc').onSnapshot(snap => {
+                AppState.appointments = {};
+                snap.forEach(doc => {
+                    const appt = doc.data();
+                    if (!AppState.appointments[appt.date]) {
+                        AppState.appointments[appt.date] = { count: 0, note: '', reports: [] };
+                    }
+                    AppState.appointments[appt.date].reports.push({ ...appt, id: doc.id });
+                    AppState.appointments[appt.date].count = AppState.appointments[appt.date].reports.length;
+                });
+                Stats.updateAll();
+                FeaturePanel.refreshCurrentView();
+                TeamManager.renderTeamList();
+                localStorage.setItem('appointments_fallback', JSON.stringify(AppState.appointments));
+            }, error => {
+                console.warn('Appointments subscription error:', error);
+            });
+
+            AppState.tasksUnsubscribe = userRef.collection('tasks').orderBy('createdAt', 'desc').onSnapshot(snap => {
+                AppState.tasks = [];
+                snap.forEach(doc => AppState.tasks.push({ ...doc.data(), id: doc.id }));
+                Stats.updateTaskStats();
+                FeaturePanel.refreshCurrentView();
+                localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
+            }, error => {
+                console.warn('Tasks subscription error:', error);
+            });
+
+            AppState.teamMembersUnsubscribe = userRef.collection('teamMembers').onSnapshot(snap => {
+                if (snap.empty) {
+                    // Initialize with default team members
+                    AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
+                    AppState.teamMembers.forEach(member => {
+                        userRef.collection('teamMembers').doc(member.id).set(member);
+                    });
+                } else {
+                    AppState.teamMembers = [];
+                    snap.forEach(doc => {
+                        AppState.teamMembers.push({ ...doc.data(), id: doc.id });
+                    });
+                }
+                TeamManager.renderTeamList();
+                FeaturePanel.refreshCurrentView();
+                localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
+            }, error => {
+                console.warn('Team members subscription error:', error);
+            });
+        } catch (error) {
+            console.warn('Subscription error:', error);
+            const appointmentsLocal = localStorage.getItem('appointments_fallback');
+            const tasksLocal = localStorage.getItem('tasks_fallback');
+            const teamLocal = localStorage.getItem('teamMembers_fallback');
+            
+            if (appointmentsLocal) {
+                try {
+                    AppState.appointments = JSON.parse(appointmentsLocal);
+                    Stats.updateAll();
+                    FeaturePanel.refreshCurrentView();
+                } catch (e) {}
+            }
+            if (tasksLocal) {
+                try {
+                    AppState.tasks = JSON.parse(tasksLocal);
+                    Stats.updateTaskStats();
+                    FeaturePanel.refreshCurrentView();
+                } catch (e) {}
+            }
+            if (teamLocal) {
+                try {
+                    AppState.teamMembers = JSON.parse(teamLocal);
+                    TeamManager.renderTeamList();
+                } catch (e) {}
+            }
+        }
+    },
+
+    createDefaultScripts: async function() {
+        if (!AppState.currentUser || !AppState.isFirebaseReady) return;
+        const defaultScripts = {
+            "opening": { name: "🎯 Opening Script", content: '"Hey, is this [Company Name]?"\n\n"Awesome — this is Flynn. We created a free, modern preview version inspired by your current site. There\'s no cost or obligation. Would you be open to taking a quick look later today and sharing your thoughts?"' },
+            "owner_yes": { name: "👑 Owner - Yes", content: "Perfect! Daniel will call you shortly to showcase your preview concept. Is this the best number to connect with you?" },
+            "owner_no": { name: "🤤 Not Owner", content: "No worries! Who usually drives your design or advertising decisions? What is the best coordinate to reach them today?" },
+            "objection_website": { name: "💻 Objection - Website", content: "I completely understand your concern about the website. Our preview is designed to show you what's possible without any commitment." },
+            "objection_cost": { name: "💰 Objection - Cost", content: "Great question about pricing. The preview is completely free—there's no cost or obligation. We believe in showing value first." },
+            "closing": { name: "🤝 Closing Script", content: "Thank you for your time today! I'll have our team prepare the preview and reach out with next steps." }
+        };
+        const batch = firebase.firestore().batch();
+        const ref = firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts');
+        for (const [id, script] of Object.entries(defaultScripts)) {
+            batch.set(ref.doc(id), {
+                name: script.name,
+                content: script.content,
+                version: 1,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+        await batch.commit();
+    },
+
+    saveScriptOrder: async function() {
+        if (!AppState.currentUser || !AppState.isFirebaseReady) return;
+        try {
+            await firebase.firestore().collection('users').doc(AppState.currentUser.uid).update({ scriptOrder: AppState.scriptOrder });
+        } catch (error) {
+            console.error('Error saving script order:', error);
+        }
+    },
+
+    addAppointment: function(dateStr, business, contactName, role, phone, time, notes, assigned, editId = null, status = 'Pending', crmLink = '', tags = []) {
+        if (!AppState.currentUser) { showToast('Please sign in first', 'error'); return null; }
+        if (!AppState.appointments[dateStr]) {
+            AppState.appointments[dateStr] = { count: 0, note: '', reports: [] };
+        }
+        if (!CONFIG.STATUS_OPTIONS.includes(status)) status = 'Pending';
+        const newAppt = {
+            id: editId || Utils.generateId(),
+            business: business || 'Unknown Business',
+            contactName: contactName || 'Unknown Contact',
+            role: role || 'Owner',
+            phone: phone || '',
+            time: time || '',
+            notes: notes || '',
+            assigned: assigned || 'Daniel',
+            status: status,
+            crmLink: crmLink || '',
+            tags: tags || [],
+            date: dateStr,
+            email: '',
+            createdAt: new Date().toISOString()
+        };
+        
+        if (notes && notes.includes('Email:')) {
+            const emailMatch = notes.match(/Email:\s*([^\s\n]+)/);
+            if (emailMatch) {
+                newAppt.email = emailMatch[1];
+            }
+        }
+        
+        this.syncAppointment(newAppt);
+        return newAppt;
+    },
+
+    syncAppointment: async function(appointment) {
+        if (!AppState.currentUser) return;
+        if (AppState.isFirebaseReady) {
+            try {
+                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('appointments').doc(appointment.id.toString()).set(appointment, { merge: true });
+            } catch (e) {
+                console.error('Error syncing appointment:', e);
+                this.saveAppointmentsToLocal();
+            }
+        } else {
+            this.saveAppointmentsToLocal();
+        }
+    },
+
+    saveAppointmentsToLocal: function() {
+        try {
+            localStorage.setItem('appointments_fallback', JSON.stringify(AppState.appointments));
+        } catch (e) {
+            console.warn('Failed to save appointments locally:', e);
+        }
+    },
+
+    deleteAppointment: function(dateStr, id) {
+        if (AppState.appointments[dateStr]?.reports) {
+            AppState.appointments[dateStr].reports = AppState.appointments[dateStr].reports.filter(r => r.id !== id);
+            if (AppState.appointments[dateStr].reports.length === 0) delete AppState.appointments[dateStr];
+            if (AppState.isFirebaseReady && AppState.currentUser) {
+                firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('appointments').doc(id.toString()).delete().catch(e => console.warn('Delete error:', e));
+            }
+            this.saveAppointmentsToLocal();
+            Stats.updateAll();
+            FeaturePanel.refreshCurrentView();
+            TeamManager.renderTeamList();
+            return true;
+        }
+        return false;
+    },
+
+    updateAppointment: function(dateStr, id, updates) {
+        const appt = AppState.appointments[dateStr]?.reports?.find(r => r.id === id);
+        if (!appt) return false;
+        Object.assign(appt, updates);
+        this.syncAppointment(appt);
+        Stats.updateAll();
+        FeaturePanel.refreshCurrentView();
+        TeamManager.renderTeamList();
+        return true;
+    },
+
+    getAppointmentById: function(id) {
+        for (let date in AppState.appointments) {
+            if (AppState.appointments[date].reports) {
+                const found = AppState.appointments[date].reports.find(r => r.id === id);
+                if (found) return found;
+            }
+        }
+        return null;
+    },
+
+    getAppointmentsInDateRange: function(startDate, endDate) {
+        const result = [];
+        const startStr = Utils.formatDateForCompare(startDate);
+        const endStr = Utils.formatDateForCompare(endDate);
+
+        for (let date in AppState.appointments) {
+            if (date >= startStr && date <= endStr) {
+                if (AppState.appointments[date].reports) {
+                    result.push(...AppState.appointments[date].reports);
+                }
+            }
+        }
+        return result;
+    },
+
+    addTask: function(description, dueDate, priority = 'medium', appointmentId = null) {
+        if (!AppState.currentUser) return;
+        const task = {
+            id: Utils.generateId(),
+            description: description || 'New task',
+            dueDate: dueDate || '',
+            priority: priority || 'medium',
+            appointmentId: appointmentId || null,
+            completed: false,
+            createdAt: new Date().toISOString()
+        };
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('tasks').doc(task.id).set(task).catch(e => console.warn('Task save error:', e));
+        }
+        AppState.tasks.push(task);
+        localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
+        Stats.updateTaskStats();
+        FeaturePanel.refreshCurrentView();
+    },
+
+    toggleTaskComplete: function(id) {
+        const task = AppState.tasks.find(t => t.id === id);
+        if (task) {
+            task.completed = !task.completed;
+            if (AppState.isFirebaseReady && AppState.currentUser) {
+                firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('tasks').doc(id).update({ completed: task.completed }).catch(e => console.warn('Task update error:', e));
+            }
+            localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
+            Stats.updateTaskStats();
+            FeaturePanel.refreshCurrentView();
+        }
+    },
+
+    deleteTask: function(id) {
+        AppState.tasks = AppState.tasks.filter(t => t.id !== id);
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('tasks').doc(id).delete().catch(e => console.warn('Task delete error:', e));
+        }
+        localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
+        Stats.updateTaskStats();
+        FeaturePanel.refreshCurrentView();
+    },
+
+    exportToCSV: function(selectedIds = null) {
+        let csv = 'Business,Contact,Phone,Email,Date,Time,Status,Notes,Assigned\n';
+        const appointments = selectedIds ? this.getSelectedAppointments(selectedIds) : this.getAllAppointments();
+
+        appointments.forEach(appt => {
+            csv += `"${appt.business || ''}","${appt.contactName || ''}","${appt.phone || ''}","${appt.email || ''}","${appt.date || ''}","${appt.time || ''}","${Utils.getStatus(appt)}","${appt.notes || ''}","${appt.assigned || 'Daniel'}"\n`;
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `appointments_${Utils.getTodayStr()}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('CSV exported!', 'success');
+    },
+
+    getSelectedAppointments: function(ids) {
+        const result = [];
+        ids.forEach(id => {
+            const appt = this.getAppointmentById(id);
+            if (appt) result.push(appt);
+        });
+        return result;
+    },
+
+    getAllAppointments: function() {
+        const result = [];
+        for (let date in AppState.appointments) {
+            if (AppState.appointments[date].reports) {
+                AppState.appointments[date].reports.forEach(appt => {
+                    result.push({ ...appt, dateKey: date });
+                });
+            }
+        }
+        return result.sort((a, b) => new Date(a.dateKey) - new Date(b.dateKey));
+    },
+
+    addTeamMember: async function(member) {
+        if (!AppState.currentUser) { showToast('Please sign in first', 'error'); return; }
+        const newMember = {
+            id: member.id || Utils.generateId(),
+            name: member.name || 'New Member',
+            role: member.role || 'Agent',
+            email: member.email || '',
+            phone: member.phone || '',
+            avatar: member.avatar || '👤',
+            color: member.color || '#3b82f6',
+            active: true,
+            createdAt: new Date().toISOString()
+        };
+        
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            try {
+                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('teamMembers').doc(newMember.id).set(newMember);
+            } catch (e) {
+                console.error('Error adding team member:', e);
+                AppState.teamMembers.push(newMember);
+                localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
+            }
+        } else {
+            AppState.teamMembers.push(newMember);
+            localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
+        }
+        
+        TeamManager.renderTeamList();
+        showToast(`Team member ${newMember.name} added!`, 'success');
+        return newMember;
+    },
+
+    updateTeamMember: async function(id, updates) {
+        const member = AppState.teamMembers.find(m => m.id === id);
+        if (!member) { showToast('Team member not found', 'error'); return; }
+        
+        Object.assign(member, updates);
+        
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            try {
+                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('teamMembers').doc(id).update(updates);
+            } catch (e) {
+                console.error('Error updating team member:', e);
+                localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
+            }
+        } else {
+            localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
+        }
+        
+        TeamManager.renderTeamList();
+        showToast(`Team member ${member.name} updated!`, 'success');
+    },
+
+    deleteTeamMember: async function(id) {
+        const member = AppState.teamMembers.find(m => m.id === id);
+        if (!member) { showToast('Team member not found', 'error'); return; }
+        
+        if (!confirm(`Delete ${member.name} from the team?`)) return;
+        
+        AppState.teamMembers = AppState.teamMembers.filter(m => m.id !== id);
+        
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            try {
+                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('teamMembers').doc(id).delete();
+            } catch (e) {
+                console.error('Error deleting team member:', e);
+                localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
+            }
+        } else {
+            localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
+        }
+        
+        TeamManager.renderTeamList();
+        showToast(`Team member ${member.name} deleted`, 'info');
+    }
+};
+
+// ================================================================
+// STATISTICS
+// ================================================================
+
+const Stats = {
+    getTodayCount: function() {
+        return AppState.appointments[Utils.getTodayStr()]?.reports?.length || 0;
+    },
+
+    getWeekCount: function() {
+        const now = new Date();
+        const start = new Date(now);
+        start.setDate(now.getDate() - now.getDay());
+        let total = 0;
+        for (let d in AppState.appointments) {
+            const date = new Date(d);
+            if (date >= start && AppState.appointments[d].reports) {
+                total += AppState.appointments[d].reports.length;
+            }
+        }
+        return total;
+    },
+
+    getMonthCount: function() {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        let total = 0;
+        for (let d in AppState.appointments) {
+            const date = new Date(d);
+            if (date >= start && AppState.appointments[d].reports) {
+                total += AppState.appointments[d].reports.length;
+            }
+        }
+        return total;
+    },
+
+    getAverageScore: function() {
+        let total = 0, count = 0;
+        for (let date in AppState.appointments) {
+            if (AppState.appointments[date].reports) {
+                AppState.appointments[date].reports.forEach(appt => {
+                    total += Utils.calculateLeadScore(appt);
+                    count++;
+                });
+            }
+        }
+        return count > 0 ? Math.round(total / count) : 0;
+    },
+
+    updateAll: function() {
+        DOM.setText('statToday', this.getTodayCount());
+        DOM.setText('statWeek', this.getWeekCount());
+        DOM.setText('statMonth', this.getMonthCount());
+        DOM.setText('avgScore', this.getAverageScore());
+        this.updateTaskStats();
+        DOM.setText('goalDaily', AppState.goals.daily || 3);
+        DOM.setText('goalWeekly', AppState.goals.weekly || 15);
+        DOM.setText('goalMonthly', AppState.goals.monthly || 60);
+    },
+
+    updateTaskStats: function() {
+        const pending = AppState.tasks.filter(t => !t.completed).length;
+        DOM.setText('pendingTasks', pending);
+    }
+};
+
+// ================================================================
+// SCRIPTS MODULE
+// ================================================================
+
+const Scripts = {
+    renderSidebar: function() {
+        const container = DOM.get('scriptListContainer');
+        if (!container) return;
+
+        const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
+        const sorted = [...visible].sort((a, b) => {
+            const aFav = AppState.scriptFavorites.includes(a);
+            const bFav = AppState.scriptFavorites.includes(b);
+            if (aFav && !bFav) return -1;
+            if (!aFav && bFav) return 1;
+            return visible.indexOf(a) - visible.indexOf(b);
+        });
+
+        let html = '';
+        sorted.forEach((id, idx) => {
+            const s = AppState.scripts[id];
+            if (!s) return;
+            const active = AppState.currentScriptId === id;
+            const isFavorite = AppState.scriptFavorites.includes(id);
+            html += `
+                <div class="script-item ${active ? 'active' : ''}" data-id="${id}">
+                    <i class="fas fa-grip-vertical drag-handle"></i>
+                    <span class="script-name">${Utils.escapeHtml(s.name)}</span>
+                    <i class="fas fa-star favorite-star ${isFavorite ? 'active' : ''}" data-id="${id}"></i>
+                    <span class="key-hint">${idx < 9 ? idx + 1 : ''}</span>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+
+        if (window.sortableInstance) window.sortableInstance.destroy();
+
+        window.sortableInstance = new Sortable(container, {
+            handle: '.drag-handle',
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            dragClass: 'sortable-drag',
+            onEnd: async function() {
+                const newOrder = [];
+                container.querySelectorAll('.script-item').forEach(item => {
+                    const id = item.getAttribute('data-id');
+                    if (id) newOrder.push(id);
+                });
+                AppState.scriptOrder = newOrder;
+                await Data.saveScriptOrder();
+                Scripts.renderSidebar();
+                Scripts.updateKeyHints();
+            }
+        });
+
+        container.querySelectorAll('.script-item').forEach(el => {
+            el.addEventListener('click', (e) => {
+                if (e.target.closest('.drag-handle')) return;
+                if (e.target.closest('.favorite-star')) return;
+                Scripts.loadScript(el.getAttribute('data-id'));
+            });
+        });
+
+        container.querySelectorAll('.favorite-star').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                Scripts.toggleFavorite(el.getAttribute('data-id'));
+            });
+        });
+
+        this.updateKeyHints();
+    },
+
+    updateKeyHints: function() {
+        const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
+        const items = document.querySelectorAll('.script-item');
+        items.forEach((item, idx) => {
+            const hint = item.querySelector('.key-hint');
+            if (hint && idx < 9) {
+                hint.textContent = idx + 1;
+            } else if (hint) {
+                hint.textContent = '';
+            }
+        });
+
+        const activeHint = DOM.get('activeShortcutHint');
+        if (activeHint) {
+            const idx = visible.indexOf(AppState.currentScriptId);
+            activeHint.textContent = (idx >= 0 && idx < 9) ? (idx + 1) : '—';
+        }
+    },
+
+    loadScript: function(id) {
+        if (!AppState.scripts[id]) return;
+        if (AppState.isEditing) {
+            if (!confirm('You have unsaved changes. Discard them?')) return;
+            this.cancelEdit();
+        }
+        AppState.currentScriptId = id;
+        const script = AppState.scripts[id];
+        DOM.setText('currentScriptName', script.name);
+        DOM.setHTML('scriptContent', `<div class="script-display">${Utils.escapeHtml(script.content).replace(/\n/g, '<br>')}</div>`);
+        DOM.setText('versionNumber', script.version || 1);
+        this.updateFavoriteStar();
+        this.renderSidebar();
+        this.updateKeyHints();
+    },
+
+    toggleFavorite: function(id) {
+        const index = AppState.scriptFavorites.indexOf(id);
+        if (index > -1) {
+            AppState.scriptFavorites.splice(index, 1);
+        } else {
+            AppState.scriptFavorites.push(id);
+        }
+        localStorage.setItem('scriptFavorites', JSON.stringify(AppState.scriptFavorites));
+        this.renderSidebar();
+        this.updateFavoriteStar();
+        showToast(index > -1 ? 'Removed from favorites' : 'Added to favorites', 'info');
+    },
+
+    updateFavoriteStar: function() {
+        const star = DOM.get('favoriteScriptBtn');
+        if (star) {
+            const isFavorite = AppState.scriptFavorites.includes(AppState.currentScriptId);
+            star.innerHTML = `<i class="fas fa-star" style="color:${isFavorite ? 'var(--favorite-color)' : 'var(--text-muted)'}"></i>`;
+            star.title = isFavorite ? 'Remove from favorites' : 'Add to favorites';
+        }
+    },
+
+    startEdit: function() {
+        if (!AppState.scripts[AppState.currentScriptId]) return;
+        AppState.isEditing = true;
+        AppState.shortcutsEnabled = false;
+        const script = AppState.scripts[AppState.currentScriptId];
+        AppState.currentEditContent = script.content;
+
+        DOM.hide('editScriptBtn');
+        DOM.show('saveScriptBtn');
+        DOM.show('cancelEditBtn');
+        DOM.show('editStatusBadge');
+
+        const contentDiv = DOM.get('scriptContent');
+        if (contentDiv) {
+            contentDiv.innerHTML = `
+                <textarea class="edit-textarea" id="editTextarea">${Utils.escapeHtml(script.content)}</textarea>
+                <div class="auto-save-indicator">Auto-saving...</div>
+            `;
+        }
+
+        const textarea = DOM.get('editTextarea');
+        if (textarea) {
+            textarea.focus();
+
+            const saveContent = Utils.debounce((content) => {
+                this.saveScriptContent(content);
+                const indicator = document.querySelector('.auto-save-indicator');
+                if (indicator) {
+                    indicator.textContent = '✓ Auto-saved';
+                    indicator.style.color = 'var(--success)';
+                }
+            }, 1000);
+
+            textarea.addEventListener('input', () => {
+                AppState.currentEditContent = textarea.value;
+                const indicator = document.querySelector('.auto-save-indicator');
+                if (indicator) {
+                    indicator.textContent = 'Saving...';
+                    indicator.style.color = 'var(--warning)';
+                }
+                if (window.autoSaveTimer) clearTimeout(window.autoSaveTimer);
+                window.autoSaveTimer = setTimeout(() => saveContent(textarea.value), 1000);
+            });
+
+            textarea.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') this.cancelEdit();
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    this.saveScriptContent(textarea.value);
+                    this.finishEdit();
+                }
+            });
+        }
+    },
+
+    saveScriptContent: function(content) {
+        if (!AppState.currentUser || !AppState.currentScriptId) return;
+        const script = AppState.scripts[AppState.currentScriptId];
+        if (!script) return;
+
+        const updatedScript = {
+            ...script,
+            content: content,
+            version: (script.version || 1) + 1
+        };
+
+        if (AppState.isFirebaseReady) {
+            firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts').doc(AppState.currentScriptId).set(updatedScript, { merge: true })
+                .then(() => {
+                    AppState.scripts[AppState.currentScriptId] = updatedScript;
+                })
+                .catch(err => handleError(err, 'Saving script'));
+        } else {
+            AppState.scripts[AppState.currentScriptId] = updatedScript;
+            localStorage.setItem('scripts_fallback', JSON.stringify(AppState.scripts));
+        }
+    },
+
+    finishEdit: function() {
+        AppState.isEditing = false;
+        AppState.shortcutsEnabled = true;
+        DOM.show('editScriptBtn');
+        DOM.hide('saveScriptBtn');
+        DOM.hide('cancelEditBtn');
+        DOM.hide('editStatusBadge');
+        this.loadScript(AppState.currentScriptId);
+        showToast('Changes saved', 'success');
+    },
+
+    cancelEdit: function() {
+        if (!confirm('Discard your changes?')) return;
+        AppState.isEditing = false;
+        AppState.shortcutsEnabled = true;
+        DOM.show('editScriptBtn');
+        DOM.hide('saveScriptBtn');
+        DOM.hide('cancelEditBtn');
+        DOM.hide('editStatusBadge');
+        this.loadScript(AppState.currentScriptId);
+    },
+
+    resetScript: function() {
+        if (!confirm('Reset this script to its original content?')) return;
+        if (AppState.currentUser && AppState.currentScriptId) {
+            const script = AppState.scripts[AppState.currentScriptId];
+            if (AppState.isFirebaseReady) {
+                firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts').doc(AppState.currentScriptId).set({
+                    name: script.name,
+                    content: script.content,
+                    version: 1
+                }, { merge: true }).then(() => {
+                    showToast('Script reset', 'info');
+                    Data.loadUserData(true);
+                }).catch(err => handleError(err, 'Resetting script'));
+            } else {
+                script.version = 1;
+                localStorage.setItem('scripts_fallback', JSON.stringify(AppState.scripts));
+                showToast('Script reset locally', 'info');
+                this.loadScript(AppState.currentScriptId);
+            }
+        }
+    },
+
+    createScript: function() {
+        if (!AppState.currentUser) { showToast('Please sign in first', 'error'); return; }
+        const name = prompt('Enter script name:');
+        if (name && name.trim()) {
+            const id = 'script_' + Utils.generateId();
+            if (AppState.isFirebaseReady) {
+                firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts').doc(id).set({
+                    name: name.trim(),
+                    content: 'New script content...',
+                    version: 1,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                }).then(() => {
+                    showToast('Script created!', 'success');
+                    Data.loadUserData(true);
+                }).catch(err => handleError(err, 'Creating script'));
+            } else {
+                AppState.scripts[id] = { name: name.trim(), content: 'New script content...', version: 1 };
+                localStorage.setItem('scripts_fallback', JSON.stringify(AppState.scripts));
+                showToast('Script created locally!', 'success');
+                this.renderSidebar();
+                this.loadScript(id);
+            }
+        }
+    },
+
+    isEditing: function() {
+        return AppState.isEditing;
+    }
+};
+
+// ================================================================
+// TEAM MANAGER MODULE
+// ================================================================
+
+const TeamManager = {
+    renderTeamList: function() {
+        const container = DOM.get('teamMembersList');
+        if (!container) return;
+
+        const members = AppState.teamMembers || [];
+        
+        if (members.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-users"></i>
+                    <p>No team members found. Add your first team member!</p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:16px;">';
+        members.forEach(member => {
+            const stats = Utils.getMemberStats(member.id, AppState.appointments);
+            html += `
+                <div class="team-member-card" data-id="${member.id}" style="background:var(--bg-card); border-radius:16px; padding:20px; border:1px solid var(--border-color); transition:all 0.3s ease; cursor:pointer;">
+                    <div style="display:flex; align-items:center; gap:14px; margin-bottom:12px;">
+                        <div style="width:48px; height:48px; border-radius:50%; background:${member.color}20; display:flex; align-items:center; justify-content:center; font-size:1.8rem; border:2px solid ${member.color};">
+                            ${member.avatar || '👤'}
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-weight:600; font-size:1rem;">${Utils.escapeHtml(member.name)}</div>
+                            <div style="font-size:0.75rem; color:var(--text-muted);">${Utils.escapeHtml(member.role)}</div>
+                            <div style="font-size:0.7rem; color:var(--text-muted);">${member.active ? '🟢 Active' : '🔴 Inactive'}</div>
+                        </div>
+                        <div style="display:flex; gap:6px;">
+                            <button class="edit-team-member-btn" data-id="${member.id}" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.9rem; padding:4px;">
+                                <i class="fas fa-pen"></i>
+                            </button>
+                            <button class="delete-team-member-btn" data-id="${member.id}" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:0.9rem; padding:4px;">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; font-size:0.75rem;">
+                        <div><span style="color:var(--text-muted);">Total</span><br><strong>${stats.total}</strong></div>
+                        <div><span style="color:var(--text-muted);">🔥 Hot</span><br><strong style="color:#dc2626;">${stats.hotTransfers}</strong></div>
+                        <div><span style="color:var(--text-muted);">📞 Warm</span><br><strong style="color:var(--warning);">${stats.warmCallbacks}</strong></div>
+                        <div><span style="color:var(--text-muted);">✅ Done</span><br><strong style="color:var(--success);">${stats.completed}</strong></div>
+                        <div><span style="color:var(--text-muted);">⏳ Pending</span><br><strong>${stats.pending}</strong></div>
+                        <div><span style="color:var(--text-muted);">Score</span><br><strong>${stats.score}</strong></div>
+                    </div>
+                    <div style="margin-top:10px; background:var(--bg-primary); height:4px; border-radius:4px; overflow:hidden;">
+                        <div style="background:${member.color}; width:${stats.conversionRate || 0}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:0.65rem; color:var(--text-muted); margin-top:4px;">
+                        <span>Conversion Rate</span>
+                        <span>${stats.conversionRate || 0}%</span>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+
+        // Click to view member details
+        container.querySelectorAll('.team-member-card').forEach(card => {
+            card.addEventListener('click', (e) => {
+                if (e.target.closest('.edit-team-member-btn') || e.target.closest('.delete-team-member-btn')) return;
+                const id = card.getAttribute('data-id');
+                TeamManager.showMemberDetail(id);
+            });
+        });
+
+        // Edit buttons
+        container.querySelectorAll('.edit-team-member-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                TeamManager.editMember(btn.getAttribute('data-id'));
+            });
+        });
+
+        // Delete buttons
+        container.querySelectorAll('.delete-team-member-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                Data.deleteTeamMember(btn.getAttribute('data-id'));
+            });
+        });
+    },
+
+    showMemberDetail: function(memberId) {
+        const member = AppState.teamMembers.find(m => m.id === memberId);
+        if (!member) { showToast('Member not found', 'error'); return; }
+
+        const stats = Utils.getMemberStats(memberId, AppState.appointments);
+        
+        const modal = DOM.createElement('div', 'modal-overlay');
+        modal.id = 'memberDetailModal';
+        modal.innerHTML = `
+            <div class="modal-card" style="max-width:600px;">
+                <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px;">
+                    <div style="width:64px; height:64px; border-radius:50%; background:${member.color}20; display:flex; align-items:center; justify-content:center; font-size:2.5rem; border:3px solid ${member.color};">
+                        ${member.avatar || '👤'}
+                    </div>
+                    <div>
+                        <h3 style="margin:0;">${Utils.escapeHtml(member.name)}</h3>
+                        <div style="color:var(--text-muted);">${Utils.escapeHtml(member.role)}</div>
+                        <div style="font-size:0.8rem; color:var(--text-muted);">${member.email || 'No email'}</div>
+                    </div>
+                    <span style="margin-left:auto; font-size:0.8rem; padding:4px 12px; border-radius:20px; background:${member.active ? 'var(--success)' : 'var(--danger)'}20; color:${member.active ? 'var(--success)' : 'var(--danger)'};">
+                        ${member.active ? '🟢 Active' : '🔴 Inactive'}
+                    </span>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:16px;">
+                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
+                        <div style="font-size:1.5rem; font-weight:700;">${stats.total}</div>
+                        <div style="font-size:0.7rem; color:var(--text-muted);">Total Pipeline</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
+                        <div style="font-size:1.5rem; font-weight:700; color:#dc2626;">${stats.hotTransfers}</div>
+                        <div style="font-size:0.7rem; color:var(--text-muted);">🔥 Hot Transfers</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
+                        <div style="font-size:1.5rem; font-weight:700; color:var(--warning);">${stats.warmCallbacks}</div>
+                        <div style="font-size:0.7rem; color:var(--text-muted);">📞 Warm Callbacks</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
+                        <div style="font-size:1.5rem; font-weight:700; color:var(--success);">${stats.completed}</div>
+                        <div style="font-size:0.7rem; color:var(--text-muted);">✅ Completed</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
+                        <div style="font-size:1.5rem; font-weight:700; color:var(--text-muted);">${stats.pending}</div>
+                        <div style="font-size:0.7rem; color:var(--text-muted);">⏳ Pending</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
+                        <div style="font-size:1.5rem; font-weight:700; color:var(--danger);">${stats.canceled}</div>
+                        <div style="font-size:0.7rem; color:var(--text-muted);">❌ Canceled</div>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
+                        <div style="font-size:1.2rem; font-weight:700; color:var(--secondary);">${stats.score || 0}</div>
+                        <div style="font-size:0.7rem; color:var(--text-muted);">Avg Lead Score</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
+                        <div style="font-size:1.2rem; font-weight:700; color:var(--primary);">${stats.conversionRate || 0}%</div>
+                        <div style="font-size:0.7rem; color:var(--text-muted);">Conversion Rate</div>
+                    </div>
+                </div>
+
+                <div style="margin-top:16px;">
+                    <h4 style="margin-bottom:8px;">📋 Activity History</h4>
+                    <div style="max-height:150px; overflow-y:auto; font-size:0.8rem;">
+                        ${stats.appointments && stats.appointments.length > 0 ? 
+                            stats.appointments.slice(0, 10).map(appt => `
+                                <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border-color);">
+                                    <span>${Utils.escapeHtml(appt.business)} - ${Utils.escapeHtml(appt.contactName)}</span>
+                                    <span style="color:var(--text-muted);">${Utils.formatDate(appt.date)}</span>
+                                    <span class="status-tag ${Utils.getStatusClass(Utils.getStatus(appt))}">${Utils.getStatus(appt)}</span>
+                                </div>
+                            `).join('')
+                            : '<div style="color:var(--text-muted); padding:8px;">No activity yet</div>'
+                        }
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px; flex-wrap:wrap;">
+                    <button id="closeMemberDetailBtn" class="btn-icon">Close</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        const closeBtn = DOM.get('closeMemberDetailBtn');
+        if (closeBtn) closeBtn.addEventListener('click', () => modal.remove());
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+    },
+
+    editMember: function(memberId) {
+        const member = AppState.teamMembers.find(m => m.id === memberId);
+        if (!member) { showToast('Member not found', 'error'); return; }
+
+        const modal = DOM.createElement('div', 'modal-overlay');
+        modal.id = 'editMemberModal';
+        modal.innerHTML = `
+            <div class="modal-card" style="max-width:450px;">
+                <h3><i class="fas fa-user-edit"></i> Edit Team Member</h3>
+                <div class="form-group">
+                    <label>Name *</label>
+                    <input type="text" id="editMemberName" value="${Utils.escapeHtml(member.name)}" />
+                </div>
+                <div class="form-group">
+                    <label>Role</label>
+                    <input type="text" id="editMemberRole" value="${Utils.escapeHtml(member.role)}" />
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="editMemberEmail" value="${Utils.escapeHtml(member.email || '')}" />
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="text" id="editMemberPhone" value="${Utils.escapeHtml(member.phone || '')}" />
+                </div>
+                <div class="form-group">
+                    <label>Avatar (emoji)</label>
+                    <input type="text" id="editMemberAvatar" value="${member.avatar || '👤'}" maxlength="2" />
+                </div>
+                <div class="form-group">
+                    <label>Color</label>
+                    <input type="color" id="editMemberColor" value="${member.color || '#3b82f6'}" />
+                </div>
+                <div class="form-group">
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                        <input type="checkbox" id="editMemberActive" ${member.active ? 'checked' : ''} />
+                        Active
+                    </label>
+                </div>
+                <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px; flex-wrap:wrap;">
+                    <button id="saveMemberEditBtn" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-save"></i> Save</button>
+                    <button id="cancelMemberEditBtn" class="btn-icon">Cancel</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        const saveBtn = DOM.get('saveMemberEditBtn');
+        const cancelBtn = DOM.get('cancelMemberEditBtn');
+
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => {
+                const name = DOM.get('editMemberName')?.value?.trim();
+                if (!name) { showToast('Name is required', 'error'); return; }
+
+                const updates = {
+                    name: name,
+                    role: DOM.get('editMemberRole')?.value?.trim() || 'Agent',
+                    email: DOM.get('editMemberEmail')?.value?.trim() || '',
+                    phone: DOM.get('editMemberPhone')?.value?.trim() || '',
+                    avatar: DOM.get('editMemberAvatar')?.value || '👤',
+                    color: DOM.get('editMemberColor')?.value || '#3b82f6',
+                    active: DOM.get('editMemberActive')?.checked || false
+                };
+
+                Data.updateTeamMember(memberId, updates);
+                modal.remove();
+            });
+        }
+
+        if (cancelBtn) cancelBtn.addEventListener('click', () => modal.remove());
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+    },
+
+    addMember: function() {
+        const modal = DOM.createElement('div', 'modal-overlay');
+        modal.id = 'addMemberModal';
+        modal.innerHTML = `
+            <div class="modal-card" style="max-width:450px;">
+                <h3><i class="fas fa-user-plus"></i> Add Team Member</h3>
+                <div class="form-group">
+                    <label>Name *</label>
+                    <input type="text" id="addMemberName" placeholder="Enter full name" />
+                </div>
+                <div class="form-group">
+                    <label>Role</label>
+                    <input type="text" id="addMemberRole" placeholder="e.g., Agent, Team Lead" value="Agent" />
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="addMemberEmail" placeholder="email@company.com" />
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="text" id="addMemberPhone" placeholder="+1-555-0000" />
+                </div>
+                <div class="form-group">
+                    <label>Avatar (emoji)</label>
+                    <input type="text" id="addMemberAvatar" value="👤" maxlength="2" />
+                </div>
+                <div class="form-group">
+                    <label>Color</label>
+                    <input type="color" id="addMemberColor" value="#3b82f6" />
+                </div>
+                <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px; flex-wrap:wrap;">
+                    <button id="saveMemberAddBtn" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-save"></i> Add Member</button>
+                    <button id="cancelMemberAddBtn" class="btn-icon">Cancel</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        const saveBtn = DOM.get('saveMemberAddBtn');
+        const cancelBtn = DOM.get('cancelMemberAddBtn');
+
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => {
+                const name = DOM.get('addMemberName')?.value?.trim();
+                if (!name) { showToast('Name is required', 'error'); return; }
+
+                const newMember = {
+                    name: name,
+                    role: DOM.get('addMemberRole')?.value?.trim() || 'Agent',
+                    email: DOM.get('addMemberEmail')?.value?.trim() || '',
+                    phone: DOM.get('addMemberPhone')?.value?.trim() || '',
+                    avatar: DOM.get('addMemberAvatar')?.value || '👤',
+                    color: DOM.get('addMemberColor')?.value || '#3b82f6',
+                    active: true
+                };
+
+                Data.addTeamMember(newMember);
+                modal.remove();
+            });
+        }
+
+        if (cancelBtn) cancelBtn.addEventListener('click', () => modal.remove());
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+    }
+};
+
+// ================================================================
+// FEATURE PANEL
+// ================================================================
+
+const FeaturePanel = {
+    show: function(featureType, title) {
+        const scriptPanel = DOM.get('scriptPanel');
+        const featurePanel = DOM.get('featurePanel');
+        const featureTitle = DOM.get('featurePanelTitle');
+        const featureBody = DOM.get('featurePanelBody');
+
+        if (!scriptPanel || !featurePanel) return;
+
+        AppState.currentView = featureType;
+        if (featureTitle) {
+            const iconMap = { 
+                'calendar': 'fa-calendar-alt', 
+                'tasks': 'fa-tasks', 
+                'analytics': 'fa-chart-pie', 
+                'shortcuts': 'fa-keyboard',
+                'team': 'fa-users'
+            };
+            featureTitle.innerHTML = `<i class="fas ${iconMap[featureType] || 'fa-sticky-note'}"></i> ${title}`;
+        }
+
+        const container = DOM.get('viewToggleContainer');
+        if (container) {
+            let html = '';
+            if (featureType === 'calendar') {
+                html = `
+                    <div class="view-toggle" id="calendarViewToggle">
+                        <button id="calendarViewBtn" class="view-btn active">📅 Calendar</button>
+                        <button id="listViewBtn" class="view-btn">📋 List</button>
+                    </div>
+                `;
+            } else if (featureType === 'analytics') {
+                html = `
+                    <div class="view-toggle" id="analyticsTabContainer">
+                        <button id="insightsTabBtn" class="view-btn ${AppState.analyticsTab === 'insights' ? 'active' : ''}">📊 Insights</button>
+                        <button id="reportsTabBtn" class="view-btn ${AppState.analyticsTab === 'reports' ? 'active' : ''}">📈 Reports</button>
+                        <button id="teamTabBtn" class="view-btn ${AppState.analyticsTab === 'team' ? 'active' : ''}">👥 Team</button>
+                    </div>
+                `;
+            } else if (featureType === 'team') {
+                html = `
+                    <div class="view-toggle" id="teamViewToggle">
+                        <button id="teamListBtn" class="view-btn active">📋 Team Members</button>
+                        <button id="teamManageBtn" class="view-btn">⚙️ Manage</button>
+                    </div>
+                `;
+            } else if (featureType === 'tasks') {
+                html = `
+                    <div class="view-toggle" id="taskViewToggle">
+                        <button id="taskListViewBtn" class="view-btn active">📋 All</button>
+                        <button id="taskPendingBtn" class="view-btn">⏳ Pending</button>
+                        <button id="taskTodayBtn" class="view-btn">📅 Today</button>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+            this.attachViewToggleEvents(featureType);
+        }
+
+        scriptPanel.style.display = 'none';
+        featurePanel.style.display = 'block';
+
+        if (featureBody) {
+            if (featureType === 'calendar') this.renderCalendar(featureBody);
+            else if (featureType === 'tasks') this.renderTasks(featureBody);
+            else if (featureType === 'analytics') this.renderAnalytics(featureBody);
+            else if (featureType === 'shortcuts') this.renderShortcuts(featureBody);
+            else if (featureType === 'team') this.renderTeamManagement(featureBody);
+            else if (featureType === 'notepad') {
+                showToast('📝 Notes feature coming soon!', 'info');
+                this.hide();
+            }
+        }
+    },
+
+    hide: function() {
+        const featurePanel = DOM.get('featurePanel');
+        const scriptPanel = DOM.get('scriptPanel');
+        if (featurePanel) featurePanel.style.display = 'none';
+        if (scriptPanel) scriptPanel.style.display = 'block';
+    },
+
+    refreshCurrentView: function() {
+        const body = DOM.get('featurePanelBody');
+        if (!body) return;
+        if (AppState.currentView === 'calendar') this.renderCalendar(body);
+        else if (AppState.currentView === 'tasks') this.renderTasks(body);
+        else if (AppState.currentView === 'analytics') this.renderAnalytics(body);
+        else if (AppState.currentView === 'shortcuts') this.renderShortcuts(body);
+        else if (AppState.currentView === 'team') this.renderTeamManagement(body);
+    },
+
+    attachViewToggleEvents: function(featureType) {
+        if (featureType === 'calendar') {
+            const calendarBtn = DOM.get('calendarViewBtn');
+            const listBtn = DOM.get('listViewBtn');
+            if (calendarBtn) calendarBtn.addEventListener('click', () => {
+                AppState.calendarView = 'calendar';
+                calendarBtn.classList.add('active');
+                if (listBtn) listBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+            if (listBtn) listBtn.addEventListener('click', () => {
+                AppState.calendarView = 'list';
+                listBtn.classList.add('active');
+                if (calendarBtn) calendarBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+        } else if (featureType === 'analytics') {
+            const insightsBtn = DOM.get('insightsTabBtn');
+            const reportsBtn = DOM.get('reportsTabBtn');
+            const teamBtn = DOM.get('teamTabBtn');
+            if (insightsBtn) insightsBtn.addEventListener('click', () => {
+                AppState.analyticsTab = 'insights';
+                insightsBtn.classList.add('active');
+                if (reportsBtn) reportsBtn.classList.remove('active');
+                if (teamBtn) teamBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+            if (reportsBtn) reportsBtn.addEventListener('click', () => {
+                AppState.analyticsTab = 'reports';
+                reportsBtn.classList.add('active');
+                if (insightsBtn) insightsBtn.classList.remove('active');
+                if (teamBtn) teamBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+            if (teamBtn) teamBtn.addEventListener('click', () => {
+                AppState.analyticsTab = 'team';
+                teamBtn.classList.add('active');
+                if (insightsBtn) insightsBtn.classList.remove('active');
+                if (reportsBtn) reportsBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+        } else if (featureType === 'tasks') {
+            const allBtn = DOM.get('taskListViewBtn');
+            const pendingBtn = DOM.get('taskPendingBtn');
+            const todayBtn = DOM.get('taskTodayBtn');
+
+            if (allBtn) allBtn.addEventListener('click', () => {
+                AppState.taskFilter = 'all';
+                allBtn.classList.add('active');
+                if (pendingBtn) pendingBtn.classList.remove('active');
+                if (todayBtn) todayBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+            if (pendingBtn) pendingBtn.addEventListener('click', () => {
+                AppState.taskFilter = 'pending';
+                pendingBtn.classList.add('active');
+                if (allBtn) allBtn.classList.remove('active');
+                if (todayBtn) todayBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+            if (todayBtn) todayBtn.addEventListener('click', () => {
+                AppState.taskFilter = 'today';
+                todayBtn.classList.add('active');
+                if (allBtn) allBtn.classList.remove('active');
+                if (pendingBtn) pendingBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+        } else if (featureType === 'team') {
+            const listBtn = DOM.get('teamListBtn');
+            const manageBtn = DOM.get('teamManageBtn');
+            if (listBtn) listBtn.addEventListener('click', () => {
+                listBtn.classList.add('active');
+                if (manageBtn) manageBtn.classList.remove('active');
+                this.renderTeamManagement(DOM.get('featurePanelBody'));
+            });
+            if (manageBtn) manageBtn.addEventListener('click', () => {
+                manageBtn.classList.add('active');
+                if (listBtn) listBtn.classList.remove('active');
+                this.renderTeamManagement(DOM.get('featurePanelBody'));
+            });
+        }
+    },
+
+    renderTeamManagement: function(container) {
+        if (!container) return;
+
+        const members = AppState.teamMembers || [];
+        const totalAppointments = Data.getAllAppointments().length;
+        const memberStats = Utils.getAllMemberStats(members, AppState.appointments);
+
+        // Calculate team totals
+        let teamTotal = 0, teamHot = 0, teamWarm = 0, teamCompleted = 0, teamPending = 0, teamCanceled = 0, teamScore = 0;
+        Object.values(memberStats).forEach(stat => {
+            teamTotal += stat.total;
+            teamHot += stat.hotTransfers;
+            teamWarm += stat.warmCallbacks;
+            teamCompleted += stat.completed;
+            teamPending += stat.pending;
+            teamCanceled += stat.canceled;
+            teamScore += stat.score || 0;
+        });
+        const teamConversion = teamTotal > 0 ? Math.round((teamCompleted / teamTotal) * 100) : 0;
+        const avgTeamScore = Object.keys(memberStats).length > 0 ? Math.round(teamScore / Object.keys(memberStats).length) : 0;
+
+        container.innerHTML = `
+            <div class="team-management-container fade-in">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+                    <h3><i class="fas fa-users"></i> Team Management</h3>
+                    <button id="addTeamMemberBtn" class="btn-icon" style="background:var(--success); color:white;">
+                        <i class="fas fa-plus"></i> Add Member
+                    </button>
+                </div>
+
+                <!-- Team Overview Metrics -->
+                <div class="report-metrics scale-in" style="margin-bottom:16px;">
+                    <div class="metric-card"><div class="metric-value">${members.length}</div><div class="metric-label">👥 Team Members</div></div>
+                    <div class="metric-card"><div class="metric-value" style="color:var(--primary);">${teamTotal}</div><div class="metric-label">📋 Total Pipeline</div></div>
+                    <div class="metric-card"><div class="metric-value" style="color:#dc2626;">${teamHot}</div><div class="metric-label">🔥 Hot Transfers</div></div>
+                    <div class="metric-card"><div class="metric-value" style="color:var(--warning);">${teamWarm}</div><div class="metric-label">📞 Warm Callbacks</div></div>
+                    <div class="metric-card"><div class="metric-value" style="color:var(--success);">${teamCompleted}</div><div class="metric-label">✅ Completed</div></div>
+                    <div class="metric-card"><div class="metric-value" style="color:var(--secondary);">${teamConversion}%</div><div class="metric-label">📈 Team Conversion</div></div>
+                </div>
+
+                <!-- Team Members Grid -->
+                <div id="teamMembersList" style="margin-top:12px;"></div>
+            </div>
+        `;
+
+        // Render team list
+        TeamManager.renderTeamList();
+
+        // Add member button
+        const addBtn = DOM.get('addTeamMemberBtn');
+        if (addBtn) addBtn.addEventListener('click', () => TeamManager.addMember());
+    },
+
+    renderCalendar: function(container) {
+        if (!container) return;
+        if (AppState.calendarView === 'list') {
+            this.renderCalendarList(container);
+            return;
+        }
+
+        if (!AppState.currentCalDate) AppState.currentCalDate = new Date();
+        if (!AppState.selectedCalDate) AppState.selectedCalDate = Utils.getTodayStr();
+
+        const year = AppState.currentCalDate.getFullYear();
+        const month = AppState.currentCalDate.getMonth();
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        let daysHtml = '';
+        const dayNames = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+        dayNames.forEach(d => daysHtml += `<div class="day-name">${d}</div>`);
+
+        const firstDayAdjusted = firstDay === 0 ? 6 : firstDay - 1;
+        for (let i = 0; i < firstDayAdjusted; i++) {
+            daysHtml += `<div class="calendar-day empty"></div>`;
+        }
+
+        const prevMonth = month === 0 ? 11 : month - 1;
+        const prevMonthYear = month === 0 ? year - 1 : year;
+        const daysInPrevMonth = new Date(prevMonthYear, prevMonth + 1, 0).getDate();
+
+        for (let i = firstDayAdjusted - 1; i >= 0; i--) {
+            const day = daysInPrevMonth - i;
+            const dateStr = `${prevMonthYear}-${String(prevMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const appts = AppState.appointments[dateStr]?.reports || [];
+            const count = appts.length;
+            daysHtml += `
+                <div class="calendar-day other-month" data-date="${dateStr}">
+                    <span class="day-number" style="opacity:0.4;">${day}</span>
+                    ${count > 0 ? `<span class="appt-badge" style="font-size:0.5rem;">${count}</span>` : ''}
+                </div>
+            `;
+        }
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const appts = AppState.appointments[dateStr]?.reports || [];
+            const count = appts.length;
+            const isSelected = dateStr === AppState.selectedCalDate;
+            let indicatorHtml = '';
+            if (count > 0) {
+                const dots = appts.slice(0, 3).map(a => {
+                    const s = Utils.getStatus(a);
+                    const colors = { 'Hot Transfer': '#dc2626', 'Completed': 'var(--success)', 'Warm Callback': 'var(--warning)', 'Pending': 'var(--text-muted)' };
+                    return `<span class="appt-dot" style="background:${colors[s] || 'var(--primary)'};"></span>`;
+                }).join('');
+                indicatorHtml = `<div class="appt-indicator">${dots}</div>`;
+            }
+            daysHtml += `
+                <div class="calendar-day ${isSelected ? 'selected' : ''}" data-date="${dateStr}">
+                    <span class="day-number">${d}</span>
+                    ${indicatorHtml}
+                    ${count > 0 ? `<span class="appt-badge">${count}</span>` : ''}
+                </div>
+            `;
+        }
+
+        const totalDays = firstDayAdjusted + daysInMonth;
+        const remainingDays = (7 - (totalDays % 7)) % 7;
+        const nextMonth = month === 11 ? 0 : month + 1;
+        const nextMonthYear = month === 11 ? year + 1 : year;
+        for (let d = 1; d <= remainingDays; d++) {
+            const dateStr = `${nextMonthYear}-${String(nextMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const appts = AppState.appointments[dateStr]?.reports || [];
+            const count = appts.length;
+            daysHtml += `
+                <div class="calendar-day other-month" data-date="${dateStr}">
+                    <span class="day-number" style="opacity:0.4;">${d}</span>
+                    ${count > 0 ? `<span class="appt-badge" style="font-size:0.5rem;">${count}</span>` : ''}
+                </div>
+            `;
+        }
+
+        const selectedAppts = AppState.appointments[AppState.selectedCalDate]?.reports || [];
+        const stats = this.getAppointmentStats(selectedAppts);
+
+        const filterButtons = [
+            { key: 'today', label: 'Today', icon: 'fa-calendar-day' },
+            { key: 'yesterday', label: 'Yesterday', icon: 'fa-calendar-day' },
+            { key: 'week', label: 'This week', icon: 'fa-calendar-week' },
+            { key: 'lastweek', label: 'Last week', icon: 'fa-calendar-week' },
+            { key: 'month', label: 'This month', icon: 'fa-calendar-alt' },
+            { key: 'lastmonth', label: 'Last month', icon: 'fa-calendar-alt' },
+            { key: 'last3months', label: 'Last 3 months', icon: 'fa-calendar-alt' },
+            { key: 'custom', label: 'Custom', icon: 'fa-calendar-plus' }
+        ];
+
+        let filterHtml = filterButtons.map(btn => `
+            <button class="filter-btn ${AppState.dateFilter === btn.key ? 'active' : ''}" data-filter="${btn.key}">
+                <i class="fas ${btn.icon}"></i> ${btn.label}
+            </button>
+        `).join('');
+
+        if (AppState.dateFilter === 'custom') {
+            filterHtml += `
+                <input type="date" id="customStartDate" value="${AppState.customStartDate || Utils.getTodayStr()}" class="filter-date-input" />
+                <span style="color:var(--text-muted); font-size:0.8rem;">to</span>
+                <input type="date" id="customEndDate" value="${AppState.customEndDate || Utils.getTodayStr()}" class="filter-date-input" />
+            `;
+        }
+
+        container.innerHTML = `
+            <div class="calendar-section fade-in">
+                <div class="calendar-filters">
+                    ${filterHtml}
+                </div>
+
+                <div class="calendar-nav">
+                    <h3><i class="fas fa-calendar-alt"></i> ${new Date(year, month).toLocaleString('default', { month: 'long' })} ${year}</h3>
+                    <div class="calendar-nav-actions">
+                        <button id="calPrevBtn" class="btn-icon">Prev</button>
+                        <button id="calTodayBtn" class="btn-icon">Today</button>
+                        <button id="calNextBtn" class="btn-icon">Next</button>
+                    </div>
+                </div>
+                <div class="calendar-grid">${daysHtml}</div>
+                <div class="kpi-row">
+                    <div class="kpi-card"><div class="kpi-value" style="color:#dc2626;">${stats.hotTransfers}</div><div class="kpi-label">🔥 Hot Transfers</div></div>
+                    <div class="kpi-card"><div class="kpi-value" style="color:var(--warning);">${stats.warmCallbacks}</div><div class="kpi-label">📞 Warm Callbacks</div></div>
+                    <div class="kpi-card"><div class="kpi-value" style="color:var(--success);">${stats.completed}</div><div class="kpi-label">✅ Completed</div></div>
+                    <div class="kpi-card"><div class="kpi-value" style="color:var(--text-muted);">${stats.pending}</div><div class="kpi-label">⏳ Pending</div></div>
+                    <div class="kpi-card"><div class="kpi-value" style="color:var(--danger);">${stats.canceled}</div><div class="kpi-label">❌ Canceled</div></div>
+                </div>
+                <div class="appointments-section">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+                        <h4>Appointments (${selectedAppts.length})</h4>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button id="quickAddCalBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> Add Lead</button>
+                            <button id="switchToListView" class="btn-icon"><i class="fas fa-list"></i> List View</button>
+                        </div>
+                    </div>
+                    <div class="appointments-list" id="appointmentsList">
+                        ${selectedAppts.map(a => {
+                            const score = Utils.calculateLeadScore(a);
+                            const isHotTransfer = Utils.getStatus(a) === 'Hot Transfer';
+                            return `
+                                <div class="appointment-card" data-id="${a.id}" data-date="${AppState.selectedCalDate}" style="border-left: 4px solid ${isHotTransfer ? '#dc2626' : 'var(--border-color)'};">
+                                    <i class="fas fa-grip-vertical drag-handle"></i>
+                                    <div class="card-row">
+                                        <div class="business-name" onclick="window.showAppointmentDetail('${a.id}')">
+                                            <strong>${Utils.escapeHtml(a.business)}</strong>
+                                            <span class="status-tag ${Utils.getStatusClass(Utils.getStatus(a))}">${Utils.getStatus(a)}</span>
+                                            <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
+                                        </div>
+                                        <div class="card-actions">
+                                            <button class="delete-appt-btn" data-id="${a.id}" title="Delete"><i class="fas fa-trash"></i></button>
+                                        </div>
+                                    </div>
+                                    <div style="font-size:0.8rem; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap;">
+                                        <span>Contact: ${Utils.escapeHtml(a.contactName)}</span>
+                                        ${a.phone ? `<span>📞 ${Utils.escapeHtml(a.phone)}</span>` : ''}
+                                        ${a.time ? `<span>🕐 ${Utils.escapeHtml(a.time)}</span>` : ''}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Event listeners...
+        container.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const filter = btn.getAttribute('data-filter');
+                AppState.dateFilter = filter;
+                this.applyDateFilter(filter, container);
+            });
+        });
+
+        const startDate = DOM.get('customStartDate');
+        const endDate = DOM.get('customEndDate');
+        if (startDate) {
+            startDate.addEventListener('change', () => {
+                AppState.customStartDate = startDate.value;
+                if (AppState.dateFilter === 'custom') {
+                    this.applyDateFilter('custom', container);
+                }
+            });
+        }
+        if (endDate) {
+            endDate.addEventListener('change', () => {
+                AppState.customEndDate = endDate.value;
+                if (AppState.dateFilter === 'custom') {
+                    this.applyDateFilter('custom', container);
+                }
+            });
+        }
+
+        container.querySelectorAll('.calendar-day[data-date]').forEach(el => {
+            el.addEventListener('click', () => {
+                AppState.selectedCalDate = el.getAttribute('data-date');
+                this.renderCalendar(container);
+            });
+        });
+
+        const prevBtn = DOM.get('calPrevBtn');
+        const nextBtn = DOM.get('calNextBtn');
+        const todayBtn = DOM.get('calTodayBtn');
+        const addBtn = DOM.get('quickAddCalBtn');
+        const listBtn = DOM.get('switchToListView');
+
+        if (prevBtn) prevBtn.addEventListener('click', () => {
+            AppState.currentCalDate.setMonth(AppState.currentCalDate.getMonth() - 1);
+            this.renderCalendar(container);
+        });
+        if (nextBtn) nextBtn.addEventListener('click', () => {
+            AppState.currentCalDate.setMonth(AppState.currentCalDate.getMonth() + 1);
+            this.renderCalendar(container);
+        });
+        if (todayBtn) todayBtn.addEventListener('click', () => {
+            AppState.currentCalDate = new Date();
+            AppState.selectedCalDate = Utils.getTodayStr();
+            this.renderCalendar(container);
+        });
+        if (addBtn) addBtn.addEventListener('click', () => this.openQuickAdd(AppState.selectedCalDate));
+        if (listBtn) listBtn.addEventListener('click', () => {
+            AppState.calendarView = 'list';
+            this.renderCalendar(container);
+        });
+
+        container.querySelectorAll('.delete-appt-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (confirm('Delete this appointment permanently?')) {
+                    Data.deleteAppointment(AppState.selectedCalDate, btn.getAttribute('data-id'));
+                    this.renderCalendar(container);
+                    showToast('Appointment deleted', 'info');
+                }
+            });
+        });
+
+        const appointmentsList = DOM.get('appointmentsList');
+        if (appointmentsList) {
+            new Sortable(appointmentsList, {
+                handle: '.drag-handle',
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                chosenClass: 'sortable-chosen',
+                dragClass: 'sortable-drag',
+                onEnd: function() {
+                    const items = appointmentsList.querySelectorAll('.appointment-card');
+                    const newOrder = [];
+                    items.forEach(item => {
+                        const id = item.getAttribute('data-id');
+                        if (id) newOrder.push(id);
+                    });
+                    if (AppState.appointments[AppState.selectedCalDate]) {
+                        const sortedReports = [];
+                        newOrder.forEach(id => {
+                            const found = AppState.appointments[AppState.selectedCalDate].reports.find(r => r.id === id);
+                            if (found) sortedReports.push(found);
+                        });
+                        AppState.appointments[AppState.selectedCalDate].reports = sortedReports;
+                    }
+                    showToast('Appointments reordered', 'info');
+                }
+            });
+        }
+    },
+
+    applyDateFilter: function(filter, container) {
+        const today = new Date();
+        let startDate = new Date();
+        let endDate = new Date();
+
+        switch(filter) {
+            case 'today':
+                startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                break;
+            case 'yesterday':
+                startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+                endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+                break;
+            case 'week':
+                const weekStart = new Date(today);
+                weekStart.setDate(today.getDate() - today.getDay() + 1);
+                startDate = weekStart;
+                endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                break;
+            case 'lastweek':
+                const lastWeekStart = new Date(today);
+                lastWeekStart.setDate(today.getDate() - today.getDay() - 6);
+                startDate = lastWeekStart;
+                const lastWeekEnd = new Date(today);
+                lastWeekEnd.setDate(today.getDate() - today.getDay());
+                endDate = lastWeekEnd;
+                break;
+            case 'month':
+                startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                break;
+            case 'lastmonth':
+                startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+                break;
+            case 'last3months':
+                startDate = new Date(today.getFullYear(), today.getMonth() - 3, 1);
+                endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                break;
+            case 'custom':
+                const customStart = DOM.get('customStartDate');
+                const customEnd = DOM.get('customEndDate');
+                if (customStart && customEnd && customStart.value && customEnd.value) {
+                    startDate = new Date(customStart.value);
+                    endDate = new Date(customEnd.value);
+                    AppState.customStartDate = customStart.value;
+                    AppState.customEndDate = customEnd.value;
+                } else {
+                    showToast('Please select both start and end dates', 'warning');
+                    return;
+                }
+                break;
+            default:
+                startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        }
+
+        const filteredAppointments = Data.getAppointmentsInDateRange(startDate, endDate);
+        const stats = this.getAppointmentStats(filteredAppointments);
+
+        if (container) {
+            const kpiRow = container.querySelector('.kpi-row');
+            if (kpiRow) {
+                kpiRow.innerHTML = `
+                    <div class="kpi-card"><div class="kpi-value" style="color:#dc2626;">${stats.hotTransfers}</div><div class="kpi-label">🔥 Hot Transfers</div></div>
+                    <div class="kpi-card"><div class="kpi-value" style="color:var(--warning);">${stats.warmCallbacks}</div><div class="kpi-label">📞 Warm Callbacks</div></div>
+                    <div class="kpi-card"><div class="kpi-value" style="color:var(--success);">${stats.completed}</div><div class="kpi-label">✅ Completed</div></div>
+                    <div class="kpi-card"><div class="kpi-value" style="color:var(--text-muted);">${stats.pending}</div><div class="kpi-label">⏳ Pending</div></div>
+                    <div class="kpi-card"><div class="kpi-value" style="color:var(--danger);">${stats.canceled}</div><div class="kpi-label">❌ Canceled</div></div>
+                `;
+            }
+
+            const header = container.querySelector('.appointments-section h4');
+            if (header) {
+                header.textContent = `Appointments (${filteredAppointments.length})`;
+            }
+
+            const appointmentsList = container.querySelector('.appointments-list');
+            if (appointmentsList) {
+                if (filteredAppointments.length === 0) {
+                    appointmentsList.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-calendar-check"></i>
+                            <p>No appointments found for this period</p>
+                        </div>
+                    `;
+                } else {
+                    appointmentsList.innerHTML = filteredAppointments.map(a => {
+                        const score = Utils.calculateLeadScore(a);
+                        const isHotTransfer = Utils.getStatus(a) === 'Hot Transfer';
+                        return `
+                            <div class="appointment-card" data-id="${a.id}" data-date="${a.date}" style="border-left: 4px solid ${isHotTransfer ? '#dc2626' : 'var(--border-color)'};">
+                                <i class="fas fa-grip-vertical drag-handle"></i>
+                                <div class="card-row">
+                                    <div class="business-name" onclick="window.showAppointmentDetail('${a.id}')">
+                                        <strong>${Utils.escapeHtml(a.business)}</strong>
+                                        <span class="status-tag ${Utils.getStatusClass(Utils.getStatus(a))}">${Utils.getStatus(a)}</span>
+                                        <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
+                                    </div>
+                                    <div class="card-actions">
+                                        <button class="delete-appt-btn" data-id="${a.id}" title="Delete"><i class="fas fa-trash"></i></button>
+                                    </div>
+                                </div>
+                                <div style="font-size:0.8rem; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap;">
+                                    <span>Contact: ${Utils.escapeHtml(a.contactName)}</span>
+                                    ${a.phone ? `<span>📞 ${Utils.escapeHtml(a.phone)}</span>` : ''}
+                                    ${a.time ? `<span>🕐 ${Utils.escapeHtml(a.time)}</span>` : ''}
+                                    <span>📅 ${Utils.formatDate(a.date)}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                    appointmentsList.querySelectorAll('.delete-appt-btn').forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            const date = btn.closest('.appointment-card').getAttribute('data-date');
+                            if (confirm('Delete this appointment permanently?')) {
+                                Data.deleteAppointment(date, btn.getAttribute('data-id'));
+                                this.renderCalendar(container);
+                                showToast('Appointment deleted', 'info');
+                            }
+                        });
+                    });
+                }
+            }
+        }
+
+        const filterLabels = {
+            'today': 'Today',
+            'yesterday': 'Yesterday',
+            'week': 'This Week',
+            'lastweek': 'Last Week',
+            'month': 'This Month',
+            'lastmonth': 'Last Month',
+            'last3months': 'Last 3 Months',
+            'custom': 'Custom Range'
+        };
+        showToast(`Showing ${filteredAppointments.length} appointments for: ${filterLabels[filter] || filter}`, 'info');
+    },
+
+    getAppointmentStats: function(appointments) {
+        const stats = {
+            hotTransfers: 0,
+            warmCallbacks: 0,
+            completed: 0,
+            pending: 0,
+            canceled: 0
+        };
+
+        appointments.forEach(a => {
+            const status = Utils.getStatus(a);
+            if (status === 'Hot Transfer') stats.hotTransfers++;
+            else if (status === 'Warm Callback') stats.warmCallbacks++;
+            else if (status === 'Completed') stats.completed++;
+            else if (status === 'Pending') stats.pending++;
+            else if (status === 'Canceled') stats.canceled++;
+        });
+
+        return stats;
+    },
+
+    renderCalendarList: function(container) {
+        const allAppointments = Data.getAllAppointments();
+
+        container.innerHTML = `
+            <div class="list-view-container fade-in">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                    <h4><i class="fas fa-list"></i> All Appointments (${allAppointments.length})</h4>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button id="switchToCalendarView" class="btn-icon"><i class="fas fa-calendar-alt"></i> Calendar View</button>
+                        <button id="addApptFromList" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> Add</button>
+                    </div>
+                </div>
+                <div class="appointments-toolbar">
+                    <div class="search-wrapper">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="listSearchInput" placeholder="Search appointments..." />
+                    </div>
+                    <select id="listStatusFilter"><option value="all">All Status</option>${CONFIG.STATUS_OPTIONS.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
+                    <select id="listTagFilter"><option value="all">All Tags</option>${CONFIG.TAG_OPTIONS.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}</select>
+                </div>
+                <div class="list-header">
+                    <span>Business</span><span>Contact</span><span>Status</span><span>Date</span><span>Score</span><span>Actions</span>
+                </div>
+                <div id="listItemsContainer">
+                    ${allAppointments.map(appt => `
+                        <div class="list-item" onclick="window.showAppointmentDetail('${appt.id}')">
+                            <span class="list-business"><strong>${Utils.escapeHtml(appt.business)}</strong></span>
+                            <span class="list-contact">${Utils.escapeHtml(appt.contactName)}</span>
+                            <span class="list-status ${Utils.getStatusClass(Utils.getStatus(appt))}">${Utils.getStatus(appt)}</span>
+                            <span>${Utils.formatDate(appt.dateKey)}</span>
+                            <span><span class="score-badge ${Utils.getScoreColor(Utils.calculateLeadScore(appt))}">${Utils.calculateLeadScore(appt)}</span></span>
+                            <span><button class="delete-appt-btn" data-id="${appt.id}" data-date="${appt.dateKey}" style="background:none; border:none; cursor:pointer; color:var(--danger);"><i class="fas fa-trash"></i></button></span>
+                        </div>
+                    `).join('')}
+                </div>
+                ${allAppointments.length === 0 ? '<div class="empty-state"><i class="fas fa-calendar-check"></i><p>No appointments found</p></div>' : ''}
+            </div>
+        `;
+
+        const calendarBtn = DOM.get('switchToCalendarView');
+        const addBtn = DOM.get('addApptFromList');
+        const searchInput = DOM.get('listSearchInput');
+        const statusFilter = DOM.get('listStatusFilter');
+        const tagFilter = DOM.get('listTagFilter');
+
+        if (calendarBtn) calendarBtn.addEventListener('click', () => {
+            AppState.calendarView = 'calendar';
+            this.renderCalendar(container);
+        });
+        if (addBtn) addBtn.addEventListener('click', () => this.openQuickAdd(Utils.getTodayStr()));
+
+        const filterItems = () => {
+            const search = searchInput?.value?.toLowerCase() || '';
+            const statusFilterValue = statusFilter?.value || 'all';
+            const tagFilterValue = tagFilter?.value || 'all';
+            const items = document.querySelectorAll('#listItemsContainer .list-item');
+
+            items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                const status = item.querySelector('.list-status')?.textContent || '';
+                let show = true;
+                if (search && !text.includes(search)) show = false;
+                if (statusFilterValue !== 'all' && status !== statusFilterValue) show = false;
+                item.style.display = show ? 'grid' : 'none';
+            });
+        };
+
+        if (searchInput) searchInput.addEventListener('input', filterItems);
+        if (statusFilter) statusFilter.addEventListener('change', filterItems);
+        if (tagFilter) tagFilter.addEventListener('change', filterItems);
+
+        container.querySelectorAll('.delete-appt-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (confirm('Delete this appointment?')) {
+                    Data.deleteAppointment(btn.getAttribute('data-date'), btn.getAttribute('data-id'));
+                    this.renderCalendarList(container);
+                    showToast('Appointment deleted', 'info');
+                }
+            });
+        });
+    },
+
+    renderTasks: function(container) {
+        if (!container) return;
+
+        const filteredTasks = AppState.taskFilter === 'all' ? AppState.tasks :
+            AppState.taskFilter === 'pending' ? AppState.tasks.filter(t => !t.completed) :
+            AppState.tasks.filter(t => t.dueDate === Utils.getTodayStr());
+
+        container.innerHTML = `
+            <div class="tasks-section fade-in">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                    <h3><i class="fas fa-tasks"></i> Follow-up Tasks</h3>
+                    <button id="addNewTaskBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> New</button>
+                </div>
+                <div class="tasks-list">
+                    ${filteredTasks.length === 0 ? '<div class="empty-state"><i class="fas fa-check-circle"></i><p>No tasks found</p></div>' :
+                    filteredTasks.map(t => `
+                        <div class="task-card ${t.completed ? 'task-completed' : ''}">
+                            <div class="task-row">
+                                <div class="task-title">
+                                    <input type="checkbox" ${t.completed ? 'checked' : ''} class="toggle-task-checkbox" data-id="${t.id}" />
+                                    <span>${Utils.escapeHtml(t.description)}</span>
+                                </div>
+                                <div class="task-actions">
+                                    <button class="delete-task-btn" data-id="${t.id}" title="Delete"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                            <div class="task-meta">
+                                ${t.dueDate ? `<span><i class="far fa-calendar"></i> Due: ${Utils.formatDate(t.dueDate)}</span>` : ''}
+                                <span class="task-priority-${t.priority || 'medium'}">${t.priority || 'Medium'}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        const addBtn = DOM.get('addNewTaskBtn');
+        if (addBtn) addBtn.addEventListener('click', () => {
+            const desc = prompt('Enter task description:');
+            if (desc && desc.trim()) {
+                const dueDate = prompt('Enter due date (YYYY-MM-DD) or leave blank:', Utils.getTodayStr());
+                Data.addTask(desc.trim(), dueDate || '', 'medium', null);
+                this.renderTasks(container);
+                showToast('Task added!', 'success');
+            }
+        });
+
+        container.querySelectorAll('.toggle-task-checkbox').forEach(cb => {
+            cb.addEventListener('change', () => {
+                Data.toggleTaskComplete(cb.getAttribute('data-id'));
+                setTimeout(() => this.renderTasks(container), 100);
+            });
+        });
+
+        container.querySelectorAll('.delete-task-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (confirm('Delete this task?')) {
+                    Data.deleteTask(btn.getAttribute('data-id'));
+                    this.renderTasks(container);
+                }
+            });
+        });
+    },
+
+    renderAnalytics: function(container) {
+        if (!container) return;
+        if (AppState.analyticsTab === 'insights') this.renderAnalyticsInsights(container);
+        else if (AppState.analyticsTab === 'reports') this.renderAnalyticsReports(container);
+        else if (AppState.analyticsTab === 'team') this.renderAnalyticsTeam(container);
+    },
+
+    renderAnalyticsInsights: function(container) {
+        // Calculate personal stats (My Pipeline)
+        const myAppointments = [];
+        const currentUser = AppState.currentUser;
+        const myName = currentUser?.displayName || currentUser?.email || 'Daniel';
+        
+        // Find or create a member ID for the current user
+        let myMemberId = 'daniel';
+        if (AppState.teamMembers.length > 0) {
+            const member = AppState.teamMembers.find(m => 
+                m.name.toLowerCase() === myName.toLowerCase() || 
+                m.email === currentUser?.email
+            );
+            if (member) myMemberId = member.id;
+        }
+
+        // Get my appointments
+        for (let date in AppState.appointments) {
+            if (AppState.appointments[date].reports) {
+                AppState.appointments[date].reports.forEach(appt => {
+                    if (appt.assigned === myName || appt.assigned === myMemberId) {
+                        myAppointments.push(appt);
+                    }
+                });
+            }
+        }
+
+        // Get team appointments (all)
+        const teamAppointments = Data.getAllAppointments();
+        const useMyPipeline = AppState.pipelineView === 'my';
+        const appointments = useMyPipeline ? myAppointments : teamAppointments;
+
+        let total = appointments.length;
+        let hTransfers = 0, wCallbacks = 0, completedCount = 0, pendingCount = 0, canceledCount = 0;
+        let statusCounts = {};
+        let dailyData = {};
+
+        appointments.forEach(a => {
+            const status = Utils.getStatus(a);
+            statusCounts[status] = (statusCounts[status] || 0) + 1;
+            if (status === 'Hot Transfer') hTransfers++;
+            else if (status === 'Warm Callback') wCallbacks++;
+            else if (status === 'Completed') completedCount++;
+            else if (status === 'Pending') pendingCount++;
+            else if (status === 'Canceled') canceledCount++;
+            dailyData[a.date] = (dailyData[a.date] || 0) + 1;
+        });
+
+        const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+        const hotTransferRate = total > 0 ? Math.round((hTransfers / total) * 100) : 0;
+        const warmCallbackRate = total > 0 ? Math.round((wCallbacks / total) * 100) : 0;
+        const avgScore = total > 0 ? Math.round(appointments.reduce((sum, a) => sum + Utils.calculateLeadScore(a), 0) / total) : 0;
+
+        container.innerHTML = `
+            <div class="analytics-container fade-in">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
+                    <h3><i class="fas fa-chart-pie"></i> Pipeline Insights Dashboard</h3>
+                    <div style="display:flex; gap:8px; align-items:center; background:var(--bg-primary); padding:4px; border-radius:40px;">
+                        <button id="myPipelineBtn" class="view-btn ${AppState.pipelineView === 'my' ? 'active' : ''}" style="padding:6px 16px;">
+                            <i class="fas fa-user"></i> My Pipeline
+                        </button>
+                        <button id="teamPipelineBtn" class="view-btn ${AppState.pipelineView === 'team' ? 'active' : ''}" style="padding:6px 16px;">
+                            <i class="fas fa-users"></i> Team Pipeline
+                        </button>
+                    </div>
+                    <span class="version-chip"><i class="fas fa-sync-alt"></i> Live Data</span>
+                </div>
+
+                <div class="report-metrics scale-in">
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">${useMyPipeline ? 'My' : 'Team'} Pipeline</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--text-muted);">${pendingCount}</div><div class="metric-label">⏳ Pending</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--danger);">${canceledCount}</div><div class="metric-label">❌ Canceled</div></div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                    <div class="feature-card slide-up">
+                        <h4>📊 Conversion Rates</h4>
+                        <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
+                            <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Completed Rate</span><span>${conversionRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--success); width:${conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
+                            <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Hot Transfer Rate</span><span>${hotTransferRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:#dc2626; width:${hotTransferRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
+                            <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Warm Callback Rate</span><span>${warmCallbackRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--warning); width:${warmCallbackRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
+                            <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Avg Lead Score</span><span>${avgScore}</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--secondary); width:${Math.min(avgScore, 100)}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
+                        </div>
+                    </div>
+
+                    <div class="feature-card slide-up">
+                        <h4>📈 Status Distribution</h4>
+                        <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px; max-height:200px; overflow-y:auto;">
+                            ${Object.entries(statusCounts).map(([status, count]) => `
+                                <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px; transition:all 0.3s ease;">
+                                    <span>${status}</span>
+                                    <span style="font-weight:600;">${count} (${Math.round((count/total)*100)}%)</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="feature-card scale-in" style="margin-top:8px;">
+                    <h4>📈 Appointment Trend</h4>
+                    <div class="chart-container" style="height:200px;">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;">
+                    <div class="feature-card scale-in">
+                        <h4>🍩 Status Distribution</h4>
+                        <div class="chart-container-sm" style="height:180px;">
+                            <canvas id="donutChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="feature-card scale-in">
+                        <h4>📊 Weekly Performance</h4>
+                        <div class="chart-container-sm" style="height:180px;">
+                            <canvas id="barChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Pipeline view toggle
+        const myPipelineBtn = DOM.get('myPipelineBtn');
+        const teamPipelineBtn = DOM.get('teamPipelineBtn');
+        if (myPipelineBtn) {
+            myPipelineBtn.addEventListener('click', () => {
+                AppState.pipelineView = 'my';
+                myPipelineBtn.classList.add('active');
+                if (teamPipelineBtn) teamPipelineBtn.classList.remove('active');
+                this.renderAnalyticsInsights(container);
+            });
+        }
+        if (teamPipelineBtn) {
+            teamPipelineBtn.addEventListener('click', () => {
+                AppState.pipelineView = 'team';
+                teamPipelineBtn.classList.add('active');
+                if (myPipelineBtn) myPipelineBtn.classList.remove('active');
+                this.renderAnalyticsInsights(container);
+            });
+        }
+
+        setTimeout(() => {
+            this.initAnalyticsCharts(dailyData, statusCounts);
+        }, 200);
+    },
+
+    renderAnalyticsReports: function(container) {
+        let total = 0, completedCount = 0, hTransfers = 0, wCallbacks = 0;
+        let dailyData = {};
+        let assignedStats = {};
+
+        for (let date in AppState.appointments) {
+            if (AppState.appointments[date].reports) {
+                AppState.appointments[date].reports.forEach(a => {
+                    total++;
+                    const status = Utils.getStatus(a);
+                    if (status === 'Completed') completedCount++;
+                    if (status === 'Hot Transfer') hTransfers++;
+                    if (status === 'Warm Callback') wCallbacks++;
+                    dailyData[date] = (dailyData[date] || 0) + 1;
+
+                    const assigned = a.assigned || 'Unassigned';
+                    assignedStats[assigned] = (assignedStats[assigned] || 0) + 1;
+                });
+            }
+        }
+
+        const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+        const avgScore = Stats.getAverageScore();
+
+        container.innerHTML = `
+            <div class="analytics-container fade-in">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
+                    <h3><i class="fas fa-chart-line"></i> Advanced Reports</h3>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button id="reportsExportCSV" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-file-csv"></i> Export CSV</button>
+                    </div>
+                </div>
+
+                <div class="report-metrics scale-in">
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">Total Appointments</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--primary);">${conversionRate}%</div><div class="metric-label">Conversion Rate</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--secondary);">${avgScore}</div><div class="metric-label">Avg Lead Score</div></div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                    <div class="feature-card slide-up">
+                        <h4>📈 Daily Trend</h4>
+                        <div class="chart-container" style="height:180px;">
+                            <canvas id="reportsTrendChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="feature-card slide-up">
+                        <h4>👤 Assigned Distribution</h4>
+                        <div class="chart-container" style="height:180px;">
+                            <canvas id="reportsAssignedChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        setTimeout(() => {
+            const trendCtx = DOM.get('reportsTrendChart')?.getContext('2d');
+            if (trendCtx) {
+                const dates = Object.keys(dailyData).sort().slice(-7);
+                const values = dates.map(d => dailyData[d]);
+                new Chart(trendCtx, {
+                    type: 'line',
+                    data: {
+                        labels: dates.map(d => Utils.formatDate(d)),
+                        datasets: [{ label: 'Appointments', data: values, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+                });
+            }
+
+            const assignedCtx = DOM.get('reportsAssignedChart')?.getContext('2d');
+            if (assignedCtx) {
+                const labels = Object.keys(assignedStats);
+                const data = Object.values(assignedStats);
+                const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#f97316'];
+                new Chart(assignedCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{ label: 'Appointments', data: data, backgroundColor: colors.slice(0, labels.length), borderRadius: 4 }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+                });
+            }
+        }, 200);
+
+        const exportCSV = DOM.get('reportsExportCSV');
+        if (exportCSV) exportCSV.addEventListener('click', () => Data.exportToCSV());
+    },
+
+    renderAnalyticsTeam: function(container) {
+        let teamStats = {};
+        const members = AppState.teamMembers || CONFIG.TEAM_MEMBERS;
+        
+        members.forEach(member => {
+            const stats = Utils.getMemberStats(member.id, AppState.appointments);
+            teamStats[member.id] = {
+                ...member,
+                ...stats
+            };
+        });
+
+        // Find top performer
+        const topPerformer = Object.values(teamStats).sort((a, b) => b.score - a.score)[0];
+        const totalTeamAppts = Object.values(teamStats).reduce((sum, m) => sum + m.total, 0);
+
+        container.innerHTML = `
+            <div class="analytics-container fade-in">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
+                    <h3><i class="fas fa-users"></i> Team Performance Dashboard</h3>
+                    <span class="version-chip"><i class="fas fa-crown"></i> ${topPerformer ? `${topPerformer.avatar} ${topPerformer.name} is leading!` : 'No data yet'}</span>
+                </div>
+
+                <div class="report-metrics scale-in">
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${members.length}</div><div class="metric-label">👥 Team Members</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${totalTeamAppts}</div><div class="metric-label">📋 Total Appointments</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--primary);">${topPerformer ? topPerformer.score : 0}</div><div class="metric-label">🏆 Top Score</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${topPerformer ? topPerformer.conversionRate : 0}%</div><div class="metric-label">📈 Top Conversion</div></div>
+                </div>
+
+                <div class="feature-card slide-up">
+                    <h4>👤 Team Member Performance</h4>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-top:12px;">
+                        ${Object.values(teamStats).map(member => `
+                            <div style="background:var(--bg-primary); border-radius:12px; padding:16px; border-left: 4px solid ${member.color}; transition:all 0.3s ease; cursor:pointer;" onclick="window.TeamManager?.showMemberDetail('${member.id}')">
+                                <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+                                    <span style="font-size:2rem;">${member.avatar}</span>
+                                    <div>
+                                        <div style="font-weight:600;">${member.name}</div>
+                                        <div style="font-size:0.7rem; color:var(--text-muted);">${member.role}</div>
+                                    </div>
+                                    ${member.id === topPerformer?.id ? '<span style="margin-left:auto; font-size:1.2rem;">👑</span>' : ''}
+                                </div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:0.8rem;">
+                                    <span>📋 ${member.total}</span>
+                                    <span>✅ ${member.completed}</span>
+                                    <span>🔥 ${member.hotTransfers}</span>
+                                    <span>📞 ${member.warmCallbacks}</span>
+                                    <span style="font-weight:600;">Score: ${member.score}</span>
+                                    <span style="font-weight:600;">Conv: ${member.conversionRate}%</span>
+                                </div>
+                                <div style="margin-top:8px; background:var(--bg-card); height:4px; border-radius:4px; overflow:hidden;">
+                                    <div style="background:${member.color}; width:${member.conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="feature-card scale-in">
+                    <h4>📊 Team Performance Chart</h4>
+                    <div class="chart-container" style="height:200px;">
+                        <canvas id="teamChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        setTimeout(() => {
+            const teamCtx = DOM.get('teamChart')?.getContext('2d');
+            if (teamCtx) {
+                const labels = Object.values(teamStats).map(m => m.name);
+                const scores = Object.values(teamStats).map(m => m.score);
+                const colors = Object.values(teamStats).map(m => m.color);
+                new Chart(teamCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Lead Score',
+                            data: scores,
+                            backgroundColor: colors.map(c => c + '80'),
+                            borderColor: colors,
+                            borderWidth: 2,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+        }, 200);
+    },
+
+    initAnalyticsCharts: function(dailyData, statusCounts) {
+        Object.values(AppState.chartInstances).forEach(chart => { if (chart) chart.destroy(); });
+        AppState.chartInstances = {};
+        const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#f97316', '#06b6d4', '#ec4899'];
+
+        const trendCtx = DOM.get('trendChart')?.getContext('2d');
+        if (trendCtx) {
+            const dates = Object.keys(dailyData).sort();
+            const values = dates.map(d => dailyData[d]);
+            AppState.chartInstances.trend = new Chart(trendCtx, {
+                type: 'line',
+                data: { labels: dates.map(d => Utils.formatDate(d)), datasets: [{ label: 'Appointments', data: values, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            });
+        }
+
+        const donutCtx = DOM.get('donutChart')?.getContext('2d');
+        if (donutCtx) {
+            const labels = Object.keys(statusCounts);
+            const data = Object.values(statusCounts);
+            const backgroundColors = labels.map((_, i) => colors[i % colors.length]);
+            AppState.chartInstances.donut = new Chart(donutCtx, {
+                type: 'doughnut',
+                data: { labels, datasets: [{ data, backgroundColor: backgroundColors, borderWidth: 2, borderColor: 'var(--bg-secondary)' }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 10 } } } }, cutout: '60%' }
+            });
+        }
+
+        const barCtx = DOM.get('barChart')?.getContext('2d');
+        if (barCtx) {
+            const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            const weekData = weekDays.map(() => 0);
+            const now = new Date();
+            const startOfWeek = new Date(now);
+            startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+            for (let date in dailyData) {
+                const d = new Date(date);
+                const dayIndex = (d.getDay() + 6) % 7;
+                if (d >= startOfWeek && d <= now) weekData[dayIndex] += dailyData[date];
+            }
+            AppState.chartInstances.bar = new Chart(barCtx, {
+                type: 'bar',
+                data: { labels: weekDays, datasets: [{ label: 'This Week', data: weekData, backgroundColor: 'rgba(59,130,246,0.7)', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            });
+        }
+    },
+
+    renderShortcuts: function(container) {
+        if (!container) return;
+
+        const shortcuts = AppState.shortcuts;
+
+        let html = `
+            <div class="shortcuts-container fade-in">
+                <h3><i class="fas fa-keyboard"></i> Keyboard Shortcuts Manager</h3>
+                <p style="color:var(--text-muted); margin-bottom:16px;">View and customize keyboard shortcuts for quick access to features.</p>
+                <div style="margin-bottom:16px; display:flex; gap:8px; flex-wrap:wrap;">
+                    <button id="shortcutsResetDefaultsBtn" class="btn-icon" style="background:var(--warning); color:#1e293b;"><i class="fas fa-undo"></i> Reset Defaults</button>
+                    <span style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center;">⚠️ Conflicts are highlighted in red</span>
+                    <span style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center; margin-left:auto;">
+                        Shortcuts ${AppState.shortcutsEnabled ? '🟢 Active' : '🔴 Disabled (Editing)'}
+                    </span>
+                </div>
+                <div id="shortcutsListContainer" style="max-height:450px; overflow-y:auto;">
+        `;
+
+        for (const [action, shortcut] of Object.entries(shortcuts)) {
+            const isDefault = CONFIG.DEFAULT_SHORTCUTS[action] &&
+                JSON.stringify(CONFIG.DEFAULT_SHORTCUTS[action].keys) === JSON.stringify(shortcut.keys);
+            const conflict = Utils.checkShortcutConflict(shortcut.keys, action, shortcuts);
+
+            html += `
+                <div class="shortcut-item ${conflict.length > 0 ? 'conflict' : ''}">
+                    <div class="shortcut-info">
+                        <div class="shortcut-name">${action}</div>
+                        <div class="shortcut-description">${shortcut.description || ''}</div>
+                    </div>
+                    <div class="shortcut-keys">
+                        ${shortcut.keys.map(k => `<kbd>${k}</kbd>`).join(' <span class="shortcut-separator">+</span> ')}
+                        ${!isDefault ? ' <span style="font-size:0.65rem; color:var(--text-muted);">(custom)</span>' : ''}
+                        ${conflict.length > 0 ? ` <span class="shortcut-conflict">⚠️ Conflict: ${conflict.join(', ')}</span>` : ''}
+                        <i class="fas fa-pen shortcut-edit" onclick="window.openShortcutEdit('${action}')" title="Edit shortcut"></i>
+                    </div>
+                </div>
+            `;
+        }
+
+        html += `</div></div>`;
+        container.innerHTML = html;
+
+        const resetBtn = DOM.get('shortcutsResetDefaultsBtn');
+        if (resetBtn) resetBtn.addEventListener('click', () => {
+            if (confirm('Reset all keyboard shortcuts to default values?')) {
+                AppState.customShortcuts = {};
+                localStorage.removeItem('customShortcuts');
+                AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS };
+                showToast('Shortcuts reset to defaults', 'success');
+                this.renderShortcuts(container);
+            }
+        });
+    },
+
+    openQuickAdd: function(defaultDate) {
+        const modal = DOM.get('quickAddModal');
+        if (!modal) return;
+
+        modal.style.display = 'flex';
+        const dateInput = DOM.get('newApptDate');
+        if (dateInput) dateInput.value = defaultDate || Utils.getTodayStr();
+
+        const statusSelect = DOM.get('newApptStatus');
+        if (statusSelect) {
+            statusSelect.innerHTML = CONFIG.STATUS_OPTIONS.map(s =>
+                `<option value="${s}" ${s === 'Pending' ? 'selected' : ''}>${s}</option>`
+            ).join('');
+        }
+
+        const fields = ['newApptBusiness', 'newApptContact', 'newApptPhone', 'newApptEmail', 'newApptTime', 'newApptNotes'];
+        fields.forEach(id => { const el = DOM.get(id); if (el) el.value = ''; });
+
+        const saveBtn = DOM.get('saveQuickApptBtn');
+        const cancelBtn = DOM.get('cancelQuickApptBtn');
+
+        if (saveBtn) {
+            saveBtn.onclick = () => {
+                const date = DOM.get('newApptDate')?.value || '';
+                const bus = DOM.get('newApptBusiness')?.value?.trim() || '';
+                const contact = DOM.get('newApptContact')?.value?.trim() || '';
+                const phone = DOM.get('newApptPhone')?.value?.trim() || '';
+                const email = DOM.get('newApptEmail')?.value?.trim() || '';
+                const time = DOM.get('newApptTime')?.value || '';
+                const status = DOM.get('newApptStatus')?.value || 'Pending';
+                const notes = DOM.get('newApptNotes')?.value?.trim() || '';
+
+                if (!bus || !contact) {
+                    showToast('Please fill in all required fields', 'error');
+                    return;
+                }
+
+                Data.addAppointment(date, bus, contact, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), 'Daniel', null, status);
+                modal.style.display = 'none';
+                showToast('Appointment added successfully! 🎉', 'success');
+                FeaturePanel.refreshCurrentView();
+            };
+        }
+
+        if (cancelBtn) cancelBtn.onclick = () => { modal.style.display = 'none'; };
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.style.display = 'none';
+        });
+    }
+};
+
+// ================================================================
+// GLOBAL SEARCH
+// ================================================================
+
+function openGlobalSearch() {
+    const modal = DOM.get('globalSearchModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    const input = DOM.get('globalSearchInput');
+    if (input) { input.value = ''; input.focus(); }
+    const results = DOM.get('globalSearchResults');
+    if (results) results.innerHTML = '';
+}
+
+function performGlobalSearch(query) {
+    const results = DOM.get('globalSearchResults');
+    if (!results) return;
+    if (!query || query.length < 2) {
+        results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">Type at least 2 characters to search...</p>';
+        return;
+    }
+
+    const searchResults = [];
+    const q = query.toLowerCase();
+
+    for (let date in AppState.appointments) {
+        if (AppState.appointments[date].reports) {
+            AppState.appointments[date].reports.forEach(appt => {
+                const searchable = `${appt.business} ${appt.contactName} ${appt.phone || ''} ${appt.email || ''} ${appt.notes || ''}`.toLowerCase();
+                if (searchable.includes(q)) {
+                    searchResults.push({ type: 'appointment', data: appt, date: date });
+                }
+            });
+        }
+    }
+
+    AppState.tasks.forEach(task => {
+        if (task.description.toLowerCase().includes(q)) {
+            searchResults.push({ type: 'task', data: task });
+        }
+    });
+
+    for (const [id, script] of Object.entries(AppState.scripts)) {
+        if (script.name.toLowerCase().includes(q) || script.content.toLowerCase().includes(q)) {
+            searchResults.push({ type: 'script', data: { id, ...script } });
+        }
+    }
+
+    AppState.teamMembers.forEach(member => {
+        const searchable = `${member.name} ${member.role} ${member.email || ''}`.toLowerCase();
+        if (searchable.includes(q)) {
+            searchResults.push({ type: 'team', data: member });
+        }
+    });
+
+    if (searchResults.length === 0) {
+        results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">No results found.</p>';
+        return;
+    }
+
+    let html = `<div style="display:flex; flex-direction:column; gap:8px;">`;
+    searchResults.slice(0, 20).forEach(result => {
+        if (result.type === 'appointment') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="window.showAppointmentDetail('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${Utils.escapeHtml(result.data.business)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">${Utils.formatDate(result.data.date)}</span>
+                    </div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary);">${Utils.escapeHtml(result.data.contactName)}</div>
+                </div>
+            `;
+        } else if (result.type === 'task') {
+            html += `
+                <div class="list-item" style="padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${Utils.escapeHtml(result.data.description)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">${result.data.completed ? '✅ Done' : '⏳ Pending'}</span>
+                    </div>
+                </div>
+            `;
+        } else if (result.type === 'script') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="window.loadScript('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${Utils.escapeHtml(result.data.name)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">📜 Script</span>
+                    </div>
+                </div>
+            `;
+        } else if (result.type === 'team') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="window.TeamManager?.showMemberDetail('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${Utils.escapeHtml(result.data.name)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">👤 Team Member</span>
+                    </div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary);">${Utils.escapeHtml(result.data.role)}</div>
+                </div>
+            `;
+        }
+    });
+    html += `</div>`;
+    results.innerHTML = html;
+}
+
+// ================================================================
+// APPOINTMENT DETAIL
+// ================================================================
+
+function showAppointmentDetail(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    AppState.currentAppointmentId = appointmentId;
+
+    const modal = DOM.get('appointmentDetailModal');
+    if (!modal) return;
+
+    const titleEl = DOM.get('appointmentDetailTitle');
+    if (titleEl) titleEl.textContent = `📋 ${appt.business} - ${appt.contactName}`;
+
+    const contentEl = DOM.get('appointmentDetailContent');
+    if (contentEl) {
+        contentEl.innerHTML = `
+            <div class="detail-row"><span class="detail-label">Business</span><span class="detail-value">${Utils.escapeHtml(appt.business)}</span></div>
+            <div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">${Utils.escapeHtml(appt.contactName)}</span></div>
+            <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value">${Utils.escapeHtml(appt.phone || 'N/A')}</span></div>
+            <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${Utils.escapeHtml(appt.email || 'N/A')}</span></div>
+            <div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">${Utils.formatDate(appt.date)}</span></div>
+            <div class="detail-row"><span class="detail-label">Time</span><span class="detail-value">${Utils.escapeHtml(appt.time || 'N/A')}</span></div>
+            <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value"><span class="status-tag ${Utils.getStatusClass(Utils.getStatus(appt))}">${Utils.getStatus(appt)}</span></span></div>
+            <div class="detail-row"><span class="detail-label">Assigned</span><span class="detail-value">${Utils.escapeHtml(appt.assigned || 'Daniel')}</span></div>
+            <div class="detail-row"><span class="detail-label">Lead Score</span><span class="detail-value"><span class="score-badge ${Utils.getScoreColor(Utils.calculateLeadScore(appt))}">${Utils.calculateLeadScore(appt)} Pts</span></span></div>
+            ${appt.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value" style="white-space:pre-wrap;">${Utils.escapeHtml(appt.notes)}</span></div>` : ''}
+            ${appt.tags && appt.tags.length > 0 ? `<div class="detail-row"><span class="detail-label">Tags</span><span class="detail-value">${appt.tags.map(t => `#${t}`).join(' ')}</span></div>` : ''}
+        `;
+    }
+
+    modal.style.display = 'flex';
+}
+
+function closeAppointmentDetail() {
+    const modal = DOM.get('appointmentDetailModal');
+    if (modal) modal.style.display = 'none';
+    AppState.currentAppointmentId = null;
+}
+
+// ================================================================
+// SMART IMPORT
+// ================================================================
+
+function openSmartImport() {
+    const modal = DOM.get('smartImportModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    const textArea = DOM.get('importTextArea');
+    if (textArea) textArea.value = '';
+    const preview = DOM.get('importPreview');
+    if (preview) preview.style.display = 'none';
+    const saveBtn = DOM.get('saveImportBtn');
+    if (saveBtn) saveBtn.style.display = 'none';
+    AppState.parsedImportData = {};
+    AppState.importConfidence = {};
+}
+
+function closeSmartImport() {
+    const modal = DOM.get('smartImportModal');
+    if (modal) modal.style.display = 'none';
+    AppState.parsedImportData = {};
+    AppState.importConfidence = {};
+}
+
+function parseAndPreviewImport() {
+    const textArea = DOM.get('importTextArea');
+    if (!textArea) return;
+    const text = textArea.value;
+    if (!text.trim()) { showToast('Please paste some text to parse', 'warning'); return; }
+
+    const { result, confidence } = Utils.parseAppointmentText(text);
+    AppState.parsedImportData = result;
+    AppState.importConfidence = confidence;
+
+    const preview = DOM.get('importPreview');
+    const fieldsContainer = DOM.get('parsedFields');
+    const confidenceContainer = DOM.get('confidenceScore');
+    const missingContainer = DOM.get('missingFields');
+    const duplicateContainer = DOM.get('duplicateWarning');
+
+    if (!preview) return;
+    preview.style.display = 'block';
+
+    let fieldsHtml = '', totalConfidence = 0, fieldCount = 0;
+    const requiredFields = ['name', 'business'];
+    const missingFields = [];
+
+    for (const [field, value] of Object.entries(result)) {
+        if (!value) continue;
+        const conf = confidence[field] || 0.5;
+        totalConfidence += conf;
+        fieldCount++;
+        const confClass = conf >= 0.7 ? 'high' : (conf >= 0.4 ? 'medium' : 'low');
+        const confLabel = conf >= 0.7 ? 'High' : (conf >= 0.4 ? 'Medium' : 'Low');
+        fieldsHtml += `
+            <div class="parsed-field">
+                <span class="field-label">${field.charAt(0).toUpperCase() + field.slice(1)}</span>
+                <span class="field-value" contenteditable="true" data-field="${field}">${Utils.escapeHtml(value)}</span>
+                <span class="field-confidence ${confClass}">${confLabel} (${Math.round(conf * 100)}%)</span>
+                <i class="fas fa-pen field-edit" data-field="${field}" title="Edit value"></i>
+            </div>
+        `;
+        if (requiredFields.includes(field) && !value) missingFields.push(field);
+    }
+
+    for (const field of requiredFields) {
+        if (!result[field] || !result[field].trim()) missingFields.push(field);
+    }
+
+    if (fieldsContainer) fieldsContainer.innerHTML = fieldsHtml;
+
+    if (fieldsContainer) {
+        fieldsContainer.querySelectorAll('.field-value').forEach(el => {
+            el.addEventListener('blur', function() {
+                const field = this.getAttribute('data-field');
+                AppState.parsedImportData[field] = this.textContent.trim();
+                updateImportValidation();
+            });
+        });
+        fieldsContainer.querySelectorAll('.field-edit').forEach(el => {
+            el.addEventListener('click', function() {
+                const field = this.getAttribute('data-field');
+                const valueEl = fieldsContainer.querySelector(`.field-value[data-field="${field}"]`);
+                if (valueEl) valueEl.focus();
+            });
+        });
+    }
+
+    const avgConf = fieldCount > 0 ? totalConfidence / fieldCount : 0;
+    if (confidenceContainer) {
+        confidenceContainer.innerHTML = `
+            <strong>Overall Confidence:</strong> ${Math.round(avgConf * 100)}%
+            <span style="font-size:0.75rem; color:var(--text-muted); margin-left:8px;">(${fieldCount} fields parsed)</span>
+        `;
+    }
+
+    if (duplicateContainer) {
+        const duplicate = Utils.checkDuplicate(result, AppState.appointments);
+        if (duplicate) {
+            duplicateContainer.style.display = 'block';
+            duplicateContainer.innerHTML = `⚠️ <strong>Potential duplicate found!</strong> Similar appointment exists: ${duplicate.business} - ${duplicate.contactName} on ${Utils.formatDate(duplicate.date)}`;
+        } else {
+            duplicateContainer.style.display = 'none';
+        }
+    }
+
+    if (missingContainer) {
+        if (missingFields.length > 0) {
+            missingContainer.innerHTML = `⚠️ <strong>Missing required fields:</strong> ${missingFields.join(', ')}<br><span style="font-size:0.75rem;">Please fill in all required fields before saving.</span>`;
+            missingContainer.style.color = 'var(--danger)';
+        } else {
+            missingContainer.innerHTML = '✅ All required fields are filled';
+            missingContainer.style.color = 'var(--success)';
+        }
+    }
+    updateImportValidation();
+}
+
+function updateImportValidation() {
+    const requiredFields = ['name', 'business'];
+    const allFilled = requiredFields.every(field => AppState.parsedImportData[field] && AppState.parsedImportData[field].trim());
+    const saveBtn = DOM.get('saveImportBtn');
+    if (saveBtn) {
+        if (allFilled) {
+            saveBtn.style.display = 'inline-flex';
+            saveBtn.disabled = false;
+            saveBtn.style.opacity = '1';
+        } else {
+            saveBtn.style.display = 'inline-flex';
+            saveBtn.disabled = true;
+            saveBtn.style.opacity = '0.5';
+        }
+    }
+}
+
+function saveImportedAppointment() {
+    if (!AppState.currentUser) { showToast('Please sign in first', 'error'); return; }
+    const data = AppState.parsedImportData;
+    if (!data.name || !data.business) { showToast('Name and Business are required', 'error'); return; }
+
+    const date = data.date || Utils.getTodayStr();
+    const status = data.status || 'Pending';
+    const time = data.time || '';
+    const phone = data.phone || '';
+    const email = data.email || '';
+    const notes = data.notes || '';
+    const assigned = data.assigned || 'Daniel';
+
+    const duplicate = Utils.checkDuplicate(data, AppState.appointments);
+    if (duplicate && !confirm(`This appears to be a duplicate appointment with ${duplicate.business}. Do you still want to add it?`)) return;
+
+    Data.addAppointment(date, data.business, data.name, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), assigned, null, status);
+    showToast('Appointment imported successfully! 🎉', 'success');
+    closeSmartImport();
+    FeaturePanel.refreshCurrentView();
+}
+
+// ================================================================
+// BULK ACTIONS
+// ================================================================
+
+function openBulkActions() {
+    const modal = DOM.get('bulkActionsModal');
+    const container = DOM.get('bulkSelectionContainer');
+    if (!modal || !container) return;
+    modal.style.display = 'flex';
+    AppState.selectedAppointments = new Set();
+
+    let html = '';
+    for (let date in AppState.appointments) {
+        if (AppState.appointments[date].reports) {
+            AppState.appointments[date].reports.forEach(appt => {
+                html += `
+                    <div class="bulk-item">
+                        <input type="checkbox" class="bulk-checkbox" value="${appt.id}" data-date="${date}" />
+                        <span><strong>${Utils.escapeHtml(appt.business)}</strong> - ${Utils.escapeHtml(appt.contactName)} (${Utils.getStatus(appt)})</span>
+                    </div>
+                `;
+            });
+        }
+    }
+    container.innerHTML = html || '<p style="color:var(--text-muted);">No appointments found</p>';
+
+    container.querySelectorAll('.bulk-checkbox').forEach(cb => {
+        cb.addEventListener('change', () => {
+            if (cb.checked) AppState.selectedAppointments.add(cb.value);
+            else AppState.selectedAppointments.delete(cb.value);
+        });
+    });
+
+    const options = DOM.get('bulkActionOptions');
+    if (options) options.style.display = 'none';
+}
+
+function executeBulkAction() {
+    const action = DOM.get('bulkActionSelect')?.value || 'status';
+    const selected = Array.from(AppState.selectedAppointments);
+
+    if (selected.length === 0) { showToast('Please select at least one appointment', 'warning'); return; }
+
+    if (action === 'delete') {
+        if (!confirm(`Delete ${selected.length} appointment(s)?`)) return;
+        selected.forEach(id => {
+            for (let date in AppState.appointments) {
+                if (AppState.appointments[date].reports) {
+                    const found = AppState.appointments[date].reports.find(r => r.id === id);
+                    if (found) { Data.deleteAppointment(date, id); break; }
+                }
+            }
+        });
+        showToast(`${selected.length} appointment(s) deleted`, 'success');
+    } else if (action === 'status') {
+        const statusSelect = DOM.get('bulkStatusSelect');
+        const newStatus = statusSelect?.value || 'Pending';
+        selected.forEach(id => {
+            for (let date in AppState.appointments) {
+                if (AppState.appointments[date].reports) {
+                    const found = AppState.appointments[date].reports.find(r => r.id === id);
+                    if (found) { Data.updateAppointment(date, id, { status: newStatus }); break; }
+                }
+            }
+        });
+        showToast(`${selected.length} appointment(s) updated to ${newStatus}`, 'success');
+    } else if (action === 'tag') {
+        const tagSelect = DOM.get('bulkTagSelect');
+        const tag = tagSelect?.value || '';
+        selected.forEach(id => {
+            for (let date in AppState.appointments) {
+                if (AppState.appointments[date].reports) {
+                    const found = AppState.appointments[date].reports.find(r => r.id === id);
+                    if (found) {
+                        const tags = found.tags || [];
+                        if (!tags.includes(tag)) { tags.push(tag); Data.updateAppointment(date, id, { tags }); }
+                        break;
+                    }
+                }
+            }
+        });
+        showToast(`Tag added to ${selected.length} appointment(s)`, 'success');
+    } else if (action === 'export') {
+        Data.exportToCSV(selected);
+    }
+
+    const modal = DOM.get('bulkActionsModal');
+    if (modal) modal.style.display = 'none';
+    FeaturePanel.refreshCurrentView();
+}
+
+// ================================================================
+// HANDLE ESCAPE KEY
+// ================================================================
+
+function handleEscapeKey() {
+    if (AppState.isEditing) {
+        Scripts.cancelEdit();
+        return true;
+    }
+
+    const featurePanel = DOM.get('featurePanel');
+    if (featurePanel && featurePanel.style.display !== 'none') {
+        FeaturePanel.hide();
+        Scripts.loadScript('opening');
+        showToast('Returned to Opening Script', 'info');
+        return true;
+    }
+
+    const openModals = document.querySelectorAll('.modal-overlay');
+    openModals.forEach(modal => {
+        if (modal.style.display !== 'none') {
+            modal.style.display = 'none';
+        }
+    });
+    return true;
+}
+
+// ================================================================
+// SHORTCUT EDIT (GLOBAL)
+// ================================================================
+
+function openShortcutEdit(action) {
+    const currentKeys = AppState.shortcuts[action]?.keys || [];
+    const keysString = currentKeys.join('+');
+    const newKeysString = prompt(`Enter new shortcut for "${action}" (e.g., Ctrl+Shift+I):`, keysString);
+
+    if (newKeysString && newKeysString !== keysString) {
+        const newKeys = newKeysString.split('+').map(k => k.trim());
+        const conflicts = Utils.checkShortcutConflict(newKeys, action, AppState.shortcuts);
+
+        if (conflicts.length > 0) {
+            showToast(`Conflict with: ${conflicts.join(', ')}`, 'warning');
+            return false;
+        }
+
+        if (AppState.shortcuts[action]) {
+            AppState.shortcuts[action].keys = newKeys;
+            AppState.customShortcuts[action] = AppState.shortcuts[action];
+            localStorage.setItem('customShortcuts', JSON.stringify(AppState.customShortcuts));
+            showToast(`Shortcut updated for ${action}`, 'success');
+
+            const body = DOM.get('featurePanelBody');
+            if (body && AppState.currentView === 'shortcuts') {
+                FeaturePanel.renderShortcuts(body);
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+// ================================================================
+// INITIALIZATION
+// ================================================================
+
+function initApp() {
+    console.log('🚀 Starting ScriptFlow Pro...');
+
+    try {
+        AppState.isFirebaseReady = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
+    } catch (e) {
+        AppState.isFirebaseReady = false;
+    }
+
+    if (!AppState.isFirebaseReady) {
+        console.warn('⚠️ Firebase not available - running in offline mode');
+        showToast('Offline mode - Some features may be limited', 'warning');
+    }
+
+    AppState.customShortcuts = JSON.parse(localStorage.getItem('customShortcuts') || '{}');
+    AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS, ...AppState.customShortcuts };
+    AppState.scriptFavorites = JSON.parse(localStorage.getItem('scriptFavorites') || '[]');
+
+    // Set up tools menu
+    const toolsHeader = DOM.get('toolsHeader');
+    const toolsMenu = DOM.get('toolsMenu');
+    const toolsChevron = DOM.get('toolsChevron');
+    const toolsOpen = localStorage.getItem('toolsMenuOpen') === 'true';
+
+    if (toolsHeader && toolsMenu && toolsChevron) {
+        if (toolsOpen) { toolsMenu.classList.add('open'); toolsChevron.classList.add('rotated'); }
+        toolsHeader.addEventListener('click', () => {
+            const isOpen = toolsMenu.classList.toggle('open');
+            toolsChevron.classList.toggle('rotated');
+            localStorage.setItem('toolsMenuOpen', isOpen);
+        });
+    }
+
+    // Menu toggle
+    const menuToggle = DOM.get('menuToggleBtn');
+    const sidebar = DOM.get('mainSidebar');
+    const mainContent = DOM.get('mainContent');
+
+    if (menuToggle && sidebar && mainContent) {
+        menuToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('closed');
+            mainContent.classList.toggle('expanded');
+        });
+    }
+
+    // ESC key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') handleEscapeKey();
+    });
+
+    // Tool items
+    document.querySelectorAll('.tool-item').forEach(item => {
+        item.addEventListener('click', function() {
+            const tool = this.getAttribute('data-tool');
+            if (tool === 'notepad') showToast('📝 Notes feature coming soon!', 'info');
+            else if (tool === 'calendar') FeaturePanel.show('calendar', '📅 Appointment & Handoff Calendar');
+            else if (tool === 'tasks') FeaturePanel.show('tasks', '📋 Follow-up Tasks Manager');
+            else if (tool === 'analytics') {
+                AppState.analyticsTab = 'insights';
+                FeaturePanel.show('analytics', '📊 Analytics Hub');
+            } else if (tool === 'shortcuts') FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts');
+            else if (tool === 'team') FeaturePanel.show('team', '👥 Team Management');
+            else if (tool === 'theme') {
+                document.body.classList.toggle('light');
+                showToast('Theme toggled', 'info');
+            } else if (tool === 'help') {
+                showToast('Handoffs: Warm Callback, Completed, Canceled, Pending, Hot Transfer - All integrated!', 'info');
+            } else if (tool === 'reset') {
+                if (confirm('⚠️ This will clear all local data and reset the app. Continue?')) {
+                    localStorage.clear();
+                    if (AppState.currentUser && AppState.isFirebaseReady) {
+                        firebase.firestore().collection('users').doc(AppState.currentUser.uid).delete().catch(e => console.warn('Delete error:', e));
+                    }
+                    location.reload();
+                }
+            } else if (tool === 'export') Data.exportToCSV();
+            else if (tool === 'signOut') Auth.signOut();
+        });
+    });
+
+    // Feature panel close
+    const closeFeatureBtn = DOM.get('closeFeaturePanelBtn');
+    if (closeFeatureBtn) closeFeatureBtn.addEventListener('click', () => {
+        FeaturePanel.hide();
+        Scripts.loadScript('opening');
+    });
+
+    // Smart Import
+    const quickReportBtn = DOM.get('quickReportBtn');
+    const parseBtn = DOM.get('parseImportBtn');
+    const saveImportBtn = DOM.get('saveImportBtn');
+    const closeImportBtn = DOM.get('closeImportBtn');
+
+    if (quickReportBtn) quickReportBtn.addEventListener('click', openSmartImport);
+    if (parseBtn) parseBtn.addEventListener('click', parseAndPreviewImport);
+    if (saveImportBtn) saveImportBtn.addEventListener('click', saveImportedAppointment);
+    if (closeImportBtn) closeImportBtn.addEventListener('click', closeSmartImport);
+
+    // Appointment detail
+    const copyBtn = DOM.get('apptCopyBtn');
+    const editBtn = DOM.get('apptEditBtn');
+    const deleteBtn = DOM.get('apptDeleteBtn');
+    const closeDetailBtn = DOM.get('apptCloseBtn');
+
+    if (copyBtn) copyBtn.addEventListener('click', () => {
+        const appt = Data.getAppointmentById(AppState.currentAppointmentId);
+        if (appt) copyToClipboard(`Business: ${appt.business}\nContact: ${appt.contactName}\nPhone: ${appt.phone || 'N/A'}\nStatus: ${Utils.getStatus(appt)}\nDate: ${Utils.formatDate(appt.date)}${appt.time ? `\nTime: ${appt.time}` : ''}${appt.notes ? `\nNotes: ${appt.notes}` : ''}`);
+    });
+
+    if (editBtn) editBtn.addEventListener('click', () => {
+        const appt = Data.getAppointmentById(AppState.currentAppointmentId);
+        if (appt) {
+            closeAppointmentDetail();
+            FeaturePanel.openQuickAdd(appt.date);
+            setTimeout(() => {
+                const businessInput = DOM.get('newApptBusiness');
+                const contactInput = DOM.get('newApptContact');
+                const phoneInput = DOM.get('newApptPhone');
+                const timeInput = DOM.get('newApptTime');
+                const statusSelect = DOM.get('newApptStatus');
+                const notesInput = DOM.get('newApptNotes');
+                if (businessInput) businessInput.value = appt.business;
+                if (contactInput) contactInput.value = appt.contactName;
+                if (phoneInput) phoneInput.value = appt.phone || '';
+                if (timeInput) timeInput.value = appt.time || '';
+                if (statusSelect) statusSelect.value = Utils.getStatus(appt);
+                if (notesInput) notesInput.value = appt.notes || '';
+                Data.deleteAppointment(appt.date, appt.id);
+            }, 100);
+        }
+    });
+
+    if (deleteBtn) deleteBtn.addEventListener('click', () => {
+        const appt = Data.getAppointmentById(AppState.currentAppointmentId);
+        if (appt && confirm('Delete this appointment permanently?')) {
+            Data.deleteAppointment(appt.date, appt.id);
+            closeAppointmentDetail();
+            showToast('Appointment deleted', 'info');
+        }
+    });
+
+    if (closeDetailBtn) closeDetailBtn.addEventListener('click', closeAppointmentDetail);
+
+    // Script editing
+    const editScriptBtn = DOM.get('editScriptBtn');
+    const saveScriptBtn = DOM.get('saveScriptBtn');
+    const cancelEditBtn = DOM.get('cancelEditBtn');
+    const copyScriptBtn = DOM.get('copyScriptBtn');
+    const resetScriptBtn = DOM.get('resetScriptBtn');
+    const favoriteScriptBtn = DOM.get('favoriteScriptBtn');
+
+    if (editScriptBtn) editScriptBtn.addEventListener('click', () => Scripts.startEdit());
+    if (saveScriptBtn) saveScriptBtn.addEventListener('click', () => {
+        const textarea = DOM.get('editTextarea');
+        if (textarea) { Scripts.saveScriptContent(textarea.value); Scripts.finishEdit(); }
+    });
+    if (cancelEditBtn) cancelEditBtn.addEventListener('click', () => Scripts.cancelEdit());
+    if (copyScriptBtn) copyScriptBtn.addEventListener('click', () => {
+        const script = AppState.scripts[AppState.currentScriptId];
+        if (script) copyToClipboard(script.content);
+    });
+    if (resetScriptBtn) resetScriptBtn.addEventListener('click', () => Scripts.resetScript());
+    if (favoriteScriptBtn) favoriteScriptBtn.addEventListener('click', () => Scripts.toggleFavorite(AppState.currentScriptId));
+
+    // Bulk actions
+    const bulkActionsBtn = DOM.get('bulkActionsBtn');
+    const closeBulkBtn = DOM.get('closeBulkModalBtn');
+    const executeBulkBtn = DOM.get('executeBulkActionBtn');
+    const bulkActionSelect = DOM.get('bulkActionSelect');
+
+    if (bulkActionsBtn) bulkActionsBtn.addEventListener('click', openBulkActions);
+    if (closeBulkBtn) closeBulkBtn.addEventListener('click', () => {
+        const modal = DOM.get('bulkActionsModal');
+        if (modal) modal.style.display = 'none';
+    });
+    if (executeBulkBtn) executeBulkBtn.addEventListener('click', executeBulkAction);
+
+    if (bulkActionSelect) bulkActionSelect.addEventListener('change', () => {
+        const value = bulkActionSelect.value;
+        const statusGroup = DOM.get('bulkStatusGroup');
+        const tagGroup = DOM.get('bulkTagGroup');
+        const options = DOM.get('bulkActionOptions');
+        if (statusGroup) statusGroup.style.display = value === 'status' ? 'block' : 'none';
+        if (tagGroup) tagGroup.style.display = value === 'tag' ? 'block' : 'none';
+        if (options) options.style.display = (value === 'status' || value === 'tag') ? 'block' : 'none';
+    });
+
+    // Sign out
+    const signOutBtn = DOM.get('signOutBtn');
+    if (signOutBtn) signOutBtn.addEventListener('click', () => Auth.signOut());
+
+    // Refresh
+    const refreshBtn = DOM.get('refreshBtn');
+    if (refreshBtn) refreshBtn.addEventListener('click', async () => {
+        if (AppState.isRefreshing) return;
+        AppState.isRefreshing = true;
+        refreshBtn.classList.add('spinning');
+        refreshBtn.disabled = true;
+
+        try {
+            showToast('Refreshing data...', 'info');
+            await Data.loadUserData(true);
+            FeaturePanel.refreshCurrentView();
+            showToast('Data refreshed!', 'success');
+        } catch (error) { handleError(error, 'Refresh'); }
+        finally {
+            AppState.isRefreshing = false;
+            refreshBtn.classList.remove('spinning');
+            refreshBtn.disabled = false;
+        }
+    });
+
+    // Add script
+    const addScriptBtn = DOM.get('addScriptBtnSide');
+    if (addScriptBtn) addScriptBtn.addEventListener('click', () => Scripts.createScript());
+
+    // Script search
+    const scriptSearch = DOM.get('scriptSearch');
+    if (scriptSearch) scriptSearch.addEventListener('input', (e) => {
+        AppState.searchTerm = e.target.value.toLowerCase();
+        document.querySelectorAll('.script-item').forEach(item => {
+            const name = item.querySelector('.script-name')?.textContent?.toLowerCase() || '';
+            item.style.display = name.includes(AppState.searchTerm) ? 'flex' : 'none';
+        });
+    });
+
+    // Global search
+    const searchGlobalBtn = DOM.get('searchGlobalBtn');
+    const globalSearchInput = DOM.get('globalSearchInput');
+    const globalSearchClose = DOM.get('globalSearchCloseBtn');
+
+    if (searchGlobalBtn) searchGlobalBtn.addEventListener('click', openGlobalSearch);
+    if (globalSearchInput) globalSearchInput.addEventListener('input', (e) => performGlobalSearch(e.target.value));
+    if (globalSearchClose) globalSearchClose.addEventListener('click', () => {
+        const modal = DOM.get('globalSearchModal');
+        if (modal) modal.style.display = 'none';
+    });
+
+    // CSV Upload
+    const csvFileInput = DOM.get('csvFileInput');
+    if (csvFileInput) csvFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const csvText = event.target.result;
+                    const lines = csvText.split('\n').filter(line => line.trim());
+                    if (lines.length > 0) {
+                        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                        let imported = 0;
+                        for (let i = 1; i < lines.length; i++) {
+                            const values = lines[i].split(',').map(v => v.trim());
+                            const data = {};
+                            headers.forEach((h, idx) => data[h] = values[idx] || '');
+                            if (data.name || data.business) {
+                                Data.addAppointment(
+                                    data.date || Utils.getTodayStr(),
+                                    data.business || data.company || 'Unknown Business',
+                                    data.name || data.contact || 'Unknown Contact',
+                                    'Owner',
+                                    data.phone || data.mobile || '',
+                                    data.time || '',
+                                    data.notes || '',
+                                    'Daniel',
+                                    null,
+                                    data.status || 'Pending'
+                                );
+                                imported++;
+                            }
+                        }
+                        showToast(`Imported ${imported} appointments from CSV!`, 'success');
+                        FeaturePanel.refreshCurrentView();
+                    }
+                } catch (err) { showToast('Error parsing CSV: ' + err.message, 'error'); }
+            };
+            reader.readAsText(file);
+        }
+        e.target.value = '';
+    });
+
+    // History button
+    const historyBtn = DOM.get('historyBtn');
+    if (historyBtn) historyBtn.addEventListener('click', () => showToast('Version history coming soon!', 'info'));
+
+    // Shortcuts modal
+    const shortcutsCloseBtn = DOM.get('shortcutsCloseBtn');
+    if (shortcutsCloseBtn) shortcutsCloseBtn.addEventListener('click', () => {
+        const modal = DOM.get('shortcutsModal');
+        if (modal) modal.style.display = 'none';
+    });
+
+    // Keyboard shortcuts - global (with editing detection)
+    document.addEventListener('keydown', (e) => {
+        // Disable shortcuts if editing or shortcuts are disabled
+        if (!AppState.shortcutsEnabled || AppState.isEditing) {
+            // Allow Escape key even during editing
+            if (e.key === 'Escape') {
+                handleEscapeKey();
+            }
+            return;
+        }
+
+        // Script shortcuts (1-9) - only when not editing
         if (e.key >= '1' && e.key <= '9') {
             const index = parseInt(e.key) - 1;
             const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
             if (index < visible.length) {
                 e.preventDefault();
-                AppState.loadScript(visible[index]);
+                Scripts.loadScript(visible[index]);
                 showToast(`Switched to: ${AppState.scripts[visible[index]]?.name}`, 'info');
             }
-            return;
         }
 
+        // Custom shortcuts
         for (const [action, shortcut] of Object.entries(AppState.shortcuts)) {
             if (shortcut.keys && shortcut.keys.length > 0) {
                 const keys = shortcut.keys;
@@ -554,158 +3940,140 @@ const ShortcutManager = {
                 const key = keys.find(k => !['Ctrl', 'Shift', 'Alt'].includes(k));
                 if (e.ctrlKey === ctrl && e.shiftKey === shift && e.altKey === alt && e.key === key) {
                     e.preventDefault();
-                    AppState.handleShortcutAction(action);
-                    return;
+                    handleShortcutAction(action);
                 }
             }
         }
-    },
+    });
 
-    setupListeners() {
-        document.addEventListener('focusin', (e) => {
-            const tag = e.target.tagName;
-            if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.closest('[contenteditable="true"]')) {
-                AppState.isTyping = true;
-                this.disableShortcuts();
-            }
-        });
-
-        document.addEventListener('focusout', (e) => {
-            const tag = e.target.tagName;
-            if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.closest('[contenteditable="true"]')) {
-                AppState.isTyping = false;
-                if (!AppState.isEditing) {
-                    this.enableShortcuts();
+    // Auth state listener
+    try {
+        if (AppState.isFirebaseReady) {
+            firebase.auth().onAuthStateChanged(async (user) => {
+                if (user) {
+                    AppState.currentUser = user;
+                    Auth.updateUI();
+                    await Data.loadUserData();
+                    const loadingScreen = DOM.get('loadingScreen');
+                    const appWrapper = DOM.get('appWrapper');
+                    if (loadingScreen && appWrapper) {
+                        loadingScreen.style.opacity = '0';
+                        loadingScreen.style.transition = 'opacity 0.5s';
+                        appWrapper.style.display = 'flex';
+                        setTimeout(() => loadingScreen.style.display = 'none', 500);
+                    }
+                } else {
+                    const localData = localStorage.getItem('userData_fallback');
+                    if (localData) {
+                        try {
+                            const data = JSON.parse(localData);
+                            AppState.scripts = data.scripts || {};
+                            AppState.scriptOrder = data.scriptOrder || [];
+                            AppState.appointments = data.appointments || {};
+                            AppState.tasks = data.tasks || {};
+                            AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
+                            Stats.updateAll();
+                            Scripts.renderSidebar();
+                            Scripts.loadScript('opening');
+                            TeamManager.renderTeamList();
+                            showToast('Loaded offline data', 'info');
+                        } catch (e) {}
+                    }
+                    const loadingScreen = DOM.get('loadingScreen');
+                    const appWrapper = DOM.get('appWrapper');
+                    if (loadingScreen && appWrapper) {
+                        loadingScreen.style.opacity = '0';
+                        loadingScreen.style.transition = 'opacity 0.5s';
+                        appWrapper.style.display = 'flex';
+                        setTimeout(() => loadingScreen.style.display = 'none', 500);
+                    }
+                    Auth.showModal();
                 }
+            });
+        } else {
+            const localData = localStorage.getItem('userData_fallback');
+            if (localData) {
+                try {
+                    const data = JSON.parse(localData);
+                    AppState.scripts = data.scripts || {};
+                    AppState.scriptOrder = data.scriptOrder || [];
+                    AppState.appointments = data.appointments || {};
+                    AppState.tasks = data.tasks || {};
+                    AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
+                    Stats.updateAll();
+                    Scripts.renderSidebar();
+                    Scripts.loadScript('opening');
+                    TeamManager.renderTeamList();
+                } catch (e) {}
             }
-        });
-
-        document.addEventListener('keydown', (e) => this.handleKeydown(e));
-
-        const originalStartEdit = AppState.startEdit;
-        AppState.startEdit = function() {
-            AppState.isEditing = true;
-            ShortcutManager.disableShortcuts();
-            return originalStartEdit.apply(this, arguments);
-        };
-
-        const originalFinishEdit = AppState.finishEdit;
-        AppState.finishEdit = function() {
-            AppState.isEditing = false;
-            ShortcutManager.enableShortcuts();
-            return originalFinishEdit.apply(this, arguments);
-        };
-
-        const originalCancelEdit = AppState.cancelEdit;
-        AppState.cancelEdit = function() {
-            AppState.isEditing = false;
-            ShortcutManager.enableShortcuts();
-            return originalCancelEdit.apply(this, arguments);
-        };
+            const loadingScreen = DOM.get('loadingScreen');
+            const appWrapper = DOM.get('appWrapper');
+            if (loadingScreen && appWrapper) {
+                loadingScreen.style.opacity = '0';
+                loadingScreen.style.transition = 'opacity 0.5s';
+                appWrapper.style.display = 'flex';
+                setTimeout(() => loadingScreen.style.display = 'none', 500);
+            }
+            Auth.showModal();
+        }
+    } catch (error) {
+        console.warn('Auth setup error:', error);
+        const loadingScreen = DOM.get('loadingScreen');
+        const appWrapper = DOM.get('appWrapper');
+        if (loadingScreen && appWrapper) {
+            loadingScreen.style.opacity = '0';
+            loadingScreen.style.transition = 'opacity 0.5s';
+            appWrapper.style.display = 'flex';
+            setTimeout(() => loadingScreen.style.display = 'none', 500);
+        }
+        Auth.showModal();
     }
-};
 
-// ================================================================
-// TEAM MANAGEMENT - CENTRALIZED DATA MODEL
-// ================================================================
-
-const TeamManager = {
-    loadMembers() {
-        const stored = localStorage.getItem('teamMembers');
-        if (stored) {
-            try {
-                AppState.teamMembers = JSON.parse(stored);
-                return;
-            } catch (e) {}
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-overlay')) {
+            e.target.style.display = 'none';
         }
-        AppState.teamMembers = JSON.parse(JSON.stringify(CONFIG.TEAM_MEMBERS));
-        this.saveMembers();
-    },
+    });
 
-    saveMembers() {
-        localStorage.setItem('teamMembers', JSON.stringify(AppState.teamMembers));
-        document.dispatchEvent(new CustomEvent('teamMembersUpdated', { detail: AppState.teamMembers }));
-    },
+    console.log('🚀 ScriptFlow Pro initialized successfully!');
+    console.log('📊 Handoff statuses integrated:', CONFIG.STATUS_OPTIONS.join(', '));
+    console.log('🎯 Drag & drop enabled for scripts and appointments');
+    console.log('✨ Smart import ready with field validation');
+    console.log('⌨️ Keyboard shortcuts loaded:', Object.keys(AppState.shortcuts).length);
+    console.log('📈 Analytics tabs: Insights, Reports, Team');
+    console.log('🔑 Press ESC to return to Opening Script');
+    console.log('👥 Team Management with full CRUD operations');
+    console.log(`🔌 Firebase status: ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
+}
 
-    getById(id) {
-        return AppState.teamMembers.find(m => m.id === id);
-    },
-
-    getByName(name) {
-        return AppState.teamMembers.find(m => m.name.toLowerCase() === name.toLowerCase());
-    },
-
-    addMember(member) {
-        if (AppState.teamMembers.some(m => m.email === member.email)) {
-            showToast('A team member with this email already exists', 'error');
-            return false;
-        }
-        const newMember = {
-            id: Utils.generateId(),
-            name: member.name,
-            email: member.email,
-            role: member.role || 'Agent',
-            avatar: member.avatar || '👤',
-            color: member.color || '#6b7280'
-        };
-        AppState.teamMembers.push(newMember);
-        this.saveMembers();
-        showToast(`Team member ${member.name} added successfully!`, 'success');
-        return true;
-    },
-
-    updateMember(id, updates) {
-        const index = AppState.teamMembers.findIndex(m => m.id === id);
-        if (index === -1) { showToast('Team member not found', 'error'); return false; }
-
-        const duplicate = AppState.teamMembers.some((m, i) => m.email === updates.email && i !== index);
-        if (duplicate) {
-            showToast('A team member with this email already exists', 'error');
-            return false;
-        }
-
-        AppState.teamMembers[index] = { ...AppState.teamMembers[index], ...updates };
-        this.saveMembers();
-        showToast('Team member updated successfully!', 'success');
-        return true;
-    },
-
-    deleteMember(id) {
-        const member = this.getById(id);
-        if (!member) { showToast('Team member not found', 'error'); return false; }
-        if (!confirm(`Are you sure you want to delete ${member.name}?`)) return false;
-
-        AppState.teamMembers = AppState.teamMembers.filter(m => m.id !== id);
-        this.saveMembers();
-        showToast(`Team member ${member.name} deleted`, 'info');
-        return true;
-    },
-
-    getStats(memberId) {
-        return Utils.getTeamMemberStats(memberId, AppState.appointments, AppState.teamMembers);
-    },
-
-    getAllStats() {
-        return AppState.teamMembers.map(member => ({
-            ...member,
-            ...this.getStats(member.id)
-        }));
+function handleShortcutAction(action) {
+    switch (action) {
+        case 'Smart Import': openSmartImport(); break;
+        case 'Appointment Calendar': FeaturePanel.show('calendar', '📅 Appointment & Handoff Calendar'); break;
+        case 'Call Scripts': FeaturePanel.hide(); Scripts.loadScript('opening'); break;
+        case 'Global Search': openGlobalSearch(); break;
+        case 'Quick Add Appointment': FeaturePanel.openQuickAdd(Utils.getTodayStr()); break;
+        case 'Analytics Hub': AppState.analyticsTab = 'insights'; FeaturePanel.show('analytics', '📊 Analytics Hub'); break;
+        case 'Keyboard Shortcuts': FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts'); break;
+        case 'Export to CSV': Data.exportToCSV(); break;
+        case 'Toggle Theme': document.body.classList.toggle('light'); showToast('Theme toggled', 'info'); break;
+        case 'Refresh Data': { const btn = DOM.get('refreshBtn'); if (btn) btn.click(); break; }
+        case 'Bulk Actions': openBulkActions(); break;
+        case 'Close Panel': handleEscapeKey(); break;
+        default: showToast(`Action: ${action}`, 'info');
     }
-};
+}
 
 // ================================================================
-// EXPOSE MODULES TO GLOBAL SCOPE
+// GLOBAL EXPOSURE
 // ================================================================
 
-window.AppState = AppState;
-window.Utils = Utils;
-window.DOM = DOM;
-window.LoadingController = LoadingController;
+window.showAppointmentDetail = showAppointmentDetail;
+window.loadScript = Scripts.loadScript;
+window.openShortcutEdit = openShortcutEdit;
 window.showToast = showToast;
-window.copyToClipboard = copyToClipboard;
-window.handleError = handleError;
-window.ShortcutManager = ShortcutManager;
+window.openGlobalSearch = openGlobalSearch;
 window.TeamManager = TeamManager;
-window.CONFIG = CONFIG;
 
-console.log('📦 ScriptFlow Pro modules loaded successfully');
+// Start the app
+document.addEventListener('DOMContentLoaded', initApp);
