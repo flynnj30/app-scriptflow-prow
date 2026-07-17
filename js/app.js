@@ -82,6 +82,11 @@ const AppState = {
     selectedCalDate: null,
     currentCalDate: null,
 
+    // Date Filters
+    dateFilter: 'today',
+    customStartDate: null,
+    customEndDate: null,
+
     // Subscriptions
     appointmentsUnsubscribe: null,
     tasksUnsubscribe: null,
@@ -130,6 +135,10 @@ const Utils = {
         }
         if (isNaN(d.getTime())) return 'No date';
         return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    },
+
+    formatDateForCompare(date) {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     },
 
     escapeHtml(s) {
@@ -370,6 +379,8 @@ function handleError(error, context = '') {
         message = 'No account found with this email.';
     } else if (error.code === 'auth/wrong-password') {
         message = 'Incorrect password. Please try again.';
+    } else if (error.code === 'auth/popup-closed-by-user') {
+        message = 'Sign in cancelled.';
     } else if (error.message) {
         message = error.message;
     }
@@ -893,6 +904,21 @@ const Data = {
         return null;
     },
 
+    getAppointmentsInDateRange: function(startDate, endDate) {
+        const result = [];
+        const startStr = Utils.formatDateForCompare(startDate);
+        const endStr = Utils.formatDateForCompare(endDate);
+
+        for (let date in AppState.appointments) {
+            if (date >= startStr && date <= endStr) {
+                if (AppState.appointments[date].reports) {
+                    result.push(...AppState.appointments[date].reports);
+                }
+            }
+        }
+        return result;
+    },
+
     addTask: function(description, dueDate, priority = 'medium', appointmentId = null) {
         if (!AppState.currentUser) return;
         const task = {
@@ -1322,7 +1348,7 @@ const Scripts = {
 };
 
 // ================================================================
-// FEATURE PANEL (Full Implementation)
+// FEATURE PANEL
 // ================================================================
 
 const FeaturePanel = {
@@ -1487,11 +1513,41 @@ const FeaturePanel = {
         const firstDay = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-        let daysHtml = '';
-        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        dayNames.forEach(d => daysHtml += `<div class="day-name">${d}</div>`);
-        for (let i = 0; i < firstDay; i++) daysHtml += `<div class="calendar-day empty"></div>`;
+        // Get appointments for the current month view
+        const monthAppointments = this.getAppointmentsForMonth(year, month);
 
+        let daysHtml = '';
+        const dayNames = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+        // Shift day names to start with Monday
+        dayNames.forEach(d => daysHtml += `<div class="day-name">${d}</div>`);
+
+        // Adjust first day to Monday (0 = Sunday, shift to Monday = 1)
+        const firstDayAdjusted = firstDay === 0 ? 6 : firstDay - 1;
+        for (let i = 0; i < firstDayAdjusted; i++) {
+            daysHtml += `<div class="calendar-day empty"></div>`;
+        }
+
+        // Get days from previous month to fill the first week
+        const prevMonth = month === 0 ? 11 : month - 1;
+        const prevMonthYear = month === 0 ? year - 1 : year;
+        const daysInPrevMonth = new Date(prevMonthYear, prevMonth + 1, 0).getDate();
+        const startOffset = firstDayAdjusted;
+
+        // Add days from previous month
+        for (let i = startOffset - 1; i >= 0; i--) {
+            const day = daysInPrevMonth - i;
+            const dateStr = `${prevMonthYear}-${String(prevMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const appts = AppState.appointments[dateStr]?.reports || [];
+            const count = appts.length;
+            daysHtml += `
+                <div class="calendar-day other-month" data-date="${dateStr}">
+                    <span class="day-number" style="opacity:0.4;">${day}</span>
+                    ${count > 0 ? `<span class="appt-badge" style="font-size:0.5rem;">${count}</span>` : ''}
+                </div>
+            `;
+        }
+
+        // Current month days
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             const appts = AppState.appointments[dateStr]?.reports || [];
@@ -1515,17 +1571,60 @@ const FeaturePanel = {
             `;
         }
 
+        // Add days from next month to fill the last week
+        const totalDays = firstDayAdjusted + daysInMonth;
+        const remainingDays = (7 - (totalDays % 7)) % 7;
+        const nextMonth = month === 11 ? 0 : month + 1;
+        const nextMonthYear = month === 11 ? year + 1 : year;
+        for (let d = 1; d <= remainingDays; d++) {
+            const dateStr = `${nextMonthYear}-${String(nextMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const appts = AppState.appointments[dateStr]?.reports || [];
+            const count = appts.length;
+            daysHtml += `
+                <div class="calendar-day other-month" data-date="${dateStr}">
+                    <span class="day-number" style="opacity:0.4;">${d}</span>
+                    ${count > 0 ? `<span class="appt-badge" style="font-size:0.5rem;">${count}</span>` : ''}
+                </div>
+            `;
+        }
+
         const selectedAppts = AppState.appointments[AppState.selectedCalDate]?.reports || [];
-        const stats = {
-            hotTransfers: selectedAppts.filter(a => Utils.getStatus(a) === 'Hot Transfer').length,
-            warmCallbacks: selectedAppts.filter(a => Utils.getStatus(a) === 'Warm Callback').length,
-            completed: selectedAppts.filter(a => Utils.getStatus(a) === 'Completed').length,
-            pending: selectedAppts.filter(a => Utils.getStatus(a) === 'Pending').length,
-            canceled: selectedAppts.filter(a => Utils.getStatus(a) === 'Canceled').length
-        };
+        const stats = this.getAppointmentStats(selectedAppts);
+
+        // Build filter buttons HTML
+        const filterButtons = [
+            { key: 'today', label: 'Today', icon: 'fa-calendar-day' },
+            { key: 'yesterday', label: 'Yesterday', icon: 'fa-calendar-day' },
+            { key: 'week', label: 'This week', icon: 'fa-calendar-week' },
+            { key: 'lastweek', label: 'Last week', icon: 'fa-calendar-week' },
+            { key: 'month', label: 'This month', icon: 'fa-calendar-alt' },
+            { key: 'lastmonth', label: 'Last month', icon: 'fa-calendar-alt' },
+            { key: 'last3months', label: 'Last 3 months', icon: 'fa-calendar-alt' },
+            { key: 'custom', label: 'Custom', icon: 'fa-calendar-plus' }
+        ];
+
+        let filterHtml = filterButtons.map(btn => `
+            <button class="filter-btn ${AppState.dateFilter === btn.key ? 'active' : ''}" data-filter="${btn.key}">
+                <i class="fas ${btn.icon}"></i> ${btn.label}
+            </button>
+        `).join('');
+
+        // Add custom date inputs if custom filter is active
+        if (AppState.dateFilter === 'custom') {
+            filterHtml += `
+                <input type="date" id="customStartDate" value="${AppState.customStartDate || Utils.getTodayStr()}" class="filter-date-input" />
+                <span style="color:var(--text-muted); font-size:0.8rem;">to</span>
+                <input type="date" id="customEndDate" value="${AppState.customEndDate || Utils.getTodayStr()}" class="filter-date-input" />
+            `;
+        }
 
         container.innerHTML = `
             <div class="calendar-section fade-in">
+                <!-- Date Filter Bar -->
+                <div class="calendar-filters">
+                    ${filterHtml}
+                </div>
+
                 <div class="calendar-nav">
                     <h3><i class="fas fa-calendar-alt"></i> ${new Date(year, month).toLocaleString('default', { month: 'long' })} ${year}</h3>
                     <div class="calendar-nav-actions">
@@ -1540,6 +1639,7 @@ const FeaturePanel = {
                     <div class="kpi-card"><div class="kpi-value" style="color:var(--warning);">${stats.warmCallbacks}</div><div class="kpi-label">📞 Warm Callbacks</div></div>
                     <div class="kpi-card"><div class="kpi-value" style="color:var(--success);">${stats.completed}</div><div class="kpi-label">✅ Completed</div></div>
                     <div class="kpi-card"><div class="kpi-value" style="color:var(--text-muted);">${stats.pending}</div><div class="kpi-label">⏳ Pending</div></div>
+                    <div class="kpi-card"><div class="kpi-value" style="color:var(--danger);">${stats.canceled}</div><div class="kpi-label">❌ Canceled</div></div>
                 </div>
                 <div class="appointments-section">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
@@ -1579,6 +1679,36 @@ const FeaturePanel = {
             </div>
         `;
 
+        // Attach event listeners for filter buttons
+        container.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const filter = btn.getAttribute('data-filter');
+                AppState.dateFilter = filter;
+                this.applyDateFilter(filter, container);
+            });
+        });
+
+        // Custom date range inputs
+        const startDate = DOM.get('customStartDate');
+        const endDate = DOM.get('customEndDate');
+        if (startDate) {
+            startDate.addEventListener('change', () => {
+                AppState.customStartDate = startDate.value;
+                if (AppState.dateFilter === 'custom') {
+                    this.applyDateFilter('custom', container);
+                }
+            });
+        }
+        if (endDate) {
+            endDate.addEventListener('change', () => {
+                AppState.customEndDate = endDate.value;
+                if (AppState.dateFilter === 'custom') {
+                    this.applyDateFilter('custom', container);
+                }
+            });
+        }
+
+        // Calendar navigation
         container.querySelectorAll('.calendar-day[data-date]').forEach(el => {
             el.addEventListener('click', () => {
                 AppState.selectedCalDate = el.getAttribute('data-date');
@@ -1649,6 +1779,188 @@ const FeaturePanel = {
                 }
             });
         }
+    },
+
+    applyDateFilter: function(filter, container) {
+        const today = new Date();
+        let startDate = new Date();
+        let endDate = new Date();
+
+        switch(filter) {
+            case 'today':
+                startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                break;
+            case 'yesterday':
+                startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+                endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+                break;
+            case 'week':
+                const weekStart = new Date(today);
+                weekStart.setDate(today.getDate() - today.getDay() + 1);
+                startDate = weekStart;
+                endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                break;
+            case 'lastweek':
+                const lastWeekStart = new Date(today);
+                lastWeekStart.setDate(today.getDate() - today.getDay() - 6);
+                startDate = lastWeekStart;
+                const lastWeekEnd = new Date(today);
+                lastWeekEnd.setDate(today.getDate() - today.getDay());
+                endDate = lastWeekEnd;
+                break;
+            case 'month':
+                startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                break;
+            case 'lastmonth':
+                startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+                break;
+            case 'last3months':
+                startDate = new Date(today.getFullYear(), today.getMonth() - 3, 1);
+                endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                break;
+            case 'custom':
+                const customStart = DOM.get('customStartDate');
+                const customEnd = DOM.get('customEndDate');
+                if (customStart && customEnd && customStart.value && customEnd.value) {
+                    startDate = new Date(customStart.value);
+                    endDate = new Date(customEnd.value);
+                    AppState.customStartDate = customStart.value;
+                    AppState.customEndDate = customEnd.value;
+                } else {
+                    showToast('Please select both start and end dates', 'warning');
+                    return;
+                }
+                break;
+            default:
+                startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        }
+
+        // Get filtered appointments
+        const filteredAppointments = Data.getAppointmentsInDateRange(startDate, endDate);
+        const stats = this.getAppointmentStats(filteredAppointments);
+
+        // Update the display
+        if (container) {
+            // Update KPI cards
+            const kpiRow = container.querySelector('.kpi-row');
+            if (kpiRow) {
+                kpiRow.innerHTML = `
+                    <div class="kpi-card"><div class="kpi-value" style="color:#dc2626;">${stats.hotTransfers}</div><div class="kpi-label">🔥 Hot Transfers</div></div>
+                    <div class="kpi-card"><div class="kpi-value" style="color:var(--warning);">${stats.warmCallbacks}</div><div class="kpi-label">📞 Warm Callbacks</div></div>
+                    <div class="kpi-card"><div class="kpi-value" style="color:var(--success);">${stats.completed}</div><div class="kpi-label">✅ Completed</div></div>
+                    <div class="kpi-card"><div class="kpi-value" style="color:var(--text-muted);">${stats.pending}</div><div class="kpi-label">⏳ Pending</div></div>
+                    <div class="kpi-card"><div class="kpi-value" style="color:var(--danger);">${stats.canceled}</div><div class="kpi-label">❌ Canceled</div></div>
+                `;
+            }
+
+            // Update appointment count
+            const header = container.querySelector('.appointments-section h4');
+            if (header) {
+                const count = filteredAppointments.length;
+                header.textContent = `Appointments (${count})`;
+            }
+
+            // Update appointments list
+            const appointmentsList = container.querySelector('.appointments-list');
+            if (appointmentsList) {
+                if (filteredAppointments.length === 0) {
+                    appointmentsList.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-calendar-check"></i>
+                            <p>No appointments found for this period</p>
+                        </div>
+                    `;
+                } else {
+                    appointmentsList.innerHTML = filteredAppointments.map(a => {
+                        const score = Utils.calculateLeadScore(a);
+                        const isHotTransfer = Utils.getStatus(a) === 'Hot Transfer';
+                        return `
+                            <div class="appointment-card" data-id="${a.id}" data-date="${a.date}" style="border-left: 4px solid ${isHotTransfer ? '#dc2626' : 'var(--border-color)'};">
+                                <i class="fas fa-grip-vertical drag-handle"></i>
+                                <div class="card-row">
+                                    <div class="business-name" onclick="window.showAppointmentDetail('${a.id}')">
+                                        <strong>${Utils.escapeHtml(a.business)}</strong>
+                                        <span class="status-tag ${Utils.getStatusClass(Utils.getStatus(a))}">${Utils.getStatus(a)}</span>
+                                        <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
+                                    </div>
+                                    <div class="card-actions">
+                                        <button class="delete-appt-btn" data-id="${a.id}" title="Delete"><i class="fas fa-trash"></i></button>
+                                    </div>
+                                </div>
+                                <div style="font-size:0.8rem; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap;">
+                                    <span>Contact: ${Utils.escapeHtml(a.contactName)}</span>
+                                    ${a.phone ? `<span>📞 ${Utils.escapeHtml(a.phone)}</span>` : ''}
+                                    ${a.time ? `<span>🕐 ${Utils.escapeHtml(a.time)}</span>` : ''}
+                                    <span>📅 ${Utils.formatDate(a.date)}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                    // Re-attach delete handlers
+                    appointmentsList.querySelectorAll('.delete-appt-btn').forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            const date = btn.closest('.appointment-card').getAttribute('data-date');
+                            if (confirm('Delete this appointment permanently?')) {
+                                Data.deleteAppointment(date, btn.getAttribute('data-id'));
+                                this.renderCalendar(container);
+                                showToast('Appointment deleted', 'info');
+                            }
+                        });
+                    });
+                }
+            }
+        }
+
+        const filterLabels = {
+            'today': 'Today',
+            'yesterday': 'Yesterday',
+            'week': 'This Week',
+            'lastweek': 'Last Week',
+            'month': 'This Month',
+            'lastmonth': 'Last Month',
+            'last3months': 'Last 3 Months',
+            'custom': 'Custom Range'
+        };
+        showToast(`Showing ${filteredAppointments.length} appointments for: ${filterLabels[filter] || filter}`, 'info');
+    },
+
+    getAppointmentStats: function(appointments) {
+        const stats = {
+            hotTransfers: 0,
+            warmCallbacks: 0,
+            completed: 0,
+            pending: 0,
+            canceled: 0
+        };
+
+        appointments.forEach(a => {
+            const status = Utils.getStatus(a);
+            if (status === 'Hot Transfer') stats.hotTransfers++;
+            else if (status === 'Warm Callback') stats.warmCallbacks++;
+            else if (status === 'Completed') stats.completed++;
+            else if (status === 'Pending') stats.pending++;
+            else if (status === 'Canceled') stats.canceled++;
+        });
+
+        return stats;
+    },
+
+    getAppointmentsForMonth: function(year, month) {
+        const result = [];
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            if (AppState.appointments[dateStr]?.reports) {
+                result.push(...AppState.appointments[dateStr].reports);
+            }
+        }
+        return result;
     },
 
     renderCalendarList: function(container) {
@@ -1806,7 +2118,7 @@ const FeaturePanel = {
     },
 
     renderAnalyticsInsights: function(container) {
-        let total = 0, hTransfers = 0, wCallbacks = 0, completedCount = 0, pendingCount = 0;
+        let total = 0, hTransfers = 0, wCallbacks = 0, completedCount = 0, pendingCount = 0, canceledCount = 0;
         let statusCounts = {};
         let dailyData = {};
 
@@ -1820,6 +2132,7 @@ const FeaturePanel = {
                     else if (status === 'Warm Callback') wCallbacks++;
                     else if (status === 'Completed') completedCount++;
                     else if (status === 'Pending') pendingCount++;
+                    else if (status === 'Canceled') canceledCount++;
                     dailyData[date] = (dailyData[date] || 0) + 1;
                 });
             }
@@ -1842,6 +2155,7 @@ const FeaturePanel = {
                     <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
                     <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
                     <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--text-muted);">${pendingCount}</div><div class="metric-label">⏳ Pending</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--danger);">${canceledCount}</div><div class="metric-label">❌ Canceled</div></div>
                 </div>
 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
@@ -2650,8 +2964,7 @@ function executeBulkAction() {
 }
 
 // ================================================================
-// HANDLE ESCAPE KEY
-// ================================================================
+// HANDLE ESCAPE KEY// ================================================================
 
 function handleEscapeKey() {
     if (AppState.isEditing) {
@@ -2780,7 +3093,7 @@ function initApp() {
                 FeaturePanel.show('analytics', '📊 Analytics Hub');
             } else if (tool === 'shortcuts') FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts');
             else if (tool === 'theme') {
-                document.body.classList.toggle('dark');
+                document.body.classList.toggle('light');
                 showToast('Theme toggled', 'info');
             } else if (tool === 'help') {
                 showToast('Handoffs: Warm Callback, Completed, Canceled, Pending, Hot Transfer - All integrated!', 'info');
@@ -3149,7 +3462,7 @@ function handleShortcutAction(action) {
         case 'Analytics Hub': AppState.analyticsTab = 'insights'; FeaturePanel.show('analytics', '📊 Analytics Hub'); break;
         case 'Keyboard Shortcuts': FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts'); break;
         case 'Export to CSV': Data.exportToCSV(); break;
-        case 'Toggle Theme': document.body.classList.toggle('dark'); showToast('Theme toggled', 'info'); break;
+        case 'Toggle Theme': document.body.classList.toggle('light'); showToast('Theme toggled', 'info'); break;
         case 'Refresh Data': { const btn = DOM.get('refreshBtn'); if (btn) btn.click(); break; }
         case 'Bulk Actions': openBulkActions(); break;
         case 'Close Panel': handleEscapeKey(); break;

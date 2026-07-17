@@ -20,7 +20,7 @@ try {
             console.log('✅ Firebase initialized successfully');
         }
         
-        // Enable offline persistence with proper error handling
+        // Enable offline persistence
         firebase.firestore().enablePersistence({ synchronizeTabs: true })
             .then(() => {
                 console.log('✅ Firebase persistence enabled');

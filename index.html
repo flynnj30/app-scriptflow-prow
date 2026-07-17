@@ -31,7 +31,7 @@
     <!-- Styles -->
     <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body class="dark">
     <!-- Loading Screen -->
     <div id="loadingScreen" class="loading-screen">
         <div class="loading-content">
@@ -182,7 +182,6 @@
         </div>
     </div>
 
-    <!-- Additional Modals -->
     <div id="appointmentDetailModal" class="modal-overlay" style="display:none;">
         <div class="modal-card" style="max-width:500px;">
             <h3 id="appointmentDetailTitle">Appointment Details</h3>
@@ -257,7 +256,11 @@
         </div>
     </div>
 
+    <!-- Auth Modal -->
+    <div id="authModal" class="modal-overlay" style="display:none;"></div>
+
     <!-- JavaScript -->
+    <script src="js/firebase-config.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
