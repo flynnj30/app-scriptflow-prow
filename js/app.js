@@ -124,7 +124,18 @@ const AppState = {
 
     isLoading: false,
     isRefreshing: false,
-    shortcutsEnabled: true
+    shortcutsEnabled: true,
+    
+    // Calendar specific state
+    calendarViewMode: 'month',
+    calendarFilters: {
+        meetings: true,
+        callbacks: true,
+        followups: true
+    },
+    calendarTimezone: 'Central CDT',
+    calendarSearchTerm: '',
+    calendarCurrentDate: new Date()
 };
 
 // ================================================================
@@ -192,25 +203,21 @@ const Utils = {
         return 'score-cold';
     },
 
-    // Primary status classification - Meeting Booked, Rescheduled, Overdue, Held count as Completed
     getPrimaryStatus(status) {
         if (CONFIG.PRIMARY_STATUSES.includes(status)) {
             return status;
         }
-        // Secondary statuses map to Completed
         if (CONFIG.SECONDARY_STATUSES.includes(status)) {
             return 'Completed';
         }
         return 'Pending';
     },
 
-    // Check if status is completed (primary or secondary)
     isCompletedStatus(status) {
         const primary = this.getPrimaryStatus(status);
         return primary === 'Completed' || CONFIG.SECONDARY_STATUSES.includes(status);
     },
 
-    // Get display status (primary for analytics, secondary for details)
     getDisplayStatus(appt) {
         if (!appt || !appt.status) return 'Pending';
         return appt.status;
@@ -231,7 +238,6 @@ const Utils = {
         else if (primaryStatus === 'Pending') score += 10;
         else if (primaryStatus === 'Canceled') score -= 20;
 
-        // Secondary status bonuses
         if (status === 'Meeting Booked') score += 15;
         if (status === 'Held') score += 10;
         if (status === 'Rescheduled') score += 5;
@@ -361,14 +367,12 @@ const Utils = {
                         const status = Utils.getStatus(appt);
                         const primaryStatus = Utils.getPrimaryStatus(status);
                         
-                        // Primary status counts
                         if (primaryStatus === 'Hot Transfer') stats.hotTransfers++;
                         else if (primaryStatus === 'Warm Callback') stats.warmCallbacks++;
                         else if (primaryStatus === 'Completed') stats.completed++;
                         else if (primaryStatus === 'Pending') stats.pending++;
                         else if (primaryStatus === 'Canceled') stats.canceled++;
                         
-                        // Secondary status tracking
                         if (status === 'Meeting Booked') stats.meetingBooked++;
                         else if (status === 'Rescheduled') stats.rescheduled++;
                         else if (status === 'Overdue') stats.overdue++;
@@ -959,7 +963,6 @@ const Data = {
         if (!AppState.appointments[dateStr]) {
             AppState.appointments[dateStr] = { count: 0, note: '', reports: [] };
         }
-        // Validate status is in allowed list
         if (!CONFIG.STATUS_OPTIONS.includes(status)) status = 'Pending';
         
         const newAppt = {
@@ -1925,7 +1928,564 @@ const TeamManager = {
 };
 
 // ================================================================
-// FEATURE PANEL (Complete)
+// CALENDAR VIEW - COMPLETE IMPLEMENTATION
+// ================================================================
+
+const CalendarView = {
+    render: function(container) {
+        if (!container) return;
+        
+        const mode = AppState.calendarViewMode || 'month';
+        
+        const headerHtml = this.buildHeader();
+        
+        let bodyHtml = '';
+        switch(mode) {
+            case 'month':
+                bodyHtml = this.renderMonthView();
+                break;
+            case 'week':
+                bodyHtml = this.renderWeekView();
+                break;
+            case 'day':
+                bodyHtml = this.renderDayView();
+                break;
+            case 'list':
+                bodyHtml = this.renderListView();
+                break;
+            default:
+                bodyHtml = this.renderMonthView();
+        }
+        
+        container.innerHTML = `
+            <div class="calendar-full-container fade-in">
+                ${headerHtml}
+                <div class="calendar-filter-chips">
+                    <button class="filter-chip ${AppState.calendarFilters.meetings ? 'active' : ''}" data-filter="meetings">
+                        <span class="filter-dot" style="background:#3b82f6;"></span> Meetings
+                    </button>
+                    <button class="filter-chip ${AppState.calendarFilters.callbacks ? 'active' : ''}" data-filter="callbacks">
+                        <span class="filter-dot" style="background:#f59e0b;"></span> Callbacks
+                    </button>
+                    <button class="filter-chip ${AppState.calendarFilters.followups ? 'active' : ''}" data-filter="followups">
+                        <span class="filter-dot" style="background:#10b981;"></span> Follow-ups
+                    </button>
+                </div>
+                <div class="calendar-body">
+                    ${bodyHtml}
+                </div>
+            </div>
+        `;
+        
+        this.attachEvents(container);
+    },
+    
+    buildHeader: function() {
+        const currentDate = AppState.calendarCurrentDate || new Date();
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const monthYear = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+        
+        return `
+            <div class="calendar-toolbar">
+                <div class="calendar-toolbar-left">
+                    <div class="view-selector">
+                        <button class="view-btn ${AppState.calendarViewMode === 'month' ? 'active' : ''}" data-view="month">Month</button>
+                        <button class="view-btn ${AppState.calendarViewMode === 'week' ? 'active' : ''}" data-view="week">Week</button>
+                        <button class="view-btn ${AppState.calendarViewMode === 'day' ? 'active' : ''}" data-view="day">Day</button>
+                        <button class="view-btn ${AppState.calendarViewMode === 'list' ? 'active' : ''}" data-view="list">List</button>
+                    </div>
+                    <div class="calendar-nav-group">
+                        <button class="btn-icon" id="calPrevBtn"><i class="fas fa-chevron-left"></i></button>
+                        <button class="btn-icon" id="calTodayBtn">Today</button>
+                        <button class="btn-icon" id="calNextBtn"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                    <span class="calendar-current-month">${monthYear}</span>
+                </div>
+                <div class="calendar-toolbar-right">
+                    <div class="search-wrapper">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="calendarSearchInput" placeholder="Search contact..." value="${AppState.calendarSearchTerm || ''}" />
+                    </div>
+                    <select id="calendarTimezoneSelect" class="timezone-select">
+                        <option value="Central CDT" ${AppState.calendarTimezone === 'Central CDT' ? 'selected' : ''}>Central (CDT)</option>
+                        <option value="Eastern EDT" ${AppState.calendarTimezone === 'Eastern EDT' ? 'selected' : ''}>Eastern (EDT)</option>
+                        <option value="Mountain MDT" ${AppState.calendarTimezone === 'Mountain MDT' ? 'selected' : ''}>Mountain (MDT)</option>
+                        <option value="Pacific PDT" ${AppState.calendarTimezone === 'Pacific PDT' ? 'selected' : ''}>Pacific (PDT)</option>
+                        <option value="UTC" ${AppState.calendarTimezone === 'UTC' ? 'selected' : ''}>UTC</option>
+                    </select>
+                    <button class="btn-icon" id="calendarAddEventBtn"><i class="fas fa-plus"></i> Add</button>
+                </div>
+            </div>
+        `;
+    },
+    
+    renderMonthView: function() {
+        const currentDate = AppState.calendarCurrentDate || new Date();
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const today = new Date();
+        const todayStr = Utils.getTodayStr();
+        
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const daysInPrevMonth = new Date(year, month, 0).getDate();
+        
+        const monthAppointments = this.getAppointmentsForMonth(year, month);
+        const filteredAppointments = this.filterAppointments(monthAppointments);
+        
+        const appointmentsByDate = {};
+        filteredAppointments.forEach(appt => {
+            if (!appointmentsByDate[appt.date]) {
+                appointmentsByDate[appt.date] = [];
+            }
+            appointmentsByDate[appt.date].push(appt);
+        });
+        
+        let html = '<div class="calendar-month-grid">';
+        
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        dayNames.forEach(name => {
+            html += `<div class="calendar-day-header">${name}</div>`;
+        });
+        
+        const startDay = firstDay;
+        for (let i = startDay - 1; i >= 0; i--) {
+            const day = daysInPrevMonth - i;
+            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const isToday = dateStr === todayStr;
+            const hasEvents = appointmentsByDate[dateStr] && appointmentsByDate[dateStr].length > 0;
+            html += `
+                <div class="calendar-day other-month ${isToday ? 'today' : ''}" data-date="${dateStr}">
+                    <span class="day-number">${day}</span>
+                    ${hasEvents ? `<span class="day-event-indicator">${appointmentsByDate[dateStr].length}</span>` : ''}
+                </div>
+            `;
+        }
+        
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const isToday = dateStr === todayStr;
+            const hasEvents = appointmentsByDate[dateStr] && appointmentsByDate[dateStr].length > 0;
+            const events = appointmentsByDate[dateStr] || [];
+            
+            let eventsHtml = '';
+            if (hasEvents) {
+                eventsHtml = `
+                    <div class="day-events">
+                        ${events.slice(0, 3).map(event => {
+                            const status = Utils.getStatus(event);
+                            const color = this.getEventColor(event);
+                            return `
+                                <div class="day-event" style="border-left-color: ${color};" data-id="${event.id}">
+                                    <span class="event-time">${event.time || 'No time'}</span>
+                                    <span class="event-title">${Utils.escapeHtml(event.business)}</span>
+                                </div>
+                            `;
+                        }).join('')}
+                        ${events.length > 3 ? `<div class="day-event-more">+${events.length - 3} more</div>` : ''}
+                    </div>
+                `;
+            }
+            
+            html += `
+                <div class="calendar-day ${isToday ? 'today' : ''} ${hasEvents ? 'has-events' : ''}" data-date="${dateStr}">
+                    <span class="day-number">${d}</span>
+                    ${eventsHtml}
+                </div>
+            `;
+        }
+        
+        const totalDays = startDay + daysInMonth;
+        const remainingDays = (7 - (totalDays % 7)) % 7;
+        for (let d = 1; d <= remainingDays; d++) {
+            const dateStr = `${year}-${String(month + 2).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            html += `
+                <div class="calendar-day other-month" data-date="${dateStr}">
+                    <span class="day-number">${d}</span>
+                </div>
+            `;
+        }
+        
+        html += '</div>';
+        return html;
+    },
+    
+    renderWeekView: function() {
+        const currentDate = AppState.calendarCurrentDate || new Date();
+        const startOfWeek = new Date(currentDate);
+        startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
+        
+        const today = new Date();
+        const todayStr = Utils.getTodayStr();
+        
+        let html = `
+            <div class="calendar-week-view">
+                <div class="week-time-column">
+                    <div class="time-slot-header"></div>
+        `;
+        
+        for (let hour = 6; hour <= 22; hour++) {
+            const timeStr = hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`;
+            html += `<div class="time-slot-label">${timeStr}</div>`;
+        }
+        html += '</div>';
+        
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        for (let i = 0; i < 7; i++) {
+            const dayDate = new Date(startOfWeek);
+            dayDate.setDate(startOfWeek.getDate() + i);
+            const dateStr = Utils.formatDateForCompare(dayDate);
+            const isToday = dateStr === todayStr;
+            const isWeekend = i === 0 || i === 6;
+            
+            html += `
+                <div class="week-day-column ${isToday ? 'today' : ''} ${isWeekend ? 'weekend' : ''}" data-date="${dateStr}">
+                    <div class="week-day-header">
+                        <span class="week-day-name">${dayNames[i]}</span>
+                        <span class="week-day-number ${isToday ? 'today-number' : ''}">${dayDate.getDate()}</span>
+                    </div>
+                    <div class="week-day-body">
+            `;
+            
+            const dayAppointments = this.getAppointmentsForDate(dateStr);
+            const filtered = this.filterAppointments(dayAppointments);
+            
+            for (let hour = 6; hour <= 22; hour++) {
+                const hourStr = hour.toString().padStart(2, '0') + ':00';
+                const hasAppointment = filtered.some(appt => {
+                    if (!appt.time) return false;
+                    const apptHour = parseInt(appt.time.split(':')[0]);
+                    const apptMinute = parseInt(appt.time.split(':')[1] || '0');
+                    const apptPeriod = appt.time.includes('PM') ? 12 : 0;
+                    const adjustedHour = apptHour + (apptPeriod === 12 && apptHour !== 12 ? 12 : 0);
+                    return adjustedHour === hour;
+                });
+                
+                if (hasAppointment) {
+                    const appts = filtered.filter(appt => {
+                        if (!appt.time) return false;
+                        const apptHour = parseInt(appt.time.split(':')[0]);
+                        const apptMinute = parseInt(appt.time.split(':')[1] || '0');
+                        const apptPeriod = appt.time.includes('PM') ? 12 : 0;
+                        const adjustedHour = apptHour + (apptPeriod === 12 && apptHour !== 12 ? 12 : 0);
+                        return adjustedHour === hour;
+                    });
+                    
+                    html += `
+                        <div class="week-time-slot has-event">
+                            ${appts.map(appt => {
+                                const color = this.getEventColor(appt);
+                                const status = Utils.getStatus(appt);
+                                return `
+                                    <div class="week-event" style="border-left-color: ${color};" data-id="${appt.id}" onclick="window.showAppointmentDetail('${appt.id}')">
+                                        <span class="event-time">${appt.time || ''}</span>
+                                        <span class="event-title">${Utils.escapeHtml(appt.business)}</span>
+                                        <span class="event-status ${Utils.getStatusClass(status)}">${status}</span>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                } else {
+                    html += `<div class="week-time-slot"></div>`;
+                }
+            }
+            
+            html += `
+                    </div>
+                </div>
+            `;
+        }
+        
+        html += '</div>';
+        return html;
+    },
+    
+    renderDayView: function() {
+        const currentDate = AppState.calendarCurrentDate || new Date();
+        const dateStr = Utils.formatDateForCompare(currentDate);
+        const todayStr = Utils.getTodayStr();
+        const isToday = dateStr === todayStr;
+        
+        const dayAppointments = this.getAppointmentsForDate(dateStr);
+        const filtered = this.filterAppointments(dayAppointments);
+        
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        
+        let html = `
+            <div class="calendar-day-view">
+                <div class="day-view-header">
+                    <h3>${dayNames[currentDate.getDay()]}, ${currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} ${isToday ? '<span class="today-badge">Today</span>' : ''}</h3>
+                    <span class="day-event-count">${filtered.length} events</span>
+                </div>
+                <div class="day-view-body">
+        `;
+        
+        const sortedAppointments = filtered.sort((a, b) => {
+            if (!a.time) return 1;
+            if (!b.time) return -1;
+            return a.time.localeCompare(b.time);
+        });
+        
+        if (sortedAppointments.length === 0) {
+            html += `<div class="empty-state"><i class="fas fa-calendar-day"></i><p>No appointments for this day</p></div>`;
+        } else {
+            sortedAppointments.forEach(appt => {
+                const color = this.getEventColor(appt);
+                const status = Utils.getStatus(appt);
+                html += `
+                    <div class="day-event-card" style="border-left: 4px solid ${color};" onclick="window.showAppointmentDetail('${appt.id}')">
+                        <div class="day-event-time">
+                            <i class="fas fa-clock"></i> ${appt.time || 'No time set'}
+                        </div>
+                        <div class="day-event-content">
+                            <div class="day-event-business">${Utils.escapeHtml(appt.business)}</div>
+                            <div class="day-event-contact">${Utils.escapeHtml(appt.contactName)}</div>
+                            <div class="day-event-meta">
+                                <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
+                                <span class="day-event-assigned">👤 ${Utils.escapeHtml(appt.assigned || 'Unassigned')}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        
+        html += `
+                </div>
+            </div>
+        `;
+        
+        return html;
+    },
+    
+    renderListView: function() {
+        const allAppointments = Data.getAllAppointments();
+        const filtered = this.filterAppointments(allAppointments);
+        
+        const searchTerm = AppState.calendarSearchTerm || '';
+        const searched = searchTerm ? filtered.filter(appt => {
+            const searchable = `${appt.business} ${appt.contactName} ${appt.phone || ''} ${appt.email || ''}`.toLowerCase();
+            return searchable.includes(searchTerm.toLowerCase());
+        }) : filtered;
+        
+        const grouped = {};
+        searched.forEach(appt => {
+            if (!grouped[appt.date]) {
+                grouped[appt.date] = [];
+            }
+            grouped[appt.date].push(appt);
+        });
+        
+        const sortedDates = Object.keys(grouped).sort();
+        
+        let html = `
+            <div class="calendar-list-view">
+                <div class="list-view-stats">
+                    <span>${searched.length} appointments found</span>
+                    ${searchTerm ? `<span class="search-term">Search: "${searchTerm}"</span>` : ''}
+                </div>
+                <div class="list-view-items">
+        `;
+        
+        if (sortedDates.length === 0) {
+            html += `<div class="empty-state"><i class="fas fa-list"></i><p>No appointments found</p></div>`;
+        } else {
+            sortedDates.forEach(date => {
+                const dateObj = new Date(date);
+                const isToday = date === Utils.getTodayStr();
+                const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+                const monthDay = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                
+                html += `
+                    <div class="list-date-group">
+                        <div class="list-date-header ${isToday ? 'today' : ''}">
+                            <span class="list-date-label">${dayName} ${monthDay}</span>
+                            <span class="list-date-count">${grouped[date].length} events</span>
+                        </div>
+                        <div class="list-date-events">
+                `;
+                
+                grouped[date].sort((a, b) => {
+                    if (!a.time) return 1;
+                    if (!b.time) return -1;
+                    return a.time.localeCompare(b.time);
+                }).forEach(appt => {
+                    const color = this.getEventColor(appt);
+                    const status = Utils.getStatus(appt);
+                    html += `
+                        <div class="list-event-item" style="border-left-color: ${color};" onclick="window.showAppointmentDetail('${appt.id}')">
+                            <span class="list-event-time">${appt.time || 'No time'}</span>
+                            <span class="list-event-business">${Utils.escapeHtml(appt.business)}</span>
+                            <span class="list-event-contact">${Utils.escapeHtml(appt.contactName)}</span>
+                            <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
+                            <span class="list-event-actions">
+                                <button class="btn-icon-sm" onclick="event.stopPropagation(); window.showAppointmentDetail('${appt.id}')"><i class="fas fa-eye"></i></button>
+                            </span>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        
+        html += `
+                </div>
+            </div>
+        `;
+        
+        return html;
+    },
+    
+    getAppointmentsForMonth: function(year, month) {
+        const result = [];
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            if (AppState.appointments[dateStr]?.reports) {
+                result.push(...AppState.appointments[dateStr].reports);
+            }
+        }
+        return result;
+    },
+    
+    getAppointmentsForDate: function(dateStr) {
+        return AppState.appointments[dateStr]?.reports || [];
+    },
+    
+    filterAppointments: function(appointments) {
+        const filters = AppState.calendarFilters;
+        return appointments.filter(appt => {
+            const status = Utils.getStatus(appt);
+            const isMeeting = ['Hot Transfer', 'Meeting Booked', 'Held'].includes(status);
+            const isCallback = status === 'Warm Callback';
+            const isFollowup = ['Pending', 'Rescheduled'].includes(status);
+            
+            const showMeeting = filters.meetings && isMeeting;
+            const showCallback = filters.callbacks && isCallback;
+            const showFollowup = filters.followups && isFollowup;
+            
+            if (!filters.meetings && !filters.callbacks && !filters.followups) return true;
+            
+            return showMeeting || showCallback || showFollowup;
+        });
+    },
+    
+    getEventColor: function(appt) {
+        const status = Utils.getStatus(appt);
+        const colorMap = {
+            'Hot Transfer': '#dc2626',
+            'Meeting Booked': '#3b82f6',
+            'Held': '#06b6d4',
+            'Warm Callback': '#f59e0b',
+            'Pending': '#94a3b8',
+            'Rescheduled': '#f97316',
+            'Completed': '#10b981',
+            'Canceled': '#ef4444'
+        };
+        return colorMap[status] || '#94a3b8';
+    },
+    
+    attachEvents: function(container) {
+        container.querySelectorAll('.view-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.getAttribute('data-view');
+                AppState.calendarViewMode = view;
+                this.render(container);
+            });
+        });
+        
+        const prevBtn = container.querySelector('#calPrevBtn');
+        const nextBtn = container.querySelector('#calNextBtn');
+        const todayBtn = container.querySelector('#calTodayBtn');
+        
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                const current = AppState.calendarCurrentDate || new Date();
+                if (AppState.calendarViewMode === 'month') {
+                    current.setMonth(current.getMonth() - 1);
+                } else if (AppState.calendarViewMode === 'week') {
+                    current.setDate(current.getDate() - 7);
+                } else if (AppState.calendarViewMode === 'day') {
+                    current.setDate(current.getDate() - 1);
+                }
+                AppState.calendarCurrentDate = current;
+                this.render(container);
+            });
+        }
+        
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                const current = AppState.calendarCurrentDate || new Date();
+                if (AppState.calendarViewMode === 'month') {
+                    current.setMonth(current.getMonth() + 1);
+                } else if (AppState.calendarViewMode === 'week') {
+                    current.setDate(current.getDate() + 7);
+                } else if (AppState.calendarViewMode === 'day') {
+                    current.setDate(current.getDate() + 1);
+                }
+                AppState.calendarCurrentDate = current;
+                this.render(container);
+            });
+        }
+        
+        if (todayBtn) {
+            todayBtn.addEventListener('click', () => {
+                AppState.calendarCurrentDate = new Date();
+                this.render(container);
+            });
+        }
+        
+        container.querySelectorAll('.filter-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const filter = chip.getAttribute('data-filter');
+                AppState.calendarFilters[filter] = !AppState.calendarFilters[filter];
+                this.render(container);
+            });
+        });
+        
+        const searchInput = container.querySelector('#calendarSearchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                AppState.calendarSearchTerm = e.target.value;
+                if (AppState.calendarViewMode === 'list') {
+                    this.render(container);
+                }
+            });
+        }
+        
+        const timezoneSelect = container.querySelector('#calendarTimezoneSelect');
+        if (timezoneSelect) {
+            timezoneSelect.addEventListener('change', (e) => {
+                AppState.calendarTimezone = e.target.value;
+                showToast(`Timezone changed to ${e.target.value}`, 'info');
+            });
+        }
+        
+        const addBtn = container.querySelector('#calendarAddEventBtn');
+        if (addBtn) {
+            addBtn.addEventListener('click', () => {
+                FeaturePanel.openQuickAdd(Utils.getTodayStr());
+            });
+        }
+        
+        container.querySelectorAll('.calendar-day').forEach(day => {
+            day.addEventListener('dblclick', () => {
+                const date = day.getAttribute('data-date');
+                if (date) {
+                    FeaturePanel.openQuickAdd(date);
+                }
+            });
+        });
+    }
+};
+
+// ================================================================
+// FEATURE PANEL
 // ================================================================
 
 const FeaturePanel = {
@@ -1991,12 +2551,17 @@ const FeaturePanel = {
         featurePanel.style.display = 'block';
 
         if (featureBody) {
-            if (featureType === 'calendar') this.renderCalendar(featureBody);
-            else if (featureType === 'tasks') this.renderTasks(featureBody);
-            else if (featureType === 'analytics') this.renderAnalytics(featureBody);
-            else if (featureType === 'shortcuts') this.renderShortcuts(featureBody);
-            else if (featureType === 'team') this.renderTeamManagement(featureBody);
-            else if (featureType === 'notepad') {
+            if (featureType === 'calendar') {
+                CalendarView.render(featureBody);
+            } else if (featureType === 'tasks') {
+                this.renderTasks(featureBody);
+            } else if (featureType === 'analytics') {
+                this.renderAnalytics(featureBody);
+            } else if (featureType === 'shortcuts') {
+                this.renderShortcuts(featureBody);
+            } else if (featureType === 'team') {
+                this.renderTeamManagement(featureBody);
+            } else if (featureType === 'notepad') {
                 showToast('📝 Notes feature coming soon!', 'info');
                 this.hide();
             }
@@ -2013,11 +2578,17 @@ const FeaturePanel = {
     refreshCurrentView: function() {
         const body = DOM.get('featurePanelBody');
         if (!body) return;
-        if (AppState.currentView === 'calendar') this.renderCalendar(body);
-        else if (AppState.currentView === 'tasks') this.renderTasks(body);
-        else if (AppState.currentView === 'analytics') this.renderAnalytics(body);
-        else if (AppState.currentView === 'shortcuts') this.renderShortcuts(body);
-        else if (AppState.currentView === 'team') this.renderTeamManagement(body);
+        if (AppState.currentView === 'calendar') {
+            CalendarView.render(body);
+        } else if (AppState.currentView === 'tasks') {
+            this.renderTasks(body);
+        } else if (AppState.currentView === 'analytics') {
+            this.renderAnalytics(body);
+        } else if (AppState.currentView === 'shortcuts') {
+            this.renderShortcuts(body);
+        } else if (AppState.currentView === 'team') {
+            this.renderTeamManagement(body);
+        }
     },
 
     attachViewToggleEvents: function(featureType) {
@@ -2171,553 +2742,6 @@ const FeaturePanel = {
         if (addBtn) addBtn.addEventListener('click', () => TeamManager.addMember());
     },
 
-    // Calendar rendering methods (continued in next part)
-    renderCalendar: function(container) {
-        if (!container) return;
-        if (AppState.calendarView === 'list') {
-            this.renderCalendarList(container);
-            return;
-        }
-
-        if (!AppState.currentCalDate) AppState.currentCalDate = new Date();
-        if (!AppState.selectedCalDate) AppState.selectedCalDate = Utils.getTodayStr();
-
-        const year = AppState.currentCalDate.getFullYear();
-        const month = AppState.currentCalDate.getMonth();
-        const firstDay = new Date(year, month, 1).getDay();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-        let daysHtml = '';
-        const dayNames = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
-        dayNames.forEach(d => daysHtml += `<div class="day-name">${d}</div>`);
-
-        const firstDayAdjusted = firstDay === 0 ? 6 : firstDay - 1;
-        for (let i = 0; i < firstDayAdjusted; i++) {
-            daysHtml += `<div class="calendar-day empty"></div>`;
-        }
-
-        const prevMonth = month === 0 ? 11 : month - 1;
-        const prevMonthYear = month === 0 ? year - 1 : year;
-        const daysInPrevMonth = new Date(prevMonthYear, prevMonth + 1, 0).getDate();
-
-        for (let i = firstDayAdjusted - 1; i >= 0; i--) {
-            const day = daysInPrevMonth - i;
-            const dateStr = `${prevMonthYear}-${String(prevMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const appts = AppState.appointments[dateStr]?.reports || [];
-            const count = appts.length;
-            daysHtml += `
-                <div class="calendar-day other-month" data-date="${dateStr}">
-                    <span class="day-number" style="opacity:0.4;">${day}</span>
-                    ${count > 0 ? `<span class="appt-badge" style="font-size:0.5rem;">${count}</span>` : ''}
-                </div>
-            `;
-        }
-
-        for (let d = 1; d <= daysInMonth; d++) {
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const appts = AppState.appointments[dateStr]?.reports || [];
-            const count = appts.length;
-            const isSelected = dateStr === AppState.selectedCalDate;
-            let indicatorHtml = '';
-            if (count > 0) {
-                const dots = appts.slice(0, 3).map(a => {
-                    const status = Utils.getStatus(a);
-                    const primaryStatus = Utils.getPrimaryStatus(status);
-                    const colorMap = {
-                        'Hot Transfer': '#dc2626',
-                        'Completed': 'var(--success)',
-                        'Warm Callback': 'var(--warning)',
-                        'Pending': 'var(--text-muted)',
-                        'Canceled': 'var(--danger)'
-                    };
-                    return `<span class="appt-dot" style="background:${colorMap[primaryStatus] || 'var(--primary)'};"></span>`;
-                }).join('');
-                indicatorHtml = `<div class="appt-indicator">${dots}</div>`;
-            }
-            daysHtml += `
-                <div class="calendar-day ${isSelected ? 'selected' : ''}" data-date="${dateStr}">
-                    <span class="day-number">${d}</span>
-                    ${indicatorHtml}
-                    ${count > 0 ? `<span class="appt-badge">${count}</span>` : ''}
-                </div>
-            `;
-        }
-
-        const totalDays = firstDayAdjusted + daysInMonth;
-        const remainingDays = (7 - (totalDays % 7)) % 7;
-        const nextMonth = month === 11 ? 0 : month + 1;
-        const nextMonthYear = month === 11 ? year + 1 : year;
-        for (let d = 1; d <= remainingDays; d++) {
-            const dateStr = `${nextMonthYear}-${String(nextMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const appts = AppState.appointments[dateStr]?.reports || [];
-            const count = appts.length;
-            daysHtml += `
-                <div class="calendar-day other-month" data-date="${dateStr}">
-                    <span class="day-number" style="opacity:0.4;">${d}</span>
-                    ${count > 0 ? `<span class="appt-badge" style="font-size:0.5rem;">${count}</span>` : ''}
-                </div>
-            `;
-        }
-
-        const selectedAppts = AppState.appointments[AppState.selectedCalDate]?.reports || [];
-        const stats = this.getAppointmentStats(selectedAppts);
-
-        const filterButtons = [
-            { key: 'today', label: 'Today', icon: 'fa-calendar-day' },
-            { key: 'yesterday', label: 'Yesterday', icon: 'fa-calendar-day' },
-            { key: 'week', label: 'This week', icon: 'fa-calendar-week' },
-            { key: 'lastweek', label: 'Last week', icon: 'fa-calendar-week' },
-            { key: 'month', label: 'This month', icon: 'fa-calendar-alt' },
-            { key: 'lastmonth', label: 'Last month', icon: 'fa-calendar-alt' },
-            { key: 'last3months', label: 'Last 3 months', icon: 'fa-calendar-alt' },
-            { key: 'custom', label: 'Custom', icon: 'fa-calendar-plus' }
-        ];
-
-        let filterHtml = filterButtons.map(btn => `
-            <button class="filter-btn ${AppState.dateFilter === btn.key ? 'active' : ''}" data-filter="${btn.key}">
-                <i class="fas ${btn.icon}"></i> ${btn.label}
-            </button>
-        `).join('');
-
-        if (AppState.dateFilter === 'custom') {
-            filterHtml += `
-                <input type="date" id="customStartDate" value="${AppState.customStartDate || Utils.getTodayStr()}" class="filter-date-input" />
-                <span style="color:var(--text-muted); font-size:0.8rem;">to</span>
-                <input type="date" id="customEndDate" value="${AppState.customEndDate || Utils.getTodayStr()}" class="filter-date-input" />
-            `;
-        }
-
-        container.innerHTML = `
-            <div class="calendar-section fade-in">
-                <div class="calendar-filters">
-                    ${filterHtml}
-                </div>
-
-                <div class="calendar-nav">
-                    <h3><i class="fas fa-calendar-alt"></i> ${new Date(year, month).toLocaleString('default', { month: 'long' })} ${year}</h3>
-                    <div class="calendar-nav-actions">
-                        <button id="calPrevBtn" class="btn-icon">Prev</button>
-                        <button id="calTodayBtn" class="btn-icon">Today</button>
-                        <button id="calNextBtn" class="btn-icon">Next</button>
-                    </div>
-                </div>
-                <div class="calendar-grid">${daysHtml}</div>
-                <div class="kpi-row">
-                    <div class="kpi-card"><div class="kpi-value" style="color:#dc2626;">${stats.hotTransfers}</div><div class="kpi-label">🔥 Hot Transfers</div></div>
-                    <div class="kpi-card"><div class="kpi-value" style="color:var(--warning);">${stats.warmCallbacks}</div><div class="kpi-label">📞 Warm Callbacks</div></div>
-                    <div class="kpi-card"><div class="kpi-value" style="color:var(--success);">${stats.completed}</div><div class="kpi-label">✅ Completed</div></div>
-                    <div class="kpi-card"><div class="kpi-value" style="color:var(--text-muted);">${stats.pending}</div><div class="kpi-label">⏳ Pending</div></div>
-                    <div class="kpi-card"><div class="kpi-value" style="color:var(--danger);">${stats.canceled}</div><div class="kpi-label">❌ Canceled</div></div>
-                </div>
-                <div class="appointments-section">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
-                        <h4>Appointments (${selectedAppts.length})</h4>
-                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                            <button id="quickAddCalBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> Add Lead</button>
-                            <button id="switchToListView" class="btn-icon"><i class="fas fa-list"></i> List View</button>
-                        </div>
-                    </div>
-                    <div class="appointments-list" id="appointmentsList">
-                        ${selectedAppts.map(a => {
-                            const score = Utils.calculateLeadScore(a);
-                            const status = Utils.getStatus(a);
-                            const primaryStatus = Utils.getPrimaryStatus(status);
-                            const isSecondary = CONFIG.SECONDARY_STATUSES.includes(status);
-                            const isHotTransfer = primaryStatus === 'Hot Transfer';
-                            return `
-                                <div class="appointment-card" data-id="${a.id}" data-date="${AppState.selectedCalDate}" style="border-left: 4px solid ${isHotTransfer ? '#dc2626' : 'var(--border-color)'};">
-                                    <i class="fas fa-grip-vertical drag-handle"></i>
-                                    <div class="card-row">
-                                        <div class="business-name" onclick="window.showAppointmentDetail('${a.id}')">
-                                            <strong>${Utils.escapeHtml(a.business)}</strong>
-                                            <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
-                                            ${isSecondary ? `<span style="font-size:0.6rem; color:var(--text-muted);">→ ${primaryStatus}</span>` : ''}
-                                            <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
-                                        </div>
-                                        <div class="card-actions">
-                                            <button class="delete-appt-btn" data-id="${a.id}" title="Delete"><i class="fas fa-trash"></i></button>
-                                        </div>
-                                    </div>
-                                    <div style="font-size:0.8rem; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap;">
-                                        <span>Contact: ${Utils.escapeHtml(a.contactName)}</span>
-                                        ${a.phone ? `<span>📞 ${Utils.escapeHtml(a.phone)}</span>` : ''}
-                                        ${a.time ? `<span>🕐 ${Utils.escapeHtml(a.time)}</span>` : ''}
-                                        <span style="color:var(--text-muted);">Assigned: ${Utils.escapeHtml(a.assigned || 'Unassigned')}</span>
-                                    </div>
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                </div>
-            </div>
-        `;
-
-        container.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const filter = btn.getAttribute('data-filter');
-                AppState.dateFilter = filter;
-                this.applyDateFilter(filter, container);
-            });
-        });
-
-        const startDate = DOM.get('customStartDate');
-        const endDate = DOM.get('customEndDate');
-        if (startDate) {
-            startDate.addEventListener('change', () => {
-                AppState.customStartDate = startDate.value;
-                if (AppState.dateFilter === 'custom') {
-                    this.applyDateFilter('custom', container);
-                }
-            });
-        }
-        if (endDate) {
-            endDate.addEventListener('change', () => {
-                AppState.customEndDate = endDate.value;
-                if (AppState.dateFilter === 'custom') {
-                    this.applyDateFilter('custom', container);
-                }
-            });
-        }
-
-        container.querySelectorAll('.calendar-day[data-date]').forEach(el => {
-            el.addEventListener('click', () => {
-                AppState.selectedCalDate = el.getAttribute('data-date');
-                this.renderCalendar(container);
-            });
-        });
-
-        const prevBtn = DOM.get('calPrevBtn');
-        const nextBtn = DOM.get('calNextBtn');
-        const todayBtn = DOM.get('calTodayBtn');
-        const addBtn = DOM.get('quickAddCalBtn');
-        const listBtn = DOM.get('switchToListView');
-
-        if (prevBtn) prevBtn.addEventListener('click', () => {
-            AppState.currentCalDate.setMonth(AppState.currentCalDate.getMonth() - 1);
-            this.renderCalendar(container);
-        });
-        if (nextBtn) nextBtn.addEventListener('click', () => {
-            AppState.currentCalDate.setMonth(AppState.currentCalDate.getMonth() + 1);
-            this.renderCalendar(container);
-        });
-        if (todayBtn) todayBtn.addEventListener('click', () => {
-            AppState.currentCalDate = new Date();
-            AppState.selectedCalDate = Utils.getTodayStr();
-            this.renderCalendar(container);
-        });
-        if (addBtn) addBtn.addEventListener('click', () => this.openQuickAdd(AppState.selectedCalDate));
-        if (listBtn) listBtn.addEventListener('click', () => {
-            AppState.calendarView = 'list';
-            this.renderCalendar(container);
-        });
-
-        container.querySelectorAll('.delete-appt-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (confirm('Delete this appointment permanently?')) {
-                    Data.deleteAppointment(AppState.selectedCalDate, btn.getAttribute('data-id'));
-                    this.renderCalendar(container);
-                    showToast('Appointment deleted', 'info');
-                }
-            });
-        });
-
-        const appointmentsList = DOM.get('appointmentsList');
-        if (appointmentsList) {
-            new Sortable(appointmentsList, {
-                handle: '.drag-handle',
-                animation: 150,
-                ghostClass: 'sortable-ghost',
-                chosenClass: 'sortable-chosen',
-                dragClass: 'sortable-drag',
-                onEnd: function() {
-                    const items = appointmentsList.querySelectorAll('.appointment-card');
-                    const newOrder = [];
-                    items.forEach(item => {
-                        const id = item.getAttribute('data-id');
-                        if (id) newOrder.push(id);
-                    });
-                    if (AppState.appointments[AppState.selectedCalDate]) {
-                        const sortedReports = [];
-                        newOrder.forEach(id => {
-                            const found = AppState.appointments[AppState.selectedCalDate].reports.find(r => r.id === id);
-                            if (found) sortedReports.push(found);
-                        });
-                        AppState.appointments[AppState.selectedCalDate].reports = sortedReports;
-                    }
-                    showToast('Appointments reordered', 'info');
-                }
-            });
-        }
-    },
-
-    applyDateFilter: function(filter, container) {
-        const today = new Date();
-        let startDate = new Date();
-        let endDate = new Date();
-
-        switch(filter) {
-            case 'today':
-                startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-                endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-                break;
-            case 'yesterday':
-                startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
-                endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
-                break;
-            case 'week':
-                const weekStart = new Date(today);
-                weekStart.setDate(today.getDate() - today.getDay() + 1);
-                startDate = weekStart;
-                endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-                break;
-            case 'lastweek':
-                const lastWeekStart = new Date(today);
-                lastWeekStart.setDate(today.getDate() - today.getDay() - 6);
-                startDate = lastWeekStart;
-                const lastWeekEnd = new Date(today);
-                lastWeekEnd.setDate(today.getDate() - today.getDay());
-                endDate = lastWeekEnd;
-                break;
-            case 'month':
-                startDate = new Date(today.getFullYear(), today.getMonth(), 1);
-                endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-                break;
-            case 'lastmonth':
-                startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-                endDate = new Date(today.getFullYear(), today.getMonth(), 0);
-                break;
-            case 'last3months':
-                startDate = new Date(today.getFullYear(), today.getMonth() - 3, 1);
-                endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-                break;
-            case 'custom':
-                const customStart = DOM.get('customStartDate');
-                const customEnd = DOM.get('customEndDate');
-                if (customStart && customEnd && customStart.value && customEnd.value) {
-                    startDate = new Date(customStart.value);
-                    endDate = new Date(customEnd.value);
-                    AppState.customStartDate = customStart.value;
-                    AppState.customEndDate = customEnd.value;
-                } else {
-                    showToast('Please select both start and end dates', 'warning');
-                    return;
-                }
-                break;
-            default:
-                startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-                endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        }
-
-        const filteredAppointments = Data.getAppointmentsInDateRange(startDate, endDate);
-        const stats = this.getAppointmentStats(filteredAppointments);
-
-        if (container) {
-            const kpiRow = container.querySelector('.kpi-row');
-            if (kpiRow) {
-                kpiRow.innerHTML = `
-                    <div class="kpi-card"><div class="kpi-value" style="color:#dc2626;">${stats.hotTransfers}</div><div class="kpi-label">🔥 Hot Transfers</div></div>
-                    <div class="kpi-card"><div class="kpi-value" style="color:var(--warning);">${stats.warmCallbacks}</div><div class="kpi-label">📞 Warm Callbacks</div></div>
-                    <div class="kpi-card"><div class="kpi-value" style="color:var(--success);">${stats.completed}</div><div class="kpi-label">✅ Completed</div></div>
-                    <div class="kpi-card"><div class="kpi-value" style="color:var(--text-muted);">${stats.pending}</div><div class="kpi-label">⏳ Pending</div></div>
-                    <div class="kpi-card"><div class="kpi-value" style="color:var(--danger);">${stats.canceled}</div><div class="kpi-label">❌ Canceled</div></div>
-                `;
-            }
-
-            const header = container.querySelector('.appointments-section h4');
-            if (header) {
-                header.textContent = `Appointments (${filteredAppointments.length})`;
-            }
-
-            const appointmentsList = container.querySelector('.appointments-list');
-            if (appointmentsList) {
-                if (filteredAppointments.length === 0) {
-                    appointmentsList.innerHTML = `
-                        <div class="empty-state">
-                            <i class="fas fa-calendar-check"></i>
-                            <p>No appointments found for this period</p>
-                        </div>
-                    `;
-                } else {
-                    appointmentsList.innerHTML = filteredAppointments.map(a => {
-                        const score = Utils.calculateLeadScore(a);
-                        const status = Utils.getStatus(a);
-                        const primaryStatus = Utils.getPrimaryStatus(status);
-                        const isSecondary = CONFIG.SECONDARY_STATUSES.includes(status);
-                        const isHotTransfer = primaryStatus === 'Hot Transfer';
-                        return `
-                            <div class="appointment-card" data-id="${a.id}" data-date="${a.date}" style="border-left: 4px solid ${isHotTransfer ? '#dc2626' : 'var(--border-color)'};">
-                                <i class="fas fa-grip-vertical drag-handle"></i>
-                                <div class="card-row">
-                                    <div class="business-name" onclick="window.showAppointmentDetail('${a.id}')">
-                                        <strong>${Utils.escapeHtml(a.business)}</strong>
-                                        <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
-                                        ${isSecondary ? `<span style="font-size:0.6rem; color:var(--text-muted);">→ ${primaryStatus}</span>` : ''}
-                                        <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
-                                    </div>
-                                    <div class="card-actions">
-                                        <button class="delete-appt-btn" data-id="${a.id}" title="Delete"><i class="fas fa-trash"></i></button>
-                                    </div>
-                                </div>
-                                <div style="font-size:0.8rem; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap;">
-                                    <span>Contact: ${Utils.escapeHtml(a.contactName)}</span>
-                                    ${a.phone ? `<span>📞 ${Utils.escapeHtml(a.phone)}</span>` : ''}
-                                    ${a.time ? `<span>🕐 ${Utils.escapeHtml(a.time)}</span>` : ''}
-                                    <span>📅 ${Utils.formatDate(a.date)}</span>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-
-                    appointmentsList.querySelectorAll('.delete-appt-btn').forEach(btn => {
-                        btn.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            const date = btn.closest('.appointment-card').getAttribute('data-date');
-                            if (confirm('Delete this appointment permanently?')) {
-                                Data.deleteAppointment(date, btn.getAttribute('data-id'));
-                                this.renderCalendar(container);
-                                showToast('Appointment deleted', 'info');
-                            }
-                        });
-                    });
-                }
-            }
-        }
-
-        const filterLabels = {
-            'today': 'Today',
-            'yesterday': 'Yesterday',
-            'week': 'This Week',
-            'lastweek': 'Last Week',
-            'month': 'This Month',
-            'lastmonth': 'Last Month',
-            'last3months': 'Last 3 Months',
-            'custom': 'Custom Range'
-        };
-        showToast(`Showing ${filteredAppointments.length} appointments for: ${filterLabels[filter] || filter}`, 'info');
-    },
-
-    getAppointmentStats: function(appointments) {
-        const stats = {
-            hotTransfers: 0,
-            warmCallbacks: 0,
-            completed: 0,
-            pending: 0,
-            canceled: 0,
-            meetingBooked: 0,
-            rescheduled: 0,
-            overdue: 0,
-            held: 0
-        };
-
-        appointments.forEach(a => {
-            const status = Utils.getStatus(a);
-            const primaryStatus = Utils.getPrimaryStatus(status);
-            
-            if (primaryStatus === 'Hot Transfer') stats.hotTransfers++;
-            else if (primaryStatus === 'Warm Callback') stats.warmCallbacks++;
-            else if (primaryStatus === 'Completed') stats.completed++;
-            else if (primaryStatus === 'Pending') stats.pending++;
-            else if (primaryStatus === 'Canceled') stats.canceled++;
-            
-            if (status === 'Meeting Booked') stats.meetingBooked++;
-            else if (status === 'Rescheduled') stats.rescheduled++;
-            else if (status === 'Overdue') stats.overdue++;
-            else if (status === 'Held') stats.held++;
-        });
-
-        return stats;
-    },
-
-    renderCalendarList: function(container) {
-        const allAppointments = Data.getAllAppointments();
-
-        container.innerHTML = `
-            <div class="list-view-container fade-in">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-                    <h4><i class="fas fa-list"></i> All Appointments (${allAppointments.length})</h4>
-                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                        <button id="switchToCalendarView" class="btn-icon"><i class="fas fa-calendar-alt"></i> Calendar View</button>
-                        <button id="addApptFromList" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> Add</button>
-                    </div>
-                </div>
-                <div class="appointments-toolbar">
-                    <div class="search-wrapper">
-                        <i class="fas fa-search"></i>
-                        <input type="text" id="listSearchInput" placeholder="Search appointments..." />
-                    </div>
-                    <select id="listStatusFilter"><option value="all">All Status</option>${CONFIG.STATUS_OPTIONS.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
-                    <select id="listTagFilter"><option value="all">All Tags</option>${CONFIG.TAG_OPTIONS.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}</select>
-                </div>
-                <div class="list-header">
-                    <span>Business</span><span>Contact</span><span>Status</span><span>Primary</span><span>Date</span><span>Score</span><span>Actions</span>
-                </div>
-                <div id="listItemsContainer">
-                    ${allAppointments.map(appt => {
-                        const status = Utils.getStatus(appt);
-                        const primaryStatus = Utils.getPrimaryStatus(status);
-                        const isSecondary = CONFIG.SECONDARY_STATUSES.includes(status);
-                        return `
-                            <div class="list-item" onclick="window.showAppointmentDetail('${appt.id}')">
-                                <span class="list-business"><strong>${Utils.escapeHtml(appt.business)}</strong></span>
-                                <span class="list-contact">${Utils.escapeHtml(appt.contactName)}</span>
-                                <span class="list-status ${Utils.getStatusClass(status)}">${status}</span>
-                                <span style="font-size:0.75rem; color:var(--text-muted);">${isSecondary ? `→ ${primaryStatus}` : primaryStatus}</span>
-                                <span>${Utils.formatDate(appt.dateKey)}</span>
-                                <span><span class="score-badge ${Utils.getScoreColor(Utils.calculateLeadScore(appt))}">${Utils.calculateLeadScore(appt)}</span></span>
-                                <span><button class="delete-appt-btn" data-id="${appt.id}" data-date="${appt.dateKey}" style="background:none; border:none; cursor:pointer; color:var(--danger);"><i class="fas fa-trash"></i></button></span>
-                            </div>
-                        `;
-                    }).join('')}
-                </div>
-                ${allAppointments.length === 0 ? '<div class="empty-state"><i class="fas fa-calendar-check"></i><p>No appointments found</p></div>' : ''}
-            </div>
-        `;
-
-        const calendarBtn = DOM.get('switchToCalendarView');
-        const addBtn = DOM.get('addApptFromList');
-        const searchInput = DOM.get('listSearchInput');
-        const statusFilter = DOM.get('listStatusFilter');
-        const tagFilter = DOM.get('listTagFilter');
-
-        if (calendarBtn) calendarBtn.addEventListener('click', () => {
-            AppState.calendarView = 'calendar';
-            this.renderCalendar(container);
-        });
-        if (addBtn) addBtn.addEventListener('click', () => this.openQuickAdd(Utils.getTodayStr()));
-
-        const filterItems = () => {
-            const search = searchInput?.value?.toLowerCase() || '';
-            const statusFilterValue = statusFilter?.value || 'all';
-            const tagFilterValue = tagFilter?.value || 'all';
-            const items = document.querySelectorAll('#listItemsContainer .list-item');
-
-            items.forEach(item => {
-                const text = item.textContent.toLowerCase();
-                const status = item.querySelector('.list-status')?.textContent || '';
-                let show = true;
-                if (search && !text.includes(search)) show = false;
-                if (statusFilterValue !== 'all' && status !== statusFilterValue) show = false;
-                item.style.display = show ? 'grid' : 'none';
-            });
-        };
-
-        if (searchInput) searchInput.addEventListener('input', filterItems);
-        if (statusFilter) statusFilter.addEventListener('change', filterItems);
-        if (tagFilter) tagFilter.addEventListener('change', filterItems);
-
-        container.querySelectorAll('.delete-appt-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (confirm('Delete this appointment?')) {
-                    Data.deleteAppointment(btn.getAttribute('data-date'), btn.getAttribute('data-id'));
-                    this.renderCalendarList(container);
-                    showToast('Appointment deleted', 'info');
-                }
-            });
-        });
-    },
-
     renderTasks: function(container) {
         if (!container) return;
 
@@ -2815,7 +2839,7 @@ const FeaturePanel = {
             allAppointments;
 
         let total = appointments.length;
-        let stats = this.getAppointmentStats(appointments);
+        let stats = FeaturePanel.getAppointmentStats(appointments);
         let statusCounts = {};
         let dailyData = {};
 
@@ -3147,6 +3171,38 @@ const FeaturePanel = {
         }, 200);
     },
 
+    getAppointmentStats: function(appointments) {
+        const stats = {
+            hotTransfers: 0,
+            warmCallbacks: 0,
+            completed: 0,
+            pending: 0,
+            canceled: 0,
+            meetingBooked: 0,
+            rescheduled: 0,
+            overdue: 0,
+            held: 0
+        };
+
+        appointments.forEach(a => {
+            const status = Utils.getStatus(a);
+            const primaryStatus = Utils.getPrimaryStatus(status);
+            
+            if (primaryStatus === 'Hot Transfer') stats.hotTransfers++;
+            else if (primaryStatus === 'Warm Callback') stats.warmCallbacks++;
+            else if (primaryStatus === 'Completed') stats.completed++;
+            else if (primaryStatus === 'Pending') stats.pending++;
+            else if (primaryStatus === 'Canceled') stats.canceled++;
+            
+            if (status === 'Meeting Booked') stats.meetingBooked++;
+            else if (status === 'Rescheduled') stats.rescheduled++;
+            else if (status === 'Overdue') stats.overdue++;
+            else if (status === 'Held') stats.held++;
+        });
+
+        return stats;
+    },
+
     initAnalyticsCharts: function(dailyData, statusCounts) {
         Object.values(AppState.chartInstances).forEach(chart => { if (chart) chart.destroy(); });
         AppState.chartInstances = {};
@@ -3265,7 +3321,6 @@ const FeaturePanel = {
             ).join('');
         }
 
-        // Populate assigned dropdown with team members
         const assignedSelect = DOM.get('newApptAssigned');
         if (assignedSelect) {
             assignedSelect.innerHTML = AppState.teamMembers.map(m =>
@@ -4056,7 +4111,6 @@ function initApp() {
     });
 
     document.addEventListener('keydown', (e) => {
-        // Disable shortcuts if editing or shortcuts are disabled
         if (!AppState.shortcutsEnabled || AppState.isEditing) {
             if (e.key === 'Escape') {
                 handleEscapeKey();
@@ -4064,7 +4118,6 @@ function initApp() {
             return;
         }
 
-        // Script shortcuts (1-9) - only when not editing
         if (e.key >= '1' && e.key <= '9') {
             const index = parseInt(e.key) - 1;
             const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
@@ -4075,7 +4128,6 @@ function initApp() {
             }
         }
 
-        // Custom shortcuts
         for (const [action, shortcut] of Object.entries(AppState.shortcuts)) {
             if (shortcut.keys && shortcut.keys.length > 0) {
                 const keys = shortcut.keys;
