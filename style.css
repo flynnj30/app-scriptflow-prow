@@ -1153,15 +1153,15 @@ body {
     display: inline-block;
 }
 
+.status-hot-transfer-sm { background: #dc2626; color: white; }
 .status-warm-callback-sm { background: #f59e0b; color: #1e293b; }
 .status-completed-sm { background: #10b981; color: white; }
-.status-canceled-sm { background: #ef4444; color: white; }
 .status-pending-sm { background: #94a3b8; color: white; }
-.status-hot-transfer-sm { background: #dc2626; color: white; }
-.status-meeting-booked-sm { background: #8b5cf6; color: white; }
+.status-canceled-sm { background: #ef4444; color: white; }
+.status-meeting-booked-sm { background: #3b82f6; color: white; }
 .status-rescheduled-sm { background: #f97316; color: white; }
+.status-overdue-sm { background: #8b5cf6; color: white; }
 .status-held-sm { background: #06b6d4; color: white; }
-.status-overdue-sm { background: #dc2626; color: white; }
 
 .score-badge {
     font-size: 0.7rem;
@@ -1238,7 +1238,7 @@ body {
 
 .list-view-container .list-item {
     display: grid;
-    grid-template-columns: 2fr 2fr 1.5fr 1.5fr 1fr 1fr;
+    grid-template-columns: 1.8fr 1.8fr 1.2fr 1fr 1.2fr 0.8fr 0.8fr;
     gap: 12px;
     padding: 12px 16px;
     background: var(--bg-card);
@@ -1256,7 +1256,7 @@ body {
 
 .list-view-container .list-header {
     display: grid;
-    grid-template-columns: 2fr 2fr 1.5fr 1.5fr 1fr 1fr;
+    grid-template-columns: 1.8fr 1.8fr 1.2fr 1fr 1.2fr 0.8fr 0.8fr;
     gap: 12px;
     padding: 8px 16px;
     font-size: 0.7rem;
@@ -1607,36 +1607,13 @@ body {
 }
 
 .team-member-card {
-    background: var(--bg-card);
-    border-radius: 16px;
-    padding: 20px;
-    border: 1px solid var(--border-color);
     transition: all 0.3s ease;
-    cursor: pointer;
 }
 
 .team-member-card:hover {
     transform: translateY(-4px);
     box-shadow: var(--shadow-md);
-    border-color: var(--primary);
-}
-
-.team-member-card .edit-team-member-btn,
-.team-member-card .delete-team-member-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 0.9rem;
-    padding: 4px;
-    transition: var(--transition);
-}
-
-.team-member-card .edit-team-member-btn:hover {
-    color: var(--primary);
-}
-
-.team-member-card .delete-team-member-btn:hover {
-    color: var(--danger);
+    border-color: var(--primary) !important;
 }
 
 /* ============================================================
@@ -2064,9 +2041,6 @@ body {
         font-size: 1rem;
     }
     .feature-panel-body {
-        padding: 12px;
-    }
-    .team-member-card {
         padding: 12px;
     }
 }

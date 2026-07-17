@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION WITH STATUS HIERARCHY
+// SCRIPTFLOW PRO - COMPLETE APPLICATION
 // ================================================================
 
 // ================================================================
@@ -7,40 +7,33 @@
 // ================================================================
 
 const CONFIG = {
-    // Primary pipeline statuses (shown in analytics)
+    // PRIMARY STATUSES - These appear in Analytics Hub metrics
     PRIMARY_STATUSES: ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled'],
     
-    // Secondary statuses (tags that can be applied after booking)
+    // SECONDARY STATUSES - These are tags/tracking after booking (count as Completed)
     SECONDARY_STATUSES: ['Meeting Booked', 'Rescheduled', 'Overdue', 'Held'],
     
-    // All statuses combined (for dropdowns)
+    // All statuses combined (for dropdowns, etc.)
     STATUS_OPTIONS: ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'],
     
-    // Status to primary mapping
-    STATUS_MAPPING: {
-        'Hot Transfer': 'Completed',
-        'Meeting Booked': 'Completed',
-        'Completed': 'Completed',
-        'Warm Callback': 'Warm Callback',
-        'Pending': 'Pending',
-        'Canceled': 'Canceled',
-        'Rescheduled': 'Rescheduled',
-        'Overdue': 'Overdue',
-        'Held': 'Held'
+    // Status colors
+    STATUS_COLORS: {
+        'Hot Transfer': '#dc2626',
+        'Warm Callback': '#f59e0b',
+        'Completed': '#10b981',
+        'Pending': '#94a3b8',
+        'Canceled': '#ef4444',
+        'Meeting Booked': '#3b82f6',
+        'Rescheduled': '#f97316',
+        'Overdue': '#8b5cf6',
+        'Held': '#06b6d4'
     },
-    
-    // Which statuses count as completed
-    COMPLETED_STATUSES: ['Hot Transfer', 'Meeting Booked', 'Completed'],
     
     TAG_OPTIONS: [
         { id: 'qualified_warm_call', name: 'Qualified Warm Call', color: '#10b981' },
         { id: 'unqualified_warm_callback', name: 'Unqualified Warm Callback', color: '#f59e0b' },
         { id: 'vip', name: 'VIP', color: '#3b82f6' },
-        { id: 'negligent_warm_callback', name: 'Negligent Warm Callback', color: '#ef4444' },
-        { id: 'meeting_booked', name: 'Meeting Booked', color: '#8b5cf6' },
-        { id: 'rescheduled', name: 'Rescheduled', color: '#f97316' },
-        { id: 'overdue', name: 'Overdue', color: '#dc2626' },
-        { id: 'held', name: 'Held', color: '#06b6d4' }
+        { id: 'negligent_warm_callback', name: 'Negligent Warm Callback', color: '#ef4444' }
     ],
     
     DEFAULT_TEAM_MEMBERS: [
@@ -88,6 +81,7 @@ const AppState = {
     isFirebaseReady: false,
     authInProgress: false,
     authModalOpen: false,
+
     appointments: {},
     scripts: {},
     scriptOrder: [],
@@ -95,6 +89,7 @@ const AppState = {
     tasks: [],
     teamMembers: [],
     goals: { daily: 3, weekly: 15, monthly: 60 },
+
     currentScriptId: 'opening',
     isEditing: false,
     searchTerm: '',
@@ -110,17 +105,23 @@ const AppState = {
     selectedCalDate: null,
     currentCalDate: null,
     selectedTeamMemberId: null,
+
     dateFilter: 'today',
     customStartDate: null,
     customEndDate: null,
+
     appointmentsUnsubscribe: null,
     tasksUnsubscribe: null,
     teamMembersUnsubscribe: null,
+
     chartInstances: {},
+
     shortcuts: {},
     customShortcuts: {},
+
     parsedImportData: {},
     importConfidence: {},
+
     isLoading: false,
     isRefreshing: false,
     shortcutsEnabled: true
@@ -170,27 +171,17 @@ const Utils = {
         return appt.status;
     },
 
-    getPrimaryStatus(status) {
-        if (CONFIG.COMPLETED_STATUSES.includes(status)) return 'Completed';
-        if (CONFIG.PRIMARY_STATUSES.includes(status)) return status;
-        return status;
-    },
-
-    isCompleted(status) {
-        return CONFIG.COMPLETED_STATUSES.includes(status);
-    },
-
     getStatusClass(status) {
         const map = {
             'Hot Transfer': 'status-hot-transfer-sm',
-            'Completed': 'status-completed-sm',
-            'Canceled': 'status-canceled-sm',
-            'Pending': 'status-pending-sm',
             'Warm Callback': 'status-warm-callback-sm',
+            'Completed': 'status-completed-sm',
+            'Pending': 'status-pending-sm',
+            'Canceled': 'status-canceled-sm',
             'Meeting Booked': 'status-meeting-booked-sm',
             'Rescheduled': 'status-rescheduled-sm',
-            'Held': 'status-held-sm',
-            'Overdue': 'status-canceled-sm'
+            'Overdue': 'status-overdue-sm',
+            'Held': 'status-held-sm'
         };
         return map[status] || 'status-pending-sm';
     },
@@ -201,18 +192,49 @@ const Utils = {
         return 'score-cold';
     },
 
+    // Primary status classification - Meeting Booked, Rescheduled, Overdue, Held count as Completed
+    getPrimaryStatus(status) {
+        if (CONFIG.PRIMARY_STATUSES.includes(status)) {
+            return status;
+        }
+        // Secondary statuses map to Completed
+        if (CONFIG.SECONDARY_STATUSES.includes(status)) {
+            return 'Completed';
+        }
+        return 'Pending';
+    },
+
+    // Check if status is completed (primary or secondary)
+    isCompletedStatus(status) {
+        const primary = this.getPrimaryStatus(status);
+        return primary === 'Completed' || CONFIG.SECONDARY_STATUSES.includes(status);
+    },
+
+    // Get display status (primary for analytics, secondary for details)
+    getDisplayStatus(appt) {
+        if (!appt || !appt.status) return 'Pending';
+        return appt.status;
+    },
+
+    getStatusColor(status) {
+        return CONFIG.STATUS_COLORS[status] || '#94a3b8';
+    },
+
     calculateLeadScore(appt) {
         let score = 0;
-        const status = this.getStatus(appt);
-        const primaryStatus = this.getPrimaryStatus(status);
+        const status = Utils.getStatus(appt);
+        const primaryStatus = Utils.getPrimaryStatus(status);
 
-        if (primaryStatus === 'Completed') {
-            if (status === 'Hot Transfer') score += 50;
-            else if (status === 'Meeting Booked') score += 40;
-            else score += 35;
-        } else if (primaryStatus === 'Warm Callback') score += 30;
+        if (primaryStatus === 'Hot Transfer') score += 50;
+        else if (primaryStatus === 'Completed') score += 40;
+        else if (primaryStatus === 'Warm Callback') score += 30;
         else if (primaryStatus === 'Pending') score += 10;
         else if (primaryStatus === 'Canceled') score -= 20;
+
+        // Secondary status bonuses
+        if (status === 'Meeting Booked') score += 15;
+        if (status === 'Held') score += 10;
+        if (status === 'Rescheduled') score += 5;
 
         if (appt.tags) {
             if (appt.tags.includes('vip')) score += 20;
@@ -323,6 +345,10 @@ const Utils = {
             completed: 0,
             pending: 0,
             canceled: 0,
+            meetingBooked: 0,
+            rescheduled: 0,
+            overdue: 0,
+            held: 0,
             score: 0,
             appointments: []
         };
@@ -330,22 +356,25 @@ const Utils = {
         for (let date in appointments) {
             if (appointments[date].reports) {
                 appointments[date].reports.forEach(appt => {
-                    if (appt.assigned === memberId || appt.assigned === CONFIG.DEFAULT_TEAM_MEMBERS.find(m => m.id === memberId)?.name) {
+                    if (appt.assigned === memberId) {
                         stats.total++;
-                        const status = this.getStatus(appt);
-                        const primaryStatus = this.getPrimaryStatus(status);
+                        const status = Utils.getStatus(appt);
+                        const primaryStatus = Utils.getPrimaryStatus(status);
                         
-                        if (primaryStatus === 'Completed') {
-                            stats.completed++;
-                            if (status === 'Hot Transfer') stats.hotTransfers++;
-                        } else if (primaryStatus === 'Warm Callback') {
-                            stats.warmCallbacks++;
-                        } else if (primaryStatus === 'Pending') {
-                            stats.pending++;
-                        } else if (primaryStatus === 'Canceled') {
-                            stats.canceled++;
-                        }
-                        stats.score += this.calculateLeadScore(appt);
+                        // Primary status counts
+                        if (primaryStatus === 'Hot Transfer') stats.hotTransfers++;
+                        else if (primaryStatus === 'Warm Callback') stats.warmCallbacks++;
+                        else if (primaryStatus === 'Completed') stats.completed++;
+                        else if (primaryStatus === 'Pending') stats.pending++;
+                        else if (primaryStatus === 'Canceled') stats.canceled++;
+                        
+                        // Secondary status tracking
+                        if (status === 'Meeting Booked') stats.meetingBooked++;
+                        else if (status === 'Rescheduled') stats.rescheduled++;
+                        else if (status === 'Overdue') stats.overdue++;
+                        else if (status === 'Held') stats.held++;
+                        
+                        stats.score += Utils.calculateLeadScore(appt);
                         stats.appointments.push(appt);
                     }
                 });
@@ -364,35 +393,6 @@ const Utils = {
         teamMembers.forEach(member => {
             stats[member.id] = this.getMemberStats(member.id, appointments);
         });
-        return stats;
-    },
-
-    getAppointmentStats(appointments) {
-        const stats = {
-            hotTransfers: 0,
-            warmCallbacks: 0,
-            completed: 0,
-            pending: 0,
-            canceled: 0,
-            total: appointments.length
-        };
-
-        appointments.forEach(a => {
-            const status = this.getStatus(a);
-            const primaryStatus = this.getPrimaryStatus(status);
-            
-            if (primaryStatus === 'Completed') {
-                stats.completed++;
-                if (status === 'Hot Transfer') stats.hotTransfers++;
-            } else if (primaryStatus === 'Warm Callback') {
-                stats.warmCallbacks++;
-            } else if (primaryStatus === 'Pending') {
-                stats.pending++;
-            } else if (primaryStatus === 'Canceled') {
-                stats.canceled++;
-            }
-        });
-
         return stats;
     }
 };
@@ -959,7 +959,7 @@ const Data = {
         if (!AppState.appointments[dateStr]) {
             AppState.appointments[dateStr] = { count: 0, note: '', reports: [] };
         }
-        
+        // Validate status is in allowed list
         if (!CONFIG.STATUS_OPTIONS.includes(status)) status = 'Pending';
         
         const newAppt = {
@@ -976,7 +976,6 @@ const Data = {
             tags: tags || [],
             date: dateStr,
             email: '',
-            primaryStatus: Utils.getPrimaryStatus(status),
             createdAt: new Date().toISOString()
         };
         
@@ -1032,11 +1031,6 @@ const Data = {
     updateAppointment: function(dateStr, id, updates) {
         const appt = AppState.appointments[dateStr]?.reports?.find(r => r.id === id);
         if (!appt) return false;
-        
-        if (updates.status) {
-            updates.primaryStatus = Utils.getPrimaryStatus(updates.status);
-        }
-        
         Object.assign(appt, updates);
         this.syncAppointment(appt);
         Stats.updateAll();
@@ -1114,11 +1108,13 @@ const Data = {
     },
 
     exportToCSV: function(selectedIds = null) {
-        let csv = 'Business,Contact,Phone,Email,Date,Time,Status,Primary Status,Notes,Assigned\n';
+        let csv = 'Business,Contact,Phone,Email,Date,Time,Status,PrimaryStatus,Notes,Assigned\n';
         const appointments = selectedIds ? this.getSelectedAppointments(selectedIds) : this.getAllAppointments();
 
         appointments.forEach(appt => {
-            csv += `"${appt.business || ''}","${appt.contactName || ''}","${appt.phone || ''}","${appt.email || ''}","${appt.date || ''}","${appt.time || ''}","${Utils.getStatus(appt)}","${Utils.getPrimaryStatus(Utils.getStatus(appt))}","${appt.notes || ''}","${appt.assigned || 'Daniel'}"\n`;
+            const status = Utils.getStatus(appt);
+            const primaryStatus = Utils.getPrimaryStatus(status);
+            csv += `"${appt.business || ''}","${appt.contactName || ''}","${appt.phone || ''}","${appt.email || ''}","${appt.date || ''}","${appt.time || ''}","${status}","${primaryStatus}","${appt.notes || ''}","${appt.assigned || 'Daniel'}"\n`;
         });
 
         const blob = new Blob([csv], { type: 'text/csv' });
@@ -1573,6 +1569,10 @@ const Scripts = {
                 this.loadScript(id);
             }
         }
+    },
+
+    isEditing: function() {
+        return AppState.isEditing;
     }
 };
 
@@ -1673,7 +1673,7 @@ const TeamManager = {
         const modal = DOM.createElement('div', 'modal-overlay');
         modal.id = 'memberDetailModal';
         modal.innerHTML = `
-            <div class="modal-card" style="max-width:600px;">
+            <div class="modal-card" style="max-width:650px;">
                 <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px;">
                     <div style="width:64px; height:64px; border-radius:50%; background:${member.color}20; display:flex; align-items:center; justify-content:center; font-size:2.5rem; border:3px solid ${member.color};">
                         ${member.avatar || '👤'}
@@ -1715,7 +1715,22 @@ const TeamManager = {
                     </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:16px;">
+                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
+                        <div style="font-size:1.2rem; font-weight:700; color:#3b82f6;">${stats.meetingBooked || 0}</div>
+                        <div style="font-size:0.7rem; color:var(--text-muted);">📅 Meeting Booked</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
+                        <div style="font-size:1.2rem; font-weight:700; color:#f97316;">${stats.rescheduled || 0}</div>
+                        <div style="font-size:0.7rem; color:var(--text-muted);">🔄 Rescheduled</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
+                        <div style="font-size:1.2rem; font-weight:700; color:#06b6d4;">${stats.held || 0}</div>
+                        <div style="font-size:0.7rem; color:var(--text-muted);">📌 Held</div>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
                     <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
                         <div style="font-size:1.2rem; font-weight:700; color:var(--secondary);">${stats.score || 0}</div>
                         <div style="font-size:0.7rem; color:var(--text-muted);">Avg Lead Score</div>
@@ -1730,13 +1745,21 @@ const TeamManager = {
                     <h4 style="margin-bottom:8px;">📋 Activity History</h4>
                     <div style="max-height:150px; overflow-y:auto; font-size:0.8rem;">
                         ${stats.appointments && stats.appointments.length > 0 ? 
-                            stats.appointments.slice(0, 10).map(appt => `
-                                <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border-color);">
-                                    <span>${Utils.escapeHtml(appt.business)} - ${Utils.escapeHtml(appt.contactName)}</span>
-                                    <span style="color:var(--text-muted);">${Utils.formatDate(appt.date)}</span>
-                                    <span class="status-tag ${Utils.getStatusClass(Utils.getStatus(appt))}">${Utils.getStatus(appt)}</span>
-                                </div>
-                            `).join('')
+                            stats.appointments.slice(0, 10).map(appt => {
+                                const status = Utils.getStatus(appt);
+                                const primaryStatus = Utils.getPrimaryStatus(status);
+                                const isSecondary = CONFIG.SECONDARY_STATUSES.includes(status);
+                                return `
+                                    <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border-color);">
+                                        <span>${Utils.escapeHtml(appt.business)} - ${Utils.escapeHtml(appt.contactName)}</span>
+                                        <span style="color:var(--text-muted);">${Utils.formatDate(appt.date)}</span>
+                                        <span style="display:flex; gap:4px; align-items:center;">
+                                            <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
+                                            ${isSecondary ? `<span style="font-size:0.6rem; color:var(--text-muted);">→ ${primaryStatus}</span>` : ''}
+                                        </span>
+                                    </div>
+                                `;
+                            }).join('')
                             : '<div style="color:var(--text-muted); padding:8px;">No activity yet</div>'
                         }
                     </div>
@@ -1902,7 +1925,7 @@ const TeamManager = {
 };
 
 // ================================================================
-// FEATURE PANEL
+// FEATURE PANEL (Complete)
 // ================================================================
 
 const FeaturePanel = {
@@ -2086,7 +2109,10 @@ const FeaturePanel = {
         const members = AppState.teamMembers || [];
         const memberStats = Utils.getAllMemberStats(members, AppState.appointments);
 
-        let teamTotal = 0, teamHot = 0, teamWarm = 0, teamCompleted = 0, teamPending = 0, teamCanceled = 0, teamScore = 0;
+        let teamTotal = 0, teamHot = 0, teamWarm = 0, teamCompleted = 0, teamPending = 0, teamCanceled = 0;
+        let teamMeetingBooked = 0, teamRescheduled = 0, teamHeld = 0;
+        let teamScore = 0;
+        
         Object.values(memberStats).forEach(stat => {
             teamTotal += stat.total;
             teamHot += stat.hotTransfers;
@@ -2094,6 +2120,9 @@ const FeaturePanel = {
             teamCompleted += stat.completed;
             teamPending += stat.pending;
             teamCanceled += stat.canceled;
+            teamMeetingBooked += stat.meetingBooked || 0;
+            teamRescheduled += stat.rescheduled || 0;
+            teamHeld += stat.held || 0;
             teamScore += stat.score || 0;
         });
         const teamConversion = teamTotal > 0 ? Math.round((teamCompleted / teamTotal) * 100) : 0;
@@ -2117,6 +2146,21 @@ const FeaturePanel = {
                     <div class="metric-card"><div class="metric-value" style="color:var(--secondary);">${teamConversion}%</div><div class="metric-label">📈 Team Conversion</div></div>
                 </div>
 
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:16px;">
+                    <div class="metric-card" style="background:var(--bg-primary);">
+                        <div class="metric-value" style="color:#3b82f6; font-size:1.2rem;">${teamMeetingBooked}</div>
+                        <div class="metric-label">📅 Meeting Booked</div>
+                    </div>
+                    <div class="metric-card" style="background:var(--bg-primary);">
+                        <div class="metric-value" style="color:#f97316; font-size:1.2rem;">${teamRescheduled}</div>
+                        <div class="metric-label">🔄 Rescheduled</div>
+                    </div>
+                    <div class="metric-card" style="background:var(--bg-primary);">
+                        <div class="metric-value" style="color:#06b6d4; font-size:1.2rem;">${teamHeld}</div>
+                        <div class="metric-label">📌 Held</div>
+                    </div>
+                </div>
+
                 <div id="teamMembersList" style="margin-top:12px;"></div>
             </div>
         `;
@@ -2127,6 +2171,7 @@ const FeaturePanel = {
         if (addBtn) addBtn.addEventListener('click', () => TeamManager.addMember());
     },
 
+    // Calendar rendering methods (continued in next part)
     renderCalendar: function(container) {
         if (!container) return;
         if (AppState.calendarView === 'list') {
@@ -2176,16 +2221,16 @@ const FeaturePanel = {
             let indicatorHtml = '';
             if (count > 0) {
                 const dots = appts.slice(0, 3).map(a => {
-                    const s = Utils.getStatus(a);
-                    const colors = { 
-                        'Hot Transfer': '#dc2626', 
-                        'Completed': 'var(--success)', 
-                        'Warm Callback': 'var(--warning)', 
+                    const status = Utils.getStatus(a);
+                    const primaryStatus = Utils.getPrimaryStatus(status);
+                    const colorMap = {
+                        'Hot Transfer': '#dc2626',
+                        'Completed': 'var(--success)',
+                        'Warm Callback': 'var(--warning)',
                         'Pending': 'var(--text-muted)',
                         'Canceled': 'var(--danger)'
                     };
-                    const primaryStatus = Utils.getPrimaryStatus(s);
-                    return `<span class="appt-dot" style="background:${colors[primaryStatus] || colors[s] || 'var(--primary)'};"></span>`;
+                    return `<span class="appt-dot" style="background:${colorMap[primaryStatus] || 'var(--primary)'};"></span>`;
                 }).join('');
                 indicatorHtml = `<div class="appt-indicator">${dots}</div>`;
             }
@@ -2215,7 +2260,7 @@ const FeaturePanel = {
         }
 
         const selectedAppts = AppState.appointments[AppState.selectedCalDate]?.reports || [];
-        const stats = Utils.getAppointmentStats(selectedAppts);
+        const stats = this.getAppointmentStats(selectedAppts);
 
         const filterButtons = [
             { key: 'today', label: 'Today', icon: 'fa-calendar-day' },
@@ -2277,7 +2322,8 @@ const FeaturePanel = {
                             const score = Utils.calculateLeadScore(a);
                             const status = Utils.getStatus(a);
                             const primaryStatus = Utils.getPrimaryStatus(status);
-                            const isHotTransfer = status === 'Hot Transfer';
+                            const isSecondary = CONFIG.SECONDARY_STATUSES.includes(status);
+                            const isHotTransfer = primaryStatus === 'Hot Transfer';
                             return `
                                 <div class="appointment-card" data-id="${a.id}" data-date="${AppState.selectedCalDate}" style="border-left: 4px solid ${isHotTransfer ? '#dc2626' : 'var(--border-color)'};">
                                     <i class="fas fa-grip-vertical drag-handle"></i>
@@ -2285,8 +2331,8 @@ const FeaturePanel = {
                                         <div class="business-name" onclick="window.showAppointmentDetail('${a.id}')">
                                             <strong>${Utils.escapeHtml(a.business)}</strong>
                                             <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
+                                            ${isSecondary ? `<span style="font-size:0.6rem; color:var(--text-muted);">→ ${primaryStatus}</span>` : ''}
                                             <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
-                                            ${primaryStatus !== status ? `<span style="font-size:0.6rem; color:var(--text-muted);">→ ${primaryStatus}</span>` : ''}
                                         </div>
                                         <div class="card-actions">
                                             <button class="delete-appt-btn" data-id="${a.id}" title="Delete"><i class="fas fa-trash"></i></button>
@@ -2296,7 +2342,7 @@ const FeaturePanel = {
                                         <span>Contact: ${Utils.escapeHtml(a.contactName)}</span>
                                         ${a.phone ? `<span>📞 ${Utils.escapeHtml(a.phone)}</span>` : ''}
                                         ${a.time ? `<span>🕐 ${Utils.escapeHtml(a.time)}</span>` : ''}
-                                        ${a.tags && a.tags.length > 0 ? `<span>🏷️ ${a.tags.join(', ')}</span>` : ''}
+                                        <span style="color:var(--text-muted);">Assigned: ${Utils.escapeHtml(a.assigned || 'Unassigned')}</span>
                                     </div>
                                 </div>
                             `;
@@ -2464,7 +2510,7 @@ const FeaturePanel = {
         }
 
         const filteredAppointments = Data.getAppointmentsInDateRange(startDate, endDate);
-        const stats = Utils.getAppointmentStats(filteredAppointments);
+        const stats = this.getAppointmentStats(filteredAppointments);
 
         if (container) {
             const kpiRow = container.querySelector('.kpi-row');
@@ -2497,7 +2543,8 @@ const FeaturePanel = {
                         const score = Utils.calculateLeadScore(a);
                         const status = Utils.getStatus(a);
                         const primaryStatus = Utils.getPrimaryStatus(status);
-                        const isHotTransfer = status === 'Hot Transfer';
+                        const isSecondary = CONFIG.SECONDARY_STATUSES.includes(status);
+                        const isHotTransfer = primaryStatus === 'Hot Transfer';
                         return `
                             <div class="appointment-card" data-id="${a.id}" data-date="${a.date}" style="border-left: 4px solid ${isHotTransfer ? '#dc2626' : 'var(--border-color)'};">
                                 <i class="fas fa-grip-vertical drag-handle"></i>
@@ -2505,8 +2552,8 @@ const FeaturePanel = {
                                     <div class="business-name" onclick="window.showAppointmentDetail('${a.id}')">
                                         <strong>${Utils.escapeHtml(a.business)}</strong>
                                         <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
+                                        ${isSecondary ? `<span style="font-size:0.6rem; color:var(--text-muted);">→ ${primaryStatus}</span>` : ''}
                                         <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
-                                        ${primaryStatus !== status ? `<span style="font-size:0.6rem; color:var(--text-muted);">→ ${primaryStatus}</span>` : ''}
                                     </div>
                                     <div class="card-actions">
                                         <button class="delete-appt-btn" data-id="${a.id}" title="Delete"><i class="fas fa-trash"></i></button>
@@ -2517,7 +2564,6 @@ const FeaturePanel = {
                                     ${a.phone ? `<span>📞 ${Utils.escapeHtml(a.phone)}</span>` : ''}
                                     ${a.time ? `<span>🕐 ${Utils.escapeHtml(a.time)}</span>` : ''}
                                     <span>📅 ${Utils.formatDate(a.date)}</span>
-                                    ${a.tags && a.tags.length > 0 ? `<span>🏷️ ${a.tags.join(', ')}</span>` : ''}
                                 </div>
                             </div>
                         `;
@@ -2551,6 +2597,38 @@ const FeaturePanel = {
         showToast(`Showing ${filteredAppointments.length} appointments for: ${filterLabels[filter] || filter}`, 'info');
     },
 
+    getAppointmentStats: function(appointments) {
+        const stats = {
+            hotTransfers: 0,
+            warmCallbacks: 0,
+            completed: 0,
+            pending: 0,
+            canceled: 0,
+            meetingBooked: 0,
+            rescheduled: 0,
+            overdue: 0,
+            held: 0
+        };
+
+        appointments.forEach(a => {
+            const status = Utils.getStatus(a);
+            const primaryStatus = Utils.getPrimaryStatus(status);
+            
+            if (primaryStatus === 'Hot Transfer') stats.hotTransfers++;
+            else if (primaryStatus === 'Warm Callback') stats.warmCallbacks++;
+            else if (primaryStatus === 'Completed') stats.completed++;
+            else if (primaryStatus === 'Pending') stats.pending++;
+            else if (primaryStatus === 'Canceled') stats.canceled++;
+            
+            if (status === 'Meeting Booked') stats.meetingBooked++;
+            else if (status === 'Rescheduled') stats.rescheduled++;
+            else if (status === 'Overdue') stats.overdue++;
+            else if (status === 'Held') stats.held++;
+        });
+
+        return stats;
+    },
+
     renderCalendarList: function(container) {
         const allAppointments = Data.getAllAppointments();
 
@@ -2572,17 +2650,19 @@ const FeaturePanel = {
                     <select id="listTagFilter"><option value="all">All Tags</option>${CONFIG.TAG_OPTIONS.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}</select>
                 </div>
                 <div class="list-header">
-                    <span>Business</span><span>Contact</span><span>Status</span><span>Date</span><span>Score</span><span>Actions</span>
+                    <span>Business</span><span>Contact</span><span>Status</span><span>Primary</span><span>Date</span><span>Score</span><span>Actions</span>
                 </div>
                 <div id="listItemsContainer">
                     ${allAppointments.map(appt => {
                         const status = Utils.getStatus(appt);
                         const primaryStatus = Utils.getPrimaryStatus(status);
+                        const isSecondary = CONFIG.SECONDARY_STATUSES.includes(status);
                         return `
                             <div class="list-item" onclick="window.showAppointmentDetail('${appt.id}')">
                                 <span class="list-business"><strong>${Utils.escapeHtml(appt.business)}</strong></span>
                                 <span class="list-contact">${Utils.escapeHtml(appt.contactName)}</span>
-                                <span class="list-status ${Utils.getStatusClass(status)}">${status}${primaryStatus !== status ? ` → ${primaryStatus}` : ''}</span>
+                                <span class="list-status ${Utils.getStatusClass(status)}">${status}</span>
+                                <span style="font-size:0.75rem; color:var(--text-muted);">${isSecondary ? `→ ${primaryStatus}` : primaryStatus}</span>
                                 <span>${Utils.formatDate(appt.dateKey)}</span>
                                 <span><span class="score-badge ${Utils.getScoreColor(Utils.calculateLeadScore(appt))}">${Utils.calculateLeadScore(appt)}</span></span>
                                 <span><button class="delete-appt-btn" data-id="${appt.id}" data-date="${appt.dateKey}" style="background:none; border:none; cursor:pointer; color:var(--danger);"><i class="fas fa-trash"></i></button></span>
@@ -2617,7 +2697,7 @@ const FeaturePanel = {
                 const status = item.querySelector('.list-status')?.textContent || '';
                 let show = true;
                 if (search && !text.includes(search)) show = false;
-                if (statusFilterValue !== 'all' && !status.includes(statusFilterValue)) show = false;
+                if (statusFilterValue !== 'all' && status !== statusFilterValue) show = false;
                 item.style.display = show ? 'grid' : 'none';
             });
         };
@@ -2710,7 +2790,6 @@ const FeaturePanel = {
     },
 
     renderAnalyticsInsights: function(container) {
-        const myAppointments = [];
         const currentUser = AppState.currentUser;
         const myName = currentUser?.displayName || currentUser?.email || 'Daniel';
         
@@ -2723,43 +2802,34 @@ const FeaturePanel = {
             if (member) myMemberId = member.id;
         }
 
+        const allAppointments = [];
         for (let date in AppState.appointments) {
             if (AppState.appointments[date].reports) {
-                AppState.appointments[date].reports.forEach(appt => {
-                    if (appt.assigned === myName || appt.assigned === myMemberId) {
-                        myAppointments.push(appt);
-                    }
-                });
+                allAppointments.push(...AppState.appointments[date].reports);
             }
         }
 
-        const teamAppointments = Data.getAllAppointments();
         const useMyPipeline = AppState.pipelineView === 'my';
-        const appointments = useMyPipeline ? myAppointments : teamAppointments;
+        const appointments = useMyPipeline ? 
+            allAppointments.filter(a => a.assigned === myName || a.assigned === myMemberId) : 
+            allAppointments;
 
-        const stats = Utils.getAppointmentStats(appointments);
-        const total = stats.total;
-        const hTransfers = stats.hotTransfers;
-        const wCallbacks = stats.warmCallbacks;
-        const completedCount = stats.completed;
-        const pendingCount = stats.pending;
-        const canceledCount = stats.canceled;
+        let total = appointments.length;
+        let stats = this.getAppointmentStats(appointments);
+        let statusCounts = {};
+        let dailyData = {};
 
-        const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
-        const hotTransferRate = total > 0 ? Math.round((hTransfers / total) * 100) : 0;
-        const warmCallbackRate = total > 0 ? Math.round((wCallbacks / total) * 100) : 0;
-        const avgScore = total > 0 ? Math.round(appointments.reduce((sum, a) => sum + Utils.calculateLeadScore(a), 0) / total) : 0;
-
-        const statusCounts = {};
         appointments.forEach(a => {
-            const primaryStatus = Utils.getPrimaryStatus(Utils.getStatus(a));
+            const status = Utils.getStatus(a);
+            const primaryStatus = Utils.getPrimaryStatus(status);
             statusCounts[primaryStatus] = (statusCounts[primaryStatus] || 0) + 1;
-        });
-
-        const dailyData = {};
-        appointments.forEach(a => {
             dailyData[a.date] = (dailyData[a.date] || 0) + 1;
         });
+
+        const conversionRate = total > 0 ? Math.round((stats.completed / total) * 100) : 0;
+        const hotTransferRate = total > 0 ? Math.round((stats.hotTransfers / total) * 100) : 0;
+        const warmCallbackRate = total > 0 ? Math.round((stats.warmCallbacks / total) * 100) : 0;
+        const avgScore = total > 0 ? Math.round(appointments.reduce((sum, a) => sum + Utils.calculateLeadScore(a), 0) / total) : 0;
 
         container.innerHTML = `
             <div class="analytics-container fade-in">
@@ -2778,16 +2848,16 @@ const FeaturePanel = {
 
                 <div class="report-metrics scale-in">
                     <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">${useMyPipeline ? 'My' : 'Team'} Pipeline</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--text-muted);">${pendingCount}</div><div class="metric-label">⏳ Pending</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--danger);">${canceledCount}</div><div class="metric-label">❌ Canceled</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${stats.hotTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${stats.warmCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${stats.completed}</div><div class="metric-label">✅ Completed</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--text-muted);">${stats.pending}</div><div class="metric-label">⏳ Pending</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--danger);">${stats.canceled}</div><div class="metric-label">❌ Canceled</div></div>
                 </div>
 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
                     <div class="feature-card slide-up">
-                        <h4>📊 Conversion Rates</h4>
+                        <h4>📊 Performance Metrics</h4>
                         <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
                             <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Completed Rate</span><span>${conversionRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--success); width:${conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
                             <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Hot Transfer Rate</span><span>${hotTransferRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:#dc2626; width:${hotTransferRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
@@ -2805,6 +2875,11 @@ const FeaturePanel = {
                                     <span style="font-weight:600;">${count} (${Math.round((count/total)*100)}%)</span>
                                 </div>
                             `).join('')}
+                        </div>
+                        <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; font-size:0.7rem; color:var(--text-muted);">
+                            <span>📅 Meeting Booked: ${stats.meetingBooked || 0}</span>
+                            <span>🔄 Rescheduled: ${stats.rescheduled || 0}</span>
+                            <span>📌 Held: ${stats.held || 0}</span>
                         </div>
                     </div>
                 </div>
@@ -2858,7 +2933,8 @@ const FeaturePanel = {
     },
 
     renderAnalyticsReports: function(container) {
-        let total = 0, completedCount = 0, hTransfers = 0, wCallbacks = 0;
+        let total = 0;
+        let stats = { hotTransfers: 0, warmCallbacks: 0, completed: 0, pending: 0, canceled: 0, meetingBooked: 0, rescheduled: 0, held: 0 };
         let dailyData = {};
         let assignedStats = {};
 
@@ -2869,21 +2945,24 @@ const FeaturePanel = {
                     const status = Utils.getStatus(a);
                     const primaryStatus = Utils.getPrimaryStatus(status);
                     
-                    if (primaryStatus === 'Completed') {
-                        completedCount++;
-                        if (status === 'Hot Transfer') hTransfers++;
-                    } else if (primaryStatus === 'Warm Callback') {
-                        wCallbacks++;
-                    }
+                    if (primaryStatus === 'Hot Transfer') stats.hotTransfers++;
+                    else if (primaryStatus === 'Warm Callback') stats.warmCallbacks++;
+                    else if (primaryStatus === 'Completed') stats.completed++;
+                    else if (primaryStatus === 'Pending') stats.pending++;
+                    else if (primaryStatus === 'Canceled') stats.canceled++;
+                    
+                    if (status === 'Meeting Booked') stats.meetingBooked++;
+                    else if (status === 'Rescheduled') stats.rescheduled++;
+                    else if (status === 'Held') stats.held++;
+                    
                     dailyData[date] = (dailyData[date] || 0) + 1;
-
                     const assigned = a.assigned || 'Unassigned';
                     assignedStats[assigned] = (assignedStats[assigned] || 0) + 1;
                 });
             }
         }
 
-        const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+        const conversionRate = total > 0 ? Math.round((stats.completed / total) * 100) : 0;
         const avgScore = Stats.getAverageScore();
 
         container.innerHTML = `
@@ -2897,11 +2976,26 @@ const FeaturePanel = {
 
                 <div class="report-metrics scale-in">
                     <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">Total Appointments</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${stats.completed}</div><div class="metric-label">✅ Completed</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${stats.hotTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${stats.warmCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
                     <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--primary);">${conversionRate}%</div><div class="metric-label">Conversion Rate</div></div>
                     <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--secondary);">${avgScore}</div><div class="metric-label">Avg Lead Score</div></div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:12px;">
+                    <div class="metric-card" style="background:var(--bg-primary);">
+                        <div class="metric-value" style="color:#3b82f6; font-size:1.2rem;">${stats.meetingBooked || 0}</div>
+                        <div class="metric-label">📅 Meeting Booked</div>
+                    </div>
+                    <div class="metric-card" style="background:var(--bg-primary);">
+                        <div class="metric-value" style="color:#f97316; font-size:1.2rem;">${stats.rescheduled || 0}</div>
+                        <div class="metric-label">🔄 Rescheduled</div>
+                    </div>
+                    <div class="metric-card" style="background:var(--bg-primary);">
+                        <div class="metric-value" style="color:#06b6d4; font-size:1.2rem;">${stats.held || 0}</div>
+                        <div class="metric-label">📌 Held</div>
+                    </div>
                 </div>
 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
@@ -3171,6 +3265,14 @@ const FeaturePanel = {
             ).join('');
         }
 
+        // Populate assigned dropdown with team members
+        const assignedSelect = DOM.get('newApptAssigned');
+        if (assignedSelect) {
+            assignedSelect.innerHTML = AppState.teamMembers.map(m =>
+                `<option value="${m.id}">${m.name}</option>`
+            ).join('');
+        }
+
         const fields = ['newApptBusiness', 'newApptContact', 'newApptPhone', 'newApptEmail', 'newApptTime', 'newApptNotes'];
         fields.forEach(id => { const el = DOM.get(id); if (el) el.value = ''; });
 
@@ -3186,6 +3288,7 @@ const FeaturePanel = {
                 const email = DOM.get('newApptEmail')?.value?.trim() || '';
                 const time = DOM.get('newApptTime')?.value || '';
                 const status = DOM.get('newApptStatus')?.value || 'Pending';
+                const assigned = DOM.get('newApptAssigned')?.value || 'daniel';
                 const notes = DOM.get('newApptNotes')?.value?.trim() || '';
 
                 if (!bus || !contact) {
@@ -3193,7 +3296,8 @@ const FeaturePanel = {
                     return;
                 }
 
-                Data.addAppointment(date, bus, contact, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), 'Daniel', null, status);
+                const member = AppState.teamMembers.find(m => m.id === assigned);
+                Data.addAppointment(date, bus, contact, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), member ? member.name : 'Daniel', null, status);
                 modal.style.display = 'none';
                 showToast('Appointment added successfully! 🎉', 'success');
                 FeaturePanel.refreshCurrentView();
@@ -3278,6 +3382,7 @@ function performGlobalSearch(query) {
                         <span style="font-size:0.75rem; color:var(--text-muted);">${Utils.formatDate(result.data.date)}</span>
                     </div>
                     <div style="font-size:0.8rem; color:var(--text-secondary);">${Utils.escapeHtml(result.data.contactName)}</div>
+                    <div style="font-size:0.7rem; color:var(--text-muted);">Status: ${Utils.getStatus(result.data)}</div>
                 </div>
             `;
         } else if (result.type === 'task') {
@@ -3326,6 +3431,10 @@ function showAppointmentDetail(appointmentId) {
     const modal = DOM.get('appointmentDetailModal');
     if (!modal) return;
 
+    const status = Utils.getStatus(appt);
+    const primaryStatus = Utils.getPrimaryStatus(status);
+    const isSecondary = CONFIG.SECONDARY_STATUSES.includes(status);
+
     const titleEl = DOM.get('appointmentDetailTitle');
     if (titleEl) titleEl.textContent = `📋 ${appt.business} - ${appt.contactName}`;
 
@@ -3338,8 +3447,10 @@ function showAppointmentDetail(appointmentId) {
             <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${Utils.escapeHtml(appt.email || 'N/A')}</span></div>
             <div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">${Utils.formatDate(appt.date)}</span></div>
             <div class="detail-row"><span class="detail-label">Time</span><span class="detail-value">${Utils.escapeHtml(appt.time || 'N/A')}</span></div>
-            <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value"><span class="status-tag ${Utils.getStatusClass(Utils.getStatus(appt))}">${Utils.getStatus(appt)}</span></span></div>
-            <div class="detail-row"><span class="detail-label">Primary Status</span><span class="detail-value">${Utils.getPrimaryStatus(Utils.getStatus(appt))}</span></div>
+            <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">
+                <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
+                ${isSecondary ? `<span style="font-size:0.7rem; color:var(--text-muted); margin-left:8px;">→ Primary: ${primaryStatus}</span>` : ''}
+            </span></div>
             <div class="detail-row"><span class="detail-label">Assigned</span><span class="detail-value">${Utils.escapeHtml(appt.assigned || 'Daniel')}</span></div>
             <div class="detail-row"><span class="detail-label">Lead Score</span><span class="detail-value"><span class="score-badge ${Utils.getScoreColor(Utils.calculateLeadScore(appt))}">${Utils.calculateLeadScore(appt)} Pts</span></span></div>
             ${appt.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value" style="white-space:pre-wrap;">${Utils.escapeHtml(appt.notes)}</span></div>` : ''}
@@ -3575,10 +3686,7 @@ function executeBulkAction() {
             for (let date in AppState.appointments) {
                 if (AppState.appointments[date].reports) {
                     const found = AppState.appointments[date].reports.find(r => r.id === id);
-                    if (found) { 
-                        Data.updateAppointment(date, id, { status: newStatus });
-                        break;
-                    }
+                    if (found) { Data.updateAppointment(date, id, { status: newStatus }); break; }
                 }
             }
         });
@@ -3730,12 +3838,11 @@ function initApp() {
                 AppState.analyticsTab = 'insights';
                 FeaturePanel.show('analytics', '📊 Analytics Hub');
             } else if (tool === 'shortcuts') FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts');
-            else if (tool === 'team') FeaturePanel.show('team', '👥 Team Management');
             else if (tool === 'theme') {
                 document.body.classList.toggle('light');
                 showToast('Theme toggled', 'info');
             } else if (tool === 'help') {
-                showToast('Handoffs: Warm Callback, Completed, Canceled, Pending, Hot Transfer - All integrated!', 'info');
+                showToast('Handoffs: Hot Transfer, Warm Callback, Completed (includes Meeting Booked, Rescheduled, Held), Pending, Canceled', 'info');
             } else if (tool === 'reset') {
                 if (confirm('⚠️ This will clear all local data and reset the app. Continue?')) {
                     localStorage.clear();
@@ -3772,7 +3879,7 @@ function initApp() {
 
     if (copyBtn) copyBtn.addEventListener('click', () => {
         const appt = Data.getAppointmentById(AppState.currentAppointmentId);
-        if (appt) copyToClipboard(`Business: ${appt.business}\nContact: ${appt.contactName}\nPhone: ${appt.phone || 'N/A'}\nStatus: ${Utils.getStatus(appt)}\nPrimary: ${Utils.getPrimaryStatus(Utils.getStatus(appt))}\nDate: ${Utils.formatDate(appt.date)}${appt.time ? `\nTime: ${appt.time}` : ''}${appt.notes ? `\nNotes: ${appt.notes}` : ''}`);
+        if (appt) copyToClipboard(`Business: ${appt.business}\nContact: ${appt.contactName}\nPhone: ${appt.phone || 'N/A'}\nStatus: ${Utils.getStatus(appt)}\nDate: ${Utils.formatDate(appt.date)}${appt.time ? `\nTime: ${appt.time}` : ''}${appt.notes ? `\nNotes: ${appt.notes}` : ''}`);
     });
 
     if (editBtn) editBtn.addEventListener('click', () => {
@@ -3949,6 +4056,7 @@ function initApp() {
     });
 
     document.addEventListener('keydown', (e) => {
+        // Disable shortcuts if editing or shortcuts are disabled
         if (!AppState.shortcutsEnabled || AppState.isEditing) {
             if (e.key === 'Escape') {
                 handleEscapeKey();
@@ -3956,6 +4064,7 @@ function initApp() {
             return;
         }
 
+        // Script shortcuts (1-9) - only when not editing
         if (e.key >= '1' && e.key <= '9') {
             const index = parseInt(e.key) - 1;
             const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
@@ -3966,6 +4075,7 @@ function initApp() {
             }
         }
 
+        // Custom shortcuts
         for (const [action, shortcut] of Object.entries(AppState.shortcuts)) {
             if (shortcut.keys && shortcut.keys.length > 0) {
                 const keys = shortcut.keys;
@@ -4070,13 +4180,9 @@ function initApp() {
     });
 
     console.log('🚀 ScriptFlow Pro initialized successfully!');
-    console.log('📊 Status hierarchy: Hot Transfer & Meeting Booked → Completed');
-    console.log('🎯 Primary statuses:', CONFIG.PRIMARY_STATUSES.join(', '));
-    console.log('🏷️ Secondary statuses:', CONFIG.SECONDARY_STATUSES.join(', '));
+    console.log('📊 Status Hierarchy: Hot Transfer → Completed → Warm Callback → Pending → Canceled');
+    console.log('📅 Secondary Statuses (count as Completed): Meeting Booked, Rescheduled, Overdue, Held');
     console.log('🎯 Drag & drop enabled for scripts and appointments');
-    console.log('✨ Smart import ready with field validation');
-    console.log('⌨️ Keyboard shortcuts loaded:', Object.keys(AppState.shortcuts).length);
-    console.log('📈 Analytics tabs: Insights, Reports, Team');
     console.log('👥 Team Management with full CRUD operations');
     console.log(`🔌 Firebase status: ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
 }
