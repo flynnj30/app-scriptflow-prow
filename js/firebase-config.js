@@ -12,18 +12,30 @@ const firebaseConfig = {
     appId: "1:250157640936:web:cd6218470c302b305aed5d"
 };
 
-// Initialize Firebase
+// Initialize Firebase with error handling
 try {
     if (typeof firebase !== 'undefined') {
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
+            console.log('✅ Firebase initialized successfully');
         }
-        // Enable offline persistence
+        
+        // Enable offline persistence with proper error handling
         firebase.firestore().enablePersistence({ synchronizeTabs: true })
+            .then(() => {
+                console.log('✅ Firebase persistence enabled');
+            })
             .catch(err => {
-                console.warn('Firebase persistence:', err.message);
+                if (err.code === 'failed-precondition') {
+                    console.warn('⚠️ Firebase persistence: multiple tabs open, persistence disabled');
+                } else if (err.code === 'unimplemented') {
+                    console.warn('⚠️ Firebase persistence not supported in this browser');
+                } else {
+                    console.warn('⚠️ Firebase persistence error:', err.message);
+                }
             });
-        console.log('✅ Firebase initialized successfully');
+    } else {
+        console.warn('⚠️ Firebase SDK not loaded');
     }
 } catch (e) {
     console.warn('⚠️ Firebase initialization failed:', e.message);

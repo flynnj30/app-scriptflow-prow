@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - MODULAR APPLICATION
+// SCRIPTFLOW PRO - COMPLETE APPLICATION
 // ================================================================
 
 // ================================================================
@@ -400,7 +400,11 @@ const Auth = {
             }
         } catch (error) {
             AppState.authInProgress = false;
-            handleError(error, 'Google Sign-In');
+            if (error.code === 'auth/popup-closed-by-user') {
+                showToast('Sign in cancelled', 'info');
+            } else {
+                handleError(error, 'Google Sign-In');
+            }
             return false;
         }
     },
@@ -459,6 +463,7 @@ const Auth = {
 
     signOut: async function() {
         try {
+            // Clean up subscriptions
             if (AppState.appointmentsUnsubscribe) {
                 AppState.appointmentsUnsubscribe();
                 AppState.appointmentsUnsubscribe = null;
@@ -467,23 +472,40 @@ const Auth = {
                 AppState.tasksUnsubscribe();
                 AppState.tasksUnsubscribe = null;
             }
+            
+            // Clear state
             AppState.currentUser = null;
             AppState.appointments = {};
             AppState.tasks = [];
             AppState.scripts = {};
             AppState.scriptOrder = [];
+            
+            // Update UI
             this.updateUI();
             Stats.updateAll();
             Scripts.renderSidebar();
-
+            
+            // Sign out from Firebase
             if (AppState.isFirebaseReady) {
                 await firebase.auth().signOut();
             }
+            
             showToast('Signed out successfully', 'info');
             setTimeout(() => this.showModal(), 300);
         } catch (error) {
             handleError(error, 'Sign Out');
         }
+    },
+
+    updateUI: function() {
+        const container = DOM.get('userInfo');
+        if (!container) return;
+        if (!AppState.currentUser) {
+            container.style.display = 'none';
+            return;
+        }
+        container.style.display = 'block';
+        DOM.setText('userEmail', AppState.currentUser.email || '');
     },
 
     showModal: function() {
@@ -591,17 +613,6 @@ const Auth = {
         const modal = DOM.get('authModal');
         if (modal) modal.remove();
         AppState.authModalOpen = false;
-    },
-
-    updateUI: function() {
-        const container = DOM.get('userInfo');
-        if (!container) return;
-        if (!AppState.currentUser) {
-            container.style.display = 'none';
-            return;
-        }
-        container.style.display = 'block';
-        DOM.setText('userEmail', AppState.currentUser.email || '');
     }
 };
 
@@ -642,10 +653,13 @@ const Data = {
             const statusEl = DOM.get('saveStatus');
             if (statusEl && showLoading) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
 
-            const userDoc = await firebase.firestore().collection('users').doc(AppState.currentUser.uid).get();
+            const db = firebase.firestore();
+            const userRef = db.collection('users').doc(AppState.currentUser.uid);
+            const userDoc = await userRef.get();
             const userData = userDoc.data();
+            
             if (!userData) {
-                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).set({
+                await userRef.set({
                     uid: AppState.currentUser.uid,
                     email: AppState.currentUser.email,
                     username: AppState.currentUser.displayName || AppState.currentUser.email,
@@ -656,6 +670,7 @@ const Data = {
                 });
                 return this.loadUserData();
             }
+            
             if (userData.goals) {
                 AppState.goals = {
                     daily: userData.goals.daily || 3,
@@ -667,12 +682,13 @@ const Data = {
 
             this.subscribeToChanges();
 
-            const scriptsSnapshot = await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts').get();
+            const scriptsSnapshot = await userRef.collection('scripts').get();
             AppState.scripts = {};
             scriptsSnapshot.forEach(doc => {
                 const data = doc.data();
                 AppState.scripts[doc.id] = { name: data.name, content: data.content, version: data.version || 1 };
             });
+            
             if (Object.keys(AppState.scripts).length === 0) {
                 await this.createDefaultScripts();
                 return this.loadUserData();
@@ -718,6 +734,8 @@ const Data = {
                 Stats.updateAll();
                 FeaturePanel.refreshCurrentView();
                 localStorage.setItem('appointments_fallback', JSON.stringify(AppState.appointments));
+            }, error => {
+                console.warn('Appointments subscription error:', error);
             });
 
             AppState.tasksUnsubscribe = userRef.collection('tasks').orderBy('createdAt', 'desc').onSnapshot(snap => {
@@ -726,6 +744,8 @@ const Data = {
                 Stats.updateTaskStats();
                 FeaturePanel.refreshCurrentView();
                 localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
+            }, error => {
+                console.warn('Tasks subscription error:', error);
             });
         } catch (error) {
             console.warn('Subscription error:', error);
@@ -789,8 +809,8 @@ const Data = {
         if (!CONFIG.STATUS_OPTIONS.includes(status)) status = 'Pending';
         const newAppt = {
             id: editId || Utils.generateId(),
-            business,
-            contactName,
+            business: business || 'Unknown Business',
+            contactName: contactName || 'Unknown Contact',
             role: role || 'Owner',
             phone: phone || '',
             time: time || '',
@@ -800,8 +820,18 @@ const Data = {
             crmLink: crmLink || '',
             tags: tags || [],
             date: dateStr,
+            email: '',
             createdAt: new Date().toISOString()
         };
+        
+        // Extract email from notes if present
+        if (notes && notes.includes('Email:')) {
+            const emailMatch = notes.match(/Email:\s*([^\s\n]+)/);
+            if (emailMatch) {
+                newAppt.email = emailMatch[1];
+            }
+        }
+        
         this.syncAppointment(newAppt);
         return newAppt;
     },
@@ -833,7 +863,7 @@ const Data = {
             AppState.appointments[dateStr].reports = AppState.appointments[dateStr].reports.filter(r => r.id !== id);
             if (AppState.appointments[dateStr].reports.length === 0) delete AppState.appointments[dateStr];
             if (AppState.isFirebaseReady && AppState.currentUser) {
-                firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('appointments').doc(id.toString()).delete();
+                firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('appointments').doc(id.toString()).delete().catch(e => console.warn('Delete error:', e));
             }
             this.saveAppointmentsToLocal();
             Stats.updateAll();
@@ -867,15 +897,15 @@ const Data = {
         if (!AppState.currentUser) return;
         const task = {
             id: Utils.generateId(),
-            description,
-            dueDate,
-            priority,
-            appointmentId,
+            description: description || 'New task',
+            dueDate: dueDate || '',
+            priority: priority || 'medium',
+            appointmentId: appointmentId || null,
             completed: false,
             createdAt: new Date().toISOString()
         };
-        if (AppState.isFirebaseReady) {
-            firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('tasks').doc(task.id).set(task);
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('tasks').doc(task.id).set(task).catch(e => console.warn('Task save error:', e));
         }
         AppState.tasks.push(task);
         localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
@@ -888,7 +918,7 @@ const Data = {
         if (task) {
             task.completed = !task.completed;
             if (AppState.isFirebaseReady && AppState.currentUser) {
-                firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('tasks').doc(id).update({ completed: task.completed });
+                firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('tasks').doc(id).update({ completed: task.completed }).catch(e => console.warn('Task update error:', e));
             }
             localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
             Stats.updateTaskStats();
@@ -899,7 +929,7 @@ const Data = {
     deleteTask: function(id) {
         AppState.tasks = AppState.tasks.filter(t => t.id !== id);
         if (AppState.isFirebaseReady && AppState.currentUser) {
-            firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('tasks').doc(id).delete();
+            firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('tasks').doc(id).delete().catch(e => console.warn('Task delete error:', e));
         }
         localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
         Stats.updateTaskStats();
@@ -911,7 +941,7 @@ const Data = {
         const appointments = selectedIds ? this.getSelectedAppointments(selectedIds) : this.getAllAppointments();
 
         appointments.forEach(appt => {
-            csv += `"${appt.business}","${appt.contactName}","${appt.phone || ''}","${appt.email || ''}","${appt.date}","${appt.time || ''}","${Utils.getStatus(appt)}","${appt.notes || ''}","${appt.assigned || 'Daniel'}"\n`;
+            csv += `"${appt.business || ''}","${appt.contactName || ''}","${appt.phone || ''}","${appt.email || ''}","${appt.date || ''}","${appt.time || ''}","${Utils.getStatus(appt)}","${appt.notes || ''}","${appt.assigned || 'Daniel'}"\n`;
         });
 
         const blob = new Blob([csv], { type: 'text/csv' });
@@ -919,7 +949,9 @@ const Data = {
         const a = document.createElement('a');
         a.href = url;
         a.download = `appointments_${Utils.getTodayStr()}.csv`;
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
         URL.revokeObjectURL(url);
         showToast('CSV exported!', 'success');
     },
@@ -1001,6 +1033,10 @@ const Stats = {
         DOM.setText('statMonth', this.getMonthCount());
         DOM.setText('avgScore', this.getAverageScore());
         this.updateTaskStats();
+        // Update goal values
+        DOM.setText('goalDaily', AppState.goals.daily || 3);
+        DOM.setText('goalWeekly', AppState.goals.weekly || 15);
+        DOM.setText('goalMonthly', AppState.goals.monthly || 60);
     },
 
     updateTaskStats: function() {
@@ -1249,7 +1285,7 @@ const Scripts = {
                 }, { merge: true }).then(() => {
                     showToast('Script reset', 'info');
                     Data.loadUserData(true);
-                });
+                }).catch(err => handleError(err, 'Resetting script'));
             } else {
                 script.version = 1;
                 localStorage.setItem('scripts_fallback', JSON.stringify(AppState.scripts));
@@ -1286,7 +1322,7 @@ const Scripts = {
 };
 
 // ================================================================
-// FEATURE PANEL
+// FEATURE PANEL (Full Implementation)
 // ================================================================
 
 const FeaturePanel = {
@@ -2752,7 +2788,7 @@ function initApp() {
                 if (confirm('⚠️ This will clear all local data and reset the app. Continue?')) {
                     localStorage.clear();
                     if (AppState.currentUser && AppState.isFirebaseReady) {
-                        firebase.firestore().collection('users').doc(AppState.currentUser.uid).delete();
+                        firebase.firestore().collection('users').doc(AppState.currentUser.uid).delete().catch(e => console.warn('Delete error:', e));
                     }
                     location.reload();
                 }
@@ -2870,7 +2906,7 @@ function initApp() {
 
     // Sign out
     const signOutBtn = DOM.get('signOutBtn');
-    if (signOutBtn) signOutBtn.addEventListener('click', Auth.signOut);
+    if (signOutBtn) signOutBtn.addEventListener('click', () => Auth.signOut());
 
     // Refresh
     const refreshBtn = DOM.get('refreshBtn');
