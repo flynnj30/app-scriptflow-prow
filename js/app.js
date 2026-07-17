@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION
+// SCRIPTFLOW PRO - ENHANCED APPLICATION
 // ================================================================
 
 // ================================================================
@@ -15,11 +15,11 @@ const CONFIG = {
         { id: 'negligent_warm_callback', name: 'Negligent Warm Callback', color: '#ef4444' }
     ],
     TEAM_MEMBERS: [
-        { id: 'daniel', name: 'Daniel', role: 'Team Lead', avatar: '👨‍💼', color: '#3b82f6' },
-        { id: 'sarah', name: 'Sarah', role: 'Senior Agent', avatar: '👩‍💼', color: '#8b5cf6' },
-        { id: 'mike', name: 'Mike', role: 'Agent', avatar: '👨‍💻', color: '#10b981' },
-        { id: 'jessica', name: 'Jessica', role: 'Agent', avatar: '👩‍💻', color: '#f59e0b' },
-        { id: 'david', name: 'David', role: 'Junior Agent', avatar: '👨‍🎓', color: '#ef4444' }
+        { id: 'daniel', name: 'Daniel', email: 'daniel@scriptflow.com', role: 'Team Lead', avatar: '👨‍💼', color: '#3b82f6' },
+        { id: 'sarah', name: 'Sarah', email: 'sarah@scriptflow.com', role: 'Senior Agent', avatar: '👩‍💼', color: '#8b5cf6' },
+        { id: 'mike', name: 'Mike', email: 'mike@scriptflow.com', role: 'Agent', avatar: '👨‍💻', color: '#10b981' },
+        { id: 'jessica', name: 'Jessica', email: 'jessica@scriptflow.com', role: 'Agent', avatar: '👩‍💻', color: '#f59e0b' },
+        { id: 'david', name: 'David', email: 'david@scriptflow.com', role: 'Junior Agent', avatar: '👨‍🎓', color: '#ef4444' }
     ],
     FIELD_MAPPINGS: {
         'name': ['name', 'client', 'prospect', 'contact', 'customer', 'person', 'full name', 'contact name'],
@@ -39,9 +39,10 @@ const CONFIG = {
         'Global Search': { keys: ['Ctrl', 'Shift', 'F'], description: 'Open Global Search' },
         'Quick Add Appointment': { keys: ['Ctrl', 'Shift', 'A'], description: 'Quick Add Appointment' },
         'Analytics Hub': { keys: ['Ctrl', 'Shift', 'H'], description: 'Open Analytics Hub' },
+        'Team Management': { keys: ['Ctrl', 'Shift', 'T'], description: 'Open Team Management' },
         'Keyboard Shortcuts': { keys: ['Ctrl', 'Shift', '?'], description: 'Open Keyboard Shortcuts' },
         'Export to CSV': { keys: ['Ctrl', 'Shift', 'E'], description: 'Export data to CSV' },
-        'Toggle Theme': { keys: ['Ctrl', 'Shift', 'T'], description: 'Toggle Dark/Light Mode' },
+        'Toggle Theme': { keys: ['Ctrl', 'Shift', 'L'], description: 'Toggle Dark/Light Mode' },
         'Refresh Data': { keys: ['Ctrl', 'Shift', 'R'], description: 'Refresh data from server' },
         'Bulk Actions': { keys: ['Ctrl', 'Shift', 'B'], description: 'Open Bulk Actions' },
         'Close Panel': { keys: ['Escape'], description: 'Close current panel and return to scripts' }
@@ -55,6 +56,7 @@ const CONFIG = {
 const AppState = {
     // User
     currentUser: null,
+    currentUserEmail: null,
     isFirebaseReady: false,
     authInProgress: false,
     authModalOpen: false,
@@ -65,22 +67,26 @@ const AppState = {
     scriptOrder: [],
     scriptFavorites: [],
     tasks: [],
+    teamMembers: [],
     goals: { daily: 3, weekly: 15, monthly: 60 },
 
     // UI State
     currentScriptId: 'opening',
     isEditing: false,
+    isTyping: false,
     searchTerm: '',
     currentEditContent: '',
     toolsOpen: false,
     currentView: 'calendar',
     calendarView: 'calendar',
     analyticsTab: 'insights',
+    pipelineView: 'my', // 'my' or 'team'
     taskFilter: 'all',
     selectedAppointments: new Set(),
     currentAppointmentId: null,
     selectedCalDate: null,
     currentCalDate: null,
+    editingTeamMemberId: null,
 
     // Date Filters
     dateFilter: 'today',
@@ -90,6 +96,7 @@ const AppState = {
     // Subscriptions
     appointmentsUnsubscribe: null,
     tasksUnsubscribe: null,
+    teamMembersUnsubscribe: null,
 
     // Charts
     chartInstances: {},
@@ -97,6 +104,7 @@ const AppState = {
     // Shortcuts
     shortcuts: {},
     customShortcuts: {},
+    shortcutsEnabled: true,
 
     // Parsed Import
     parsedImportData: {},
@@ -284,6 +292,34 @@ const Utils = {
             return scriptOrder.filter(id => scripts[id]);
         }
         return Object.keys(scripts);
+    },
+
+    getTeamMemberStats(memberId, appointments) {
+        let total = 0, hotTransfers = 0, warmCallbacks = 0, completed = 0, pending = 0, canceled = 0;
+        let scoreTotal = 0, scoreCount = 0;
+
+        for (let date in appointments) {
+            if (appointments[date].reports) {
+                appointments[date].reports.forEach(appt => {
+                    if (appt.assigned === memberId) {
+                        total++;
+                        const status = Utils.getStatus(appt);
+                        if (status === 'Hot Transfer') hotTransfers++;
+                        else if (status === 'Warm Callback') warmCallbacks++;
+                        else if (status === 'Completed') completed++;
+                        else if (status === 'Pending') pending++;
+                        else if (status === 'Canceled') canceled++;
+                        scoreTotal += Utils.calculateLeadScore(appt);
+                        scoreCount++;
+                    }
+                });
+            }
+        }
+
+        const avgScore = scoreCount > 0 ? Math.round(scoreTotal / scoreCount) : 0;
+        const conversionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+        return { total, hotTransfers, warmCallbacks, completed, pending, canceled, avgScore, conversionRate };
     }
 };
 
@@ -389,6 +425,115 @@ function handleError(error, context = '') {
 }
 
 // ================================================================
+// KEYBOARD SHORTCUTS MANAGER
+// ================================================================
+
+const ShortcutManager = {
+    enableShortcuts() {
+        AppState.shortcutsEnabled = true;
+    },
+
+    disableShortcuts() {
+        AppState.shortcutsEnabled = false;
+    },
+
+    isTyping() {
+        return AppState.isTyping || AppState.isEditing;
+    },
+
+    handleKeydown(e) {
+        // Always allow Escape key
+        if (e.key === 'Escape') {
+            handleEscapeKey();
+            return;
+        }
+
+        // Check if shortcuts are disabled or user is typing
+        if (!AppState.shortcutsEnabled || this.isTyping()) {
+            // Still allow basic navigation keys
+            if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
+                return;
+            }
+            return;
+        }
+
+        // Script shortcuts (1-9) - only when not typing
+        if (e.key >= '1' && e.key <= '9') {
+            const index = parseInt(e.key) - 1;
+            const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
+            if (index < visible.length) {
+                e.preventDefault();
+                Scripts.loadScript(visible[index]);
+                showToast(`Switched to: ${AppState.scripts[visible[index]]?.name}`, 'info');
+            }
+            return;
+        }
+
+        // Custom shortcuts
+        for (const [action, shortcut] of Object.entries(AppState.shortcuts)) {
+            if (shortcut.keys && shortcut.keys.length > 0) {
+                const keys = shortcut.keys;
+                const ctrl = keys.includes('Ctrl');
+                const shift = keys.includes('Shift');
+                const alt = keys.includes('Alt');
+                const key = keys.find(k => !['Ctrl', 'Shift', 'Alt'].includes(k));
+                if (e.ctrlKey === ctrl && e.shiftKey === shift && e.altKey === alt && e.key === key) {
+                    e.preventDefault();
+                    handleShortcutAction(action);
+                    return;
+                }
+            }
+        }
+    },
+
+    setupListeners() {
+        // Track typing state
+        document.addEventListener('focusin', (e) => {
+            const tag = e.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.closest('[contenteditable="true"]')) {
+                AppState.isTyping = true;
+                this.disableShortcuts();
+            }
+        });
+
+        document.addEventListener('focusout', (e) => {
+            const tag = e.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.closest('[contenteditable="true"]')) {
+                AppState.isTyping = false;
+                if (!AppState.isEditing) {
+                    this.enableShortcuts();
+                }
+            }
+        });
+
+        // Global keydown handler
+        document.addEventListener('keydown', (e) => this.handleKeydown(e));
+
+        // Handle script editing state
+        const originalStartEdit = Scripts.startEdit;
+        Scripts.startEdit = function() {
+            AppState.isEditing = true;
+            ShortcutManager.disableShortcuts();
+            return originalStartEdit.apply(this, arguments);
+        };
+
+        const originalFinishEdit = Scripts.finishEdit;
+        Scripts.finishEdit = function() {
+            AppState.isEditing = false;
+            ShortcutManager.enableShortcuts();
+            return originalFinishEdit.apply(this, arguments);
+        };
+
+        const originalCancelEdit = Scripts.cancelEdit;
+        Scripts.cancelEdit = function() {
+            AppState.isEditing = false;
+            ShortcutManager.enableShortcuts();
+            return originalCancelEdit.apply(this, arguments);
+        };
+    }
+};
+
+// ================================================================
 // AUTHENTICATION
 // ================================================================
 
@@ -402,6 +547,7 @@ const Auth = {
             const result = await firebase.auth().signInWithPopup(provider);
             if (result.user) {
                 AppState.currentUser = result.user;
+                AppState.currentUserEmail = result.user.email;
                 this.updateUI();
                 await Data.loadUserData();
                 showToast('Welcome back! 👋', 'success');
@@ -434,10 +580,12 @@ const Auth = {
                     displayName: username,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     goals: { daily: 3, weekly: 15, monthly: 60 },
-                    scriptOrder: ['opening']
+                    scriptOrder: ['opening'],
+                    teamMembers: CONFIG.TEAM_MEMBERS
                 });
                 showToast('Account created! 🎉', 'success');
                 AppState.currentUser = result.user;
+                AppState.currentUserEmail = email;
                 this.updateUI();
                 await Data.loadUserData();
                 this.closeModal();
@@ -458,6 +606,7 @@ const Auth = {
             const result = await firebase.auth().signInWithEmailAndPassword(email, password);
             if (result.user) {
                 AppState.currentUser = result.user;
+                AppState.currentUserEmail = email;
                 this.updateUI();
                 await Data.loadUserData();
                 showToast('Welcome back! 👋', 'success');
@@ -483,13 +632,19 @@ const Auth = {
                 AppState.tasksUnsubscribe();
                 AppState.tasksUnsubscribe = null;
             }
+            if (AppState.teamMembersUnsubscribe) {
+                AppState.teamMembersUnsubscribe();
+                AppState.teamMembersUnsubscribe = null;
+            }
             
             // Clear state
             AppState.currentUser = null;
+            AppState.currentUserEmail = null;
             AppState.appointments = {};
             AppState.tasks = [];
             AppState.scripts = {};
             AppState.scriptOrder = [];
+            AppState.teamMembers = [];
             
             // Update UI
             this.updateUI();
@@ -643,6 +798,7 @@ const Data = {
                     AppState.scriptOrder = data.scriptOrder || [];
                     AppState.appointments = data.appointments || {};
                     AppState.tasks = data.tasks || {};
+                    AppState.teamMembers = data.teamMembers || CONFIG.TEAM_MEMBERS;
                     showToast('Loaded offline data', 'info');
                     Stats.updateAll();
                     Scripts.renderSidebar();
@@ -677,7 +833,8 @@ const Data = {
                     displayName: AppState.currentUser.displayName || AppState.currentUser.email,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     goals: { daily: 3, weekly: 15, monthly: 60 },
-                    scriptOrder: ['opening']
+                    scriptOrder: ['opening'],
+                    teamMembers: CONFIG.TEAM_MEMBERS
                 });
                 return this.loadUserData();
             }
@@ -690,6 +847,7 @@ const Data = {
                 };
             }
             AppState.scriptOrder = userData.scriptOrder || [];
+            AppState.teamMembers = userData.teamMembers || CONFIG.TEAM_MEMBERS;
 
             this.subscribeToChanges();
 
@@ -709,7 +867,8 @@ const Data = {
                 scripts: AppState.scripts,
                 scriptOrder: AppState.scriptOrder,
                 appointments: AppState.appointments,
-                tasks: AppState.tasks
+                tasks: AppState.tasks,
+                teamMembers: AppState.teamMembers
             }));
 
             Stats.updateAll();
@@ -727,10 +886,37 @@ const Data = {
         if (!AppState.currentUser || !AppState.isFirebaseReady) return;
         if (AppState.appointmentsUnsubscribe) AppState.appointmentsUnsubscribe();
         if (AppState.tasksUnsubscribe) AppState.tasksUnsubscribe();
+        if (AppState.teamMembersUnsubscribe) AppState.teamMembersUnsubscribe();
 
         try {
             const db = firebase.firestore();
             const userRef = db.collection('users').doc(AppState.currentUser.uid);
+
+            // Watch user document for team members changes
+            AppState.teamMembersUnsubscribe = userRef.onSnapshot(doc => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    if (data.teamMembers) {
+                        AppState.teamMembers = data.teamMembers;
+                        // Trigger UI updates
+                        if (AppState.currentView === 'team') {
+                            FeaturePanel.renderTeamManagement(DOM.get('featurePanelBody'));
+                        }
+                        if (AppState.analyticsTab === 'team') {
+                            FeaturePanel.renderAnalyticsTeam(DOM.get('featurePanelBody'));
+                        }
+                        // Update any open modals
+                        if (AppState.editingTeamMemberId) {
+                            const modal = DOM.get('teamMemberModal');
+                            if (modal && modal.style.display !== 'none') {
+                                populateTeamMemberForm(AppState.editingTeamMemberId);
+                            }
+                        }
+                    }
+                }
+            }, error => {
+                console.warn('Team members subscription error:', error);
+            });
 
             AppState.appointmentsUnsubscribe = userRef.collection('appointments').orderBy('createdAt', 'desc').onSnapshot(snap => {
                 AppState.appointments = {};
@@ -763,6 +949,7 @@ const Data = {
             // Load from local storage
             const appointmentsLocal = localStorage.getItem('appointments_fallback');
             const tasksLocal = localStorage.getItem('tasks_fallback');
+            const teamLocal = localStorage.getItem('team_fallback');
             if (appointmentsLocal) {
                 try {
                     AppState.appointments = JSON.parse(appointmentsLocal);
@@ -775,6 +962,11 @@ const Data = {
                     AppState.tasks = JSON.parse(tasksLocal);
                     Stats.updateTaskStats();
                     FeaturePanel.refreshCurrentView();
+                } catch (e) {}
+            }
+            if (teamLocal) {
+                try {
+                    AppState.teamMembers = JSON.parse(teamLocal);
                 } catch (e) {}
             }
         }
@@ -812,6 +1004,63 @@ const Data = {
         }
     },
 
+    saveTeamMembers: async function() {
+        if (!AppState.currentUser || !AppState.isFirebaseReady) return;
+        try {
+            await firebase.firestore().collection('users').doc(AppState.currentUser.uid).update({ teamMembers: AppState.teamMembers });
+            localStorage.setItem('team_fallback', JSON.stringify(AppState.teamMembers));
+        } catch (error) {
+            console.error('Error saving team members:', error);
+        }
+    },
+
+    addTeamMember: function(member) {
+        if (!AppState.currentUser) { showToast('Please sign in first', 'error'); return false; }
+        // Check for duplicate email
+        if (AppState.teamMembers.some(m => m.email === member.email)) {
+            showToast('A team member with this email already exists', 'error');
+            return false;
+        }
+        const newMember = {
+            id: Utils.generateId(),
+            name: member.name,
+            email: member.email,
+            role: member.role || 'Agent',
+            avatar: member.avatar || '👤',
+            color: member.color || '#6b7280',
+            createdAt: new Date().toISOString()
+        };
+        AppState.teamMembers.push(newMember);
+        this.saveTeamMembers();
+        showToast(`Team member ${member.name} added successfully!`, 'success');
+        return true;
+    },
+
+    updateTeamMember: function(id, updates) {
+        const index = AppState.teamMembers.findIndex(m => m.id === id);
+        if (index === -1) { showToast('Team member not found', 'error'); return false; }
+        // Check for duplicate email
+        const duplicate = AppState.teamMembers.some((m, i) => m.email === updates.email && i !== index);
+        if (duplicate) {
+            showToast('A team member with this email already exists', 'error');
+            return false;
+        }
+        AppState.teamMembers[index] = { ...AppState.teamMembers[index], ...updates };
+        this.saveTeamMembers();
+        showToast('Team member updated successfully!', 'success');
+        return true;
+    },
+
+    deleteTeamMember: function(id) {
+        if (!confirm('Are you sure you want to delete this team member?')) return false;
+        const member = AppState.teamMembers.find(m => m.id === id);
+        if (!member) { showToast('Team member not found', 'error'); return false; }
+        AppState.teamMembers = AppState.teamMembers.filter(m => m.id !== id);
+        this.saveTeamMembers();
+        showToast(`Team member ${member.name} deleted`, 'info');
+        return true;
+    },
+
     addAppointment: function(dateStr, business, contactName, role, phone, time, notes, assigned, editId = null, status = 'Pending', crmLink = '', tags = []) {
         if (!AppState.currentUser) { showToast('Please sign in first', 'error'); return null; }
         if (!AppState.appointments[dateStr]) {
@@ -826,7 +1075,7 @@ const Data = {
             phone: phone || '',
             time: time || '',
             notes: notes || '',
-            assigned: assigned || 'Daniel',
+            assigned: assigned || 'Unassigned',
             status: status,
             crmLink: crmLink || '',
             tags: tags || [],
@@ -914,6 +1163,20 @@ const Data = {
                 if (AppState.appointments[date].reports) {
                     result.push(...AppState.appointments[date].reports);
                 }
+            }
+        }
+        return result;
+    },
+
+    getAppointmentsByTeamMember: function(memberId) {
+        const result = [];
+        for (let date in AppState.appointments) {
+            if (AppState.appointments[date].reports) {
+                AppState.appointments[date].reports.forEach(appt => {
+                    if (appt.assigned === memberId) {
+                        result.push(appt);
+                    }
+                });
             }
         }
         return result;
@@ -1205,6 +1468,7 @@ const Scripts = {
     startEdit: function() {
         if (!AppState.scripts[AppState.currentScriptId]) return;
         AppState.isEditing = true;
+        ShortcutManager.disableShortcuts();
         const script = AppState.scripts[AppState.currentScriptId];
         AppState.currentEditContent = script.content;
 
@@ -1281,6 +1545,7 @@ const Scripts = {
 
     finishEdit: function() {
         AppState.isEditing = false;
+        ShortcutManager.enableShortcuts();
         DOM.show('editScriptBtn');
         DOM.hide('saveScriptBtn');
         DOM.hide('cancelEditBtn');
@@ -1292,6 +1557,7 @@ const Scripts = {
     cancelEdit: function() {
         if (!confirm('Discard your changes?')) return;
         AppState.isEditing = false;
+        ShortcutManager.enableShortcuts();
         DOM.show('editScriptBtn');
         DOM.hide('saveScriptBtn');
         DOM.hide('cancelEditBtn');
@@ -1348,6 +1614,108 @@ const Scripts = {
 };
 
 // ================================================================
+// TEAM MANAGEMENT FUNCTIONS
+// ================================================================
+
+function openTeamMemberModal(memberId = null) {
+    const modal = DOM.get('teamMemberModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+
+    const title = DOM.get('teamMemberModalTitle');
+    const deleteBtn = DOM.get('deleteTeamMemberBtn');
+    const statsDiv = DOM.get('teamMemberStats');
+
+    if (memberId) {
+        // Edit mode
+        AppState.editingTeamMemberId = memberId;
+        title.innerHTML = '<i class="fas fa-user-edit"></i> Edit Team Member';
+        deleteBtn.style.display = 'inline-flex';
+        if (statsDiv) statsDiv.style.display = 'block';
+        populateTeamMemberForm(memberId);
+    } else {
+        // Add mode
+        AppState.editingTeamMemberId = null;
+        title.innerHTML = '<i class="fas fa-user-plus"></i> Add Team Member';
+        deleteBtn.style.display = 'none';
+        if (statsDiv) statsDiv.style.display = 'none';
+        // Clear form
+        ['teamMemberName', 'teamMemberEmail', 'teamMemberRole', 'teamMemberAvatar'].forEach(id => {
+            const el = DOM.get(id);
+            if (el) el.value = '';
+        });
+        const roleEl = DOM.get('teamMemberRole');
+        if (roleEl) roleEl.value = 'Agent';
+        const avatarEl = DOM.get('teamMemberAvatar');
+        if (avatarEl) avatarEl.value = '👤';
+    }
+}
+
+function populateTeamMemberForm(memberId) {
+    const member = AppState.teamMembers.find(m => m.id === memberId);
+    if (!member) return;
+
+    DOM.get('teamMemberName').value = member.name || '';
+    DOM.get('teamMemberEmail').value = member.email || '';
+    DOM.get('teamMemberRole').value = member.role || 'Agent';
+    DOM.get('teamMemberAvatar').value = member.avatar || '👤';
+
+    // Update stats
+    const stats = Utils.getTeamMemberStats(memberId, AppState.appointments);
+    DOM.setText('tmStatsTotal', stats.total);
+    DOM.setText('tmStatsHot', stats.hotTransfers);
+    DOM.setText('tmStatsWarm', stats.warmCallbacks);
+    DOM.setText('tmStatsCompleted', stats.completed);
+    DOM.setText('tmStatsPending', stats.pending);
+    DOM.setText('tmStatsCanceled', stats.canceled);
+    DOM.setText('tmStatsConversion', stats.conversionRate + '%');
+}
+
+function saveTeamMember() {
+    const name = DOM.get('teamMemberName')?.value?.trim();
+    const email = DOM.get('teamMemberEmail')?.value?.trim();
+    const role = DOM.get('teamMemberRole')?.value || 'Agent';
+    const avatar = DOM.get('teamMemberAvatar')?.value?.trim() || '👤';
+
+    if (!name || !email) {
+        showToast('Name and Email are required', 'error');
+        return;
+    }
+
+    const memberData = { name, email, role, avatar };
+
+    if (AppState.editingTeamMemberId) {
+        // Update existing
+        Data.updateTeamMember(AppState.editingTeamMemberId, memberData);
+    } else {
+        // Add new
+        Data.addTeamMember(memberData);
+    }
+
+    closeTeamMemberModal();
+    // Refresh team management view
+    if (AppState.currentView === 'team') {
+        FeaturePanel.renderTeamManagement(DOM.get('featurePanelBody'));
+    }
+}
+
+function deleteTeamMember() {
+    if (AppState.editingTeamMemberId) {
+        Data.deleteTeamMember(AppState.editingTeamMemberId);
+        closeTeamMemberModal();
+        if (AppState.currentView === 'team') {
+            FeaturePanel.renderTeamManagement(DOM.get('featurePanelBody'));
+        }
+    }
+}
+
+function closeTeamMemberModal() {
+    const modal = DOM.get('teamMemberModal');
+    if (modal) modal.style.display = 'none';
+    AppState.editingTeamMemberId = null;
+}
+
+// ================================================================
 // FEATURE PANEL
 // ================================================================
 
@@ -1362,7 +1730,7 @@ const FeaturePanel = {
 
         AppState.currentView = featureType;
         if (featureTitle) {
-            const iconMap = { 'calendar': 'fa-calendar-alt', 'tasks': 'fa-tasks', 'analytics': 'fa-chart-pie', 'shortcuts': 'fa-keyboard' };
+            const iconMap = { 'calendar': 'fa-calendar-alt', 'tasks': 'fa-tasks', 'analytics': 'fa-chart-pie', 'shortcuts': 'fa-keyboard', 'team': 'fa-users' };
             featureTitle.innerHTML = `<i class="fas ${iconMap[featureType] || 'fa-sticky-note'}"></i> ${title}`;
         }
 
@@ -1405,6 +1773,7 @@ const FeaturePanel = {
             else if (featureType === 'tasks') this.renderTasks(featureBody);
             else if (featureType === 'analytics') this.renderAnalytics(featureBody);
             else if (featureType === 'shortcuts') this.renderShortcuts(featureBody);
+            else if (featureType === 'team') this.renderTeamManagement(featureBody);
             else if (featureType === 'notepad') {
                 showToast('📝 Notes feature coming soon!', 'info');
                 this.hide();
@@ -1426,6 +1795,7 @@ const FeaturePanel = {
         else if (AppState.currentView === 'tasks') this.renderTasks(body);
         else if (AppState.currentView === 'analytics') this.renderAnalytics(body);
         else if (AppState.currentView === 'shortcuts') this.renderShortcuts(body);
+        else if (AppState.currentView === 'team') this.renderTeamManagement(body);
     },
 
     attachViewToggleEvents: function(featureType) {
@@ -1498,6 +1868,94 @@ const FeaturePanel = {
         }
     },
 
+    // ================================================================
+    // TEAM MANAGEMENT
+    // ================================================================
+
+    renderTeamManagement: function(container) {
+        if (!container) return;
+
+        const members = AppState.teamMembers || [];
+        const searchTerm = AppState.teamSearchTerm || '';
+
+        const filteredMembers = members.filter(m => {
+            const search = searchTerm.toLowerCase();
+            return m.name.toLowerCase().includes(search) || 
+                   m.email.toLowerCase().includes(search) ||
+                   m.role.toLowerCase().includes(search);
+        });
+
+        container.innerHTML = `
+            <div class="team-management-container fade-in">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+                    <h3><i class="fas fa-users"></i> Team Management</h3>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                        <div class="search-wrapper" style="position:relative;">
+                            <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
+                            <input type="text" id="teamSearchInput" placeholder="Search team members..." style="padding:8px 12px 8px 36px; border-radius:var(--radius-full); border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:0.85rem; min-width:200px;" />
+                        </div>
+                        <button id="addTeamMemberBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> Add Member</button>
+                    </div>
+                </div>
+
+                ${filteredMembers.length === 0 ? `
+                    <div class="empty-state">
+                        <i class="fas fa-users"></i>
+                        <p>No team members found. Add your first team member!</p>
+                    </div>
+                ` : `
+                    <div class="team-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:16px;">
+                        ${filteredMembers.map(member => {
+                            const stats = Utils.getTeamMemberStats(member.id, AppState.appointments);
+                            return `
+                                <div class="team-member-card" style="background:var(--bg-card); border-radius:var(--radius-sm); padding:16px; border:1px solid var(--border-color); transition:var(--transition); cursor:pointer;" onclick="openTeamMemberModal('${member.id}')">
+                                    <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+                                        <span style="font-size:2.5rem;">${member.avatar || '👤'}</span>
+                                        <div style="flex:1;">
+                                            <div style="font-weight:600; font-size:1rem;">${Utils.escapeHtml(member.name)}</div>
+                                            <div style="font-size:0.75rem; color:var(--text-muted);">${Utils.escapeHtml(member.role)}</div>
+                                            <div style="font-size:0.7rem; color:var(--text-muted);">${Utils.escapeHtml(member.email)}</div>
+                                        </div>
+                                        <span style="font-size:0.75rem; background:var(--primary); color:white; padding:2px 10px; border-radius:var(--radius-full);">${stats.total}</span>
+                                    </div>
+                                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; font-size:0.75rem;">
+                                        <div><span style="color:var(--text-muted);">🔥</span> ${stats.hotTransfers}</div>
+                                        <div><span style="color:var(--text-muted);">📞</span> ${stats.warmCallbacks}</div>
+                                        <div><span style="color:var(--text-muted);">✅</span> ${stats.completed}</div>
+                                        <div><span style="color:var(--text-muted);">⏳</span> ${stats.pending}</div>
+                                        <div><span style="color:var(--text-muted);">❌</span> ${stats.canceled}</div>
+                                        <div><span style="color:var(--text-muted);">📈</span> ${stats.conversionRate}%</div>
+                                    </div>
+                                    <div style="margin-top:8px; background:var(--bg-primary); height:4px; border-radius:4px; overflow:hidden;">
+                                        <div style="background:var(--success); width:${stats.conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `}
+            </div>
+        `;
+
+        // Search input
+        const searchInput = DOM.get('teamSearchInput');
+        if (searchInput) {
+            searchInput.value = AppState.teamSearchTerm || '';
+            searchInput.addEventListener('input', (e) => {
+                AppState.teamSearchTerm = e.target.value;
+                this.renderTeamManagement(container);
+            });
+        }
+
+        // Add member button
+        const addBtn = DOM.get('addTeamMemberBtn');
+        if (addBtn) addBtn.addEventListener('click', () => openTeamMemberModal(null));
+    },
+
+    // ================================================================
+    // CALENDAR
+    // ================================================================
+
     renderCalendar: function(container) {
         if (!container) return;
         if (AppState.calendarView === 'list') {
@@ -1513,27 +1971,20 @@ const FeaturePanel = {
         const firstDay = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-        // Get appointments for the current month view
-        const monthAppointments = this.getAppointmentsForMonth(year, month);
-
         let daysHtml = '';
         const dayNames = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
-        // Shift day names to start with Monday
         dayNames.forEach(d => daysHtml += `<div class="day-name">${d}</div>`);
 
-        // Adjust first day to Monday (0 = Sunday, shift to Monday = 1)
         const firstDayAdjusted = firstDay === 0 ? 6 : firstDay - 1;
         for (let i = 0; i < firstDayAdjusted; i++) {
             daysHtml += `<div class="calendar-day empty"></div>`;
         }
 
-        // Get days from previous month to fill the first week
         const prevMonth = month === 0 ? 11 : month - 1;
         const prevMonthYear = month === 0 ? year - 1 : year;
         const daysInPrevMonth = new Date(prevMonthYear, prevMonth + 1, 0).getDate();
         const startOffset = firstDayAdjusted;
 
-        // Add days from previous month
         for (let i = startOffset - 1; i >= 0; i--) {
             const day = daysInPrevMonth - i;
             const dateStr = `${prevMonthYear}-${String(prevMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -1547,7 +1998,6 @@ const FeaturePanel = {
             `;
         }
 
-        // Current month days
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             const appts = AppState.appointments[dateStr]?.reports || [];
@@ -1571,7 +2021,6 @@ const FeaturePanel = {
             `;
         }
 
-        // Add days from next month to fill the last week
         const totalDays = firstDayAdjusted + daysInMonth;
         const remainingDays = (7 - (totalDays % 7)) % 7;
         const nextMonth = month === 11 ? 0 : month + 1;
@@ -1591,7 +2040,6 @@ const FeaturePanel = {
         const selectedAppts = AppState.appointments[AppState.selectedCalDate]?.reports || [];
         const stats = this.getAppointmentStats(selectedAppts);
 
-        // Build filter buttons HTML
         const filterButtons = [
             { key: 'today', label: 'Today', icon: 'fa-calendar-day' },
             { key: 'yesterday', label: 'Yesterday', icon: 'fa-calendar-day' },
@@ -1609,7 +2057,6 @@ const FeaturePanel = {
             </button>
         `).join('');
 
-        // Add custom date inputs if custom filter is active
         if (AppState.dateFilter === 'custom') {
             filterHtml += `
                 <input type="date" id="customStartDate" value="${AppState.customStartDate || Utils.getTodayStr()}" class="filter-date-input" />
@@ -1620,7 +2067,6 @@ const FeaturePanel = {
 
         container.innerHTML = `
             <div class="calendar-section fade-in">
-                <!-- Date Filter Bar -->
                 <div class="calendar-filters">
                     ${filterHtml}
                 </div>
@@ -1670,6 +2116,7 @@ const FeaturePanel = {
                                         <span>Contact: ${Utils.escapeHtml(a.contactName)}</span>
                                         ${a.phone ? `<span>📞 ${Utils.escapeHtml(a.phone)}</span>` : ''}
                                         ${a.time ? `<span>🕐 ${Utils.escapeHtml(a.time)}</span>` : ''}
+                                        ${a.assigned ? `<span>👤 ${Utils.escapeHtml(a.assigned)}</span>` : ''}
                                     </div>
                                 </div>
                             `;
@@ -1679,7 +2126,7 @@ const FeaturePanel = {
             </div>
         `;
 
-        // Attach event listeners for filter buttons
+        // Event listeners...
         container.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const filter = btn.getAttribute('data-filter');
@@ -1688,7 +2135,6 @@ const FeaturePanel = {
             });
         });
 
-        // Custom date range inputs
         const startDate = DOM.get('customStartDate');
         const endDate = DOM.get('customEndDate');
         if (startDate) {
@@ -1708,7 +2154,6 @@ const FeaturePanel = {
             });
         }
 
-        // Calendar navigation
         container.querySelectorAll('.calendar-day[data-date]').forEach(el => {
             el.addEventListener('click', () => {
                 AppState.selectedCalDate = el.getAttribute('data-date');
@@ -1839,13 +2284,10 @@ const FeaturePanel = {
                 endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
         }
 
-        // Get filtered appointments
         const filteredAppointments = Data.getAppointmentsInDateRange(startDate, endDate);
         const stats = this.getAppointmentStats(filteredAppointments);
 
-        // Update the display
         if (container) {
-            // Update KPI cards
             const kpiRow = container.querySelector('.kpi-row');
             if (kpiRow) {
                 kpiRow.innerHTML = `
@@ -1857,14 +2299,12 @@ const FeaturePanel = {
                 `;
             }
 
-            // Update appointment count
             const header = container.querySelector('.appointments-section h4');
             if (header) {
                 const count = filteredAppointments.length;
                 header.textContent = `Appointments (${count})`;
             }
 
-            // Update appointments list
             const appointmentsList = container.querySelector('.appointments-list');
             if (appointmentsList) {
                 if (filteredAppointments.length === 0) {
@@ -1895,13 +2335,13 @@ const FeaturePanel = {
                                     <span>Contact: ${Utils.escapeHtml(a.contactName)}</span>
                                     ${a.phone ? `<span>📞 ${Utils.escapeHtml(a.phone)}</span>` : ''}
                                     ${a.time ? `<span>🕐 ${Utils.escapeHtml(a.time)}</span>` : ''}
+                                    ${a.assigned ? `<span>👤 ${Utils.escapeHtml(a.assigned)}</span>` : ''}
                                     <span>📅 ${Utils.formatDate(a.date)}</span>
                                 </div>
                             </div>
                         `;
                     }).join('');
 
-                    // Re-attach delete handlers
                     appointmentsList.querySelectorAll('.delete-appt-btn').forEach(btn => {
                         btn.addEventListener('click', (e) => {
                             e.stopPropagation();
@@ -1949,18 +2389,6 @@ const FeaturePanel = {
         });
 
         return stats;
-    },
-
-    getAppointmentsForMonth: function(year, month) {
-        const result = [];
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        for (let d = 1; d <= daysInMonth; d++) {
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            if (AppState.appointments[dateStr]?.reports) {
-                result.push(...AppState.appointments[dateStr].reports);
-            }
-        }
-        return result;
     },
 
     renderCalendarList: function(container) {
@@ -2110,6 +2538,10 @@ const FeaturePanel = {
         });
     },
 
+    // ================================================================
+    // ANALYTICS
+    // ================================================================
+
     renderAnalytics: function(container) {
         if (!container) return;
         if (AppState.analyticsTab === 'insights') this.renderAnalyticsInsights(container);
@@ -2121,10 +2553,23 @@ const FeaturePanel = {
         let total = 0, hTransfers = 0, wCallbacks = 0, completedCount = 0, pendingCount = 0, canceledCount = 0;
         let statusCounts = {};
         let dailyData = {};
+        let teamStats = {};
+
+        // Get current user's email for filtering
+        const currentUserEmail = AppState.currentUserEmail || '';
 
         for (let date in AppState.appointments) {
             if (AppState.appointments[date].reports) {
                 AppState.appointments[date].reports.forEach(a => {
+                    // Filter based on pipeline view
+                    if (AppState.pipelineView === 'my') {
+                        // Show only appointments assigned to current user
+                        const teamMember = AppState.teamMembers.find(m => m.email === currentUserEmail);
+                        if (teamMember && a.assigned !== teamMember.id) {
+                            return;
+                        }
+                    }
+                    
                     total++;
                     const status = Utils.getStatus(a);
                     statusCounts[status] = (statusCounts[status] || 0) + 1;
@@ -2146,7 +2591,13 @@ const FeaturePanel = {
             <div class="analytics-container fade-in">
                 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
                     <h3><i class="fas fa-chart-pie"></i> Pipeline Insights Dashboard</h3>
-                    <span class="version-chip"><i class="fas fa-sync-alt"></i> Live Data</span>
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                        <span class="version-chip"><i class="fas fa-sync-alt"></i> Live Data</span>
+                        <div class="pipeline-toggle" style="display:flex; gap:4px; background:var(--bg-primary); padding:4px; border-radius:var(--radius-full);">
+                            <button class="view-btn ${AppState.pipelineView === 'my' ? 'active' : ''}" data-pipeline="my">👤 My Pipeline</button>
+                            <button class="view-btn ${AppState.pipelineView === 'team' ? 'active' : ''}" data-pipeline="team">👥 Team Pipeline</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="report-metrics scale-in">
@@ -2205,6 +2656,16 @@ const FeaturePanel = {
             </div>
         `;
 
+        // Pipeline toggle buttons
+        container.querySelectorAll('[data-pipeline]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                AppState.pipelineView = btn.getAttribute('data-pipeline');
+                container.querySelectorAll('[data-pipeline]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.renderAnalyticsInsights(container);
+            });
+        });
+
         setTimeout(() => {
             this.initAnalyticsCharts(dailyData, statusCounts);
         }, 200);
@@ -2214,10 +2675,19 @@ const FeaturePanel = {
         let total = 0, completedCount = 0, hTransfers = 0, wCallbacks = 0;
         let dailyData = {};
         let assignedStats = {};
+        const currentUserEmail = AppState.currentUserEmail || '';
 
         for (let date in AppState.appointments) {
             if (AppState.appointments[date].reports) {
                 AppState.appointments[date].reports.forEach(a => {
+                    // Filter based on pipeline view
+                    if (AppState.pipelineView === 'my') {
+                        const teamMember = AppState.teamMembers.find(m => m.email === currentUserEmail);
+                        if (teamMember && a.assigned !== teamMember.id) {
+                            return;
+                        }
+                    }
+                    
                     total++;
                     const status = Utils.getStatus(a);
                     if (status === 'Completed') completedCount++;
@@ -2306,44 +2776,30 @@ const FeaturePanel = {
 
     renderAnalyticsTeam: function(container) {
         let teamStats = {};
-        CONFIG.TEAM_MEMBERS.forEach(member => {
+        const members = AppState.teamMembers || [];
+
+        members.forEach(member => {
+            const stats = Utils.getTeamMemberStats(member.id, AppState.appointments);
             teamStats[member.id] = {
                 ...member,
-                appointments: 0,
-                completed: 0,
-                hotTransfers: 0,
-                warmCallbacks: 0,
-                score: 0
+                ...stats
             };
         });
 
-        let totalAppts = 0;
-        for (let date in AppState.appointments) {
-            if (AppState.appointments[date].reports) {
-                AppState.appointments[date].reports.forEach(a => {
-                    totalAppts++;
-                    const assigned = a.assigned || 'unassigned';
-                    const status = Utils.getStatus(a);
-
-                    if (teamStats[assigned]) {
-                        teamStats[assigned].appointments++;
-                        if (status === 'Completed') teamStats[assigned].completed++;
-                        if (status === 'Hot Transfer') teamStats[assigned].hotTransfers++;
-                        if (status === 'Warm Callback') teamStats[assigned].warmCallbacks++;
-                        teamStats[assigned].score += Utils.calculateLeadScore(a);
-                    }
-                });
+        // Filter based on pipeline view
+        let filteredStats = Object.values(teamStats);
+        if (AppState.pipelineView === 'my') {
+            const currentUserEmail = AppState.currentUserEmail || '';
+            const currentMember = members.find(m => m.email === currentUserEmail);
+            if (currentMember) {
+                filteredStats = teamStats[currentMember.id] ? [teamStats[currentMember.id]] : [];
+            } else {
+                filteredStats = [];
             }
         }
 
-        Object.values(teamStats).forEach(member => {
-            if (member.appointments > 0) {
-                member.score = Math.round(member.score / member.appointments);
-            }
-            member.conversionRate = member.appointments > 0 ? Math.round((member.completed / member.appointments) * 100) : 0;
-        });
-
-        const topPerformer = Object.values(teamStats).sort((a, b) => b.score - a.score)[0];
+        const topPerformer = filteredStats.length > 0 ? filteredStats.sort((a, b) => b.score - a.score)[0] : null;
+        const totalTeamAppts = filteredStats.reduce((sum, m) => sum + m.total, 0);
 
         container.innerHTML = `
             <div class="analytics-container fade-in">
@@ -2353,8 +2809,8 @@ const FeaturePanel = {
                 </div>
 
                 <div class="report-metrics scale-in">
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${CONFIG.TEAM_MEMBERS.length}</div><div class="metric-label">👥 Team Members</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${totalAppts}</div><div class="metric-label">📋 Total Appointments</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${filteredStats.length}</div><div class="metric-label">👥 Team Members</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${totalTeamAppts}</div><div class="metric-label">📋 Total Appointments</div></div>
                     <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--primary);">${topPerformer ? topPerformer.score : 0}</div><div class="metric-label">🏆 Top Score</div></div>
                     <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${topPerformer ? topPerformer.conversionRate : 0}%</div><div class="metric-label">📈 Top Conversion</div></div>
                 </div>
@@ -2362,18 +2818,18 @@ const FeaturePanel = {
                 <div class="feature-card slide-up">
                     <h4>👤 Team Member Performance</h4>
                     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-top:12px;">
-                        ${Object.values(teamStats).map(member => `
-                            <div style="background:var(--bg-primary); border-radius:12px; padding:16px; border-left: 4px solid ${member.color}; transition:all 0.3s ease;">
+                        ${filteredStats.map(member => `
+                            <div style="background:var(--bg-primary); border-radius:12px; padding:16px; border-left: 4px solid ${member.color || '#6b7280'}; transition:all 0.3s ease; cursor:pointer;" onclick="openTeamMemberModal('${member.id}')">
                                 <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-                                    <span style="font-size:2rem;">${member.avatar}</span>
+                                    <span style="font-size:2rem;">${member.avatar || '👤'}</span>
                                     <div>
-                                        <div style="font-weight:600;">${member.name}</div>
-                                        <div style="font-size:0.7rem; color:var(--text-muted);">${member.role}</div>
+                                        <div style="font-weight:600;">${Utils.escapeHtml(member.name)}</div>
+                                        <div style="font-size:0.7rem; color:var(--text-muted);">${Utils.escapeHtml(member.role)}</div>
                                     </div>
                                     ${member.id === topPerformer?.id ? '<span style="margin-left:auto; font-size:1.2rem;">👑</span>' : ''}
                                 </div>
                                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:0.8rem;">
-                                    <span>📋 ${member.appointments}</span>
+                                    <span>📋 ${member.total}</span>
                                     <span>✅ ${member.completed}</span>
                                     <span>🔥 ${member.hotTransfers}</span>
                                     <span>📞 ${member.warmCallbacks}</span>
@@ -2381,7 +2837,7 @@ const FeaturePanel = {
                                     <span style="font-weight:600;">Conv: ${member.conversionRate}%</span>
                                 </div>
                                 <div style="margin-top:8px; background:var(--bg-card); height:4px; border-radius:4px; overflow:hidden;">
-                                    <div style="background:${member.color}; width:${member.conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div>
+                                    <div style="background:${member.color || '#6b7280'}; width:${member.conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div>
                                 </div>
                             </div>
                         `).join('')}
@@ -2400,9 +2856,9 @@ const FeaturePanel = {
         setTimeout(() => {
             const teamCtx = DOM.get('teamChart')?.getContext('2d');
             if (teamCtx) {
-                const labels = Object.values(teamStats).map(m => m.name);
-                const scores = Object.values(teamStats).map(m => m.score);
-                const colors = Object.values(teamStats).map(m => m.color);
+                const labels = filteredStats.map(m => m.name);
+                const scores = filteredStats.map(m => m.score);
+                const colors = filteredStats.map(m => m.color || '#6b7280');
                 new Chart(teamCtx, {
                     type: 'bar',
                     data: {
@@ -2484,6 +2940,9 @@ const FeaturePanel = {
             <div class="shortcuts-container fade-in">
                 <h3><i class="fas fa-keyboard"></i> Keyboard Shortcuts Manager</h3>
                 <p style="color:var(--text-muted); margin-bottom:16px;">View and customize keyboard shortcuts for quick access to features.</p>
+                <p style="color:var(--text-muted); margin-bottom:16px; font-size:0.85rem;">
+                    <i class="fas fa-info-circle"></i> Shortcuts are automatically disabled when typing in any input field or editing scripts.
+                </p>
                 <div style="margin-bottom:16px; display:flex; gap:8px; flex-wrap:wrap;">
                     <button id="shortcutsResetDefaultsBtn" class="btn-icon" style="background:var(--warning); color:#1e293b;"><i class="fas fa-undo"></i> Reset Defaults</button>
                     <span style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center;">⚠️ Conflicts are highlighted in red</span>
@@ -2542,6 +3001,14 @@ const FeaturePanel = {
             ).join('');
         }
 
+        const assignedSelect = DOM.get('newApptAssigned');
+        if (assignedSelect) {
+            assignedSelect.innerHTML = AppState.teamMembers.map(m =>
+                `<option value="${m.id}">${m.avatar || '👤'} ${m.name}</option>`
+            ).join('');
+            assignedSelect.value = 'Unassigned';
+        }
+
         // Clear previous values
         const fields = ['newApptBusiness', 'newApptContact', 'newApptPhone', 'newApptEmail', 'newApptTime', 'newApptNotes'];
         fields.forEach(id => { const el = DOM.get(id); if (el) el.value = ''; });
@@ -2558,6 +3025,7 @@ const FeaturePanel = {
                 const email = DOM.get('newApptEmail')?.value?.trim() || '';
                 const time = DOM.get('newApptTime')?.value || '';
                 const status = DOM.get('newApptStatus')?.value || 'Pending';
+                const assigned = DOM.get('newApptAssigned')?.value || 'Unassigned';
                 const notes = DOM.get('newApptNotes')?.value?.trim() || '';
 
                 if (!bus || !contact) {
@@ -2565,7 +3033,7 @@ const FeaturePanel = {
                     return;
                 }
 
-                Data.addAppointment(date, bus, contact, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), 'Daniel', null, status);
+                Data.addAppointment(date, bus, contact, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), assigned, null, status);
                 modal.style.display = 'none';
                 showToast('Appointment added successfully! 🎉', 'success');
                 FeaturePanel.refreshCurrentView();
@@ -2631,6 +3099,14 @@ function performGlobalSearch(query) {
         }
     }
 
+    // Search team members
+    AppState.teamMembers.forEach(member => {
+        const searchable = `${member.name} ${member.email} ${member.role}`.toLowerCase();
+        if (searchable.includes(q)) {
+            searchResults.push({ type: 'team', data: member });
+        }
+    });
+
     if (searchResults.length === 0) {
         results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">No results found.</p>';
         return;
@@ -2664,6 +3140,16 @@ function performGlobalSearch(query) {
                         <span style="font-weight:600;">${Utils.escapeHtml(result.data.name)}</span>
                         <span style="font-size:0.75rem; color:var(--text-muted);">📜 Script</span>
                     </div>
+                </div>
+            `;
+        } else if (result.type === 'team') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="openTeamMemberModal('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${Utils.escapeHtml(result.data.name)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">👥 ${result.data.role}</span>
+                    </div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary);">${Utils.escapeHtml(result.data.email)}</div>
                 </div>
             `;
         }
@@ -2860,7 +3346,7 @@ function saveImportedAppointment() {
     const phone = data.phone || '';
     const email = data.email || '';
     const notes = data.notes || '';
-    const assigned = data.assigned || 'Daniel';
+    const assigned = data.assigned || 'Unassigned';
 
     const duplicate = Utils.checkDuplicate(data, AppState.appointments);
     if (duplicate && !confirm(`This appears to be a duplicate appointment with ${duplicate.business}. Do you still want to add it?`)) return;
@@ -2964,7 +3450,8 @@ function executeBulkAction() {
 }
 
 // ================================================================
-// HANDLE ESCAPE KEY// ================================================================
+// HANDLE ESCAPE KEY
+// ================================================================
 
 function handleEscapeKey() {
     if (AppState.isEditing) {
@@ -3021,6 +3508,29 @@ function openShortcutEdit(action) {
         }
     }
     return false;
+}
+
+// ================================================================
+// HANDLE SHORTCUT ACTION
+// ================================================================
+
+function handleShortcutAction(action) {
+    switch (action) {
+        case 'Smart Import': openSmartImport(); break;
+        case 'Appointment Calendar': FeaturePanel.show('calendar', '📅 Appointment & Handoff Calendar'); break;
+        case 'Call Scripts': FeaturePanel.hide(); Scripts.loadScript('opening'); break;
+        case 'Global Search': openGlobalSearch(); break;
+        case 'Quick Add Appointment': FeaturePanel.openQuickAdd(Utils.getTodayStr()); break;
+        case 'Analytics Hub': AppState.analyticsTab = 'insights'; FeaturePanel.show('analytics', '📊 Analytics Hub'); break;
+        case 'Team Management': FeaturePanel.show('team', '👥 Team Management'); break;
+        case 'Keyboard Shortcuts': FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts'); break;
+        case 'Export to CSV': Data.exportToCSV(); break;
+        case 'Toggle Theme': document.body.classList.toggle('light'); showToast('Theme toggled', 'info'); break;
+        case 'Refresh Data': { const btn = DOM.get('refreshBtn'); if (btn) btn.click(); break; }
+        case 'Bulk Actions': openBulkActions(); break;
+        case 'Close Panel': handleEscapeKey(); break;
+        default: showToast(`Action: ${action}`, 'info');
+    }
 }
 
 // ================================================================
@@ -3081,6 +3591,9 @@ function initApp() {
         if (e.key === 'Escape') handleEscapeKey();
     });
 
+    // Setup shortcut manager
+    ShortcutManager.setupListeners();
+
     // Tool items
     document.querySelectorAll('.tool-item').forEach(item => {
         item.addEventListener('click', function() {
@@ -3088,6 +3601,7 @@ function initApp() {
             if (tool === 'notepad') showToast('📝 Notes feature coming soon!', 'info');
             else if (tool === 'calendar') FeaturePanel.show('calendar', '📅 Appointment & Handoff Calendar');
             else if (tool === 'tasks') FeaturePanel.show('tasks', '📋 Follow-up Tasks Manager');
+            else if (tool === 'team') FeaturePanel.show('team', '👥 Team Management');
             else if (tool === 'analytics') {
                 AppState.analyticsTab = 'insights';
                 FeaturePanel.show('analytics', '📊 Analytics Hub');
@@ -3150,12 +3664,14 @@ function initApp() {
                 const phoneInput = DOM.get('newApptPhone');
                 const timeInput = DOM.get('newApptTime');
                 const statusSelect = DOM.get('newApptStatus');
+                const assignedSelect = DOM.get('newApptAssigned');
                 const notesInput = DOM.get('newApptNotes');
                 if (businessInput) businessInput.value = appt.business;
                 if (contactInput) contactInput.value = appt.contactName;
                 if (phoneInput) phoneInput.value = appt.phone || '';
                 if (timeInput) timeInput.value = appt.time || '';
                 if (statusSelect) statusSelect.value = Utils.getStatus(appt);
+                if (assignedSelect) assignedSelect.value = appt.assigned || 'Unassigned';
                 if (notesInput) notesInput.value = appt.notes || '';
                 Data.deleteAppointment(appt.date, appt.id);
             }, 100);
@@ -3193,6 +3709,15 @@ function initApp() {
     });
     if (resetScriptBtn) resetScriptBtn.addEventListener('click', () => Scripts.resetScript());
     if (favoriteScriptBtn) favoriteScriptBtn.addEventListener('click', () => Scripts.toggleFavorite(AppState.currentScriptId));
+
+    // Team Management modals
+    const saveTeamBtn = DOM.get('saveTeamMemberBtn');
+    const deleteTeamBtn = DOM.get('deleteTeamMemberBtn');
+    const closeTeamBtn = DOM.get('closeTeamMemberBtn');
+
+    if (saveTeamBtn) saveTeamBtn.addEventListener('click', saveTeamMember);
+    if (deleteTeamBtn) deleteTeamBtn.addEventListener('click', deleteTeamMember);
+    if (closeTeamBtn) closeTeamBtn.addEventListener('click', closeTeamMemberModal);
 
     // Bulk actions
     const bulkActionsBtn = DOM.get('bulkActionsBtn');
@@ -3294,7 +3819,7 @@ function initApp() {
                                     data.phone || data.mobile || '',
                                     data.time || '',
                                     data.notes || '',
-                                    'Daniel',
+                                    data.assigned || 'Unassigned',
                                     null,
                                     data.status || 'Pending'
                                 );
@@ -3322,40 +3847,13 @@ function initApp() {
         if (modal) modal.style.display = 'none';
     });
 
-    // Keyboard shortcuts - global
-    document.addEventListener('keydown', (e) => {
-        // Script shortcuts (1-9)
-        if (e.key >= '1' && e.key <= '9') {
-            const index = parseInt(e.key) - 1;
-            const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
-            if (index < visible.length) {
-                Scripts.loadScript(visible[index]);
-                showToast(`Switched to: ${AppState.scripts[visible[index]]?.name}`, 'info');
-            }
-        }
-
-        // Custom shortcuts
-        for (const [action, shortcut] of Object.entries(AppState.shortcuts)) {
-            if (shortcut.keys && shortcut.keys.length > 0) {
-                const keys = shortcut.keys;
-                const ctrl = keys.includes('Ctrl');
-                const shift = keys.includes('Shift');
-                const alt = keys.includes('Alt');
-                const key = keys.find(k => !['Ctrl', 'Shift', 'Alt'].includes(k));
-                if (e.ctrlKey === ctrl && e.shiftKey === shift && e.altKey === alt && e.key === key) {
-                    e.preventDefault();
-                    handleShortcutAction(action);
-                }
-            }
-        }
-    });
-
     // Auth state listener
     try {
         if (AppState.isFirebaseReady) {
             firebase.auth().onAuthStateChanged(async (user) => {
                 if (user) {
                     AppState.currentUser = user;
+                    AppState.currentUserEmail = user.email;
                     Auth.updateUI();
                     await Data.loadUserData();
                     // Hide loading screen
@@ -3377,6 +3875,7 @@ function initApp() {
                             AppState.scriptOrder = data.scriptOrder || [];
                             AppState.appointments = data.appointments || {};
                             AppState.tasks = data.tasks || {};
+                            AppState.teamMembers = data.teamMembers || CONFIG.TEAM_MEMBERS;
                             Stats.updateAll();
                             Scripts.renderSidebar();
                             Scripts.loadScript('opening');
@@ -3405,6 +3904,7 @@ function initApp() {
                     AppState.scriptOrder = data.scriptOrder || [];
                     AppState.appointments = data.appointments || {};
                     AppState.tasks = data.tasks || {};
+                    AppState.teamMembers = data.teamMembers || CONFIG.TEAM_MEMBERS;
                     Stats.updateAll();
                     Scripts.renderSidebar();
                     Scripts.loadScript('opening');
@@ -3448,26 +3948,9 @@ function initApp() {
     console.log('✨ Smart import ready with field validation');
     console.log('⌨️ Keyboard shortcuts loaded:', Object.keys(AppState.shortcuts).length);
     console.log('📈 Analytics tabs: Insights, Reports, Team');
+    console.log('👥 Team Management with CRUD operations');
     console.log('🔑 Press ESC to return to Opening Script');
     console.log(`🔌 Firebase status: ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
-}
-
-function handleShortcutAction(action) {
-    switch (action) {
-        case 'Smart Import': openSmartImport(); break;
-        case 'Appointment Calendar': FeaturePanel.show('calendar', '📅 Appointment & Handoff Calendar'); break;
-        case 'Call Scripts': FeaturePanel.hide(); Scripts.loadScript('opening'); break;
-        case 'Global Search': openGlobalSearch(); break;
-        case 'Quick Add Appointment': FeaturePanel.openQuickAdd(Utils.getTodayStr()); break;
-        case 'Analytics Hub': AppState.analyticsTab = 'insights'; FeaturePanel.show('analytics', '📊 Analytics Hub'); break;
-        case 'Keyboard Shortcuts': FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts'); break;
-        case 'Export to CSV': Data.exportToCSV(); break;
-        case 'Toggle Theme': document.body.classList.toggle('light'); showToast('Theme toggled', 'info'); break;
-        case 'Refresh Data': { const btn = DOM.get('refreshBtn'); if (btn) btn.click(); break; }
-        case 'Bulk Actions': openBulkActions(); break;
-        case 'Close Panel': handleEscapeKey(); break;
-        default: showToast(`Action: ${action}`, 'info');
-    }
 }
 
 // ================================================================
@@ -3479,6 +3962,10 @@ window.loadScript = Scripts.loadScript;
 window.openShortcutEdit = openShortcutEdit;
 window.showToast = showToast;
 window.openGlobalSearch = openGlobalSearch;
+window.openTeamMemberModal = openTeamMemberModal;
+window.saveTeamMember = saveTeamMember;
+window.deleteTeamMember = deleteTeamMember;
+window.closeTeamMemberModal = closeTeamMemberModal;
 
 // Start the app
 document.addEventListener('DOMContentLoaded', initApp);

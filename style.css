@@ -132,6 +132,11 @@ body {
     50% { box-shadow: 0 0 20px rgba(59,130,246,0.4); }
 }
 
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .fade-in { animation: fadeIn 0.4s ease forwards; }
 .fade-in-up { animation: fadeInUp 0.5s ease forwards; }
 .scale-in { animation: scaleIn 0.4s ease forwards; }
@@ -644,6 +649,10 @@ body {
     transform: none !important;
 }
 
+.btn-icon.spinning i {
+    animation: spin 0.8s linear infinite;
+}
+
 .csv-upload-btn {
     position: relative;
     cursor: pointer;
@@ -858,6 +867,7 @@ body {
     cursor: pointer;
     font-size: 0.75rem;
     transition: var(--transition);
+    white-space: nowrap;
 }
 
 .calendar-filters .filter-btn:hover {
@@ -874,6 +884,20 @@ body {
 
 .calendar-filters .filter-btn i {
     margin-right: 4px;
+}
+
+.calendar-filters .filter-date-input {
+    padding: 6px 12px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.8rem;
+}
+
+.calendar-filters .filter-date-input:focus {
+    outline: 2px solid var(--primary);
+    border-color: var(--primary);
 }
 
 .calendar-nav {
@@ -1337,6 +1361,133 @@ body {
 .task-priority-low { color: var(--success); font-weight: 600; }
 
 /* ============================================================
+   TEAM MANAGEMENT
+   ============================================================ */
+.team-management-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.team-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.team-member-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    border: 1px solid var(--border-color);
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.team-member-card:hover {
+    border-color: var(--primary);
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+}
+
+.team-member-card .member-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.team-member-card .member-avatar {
+    font-size: 2.5rem;
+    flex-shrink: 0;
+}
+
+.team-member-card .member-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.team-member-card .member-name {
+    font-weight: 600;
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.team-member-card .member-role {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.team-member-card .member-email {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.team-member-card .member-badge {
+    font-size: 0.75rem;
+    background: var(--primary);
+    color: white;
+    padding: 2px 10px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+}
+
+.team-member-card .team-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    font-size: 0.75rem;
+}
+
+.team-member-card .team-stats .stat-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-secondary);
+}
+
+.team-member-card .team-stats .stat-item .stat-value {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.team-member-card .conversion-bar {
+    margin-top: 8px;
+    background: var(--bg-primary);
+    height: 4px;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.team-member-card .conversion-bar .fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.8s ease;
+}
+
+/* ============================================================
+   PIPELINE TOGGLE
+   ============================================================ */
+.pipeline-toggle {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-primary);
+    padding: 4px;
+    border-radius: var(--radius-full);
+}
+
+.pipeline-toggle .view-btn {
+    padding: 4px 12px;
+    font-size: 0.75rem;
+    border-radius: var(--radius-full);
+}
+
+/* ============================================================
    SHORTCUTS
    ============================================================ */
 .shortcut-item {
@@ -1404,6 +1555,25 @@ body {
 
 .shortcut-edit:hover {
     color: var(--primary);
+}
+
+.shortcuts-status-indicator {
+    font-size: 0.75rem;
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.shortcuts-status-indicator.active {
+    background: var(--success);
+    color: white;
+}
+
+.shortcuts-status-indicator.inactive {
+    background: var(--warning);
+    color: #1e293b;
 }
 
 /* ============================================================
@@ -1631,6 +1801,7 @@ body {
     background: var(--bg-card);
     border-radius: 8px;
     border: 1px solid var(--border-color);
+    flex-wrap: wrap;
 }
 
 .parsed-field .field-label {
@@ -1647,6 +1818,7 @@ body {
     padding: 2px 4px;
     border-radius: 4px;
     transition: var(--transition);
+    min-width: 80px;
 }
 
 .parsed-field .field-value:focus {
@@ -1657,6 +1829,7 @@ body {
     font-size: 0.6rem;
     padding: 2px 8px;
     border-radius: 20px;
+    white-space: nowrap;
 }
 
 .parsed-field .field-confidence.high {
@@ -1703,6 +1876,8 @@ body {
 .detail-row .detail-value {
     font-size: 0.85rem;
     text-align: right;
+    word-break: break-word;
+    max-width: 60%;
 }
 
 /* ============================================================
@@ -1749,6 +1924,28 @@ body {
 .auth-divider::after { right: 0; }
 
 /* ============================================================
+   SCROLLBAR STYLES
+   ============================================================ */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+}
+
+/* ============================================================
    RESPONSIVE DESIGN
    ============================================================ */
 @media (max-width: 1024px) {
@@ -1774,6 +1971,9 @@ body {
         grid-template-columns: 1.5fr 1.5fr 1fr 1fr 0.8fr 0.8fr;
         gap: 8px;
         font-size: 0.8rem;
+    }
+    .team-grid {
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     }
 }
 
@@ -1908,6 +2108,46 @@ body {
     }
     .calendar-filters {
         flex-wrap: wrap;
+        justify-content: center;
+    }
+    .calendar-filters .filter-btn {
+        font-size: 0.65rem;
+        padding: 4px 10px;
+    }
+    .team-grid {
+        grid-template-columns: 1fr;
+    }
+    .team-member-card .team-stats {
+        grid-template-columns: 1fr 1fr;
+    }
+    .pipeline-toggle {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .shortcut-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    .shortcut-item .shortcut-keys {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+    .parsed-field {
+        flex-wrap: wrap;
+    }
+    .parsed-field .field-label {
+        min-width: 40px;
+    }
+    .detail-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+    .detail-row .detail-value {
+        text-align: left;
+        max-width: 100%;
     }
 }
 
@@ -2001,6 +2241,7 @@ body {
     .shortcut-item .shortcut-keys {
         width: 100%;
         justify-content: flex-start;
+        flex-wrap: wrap;
     }
     .parsed-field {
         flex-wrap: wrap;
@@ -2023,6 +2264,29 @@ body {
     }
     .feature-panel-body {
         padding: 12px;
+    }
+    .calendar-filters .filter-date-input {
+        width: 100%;
+        margin: 4px 0;
+    }
+    .team-member-card .team-stats {
+        grid-template-columns: 1fr;
+    }
+    .team-member-card .member-header {
+        flex-wrap: wrap;
+    }
+    .team-member-card .member-badge {
+        margin-left: auto;
+    }
+    .kpi-row {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+    }
+    .kpi-card {
+        padding: 6px 10px;
+    }
+    .kpi-value {
+        font-size: 1rem;
     }
 }
 
@@ -2052,23 +2316,30 @@ body {
 }
 
 /* ============================================================
-   SCROLLBAR STYLES
+   UTILITY CLASSES
    ============================================================ */
-::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-}
-
-::-webkit-scrollbar-track {
-    background: var(--scrollbar-track);
-    border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb);
-    border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: var(--primary);
-}
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-2 { gap: 8px; }
+.gap-4 { gap: 16px; }
+.flex-wrap { flex-wrap: wrap; }
+.w-full { width: 100%; }
+.text-center { text-align: center; }
+.text-muted { color: var(--text-muted); }
+.text-sm { font-size: 0.85rem; }
+.text-xs { font-size: 0.7rem; }
+.font-bold { font-weight: 700; }
+.font-semibold { font-weight: 600; }
+.mt-2 { margin-top: 8px; }
+.mt-4 { margin-top: 16px; }
+.mb-2 { margin-bottom: 8px; }
+.mb-4 { margin-bottom: 16px; }
+.p-2 { padding: 8px; }
+.p-4 { padding: 16px; }
+.rounded { border-radius: var(--radius-sm); }
+.rounded-full { border-radius: var(--radius-full); }
+.overflow-hidden { overflow: hidden; }
+.relative { position: relative; }
+.absolute { position: absolute; }
