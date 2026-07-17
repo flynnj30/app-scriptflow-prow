@@ -80,6 +80,85 @@ body {
 }
 
 /* ============================================================
+   LOADING SCREEN
+   ============================================================ */
+.loading-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    transition: opacity 0.6s ease, visibility 0.6s ease;
+    visibility: visible;
+}
+
+.loading-screen.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.loading-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    animation: fadeInUp 0.6s ease forwards;
+}
+
+.loading-icon {
+    font-size: 3rem;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.loading-icon svg {
+    display: block;
+    width: 72px;
+    height: 72px;
+}
+
+.loading-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.loading-subtitle {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-top: -8px;
+}
+
+.loading-bar-track {
+    width: 280px;
+    height: 6px;
+    background: var(--border-color);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.loading-bar {
+    width: 0%;
+    height: 100%;
+    background: var(--accent-gradient);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.loading-percent {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+}
+
+/* ============================================================
    ANIMATIONS
    ============================================================ */
 @keyframes fadeIn {
@@ -112,29 +191,14 @@ body {
     50% { transform: scale(1.05); }
 }
 
-@keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-}
-
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
 
-@keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
-}
-
-@keyframes glow {
-    0%, 100% { box-shadow: 0 0 5px rgba(59,130,246,0.2); }
-    50% { box-shadow: 0 0 20px rgba(59,130,246,0.4); }
-}
-
-@keyframes slideDown {
-    from { opacity: 0; transform: translateY(-20px); }
-    to { opacity: 1; transform: translateY(0); }
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
 }
 
 .fade-in { animation: fadeIn 0.4s ease forwards; }
@@ -142,75 +206,6 @@ body {
 .scale-in { animation: scaleIn 0.4s ease forwards; }
 .slide-in { animation: slideIn 0.3s ease forwards; }
 .slide-in-right { animation: slideInRight 0.3s ease forwards; }
-.pulse { animation: pulse 2s ease-in-out infinite; }
-.bounce { animation: bounce 0.5s ease; }
-.glow { animation: glow 2s ease-in-out infinite; }
-
-/* Stagger animations */
-.stagger-1 { animation-delay: 0.05s; }
-.stagger-2 { animation-delay: 0.10s; }
-.stagger-3 { animation-delay: 0.15s; }
-.stagger-4 { animation-delay: 0.20s; }
-.stagger-5 { animation-delay: 0.25s; }
-.stagger-6 { animation-delay: 0.30s; }
-
-.report-metrics .metric-card:nth-child(1) { animation-delay: 0.05s; }
-.report-metrics .metric-card:nth-child(2) { animation-delay: 0.10s; }
-.report-metrics .metric-card:nth-child(3) { animation-delay: 0.15s; }
-.report-metrics .metric-card:nth-child(4) { animation-delay: 0.20s; }
-.report-metrics .metric-card:nth-child(5) { animation-delay: 0.25s; }
-.report-metrics .metric-card:nth-child(6) { animation-delay: 0.30s; }
-
-/* ============================================================
-   LOADING SCREEN
-   ============================================================ */
-.loading-screen {
-    position: fixed;
-    inset: 0;
-    background: var(--bg-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-    transition: opacity 0.5s ease;
-}
-
-.loading-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-}
-
-.loading-icon {
-    font-size: 3rem;
-    animation: pulse 1.5s ease-in-out infinite;
-}
-
-.loading-title {
-    font-size: 1.2rem;
-    font-weight: 600;
-}
-
-.loading-subtitle {
-    font-size: 0.9rem;
-    color: var(--text-muted);
-}
-
-.loading-bar-track {
-    width: 200px;
-    height: 4px;
-    background: var(--border-color);
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.loading-bar {
-    width: 0%;
-    height: 100%;
-    background: var(--primary);
-    transition: width 0.5s ease;
-}
 
 /* ============================================================
    LAYOUT
@@ -347,9 +342,23 @@ body {
     padding: 20px 20px 12px;
 }
 
+.search-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.search-wrapper .search-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--sidebar-text-secondary);
+    font-size: 0.8rem;
+}
+
 .search-box {
     width: 100%;
-    padding: 10px 16px;
+    padding: 10px 16px 10px 38px;
     border-radius: 12px;
     border: 1px solid rgba(255,255,255,0.06);
     background: rgba(255,255,255,0.03);
@@ -385,6 +394,9 @@ body {
     color: var(--sidebar-text-secondary);
     padding: 0 8px;
     margin: 20px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 /* ============================================================
@@ -481,6 +493,10 @@ body {
     cursor: pointer;
     font-weight: 600;
     transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
 }
 
 .add-script-btn:hover {
@@ -557,6 +573,8 @@ body {
 .tool-item i {
     width: 24px;
     color: var(--sidebar-text-secondary);
+    text-align: center;
+    flex-shrink: 0;
 }
 
 .sidebar-footer {
@@ -581,7 +599,7 @@ body {
     padding: 12px 24px;
     border-radius: 60px;
     border: 1px solid var(--border-color);
-    animation: slideUp 0.5s ease;
+    animation: slideInRight 0.5s ease;
 }
 
 .stats-row {
@@ -593,13 +611,16 @@ body {
 .stat {
     display: flex;
     align-items: baseline;
-    gap: 8px;
+    gap: 6px;
 }
 
 .stat-label {
     font-size: 0.7rem;
     font-weight: 600;
     color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .stat-number {
@@ -630,6 +651,7 @@ body {
     gap: 8px;
     position: relative;
     overflow: hidden;
+    white-space: nowrap;
 }
 
 .btn-icon:hover {
@@ -668,6 +690,9 @@ body {
     padding: 8px 18px;
     border-radius: 40px;
     font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 /* ============================================================
@@ -868,6 +893,9 @@ body {
     font-size: 0.75rem;
     transition: var(--transition);
     white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .calendar-filters .filter-btn:hover {
@@ -880,10 +908,6 @@ body {
     background: var(--primary);
     color: white;
     border-color: var(--primary);
-}
-
-.calendar-filters .filter-btn i {
-    margin-right: 4px;
 }
 
 .calendar-filters .filter-date-input {
@@ -1557,25 +1581,6 @@ body {
     color: var(--primary);
 }
 
-.shortcuts-status-indicator {
-    font-size: 0.75rem;
-    padding: 4px 12px;
-    border-radius: var(--radius-full);
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.shortcuts-status-indicator.active {
-    background: var(--success);
-    color: white;
-}
-
-.shortcuts-status-indicator.inactive {
-    background: var(--warning);
-    color: #1e293b;
-}
-
 /* ============================================================
    TOASTS / MODALS
    ============================================================ */
@@ -1595,6 +1600,7 @@ body {
     gap: 8px;
     box-shadow: var(--shadow-lg);
     max-width: 90%;
+    transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .toast.error { background: var(--danger); }
@@ -1953,6 +1959,7 @@ body {
         flex-direction: column;
         align-items: stretch;
         padding: 16px 20px;
+        border-radius: 24px;
     }
     .stats-row {
         justify-content: space-between;

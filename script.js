@@ -40,11 +40,51 @@ let toolsOpen = localStorage.getItem('toolsMenuOpen') === 'true';
 let chartInstances = {};
 let isFirebaseReady = false;
 
+// Team management state
+let teamMembers = [];
+let editingTeamMemberId = null;
+let teamSearchTerm = '';
+
 // Check if Firebase is available
 try {
     isFirebaseReady = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
 } catch (e) {
     isFirebaseReady = false;
+}
+
+// ============================================================
+// LOADING SCREEN
+// ============================================================
+
+function updateLoadingProgress(percent, message = '') {
+    const bar = document.getElementById('loadingProgress');
+    const percentDisplay = document.getElementById('loadingPercent');
+    const subtitle = document.querySelector('.loading-subtitle');
+    
+    if (bar) {
+        bar.style.width = Math.min(percent, 100) + '%';
+    }
+    if (percentDisplay) {
+        percentDisplay.textContent = Math.min(percent, 100) + '%';
+    }
+    if (subtitle && message) {
+        subtitle.textContent = message;
+    }
+}
+
+function hideLoadingScreen() {
+    const screen = document.getElementById('loadingScreen');
+    const appWrapper = document.getElementById('appWrapper');
+    
+    if (screen) {
+        screen.classList.add('hidden');
+        setTimeout(() => {
+            screen.style.display = 'none';
+        }, 600);
+    }
+    if (appWrapper) {
+        appWrapper.style.display = 'flex';
+    }
 }
 
 // ============================================================
@@ -195,7 +235,8 @@ function showToast(msg, type = 'success') {
     document.querySelectorAll('.toast').forEach(t => t.remove());
     const t = document.createElement('div');
     t.className = `toast ${type === 'error' ? 'error' : (type === 'info' ? 'info' : (type === 'warning' ? 'warning' : ''))}`;
-    t.innerHTML = `${type === 'success' ? '✓' : (type === 'error' ? '⚠️' : (type === 'warning' ? '⚠️' : 'ℹ️'))} ${msg}`;
+    const icons = { success: '✓', error: '⚠️', warning: '⚠️', info: 'ℹ️' };
+    t.innerHTML = `${icons[type] || '✓'} ${msg}`;
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 3500);
 }
@@ -249,6 +290,16 @@ function setHTML(id, html) {
     if (el) el.innerHTML = html;
 }
 
+function showEl(id) {
+    const el = getEl(id);
+    if (el) el.style.display = 'block';
+}
+
+function hideEl(id) {
+    const el = getEl(id);
+    if (el) el.style.display = 'none';
+}
+
 // ============================================================
 // ESC KEY HANDLER
 // ============================================================
@@ -274,6 +325,289 @@ function handleEscapeKey() {
         }
     });
     return true;
+}
+
+// ============================================================
+// TEAM MANAGEMENT - CENTRALIZED DATA MODEL
+// ============================================================
+
+function loadTeamMembers() {
+    const stored = localStorage.getItem('teamMembers');
+    if (stored) {
+        try {
+            teamMembers = JSON.parse(stored);
+            return;
+        } catch (e) {}
+    }
+    teamMembers = JSON.parse(JSON.stringify(TEAM_MEMBERS));
+    saveTeamMembers();
+}
+
+function saveTeamMembers() {
+    localStorage.setItem('teamMembers', JSON.stringify(teamMembers));
+    // Notify any open UI components
+    document.dispatchEvent(new CustomEvent('teamMembersUpdated', { detail: teamMembers }));
+}
+
+function getTeamMemberById(id) {
+    return teamMembers.find(m => m.id === id);
+}
+
+function getTeamMemberByName(name) {
+    return teamMembers.find(m => m.name.toLowerCase() === name.toLowerCase());
+}
+
+function addTeamMember(member) {
+    if (teamMembers.some(m => m.email === member.email)) {
+        showToast('A team member with this email already exists', 'error');
+        return false;
+    }
+    const newMember = {
+        id: generateUniqueId(),
+        name: member.name,
+        email: member.email,
+        role: member.role || 'Agent',
+        avatar: member.avatar || '👤',
+        color: member.color || '#6b7280'
+    };
+    teamMembers.push(newMember);
+    saveTeamMembers();
+    showToast(`Team member ${member.name} added successfully!`, 'success');
+    return true;
+}
+
+function updateTeamMember(id, updates) {
+    const index = teamMembers.findIndex(m => m.id === id);
+    if (index === -1) { showToast('Team member not found', 'error'); return false; }
+    
+    const duplicate = teamMembers.some((m, i) => m.email === updates.email && i !== index);
+    if (duplicate) {
+        showToast('A team member with this email already exists', 'error');
+        return false;
+    }
+    
+    teamMembers[index] = { ...teamMembers[index], ...updates };
+    saveTeamMembers();
+    showToast('Team member updated successfully!', 'success');
+    return true;
+}
+
+function deleteTeamMember(id) {
+    const member = getTeamMemberById(id);
+    if (!member) { showToast('Team member not found', 'error'); return false; }
+    if (!confirm(`Are you sure you want to delete ${member.name}?`)) return false;
+    
+    teamMembers = teamMembers.filter(m => m.id !== id);
+    saveTeamMembers();
+    showToast(`Team member ${member.name} deleted`, 'info');
+    return true;
+}
+
+function getTeamMemberStats(memberId) {
+    let total = 0, hotTransfers = 0, warmCallbacks = 0, completed = 0, pending = 0, canceled = 0;
+    let scoreTotal = 0, scoreCount = 0;
+
+    for (let date in appointments) {
+        if (appointments[date].reports) {
+            appointments[date].reports.forEach(appt => {
+                if (appt.assigned === memberId || (appt.assigned && getTeamMemberByName(appt.assigned)?.id === memberId)) {
+                    total++;
+                    const status = getStatus(appt);
+                    if (status === 'Hot Transfer') hotTransfers++;
+                    else if (status === 'Warm Callback') warmCallbacks++;
+                    else if (status === 'Completed') completed++;
+                    else if (status === 'Pending') pending++;
+                    else if (status === 'Canceled') canceled++;
+                    scoreTotal += calculateLeadScore(appt);
+                    scoreCount++;
+                }
+            });
+        }
+    }
+
+    const avgScore = scoreCount > 0 ? Math.round(scoreTotal / scoreCount) : 0;
+    const conversionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    return { total, hotTransfers, warmCallbacks, completed, pending, canceled, avgScore, conversionRate };
+}
+
+// ============================================================
+// TEAM MANAGEMENT UI
+// ============================================================
+
+function openTeamMemberModal(memberId = null) {
+    const modal = getEl('teamMemberModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+
+    const title = getEl('teamMemberModalTitle');
+    const deleteBtn = getEl('deleteTeamMemberBtn');
+    const statsDiv = getEl('teamMemberStats');
+
+    if (memberId) {
+        editingTeamMemberId = memberId;
+        if (title) title.innerHTML = '<i class="fas fa-user-pen"></i> Edit Team Member';
+        if (deleteBtn) deleteBtn.style.display = 'inline-flex';
+        if (statsDiv) statsDiv.style.display = 'block';
+        populateTeamMemberForm(memberId);
+    } else {
+        editingTeamMemberId = null;
+        if (title) title.innerHTML = '<i class="fas fa-user-plus"></i> Add Team Member';
+        if (deleteBtn) deleteBtn.style.display = 'none';
+        if (statsDiv) statsDiv.style.display = 'none';
+        // Clear form
+        ['teamMemberName', 'teamMemberEmail', 'teamMemberRole', 'teamMemberAvatar'].forEach(id => {
+            const el = getEl(id);
+            if (el) el.value = '';
+        });
+        const roleEl = getEl('teamMemberRole');
+        if (roleEl) roleEl.value = 'Agent';
+        const avatarEl = getEl('teamMemberAvatar');
+        if (avatarEl) avatarEl.value = '👤';
+    }
+}
+
+function populateTeamMemberForm(memberId) {
+    const member = getTeamMemberById(memberId);
+    if (!member) return;
+
+    const nameEl = getEl('teamMemberName');
+    const emailEl = getEl('teamMemberEmail');
+    const roleEl = getEl('teamMemberRole');
+    const avatarEl = getEl('teamMemberAvatar');
+
+    if (nameEl) nameEl.value = member.name || '';
+    if (emailEl) emailEl.value = member.email || '';
+    if (roleEl) roleEl.value = member.role || 'Agent';
+    if (avatarEl) avatarEl.value = member.avatar || '👤';
+
+    // Update stats
+    const stats = getTeamMemberStats(memberId);
+    setText('tmStatsTotal', stats.total);
+    setText('tmStatsHot', stats.hotTransfers);
+    setText('tmStatsWarm', stats.warmCallbacks);
+    setText('tmStatsCompleted', stats.completed);
+    setText('tmStatsPending', stats.pending);
+    setText('tmStatsCanceled', stats.canceled);
+    setText('tmStatsConversion', stats.conversionRate + '%');
+    setText('tmStatsScore', stats.avgScore);
+}
+
+function saveTeamMemberFromModal() {
+    const name = getEl('teamMemberName')?.value?.trim();
+    const email = getEl('teamMemberEmail')?.value?.trim();
+    const role = getEl('teamMemberRole')?.value || 'Agent';
+    const avatar = getEl('teamMemberAvatar')?.value?.trim() || '👤';
+
+    if (!name || !email) {
+        showToast('Name and Email are required', 'error');
+        return;
+    }
+
+    const memberData = { name, email, role, avatar };
+
+    if (editingTeamMemberId) {
+        updateTeamMember(editingTeamMemberId, memberData);
+    } else {
+        addTeamMember(memberData);
+    }
+
+    closeTeamMemberModal();
+    renderTeamManagement();
+    refreshCurrentView();
+}
+
+function deleteTeamMemberFromModal() {
+    if (editingTeamMemberId) {
+        deleteTeamMember(editingTeamMemberId);
+        closeTeamMemberModal();
+        renderTeamManagement();
+        refreshCurrentView();
+    }
+}
+
+function closeTeamMemberModal() {
+    const modal = getEl('teamMemberModal');
+    if (modal) modal.style.display = 'none';
+    editingTeamMemberId = null;
+}
+
+function renderTeamManagement() {
+    const container = getEl('featurePanelBody');
+    if (!container || currentView !== 'team') return;
+
+    const filteredMembers = teamMembers.filter(m => {
+        const search = teamSearchTerm.toLowerCase();
+        return m.name.toLowerCase().includes(search) || 
+               m.email.toLowerCase().includes(search) ||
+               m.role.toLowerCase().includes(search);
+    });
+
+    container.innerHTML = `
+        <div class="team-management-container fade-in">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+                <h3><i class="fas fa-users"></i> Team Management</h3>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                    <div class="search-wrapper" style="position:relative;">
+                        <i class="fas fa-search search-icon" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
+                        <input type="text" id="teamSearchInput" placeholder="Search team members..." style="padding:8px 12px 8px 36px; border-radius:var(--radius-full); border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:0.85rem; min-width:200px;" />
+                    </div>
+                    <button id="addTeamMemberBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> Add Member</button>
+                </div>
+            </div>
+
+            ${filteredMembers.length === 0 ? `
+                <div class="empty-state">
+                    <i class="fas fa-users"></i>
+                    <p>No team members found. Add your first team member!</p>
+                </div>
+            ` : `
+                <div class="team-grid">
+                    ${filteredMembers.map(member => {
+                        const stats = getTeamMemberStats(member.id);
+                        return `
+                            <div class="team-member-card" onclick="openTeamMemberModal('${member.id}')">
+                                <div class="member-header">
+                                    <span class="member-avatar">${member.avatar || '👤'}</span>
+                                    <div class="member-info">
+                                        <div class="member-name">${escapeHtml(member.name)}</div>
+                                        <div class="member-role">${escapeHtml(member.role)}</div>
+                                        <div class="member-email">${escapeHtml(member.email)}</div>
+                                    </div>
+                                    <span class="member-badge">${stats.total}</span>
+                                </div>
+                                <div class="team-stats">
+                                    <div class="stat-item"><span>🔥</span> <span class="stat-value">${stats.hotTransfers}</span></div>
+                                    <div class="stat-item"><span>📞</span> <span class="stat-value">${stats.warmCallbacks}</span></div>
+                                    <div class="stat-item"><span>✅</span> <span class="stat-value">${stats.completed}</span></div>
+                                    <div class="stat-item"><span>⏳</span> <span class="stat-value">${stats.pending}</span></div>
+                                    <div class="stat-item"><span>❌</span> <span class="stat-value">${stats.canceled}</span></div>
+                                    <div class="stat-item"><span>📈</span> <span class="stat-value">${stats.conversionRate}%</span></div>
+                                </div>
+                                <div class="conversion-bar">
+                                    <div class="fill" style="width:${stats.conversionRate}%; background:${member.color || 'var(--primary)'};"></div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `}
+        </div>
+    `;
+
+    // Search input
+    const searchInput = getEl('teamSearchInput');
+    if (searchInput) {
+        searchInput.value = teamSearchTerm;
+        searchInput.addEventListener('input', (e) => {
+            teamSearchTerm = e.target.value;
+            renderTeamManagement();
+        });
+    }
+
+    // Add member button
+    const addBtn = getEl('addTeamMemberBtn');
+    if (addBtn) addBtn.addEventListener('click', () => openTeamMemberModal(null));
 }
 
 // ============================================================
@@ -489,13 +823,11 @@ function saveScriptContent(content) {
         db.collection('users').doc(currentUser.uid).collection('scripts').doc(currentScriptId).set(updatedScript, { merge: true })
             .then(() => {
                 scripts[currentScriptId] = updatedScript;
-                showToast('Script saved!', 'success');
             })
             .catch(err => handleError(err, 'Saving script'));
     } else {
         scripts[currentScriptId] = updatedScript;
         localStorage.setItem('scripts_fallback', JSON.stringify(scripts));
-        showToast('Script saved locally', 'info');
     }
 }
 
@@ -759,7 +1091,6 @@ function closeAuthModal() {
 
 async function loadUserData(showLoading = true) {
     if (!currentUser) {
-        // Try loading from local storage
         const localData = localStorage.getItem('userData_fallback');
         if (localData) {
             try {
@@ -821,7 +1152,6 @@ async function loadUserData(showLoading = true) {
             return loadUserData();
         }
         
-        // Save to local storage as fallback
         localStorage.setItem('userData_fallback', JSON.stringify({
             scripts: scripts,
             scriptOrder: scriptOrder,
@@ -868,7 +1198,6 @@ function subscribeToChanges() {
         });
     } catch (error) {
         console.warn('Subscription error:', error);
-        // Load from local storage
         const appointmentsLocal = localStorage.getItem('appointments_fallback');
         const tasksLocal = localStorage.getItem('tasks_fallback');
         if (appointmentsLocal) {
@@ -894,9 +1223,9 @@ async function createDefaultScripts() {
         "opening": { name: "🎯 Opening Script", content: '"Hey, is this [Company Name]?"\n\n"Awesome — this is Flynn. We created a free, modern preview version inspired by your current site. There\'s no cost or obligation. Would you be open to taking a quick look later today and sharing your thoughts?"' },
         "owner_yes": { name: "👑 Owner - Yes", content: "Perfect! Daniel will call you shortly to showcase your preview concept. Is this the best number to connect with you?" },
         "owner_no": { name: "🤤 Not Owner", content: "No worries! Who usually drives your design or advertising decisions? What is the best coordinate to reach them today?" },
-        "objection_website": { name: "💻 Objection - Website", content: "I completely understand your concern about the website. Our preview is designed to show you what's possible without any commitment." },
-        "objection_cost": { name: "💰 Objection - Cost", content: "Great question about pricing. The preview is completely free—there's no cost or obligation. We believe in showing value first." },
-        "closing": { name: "🤝 Closing Script", content: "Thank you for your time today! I'll have our team prepare the preview and reach out with next steps." }
+        "objection_website": { name: "💻 Objection - Website", content: "I completely understand your concern about the website. Our preview is designed to show you what\'s possible without any commitment." },
+        "objection_cost": { name: "💰 Objection - Cost", content: "Great question about pricing. The preview is completely free—there\'s no cost or obligation. We believe in showing value first." },
+        "closing": { name: "🤝 Closing Script", content: "Thank you for your time today! I\'ll have our team prepare the preview and reach out with next steps." }
     };
     const batch = db.batch();
     const ref = db.collection('users').doc(currentUser.uid).collection('scripts');
@@ -1367,6 +1696,7 @@ function openQuickReportWithDate(defaultDate) {
             <div class="form-group"><label>Email</label><input type="email" id="newApptEmail" placeholder="Enter email address" /></div>
             <div class="form-group"><label>Time</label><input type="time" id="newApptTime" /></div>
             <div class="form-group"><label>Lead Status</label><select id="newApptStatus">${STATUS_OPTIONS.map(s => `<option value="${s}" ${s === 'Pending' ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+            <div class="form-group"><label>Assigned To</label><select id="newApptAssigned">${teamMembers.map(m => `<option value="${m.id}">${m.avatar || '👤'} ${m.name}</option>`).join('')}</select></div>
             <div class="form-group"><label>Notes</label><textarea id="newApptNotes" rows="3" placeholder="Add any additional notes..."></textarea></div>
             <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px; flex-wrap:wrap;">
                 <button id="saveQuickApptBtn" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-save"></i> Save</button>
@@ -1388,9 +1718,10 @@ function openQuickReportWithDate(defaultDate) {
             const email = getEl('newApptEmail')?.value?.trim() || '';
             const time = getEl('newApptTime')?.value || '';
             const status = getEl('newApptStatus')?.value || 'Pending';
+            const assigned = getEl('newApptAssigned')?.value || 'Daniel';
             const notes = getEl('newApptNotes')?.value?.trim() || '';
             if (!bus || !contact) { showToast('Please fill in all required fields', 'error'); return; }
-            addAppointment(date, bus, contact, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), 'Daniel', null, status);
+            addAppointment(date, bus, contact, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), assigned, null, status);
             modal.remove();
             showToast('Appointment added successfully! 🎉', 'success');
             refreshCurrentView();
@@ -1414,11 +1745,10 @@ function showFeaturePanel(featureType, title) {
     
     currentView = featureType;
     if (featureTitle) {
-        const iconMap = { 'calendar': 'fa-calendar-alt', 'tasks': 'fa-tasks', 'analytics': 'fa-chart-pie', 'shortcuts': 'fa-keyboard' };
+        const iconMap = { 'calendar': 'fa-calendar-alt', 'tasks': 'fa-tasks', 'analytics': 'fa-chart-pie', 'shortcuts': 'fa-keyboard', 'team': 'fa-users' };
         featureTitle.innerHTML = `<i class="fas ${iconMap[featureType] || 'fa-sticky-note'}"></i> ${title}`;
     }
     
-    // Get or create view toggle container
     const container = getEl('viewToggleContainer');
     if (container) {
         let html = '';
@@ -1452,10 +1782,15 @@ function showFeaturePanel(featureType, title) {
                     <button id="shortcutsCustomBtn" class="view-btn">✏️ Customize</button>
                 </div>
             `;
+        } else if (featureType === 'team') {
+            html = `
+                <div class="view-toggle" id="teamViewToggle">
+                    <button id="teamListViewBtn" class="view-btn active">👥 All Members</button>
+                </div>
+            `;
         }
         container.innerHTML = html;
         
-        // Attach event listeners for analytics tabs
         if (featureType === 'analytics') {
             const insightsBtn = getEl('insightsTabBtn');
             const reportsBtn = getEl('reportsTabBtn');
@@ -1499,6 +1834,7 @@ function showFeaturePanel(featureType, title) {
         else if (featureType === 'tasks') renderTasksPanel(featureBody);
         else if (featureType === 'analytics') renderAnalyticsHub(featureBody);
         else if (featureType === 'shortcuts') renderShortcutsPanel(featureBody);
+        else if (featureType === 'team') renderTeamManagement();
         else if (featureType === 'notepad') {
             showToast('📝 Notes feature coming soon!', 'info');
             if (featurePanel) featurePanel.style.display = 'none';
@@ -1521,6 +1857,7 @@ function refreshCurrentView() {
     else if (currentView === 'tasks') renderTasksPanel(body);
     else if (currentView === 'analytics') renderAnalyticsHub(body);
     else if (currentView === 'shortcuts') renderShortcutsPanel(body);
+    else if (currentView === 'team') renderTeamManagement();
 }
 
 // ============================================================
@@ -1840,7 +2177,6 @@ function renderAnalyticsInsights(container) {
                     <option value="status">By Status</option>
                 </select>
                 <button id="analyticsApplyFilters" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-filter"></i> Apply</button>
-                <button id="analyticsExportPDF" class="btn-icon" style="background:var(--secondary); color:white;"><i class="fas fa-file-pdf"></i> Export PDF</button>
             </div>
             
             <div class="report-metrics scale-in">
@@ -1903,9 +2239,7 @@ function renderAnalyticsInsights(container) {
     }, 200);
 
     const applyBtn = getEl('analyticsApplyFilters');
-    const exportBtn = getEl('analyticsExportPDF');
     if (applyBtn) applyBtn.addEventListener('click', () => showToast('Filters applied', 'info'));
-    if (exportBtn) exportBtn.addEventListener('click', () => showToast('PDF export coming soon!', 'info'));
 }
 
 function renderAnalyticsReports(container) {
@@ -1938,7 +2272,6 @@ function renderAnalyticsReports(container) {
                 <h3><i class="fas fa-chart-line"></i> Advanced Reports</h3>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
                     <button id="reportsExportCSV" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-file-csv"></i> Export CSV</button>
-                    <button id="reportsExportPDF" class="btn-icon" style="background:var(--secondary); color:white;"><i class="fas fa-file-pdf"></i> Export PDF</button>
                 </div>
             </div>
             
@@ -2026,51 +2359,18 @@ function renderAnalyticsReports(container) {
     }, 200);
 
     const exportCSV = getEl('reportsExportCSV');
-    const exportPDF = getEl('reportsExportPDF');
-    if (exportCSV) exportCSV.addEventListener('click', () => showToast('CSV export coming soon!', 'info'));
-    if (exportPDF) exportPDF.addEventListener('click', () => showToast('PDF export coming soon!', 'info'));
+    if (exportCSV) exportCSV.addEventListener('click', () => exportToCSV());
 }
 
 function renderAnalyticsTeam(container) {
-    let teamStats = {};
-    TEAM_MEMBERS.forEach(member => {
-        teamStats[member.id] = {
-            ...member,
-            appointments: 0,
-            completed: 0,
-            hotTransfers: 0,
-            warmCallbacks: 0,
-            score: 0
-        };
+    let totalTeamAppts = 0;
+    const teamStats = teamMembers.map(member => {
+        const stats = getTeamMemberStats(member.id);
+        totalTeamAppts += stats.total;
+        return { ...member, ...stats };
     });
 
-    let totalAppts = 0;
-    for (let date in appointments) {
-        if (appointments[date].reports) {
-            appointments[date].reports.forEach(a => {
-                totalAppts++;
-                const assigned = a.assigned || 'unassigned';
-                const status = getStatus(a);
-                
-                if (teamStats[assigned]) {
-                    teamStats[assigned].appointments++;
-                    if (status === 'Completed') teamStats[assigned].completed++;
-                    if (status === 'Hot Transfer') teamStats[assigned].hotTransfers++;
-                    if (status === 'Warm Callback') teamStats[assigned].warmCallbacks++;
-                    teamStats[assigned].score += calculateLeadScore(a);
-                }
-            });
-        }
-    }
-
-    Object.values(teamStats).forEach(member => {
-        if (member.appointments > 0) {
-            member.score = Math.round(member.score / member.appointments);
-        }
-        member.conversionRate = member.appointments > 0 ? Math.round((member.completed / member.appointments) * 100) : 0;
-    });
-
-    const topPerformer = Object.values(teamStats).sort((a, b) => b.score - a.score)[0];
+    const topPerformer = teamStats.length > 0 ? teamStats.sort((a, b) => b.score - a.score)[0] : null;
 
     container.innerHTML = `
         <div class="analytics-container fade-in">
@@ -2080,8 +2380,8 @@ function renderAnalyticsTeam(container) {
             </div>
             
             <div class="report-metrics scale-in">
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${TEAM_MEMBERS.length}</div><div class="metric-label">👥 Team Members</div></div>
-                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${totalAppts}</div><div class="metric-label">📋 Total Appointments</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${teamStats.length}</div><div class="metric-label">👥 Team Members</div></div>
+                <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${totalTeamAppts}</div><div class="metric-label">📋 Total Appointments</div></div>
                 <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--primary);">${topPerformer ? topPerformer.score : 0}</div><div class="metric-label">🏆 Top Score</div></div>
                 <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${topPerformer ? topPerformer.conversionRate : 0}%</div><div class="metric-label">📈 Top Conversion</div></div>
             </div>
@@ -2089,18 +2389,18 @@ function renderAnalyticsTeam(container) {
             <div class="feature-card slide-up">
                 <h4>👤 Team Member Performance</h4>
                 <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-top:12px;">
-                    ${Object.values(teamStats).map(member => `
-                        <div style="background:var(--bg-primary); border-radius:12px; padding:16px; border-left: 4px solid ${member.color}; transition:all 0.3s ease;">
+                    ${teamStats.map(member => `
+                        <div style="background:var(--bg-primary); border-radius:12px; padding:16px; border-left: 4px solid ${member.color || '#6b7280'}; transition:all 0.3s ease; cursor:pointer;" onclick="openTeamMemberModal('${member.id}')">
                             <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-                                <span style="font-size:2rem;">${member.avatar}</span>
+                                <span style="font-size:2rem;">${member.avatar || '👤'}</span>
                                 <div>
-                                    <div style="font-weight:600;">${member.name}</div>
-                                    <div style="font-size:0.7rem; color:var(--text-muted);">${member.role}</div>
+                                    <div style="font-weight:600;">${escapeHtml(member.name)}</div>
+                                    <div style="font-size:0.7rem; color:var(--text-muted);">${escapeHtml(member.role)}</div>
                                 </div>
                                 ${member.id === topPerformer?.id ? '<span style="margin-left:auto; font-size:1.2rem;">👑</span>' : ''}
                             </div>
                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:0.8rem;">
-                                <span>📋 ${member.appointments}</span>
+                                <span>📋 ${member.total}</span>
                                 <span>✅ ${member.completed}</span>
                                 <span>🔥 ${member.hotTransfers}</span>
                                 <span>📞 ${member.warmCallbacks}</span>
@@ -2108,7 +2408,7 @@ function renderAnalyticsTeam(container) {
                                 <span style="font-weight:600;">Conv: ${member.conversionRate}%</span>
                             </div>
                             <div style="margin-top:8px; background:var(--bg-card); height:4px; border-radius:4px; overflow:hidden;">
-                                <div style="background:${member.color}; width:${member.conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div>
+                                <div style="background:${member.color || '#6b7280'}; width:${member.conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div>
                             </div>
                         </div>
                     `).join('')}
@@ -2127,9 +2427,9 @@ function renderAnalyticsTeam(container) {
     setTimeout(() => {
         const teamCtx = getEl('teamChart')?.getContext('2d');
         if (teamCtx) {
-            const labels = Object.values(teamStats).map(m => m.name);
-            const scores = Object.values(teamStats).map(m => m.score);
-            const colors = Object.values(teamStats).map(m => m.color);
+            const labels = teamStats.map(m => m.name);
+            const scores = teamStats.map(m => m.score);
+            const colors = teamStats.map(m => m.color || '#6b7280');
             new Chart(teamCtx, {
                 type: 'bar',
                 data: {
@@ -2146,12 +2446,8 @@ function renderAnalyticsTeam(container) {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        y: { beginAtZero: true }
-                    }
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
                 }
             });
         }
@@ -2216,27 +2512,21 @@ function initAnalyticsCharts(dailyData, statusCounts) {
 
 function renderShortcutsPanel(container) {
     if (!container) return;
-    container.innerHTML = `
+    
+    let html = `
         <div class="shortcuts-container fade-in">
             <h3><i class="fas fa-keyboard"></i> Keyboard Shortcuts Manager</h3>
             <p style="color:var(--text-muted); margin-bottom:16px;">View and customize keyboard shortcuts for quick access to features.</p>
+            <p style="color:var(--text-muted); margin-bottom:16px; font-size:0.85rem;">
+                <i class="fas fa-info-circle"></i> Shortcuts are automatically disabled when typing in any input field or editing scripts.
+            </p>
             <div style="margin-bottom:16px; display:flex; gap:8px; flex-wrap:wrap;">
                 <button id="shortcutsResetDefaultsBtn" class="btn-icon" style="background:var(--warning); color:#1e293b;"><i class="fas fa-undo"></i> Reset Defaults</button>
                 <span style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center;">⚠️ Conflicts are highlighted in red</span>
             </div>
-            <div id="shortcutsListContainer" style="max-height:450px; overflow-y:auto;"></div>
-        </div>
+            <div id="shortcutsListContainer" style="max-height:450px; overflow-y:auto;">
     `;
-    renderShortcutsList();
-    const resetBtn = getEl('shortcutsResetDefaultsBtn');
-    if (resetBtn) resetBtn.addEventListener('click', resetShortcutsToDefaults);
-}
 
-function renderShortcutsList() {
-    const container = getEl('shortcutsList');
-    if (!container) return;
-    
-    let html = '';
     for (const [action, shortcut] of Object.entries(shortcuts)) {
         const isDefault = DEFAULT_SHORTCUTS[action] && 
             JSON.stringify(DEFAULT_SHORTCUTS[action].keys) === JSON.stringify(shortcut.keys);
@@ -2257,7 +2547,12 @@ function renderShortcutsList() {
             </div>
         `;
     }
+
+    html += `</div></div>`;
     container.innerHTML = html;
+
+    const resetBtn = getEl('shortcutsResetDefaultsBtn');
+    if (resetBtn) resetBtn.addEventListener('click', resetShortcutsToDefaults);
 }
 
 function checkShortcutConflict(newKeys, excludeAction = null) {
@@ -2282,7 +2577,7 @@ function openShortcutEdit(action) {
     if (newKeysString && newKeysString !== keysString) {
         const newKeys = newKeysString.split('+').map(k => k.trim());
         updateShortcut(action, newKeys);
-        renderShortcutsList();
+        renderShortcutsPanel(getEl('featurePanelBody'));
     }
 }
 
@@ -2309,7 +2604,7 @@ function resetShortcutsToDefaults() {
         localStorage.removeItem('customShortcuts');
         shortcuts = { ...DEFAULT_SHORTCUTS };
         showToast('Shortcuts reset to defaults', 'success');
-        renderShortcutsList();
+        renderShortcutsPanel(getEl('featurePanelBody'));
     }
 }
 
@@ -2428,12 +2723,18 @@ function openBulkActions() {
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Starting ScriptFlow Pro...');
+    updateLoadingProgress(10, 'Initializing application...');
+    
+    // Load team members
+    loadTeamMembers();
+    updateLoadingProgress(20, 'Loading team data...');
     
     // Check Firebase availability
     if (!isFirebaseReady) {
         console.warn('⚠️ Firebase not available - running in offline mode');
         showToast('Offline mode - Some features may be limited', 'warning');
     }
+    updateLoadingProgress(35, 'Connecting to services...');
     
     // Setup Tools Menu
     const toolsHeader = getEl('toolsHeader');
@@ -2449,6 +2750,7 @@ document.addEventListener('DOMContentLoaded', function() {
             localStorage.setItem('toolsMenuOpen', toolsOpen);
         });
     }
+    updateLoadingProgress(50, 'Setting up UI...');
 
     // Menu Toggle
     const menuToggle = getEl('menuToggleBtn');
@@ -2475,12 +2777,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (tool === 'notepad') showToast('📝 Notes feature coming soon!', 'info');
             else if (tool === 'calendar') showFeaturePanel('calendar', '📅 Appointment & Handoff Calendar');
             else if (tool === 'tasks') showFeaturePanel('tasks', '📋 Follow-up Tasks Manager');
+            else if (tool === 'team') {
+                currentView = 'team';
+                showFeaturePanel('team', '👥 Team Management');
+            }
             else if (tool === 'analytics') {
                 analyticsTab = 'insights';
                 showFeaturePanel('analytics', '📊 Analytics Hub');
             }
             else if (tool === 'shortcuts') showFeaturePanel('shortcuts', '⌨️ Keyboard Shortcuts');
-            else if (tool === 'theme') { document.body.classList.toggle('dark'); showToast('Theme toggled', 'info'); }
+            else if (tool === 'theme') { document.body.classList.toggle('light'); showToast('Theme toggled', 'info'); }
             else if (tool === 'help') showToast('Handoffs: Warm Callback, Completed, Canceled, Pending, Hot Transfer - All integrated!', 'info');
             else if (tool === 'reset') {
                 if (confirm('⚠️ This will clear all local data and reset the app. Continue?')) {
@@ -2493,6 +2799,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (tool === 'export') exportToCSV();
         });
     });
+    updateLoadingProgress(65, 'Loading features...');
 
     // Close Feature Panel
     const closeFeatureBtn = getEl('closeFeaturePanelBtn');
@@ -2598,6 +2905,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     if (favoriteScriptBtn) favoriteScriptBtn.addEventListener('click', () => toggleFavorite(currentScriptId));
+
+    // Team Management Modal
+    const saveTeamBtn = getEl('saveTeamMemberBtn');
+    const deleteTeamBtn = getEl('deleteTeamMemberBtn');
+    const closeTeamBtn = getEl('closeTeamMemberBtn');
+
+    if (saveTeamBtn) saveTeamBtn.addEventListener('click', saveTeamMemberFromModal);
+    if (deleteTeamBtn) deleteTeamBtn.addEventListener('click', deleteTeamMemberFromModal);
+    if (closeTeamBtn) closeTeamBtn.addEventListener('click', closeTeamMemberModal);
 
     // Bulk Actions
     const bulkActionsBtn = getEl('bulkActionsBtn');
@@ -2767,7 +3083,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     data.phone || data.mobile || '',
                                     data.time || '',
                                     data.notes || '',
-                                    'Daniel',
+                                    data.assigned || 'Daniel',
                                     null,
                                     data.status || 'Pending'
                                 );
@@ -2833,7 +3149,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Keyboard Shortcuts - Global
     document.addEventListener('keydown', (e) => {
-        // Script shortcuts (1-9)
         if (e.key >= '1' && e.key <= '9') {
             const index = parseInt(e.key) - 1;
             const visible = getOrderedVisible();
@@ -2843,7 +3158,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        // Check for custom shortcuts
         for (const [action, shortcut] of Object.entries(shortcuts)) {
             if (shortcut.keys && shortcut.keys.length > 0) {
                 const keys = shortcut.keys;
@@ -2866,11 +3180,10 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'Call Scripts': hideFeaturePanel(); loadScript('opening'); break;
             case 'Global Search': openGlobalSearch(); break;
             case 'Quick Add Appointment': openQuickReportWithDate(getTodayStr()); break;
-            case 'Floating Notepad': showToast('📝 Notes feature coming soon!', 'info'); break;
             case 'Analytics Hub': analyticsTab = 'insights'; showFeaturePanel('analytics', '📊 Analytics Hub'); break;
             case 'Keyboard Shortcuts': showFeaturePanel('shortcuts', '⌨️ Keyboard Shortcuts'); break;
             case 'Export to CSV': exportToCSV(); break;
-            case 'Toggle Theme': document.body.classList.toggle('dark'); showToast('Theme toggled', 'info'); break;
+            case 'Toggle Theme': document.body.classList.toggle('light'); showToast('Theme toggled', 'info'); break;
             case 'Refresh Data': { const btn = getEl('refreshBtn'); if (btn) btn.click(); break; }
             case 'Bulk Actions': openBulkActions(); break;
             case 'Close Panel': handleEscapeKey(); break;
@@ -2886,8 +3199,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     currentUser = user;
                     updateSidebarProfile(currentUser);
                     await loadUserData();
+                    updateLoadingProgress(85, 'Loading your data...');
                 } else {
-                    // Try loading from local storage
                     const localData = localStorage.getItem('userData_fallback');
                     if (localData) {
                         try {
@@ -2904,9 +3217,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     showAuthModal();
                 }
+                updateLoadingProgress(100, 'Ready!');
+                setTimeout(hideLoadingScreen, 400);
             });
         } else {
-            // Offline mode - try loading from local storage
             const localData = localStorage.getItem('userData_fallback');
             if (localData) {
                 try {
@@ -2921,10 +3235,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 } catch (e) {}
             }
             showAuthModal();
+            updateLoadingProgress(100, 'Ready!');
+            setTimeout(hideLoadingScreen, 400);
         }
     } catch (error) {
         console.warn('Auth setup error:', error);
         showAuthModal();
+        updateLoadingProgress(100, 'Ready!');
+        setTimeout(hideLoadingScreen, 400);
     }
 
     // Close modals on overlay click
@@ -2950,6 +3268,7 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('✨ Smart import ready with field validation');
     console.log('⌨️ Keyboard shortcuts loaded:', Object.keys(shortcuts).length);
     console.log('📈 Analytics tabs: Insights, Reports, Team');
+    console.log('👥 Team Management with CRUD operations');
     console.log('🔑 Press ESC to return to Opening Script');
     console.log(`🔌 Firebase status: ${isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
 });
@@ -3002,6 +3321,13 @@ function performGlobalSearch(query) {
         }
     }
     
+    teamMembers.forEach(member => {
+        const searchable = `${member.name} ${member.email} ${member.role}`.toLowerCase();
+        if (searchable.includes(q)) {
+            searchResults.push({ type: 'team', data: member });
+        }
+    });
+    
     if (searchResults.length === 0) {
         results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">No results found.</p>';
         return;
@@ -3037,6 +3363,16 @@ function performGlobalSearch(query) {
                     </div>
                 </div>
             `;
+        } else if (result.type === 'team') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="openTeamMemberModal('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${escapeHtml(result.data.name)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">👥 ${result.data.role}</span>
+                    </div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary);">${escapeHtml(result.data.email)}</div>
+                </div>
+            `;
         }
     });
     html += `</div>`;
@@ -3054,3 +3390,7 @@ window.toggleFavorite = toggleFavorite;
 window.performGlobalSearch = performGlobalSearch;
 window.openGlobalSearch = openGlobalSearch;
 window.showToast = showToast;
+window.openTeamMemberModal = openTeamMemberModal;
+window.saveTeamMemberFromModal = saveTeamMemberFromModal;
+window.deleteTeamMemberFromModal = deleteTeamMemberFromModal;
+window.closeTeamMemberModal = closeTeamMemberModal;
