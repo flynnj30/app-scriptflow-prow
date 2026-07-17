@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - ENHANCED APPLICATION
+// SCRIPTFLOW PRO - COMPLETE APPLICATION WITH STATUS HIERARCHY
 // ================================================================
 
 // ================================================================
@@ -7,13 +7,42 @@
 // ================================================================
 
 const CONFIG = {
-    STATUS_OPTIONS: ['Warm Callback', 'Completed', 'Canceled', 'Pending', 'Hot Transfer', 'Warm Call Booked', 'Meeting Booked', 'Rescheduled', 'Held'],
+    // Primary pipeline statuses (shown in analytics)
+    PRIMARY_STATUSES: ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled'],
+    
+    // Secondary statuses (tags that can be applied after booking)
+    SECONDARY_STATUSES: ['Meeting Booked', 'Rescheduled', 'Overdue', 'Held'],
+    
+    // All statuses combined (for dropdowns)
+    STATUS_OPTIONS: ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'],
+    
+    // Status to primary mapping
+    STATUS_MAPPING: {
+        'Hot Transfer': 'Completed',
+        'Meeting Booked': 'Completed',
+        'Completed': 'Completed',
+        'Warm Callback': 'Warm Callback',
+        'Pending': 'Pending',
+        'Canceled': 'Canceled',
+        'Rescheduled': 'Rescheduled',
+        'Overdue': 'Overdue',
+        'Held': 'Held'
+    },
+    
+    // Which statuses count as completed
+    COMPLETED_STATUSES: ['Hot Transfer', 'Meeting Booked', 'Completed'],
+    
     TAG_OPTIONS: [
         { id: 'qualified_warm_call', name: 'Qualified Warm Call', color: '#10b981' },
         { id: 'unqualified_warm_callback', name: 'Unqualified Warm Callback', color: '#f59e0b' },
         { id: 'vip', name: 'VIP', color: '#3b82f6' },
-        { id: 'negligent_warm_callback', name: 'Negligent Warm Callback', color: '#ef4444' }
+        { id: 'negligent_warm_callback', name: 'Negligent Warm Callback', color: '#ef4444' },
+        { id: 'meeting_booked', name: 'Meeting Booked', color: '#8b5cf6' },
+        { id: 'rescheduled', name: 'Rescheduled', color: '#f97316' },
+        { id: 'overdue', name: 'Overdue', color: '#dc2626' },
+        { id: 'held', name: 'Held', color: '#06b6d4' }
     ],
+    
     DEFAULT_TEAM_MEMBERS: [
         { id: 'daniel', name: 'Daniel', role: 'Team Lead', email: 'daniel@company.com', phone: '+1-555-0101', avatar: '👨‍💼', color: '#3b82f6', active: true },
         { id: 'sarah', name: 'Sarah', role: 'Senior Agent', email: 'sarah@company.com', phone: '+1-555-0102', avatar: '👩‍💼', color: '#8b5cf6', active: true },
@@ -21,6 +50,7 @@ const CONFIG = {
         { id: 'jessica', name: 'Jessica', role: 'Agent', email: 'jessica@company.com', phone: '+1-555-0104', avatar: '👩‍💻', color: '#f59e0b', active: true },
         { id: 'david', name: 'David', role: 'Junior Agent', email: 'david@company.com', phone: '+1-555-0105', avatar: '👨‍🎓', color: '#ef4444', active: true }
     ],
+    
     FIELD_MAPPINGS: {
         'name': ['name', 'client', 'prospect', 'contact', 'customer', 'person', 'full name', 'contact name'],
         'business': ['business', 'company', 'organization', 'org', 'firm', 'brand', 'store'],
@@ -32,6 +62,7 @@ const CONFIG = {
         'notes': ['notes', 'note', 'comment', 'remarks', 'additional notes', 'info', 'details'],
         'assigned': ['assigned', 'assigned to', 'owner', 'agent', 'representative', 'rep', 'assigned agent']
     },
+    
     DEFAULT_SHORTCUTS: {
         'Smart Import': { keys: ['Ctrl', 'Shift', 'I'], description: 'Open Smart Import modal' },
         'Appointment Calendar': { keys: ['Ctrl', 'Shift', 'C'], description: 'Open Appointment Calendar' },
@@ -53,13 +84,10 @@ const CONFIG = {
 // ================================================================
 
 const AppState = {
-    // User
     currentUser: null,
     isFirebaseReady: false,
     authInProgress: false,
     authModalOpen: false,
-
-    // Data
     appointments: {},
     scripts: {},
     scriptOrder: [],
@@ -67,8 +95,6 @@ const AppState = {
     tasks: [],
     teamMembers: [],
     goals: { daily: 3, weekly: 15, monthly: 60 },
-
-    // UI State
     currentScriptId: 'opening',
     isEditing: false,
     searchTerm: '',
@@ -77,36 +103,24 @@ const AppState = {
     currentView: 'calendar',
     calendarView: 'calendar',
     analyticsTab: 'insights',
-    pipelineView: 'my', // 'my' or 'team'
+    pipelineView: 'my',
     taskFilter: 'all',
     selectedAppointments: new Set(),
     currentAppointmentId: null,
     selectedCalDate: null,
     currentCalDate: null,
     selectedTeamMemberId: null,
-
-    // Date Filters
     dateFilter: 'today',
     customStartDate: null,
     customEndDate: null,
-
-    // Subscriptions
     appointmentsUnsubscribe: null,
     tasksUnsubscribe: null,
     teamMembersUnsubscribe: null,
-
-    // Charts
     chartInstances: {},
-
-    // Shortcuts
     shortcuts: {},
     customShortcuts: {},
-
-    // Parsed Import
     parsedImportData: {},
     importConfidence: {},
-
-    // Loading
     isLoading: false,
     isRefreshing: false,
     shortcutsEnabled: true
@@ -156,17 +170,27 @@ const Utils = {
         return appt.status;
     },
 
+    getPrimaryStatus(status) {
+        if (CONFIG.COMPLETED_STATUSES.includes(status)) return 'Completed';
+        if (CONFIG.PRIMARY_STATUSES.includes(status)) return status;
+        return status;
+    },
+
+    isCompleted(status) {
+        return CONFIG.COMPLETED_STATUSES.includes(status);
+    },
+
     getStatusClass(status) {
         const map = {
-            'Warm Callback': 'status-warm-callback-sm',
+            'Hot Transfer': 'status-hot-transfer-sm',
             'Completed': 'status-completed-sm',
             'Canceled': 'status-canceled-sm',
             'Pending': 'status-pending-sm',
-            'Hot Transfer': 'status-hot-transfer-sm',
-            'Warm Call Booked': 'status-warm-call-booked-sm',
+            'Warm Callback': 'status-warm-callback-sm',
             'Meeting Booked': 'status-meeting-booked-sm',
             'Rescheduled': 'status-rescheduled-sm',
-            'Held': 'status-held-sm'
+            'Held': 'status-held-sm',
+            'Overdue': 'status-canceled-sm'
         };
         return map[status] || 'status-pending-sm';
     },
@@ -179,16 +203,16 @@ const Utils = {
 
     calculateLeadScore(appt) {
         let score = 0;
-        const status = Utils.getStatus(appt);
+        const status = this.getStatus(appt);
+        const primaryStatus = this.getPrimaryStatus(status);
 
-        if (status === 'Hot Transfer') score += 50;
-        else if (status === 'Completed') score += 40;
-        else if (status === 'Warm Callback') score += 30;
-        else if (status === 'Held' || status === 'Meeting Booked') score += 25;
-        else if (status === 'Warm Call Booked') score += 15;
-        else if (status === 'Pending') score += 10;
-        else if (status === 'Rescheduled') score += 5;
-        else if (status === 'Canceled') score -= 20;
+        if (primaryStatus === 'Completed') {
+            if (status === 'Hot Transfer') score += 50;
+            else if (status === 'Meeting Booked') score += 40;
+            else score += 35;
+        } else if (primaryStatus === 'Warm Callback') score += 30;
+        else if (primaryStatus === 'Pending') score += 10;
+        else if (primaryStatus === 'Canceled') score -= 20;
 
         if (appt.tags) {
             if (appt.tags.includes('vip')) score += 20;
@@ -306,15 +330,22 @@ const Utils = {
         for (let date in appointments) {
             if (appointments[date].reports) {
                 appointments[date].reports.forEach(appt => {
-                    if (appt.assigned === memberId) {
+                    if (appt.assigned === memberId || appt.assigned === CONFIG.DEFAULT_TEAM_MEMBERS.find(m => m.id === memberId)?.name) {
                         stats.total++;
-                        const status = Utils.getStatus(appt);
-                        if (status === 'Hot Transfer') stats.hotTransfers++;
-                        else if (status === 'Warm Callback') stats.warmCallbacks++;
-                        else if (status === 'Completed') stats.completed++;
-                        else if (status === 'Pending') stats.pending++;
-                        else if (status === 'Canceled') stats.canceled++;
-                        stats.score += Utils.calculateLeadScore(appt);
+                        const status = this.getStatus(appt);
+                        const primaryStatus = this.getPrimaryStatus(status);
+                        
+                        if (primaryStatus === 'Completed') {
+                            stats.completed++;
+                            if (status === 'Hot Transfer') stats.hotTransfers++;
+                        } else if (primaryStatus === 'Warm Callback') {
+                            stats.warmCallbacks++;
+                        } else if (primaryStatus === 'Pending') {
+                            stats.pending++;
+                        } else if (primaryStatus === 'Canceled') {
+                            stats.canceled++;
+                        }
+                        stats.score += this.calculateLeadScore(appt);
                         stats.appointments.push(appt);
                     }
                 });
@@ -333,6 +364,35 @@ const Utils = {
         teamMembers.forEach(member => {
             stats[member.id] = this.getMemberStats(member.id, appointments);
         });
+        return stats;
+    },
+
+    getAppointmentStats(appointments) {
+        const stats = {
+            hotTransfers: 0,
+            warmCallbacks: 0,
+            completed: 0,
+            pending: 0,
+            canceled: 0,
+            total: appointments.length
+        };
+
+        appointments.forEach(a => {
+            const status = this.getStatus(a);
+            const primaryStatus = this.getPrimaryStatus(status);
+            
+            if (primaryStatus === 'Completed') {
+                stats.completed++;
+                if (status === 'Hot Transfer') stats.hotTransfers++;
+            } else if (primaryStatus === 'Warm Callback') {
+                stats.warmCallbacks++;
+            } else if (primaryStatus === 'Pending') {
+                stats.pending++;
+            } else if (primaryStatus === 'Canceled') {
+                stats.canceled++;
+            }
+        });
+
         return stats;
     }
 };
@@ -817,7 +877,6 @@ const Data = {
 
             AppState.teamMembersUnsubscribe = userRef.collection('teamMembers').onSnapshot(snap => {
                 if (snap.empty) {
-                    // Initialize with default team members
                     AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
                     AppState.teamMembers.forEach(member => {
                         userRef.collection('teamMembers').doc(member.id).set(member);
@@ -900,7 +959,9 @@ const Data = {
         if (!AppState.appointments[dateStr]) {
             AppState.appointments[dateStr] = { count: 0, note: '', reports: [] };
         }
+        
         if (!CONFIG.STATUS_OPTIONS.includes(status)) status = 'Pending';
+        
         const newAppt = {
             id: editId || Utils.generateId(),
             business: business || 'Unknown Business',
@@ -915,6 +976,7 @@ const Data = {
             tags: tags || [],
             date: dateStr,
             email: '',
+            primaryStatus: Utils.getPrimaryStatus(status),
             createdAt: new Date().toISOString()
         };
         
@@ -970,6 +1032,11 @@ const Data = {
     updateAppointment: function(dateStr, id, updates) {
         const appt = AppState.appointments[dateStr]?.reports?.find(r => r.id === id);
         if (!appt) return false;
+        
+        if (updates.status) {
+            updates.primaryStatus = Utils.getPrimaryStatus(updates.status);
+        }
+        
         Object.assign(appt, updates);
         this.syncAppointment(appt);
         Stats.updateAll();
@@ -1047,11 +1114,11 @@ const Data = {
     },
 
     exportToCSV: function(selectedIds = null) {
-        let csv = 'Business,Contact,Phone,Email,Date,Time,Status,Notes,Assigned\n';
+        let csv = 'Business,Contact,Phone,Email,Date,Time,Status,Primary Status,Notes,Assigned\n';
         const appointments = selectedIds ? this.getSelectedAppointments(selectedIds) : this.getAllAppointments();
 
         appointments.forEach(appt => {
-            csv += `"${appt.business || ''}","${appt.contactName || ''}","${appt.phone || ''}","${appt.email || ''}","${appt.date || ''}","${appt.time || ''}","${Utils.getStatus(appt)}","${appt.notes || ''}","${appt.assigned || 'Daniel'}"\n`;
+            csv += `"${appt.business || ''}","${appt.contactName || ''}","${appt.phone || ''}","${appt.email || ''}","${appt.date || ''}","${appt.time || ''}","${Utils.getStatus(appt)}","${Utils.getPrimaryStatus(Utils.getStatus(appt))}","${appt.notes || ''}","${appt.assigned || 'Daniel'}"\n`;
         });
 
         const blob = new Blob([csv], { type: 'text/csv' });
@@ -1506,10 +1573,6 @@ const Scripts = {
                 this.loadScript(id);
             }
         }
-    },
-
-    isEditing: function() {
-        return AppState.isEditing;
     }
 };
 
@@ -1578,7 +1641,6 @@ const TeamManager = {
         html += '</div>';
         container.innerHTML = html;
 
-        // Click to view member details
         container.querySelectorAll('.team-member-card').forEach(card => {
             card.addEventListener('click', (e) => {
                 if (e.target.closest('.edit-team-member-btn') || e.target.closest('.delete-team-member-btn')) return;
@@ -1587,7 +1649,6 @@ const TeamManager = {
             });
         });
 
-        // Edit buttons
         container.querySelectorAll('.edit-team-member-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1595,7 +1656,6 @@ const TeamManager = {
             });
         });
 
-        // Delete buttons
         container.querySelectorAll('.delete-team-member-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -2024,10 +2084,8 @@ const FeaturePanel = {
         if (!container) return;
 
         const members = AppState.teamMembers || [];
-        const totalAppointments = Data.getAllAppointments().length;
         const memberStats = Utils.getAllMemberStats(members, AppState.appointments);
 
-        // Calculate team totals
         let teamTotal = 0, teamHot = 0, teamWarm = 0, teamCompleted = 0, teamPending = 0, teamCanceled = 0, teamScore = 0;
         Object.values(memberStats).forEach(stat => {
             teamTotal += stat.total;
@@ -2050,7 +2108,6 @@ const FeaturePanel = {
                     </button>
                 </div>
 
-                <!-- Team Overview Metrics -->
                 <div class="report-metrics scale-in" style="margin-bottom:16px;">
                     <div class="metric-card"><div class="metric-value">${members.length}</div><div class="metric-label">👥 Team Members</div></div>
                     <div class="metric-card"><div class="metric-value" style="color:var(--primary);">${teamTotal}</div><div class="metric-label">📋 Total Pipeline</div></div>
@@ -2060,15 +2117,12 @@ const FeaturePanel = {
                     <div class="metric-card"><div class="metric-value" style="color:var(--secondary);">${teamConversion}%</div><div class="metric-label">📈 Team Conversion</div></div>
                 </div>
 
-                <!-- Team Members Grid -->
                 <div id="teamMembersList" style="margin-top:12px;"></div>
             </div>
         `;
 
-        // Render team list
         TeamManager.renderTeamList();
 
-        // Add member button
         const addBtn = DOM.get('addTeamMemberBtn');
         if (addBtn) addBtn.addEventListener('click', () => TeamManager.addMember());
     },
@@ -2123,8 +2177,15 @@ const FeaturePanel = {
             if (count > 0) {
                 const dots = appts.slice(0, 3).map(a => {
                     const s = Utils.getStatus(a);
-                    const colors = { 'Hot Transfer': '#dc2626', 'Completed': 'var(--success)', 'Warm Callback': 'var(--warning)', 'Pending': 'var(--text-muted)' };
-                    return `<span class="appt-dot" style="background:${colors[s] || 'var(--primary)'};"></span>`;
+                    const colors = { 
+                        'Hot Transfer': '#dc2626', 
+                        'Completed': 'var(--success)', 
+                        'Warm Callback': 'var(--warning)', 
+                        'Pending': 'var(--text-muted)',
+                        'Canceled': 'var(--danger)'
+                    };
+                    const primaryStatus = Utils.getPrimaryStatus(s);
+                    return `<span class="appt-dot" style="background:${colors[primaryStatus] || colors[s] || 'var(--primary)'};"></span>`;
                 }).join('');
                 indicatorHtml = `<div class="appt-indicator">${dots}</div>`;
             }
@@ -2154,7 +2215,7 @@ const FeaturePanel = {
         }
 
         const selectedAppts = AppState.appointments[AppState.selectedCalDate]?.reports || [];
-        const stats = this.getAppointmentStats(selectedAppts);
+        const stats = Utils.getAppointmentStats(selectedAppts);
 
         const filterButtons = [
             { key: 'today', label: 'Today', icon: 'fa-calendar-day' },
@@ -2214,15 +2275,18 @@ const FeaturePanel = {
                     <div class="appointments-list" id="appointmentsList">
                         ${selectedAppts.map(a => {
                             const score = Utils.calculateLeadScore(a);
-                            const isHotTransfer = Utils.getStatus(a) === 'Hot Transfer';
+                            const status = Utils.getStatus(a);
+                            const primaryStatus = Utils.getPrimaryStatus(status);
+                            const isHotTransfer = status === 'Hot Transfer';
                             return `
                                 <div class="appointment-card" data-id="${a.id}" data-date="${AppState.selectedCalDate}" style="border-left: 4px solid ${isHotTransfer ? '#dc2626' : 'var(--border-color)'};">
                                     <i class="fas fa-grip-vertical drag-handle"></i>
                                     <div class="card-row">
                                         <div class="business-name" onclick="window.showAppointmentDetail('${a.id}')">
                                             <strong>${Utils.escapeHtml(a.business)}</strong>
-                                            <span class="status-tag ${Utils.getStatusClass(Utils.getStatus(a))}">${Utils.getStatus(a)}</span>
+                                            <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
                                             <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
+                                            ${primaryStatus !== status ? `<span style="font-size:0.6rem; color:var(--text-muted);">→ ${primaryStatus}</span>` : ''}
                                         </div>
                                         <div class="card-actions">
                                             <button class="delete-appt-btn" data-id="${a.id}" title="Delete"><i class="fas fa-trash"></i></button>
@@ -2232,6 +2296,7 @@ const FeaturePanel = {
                                         <span>Contact: ${Utils.escapeHtml(a.contactName)}</span>
                                         ${a.phone ? `<span>📞 ${Utils.escapeHtml(a.phone)}</span>` : ''}
                                         ${a.time ? `<span>🕐 ${Utils.escapeHtml(a.time)}</span>` : ''}
+                                        ${a.tags && a.tags.length > 0 ? `<span>🏷️ ${a.tags.join(', ')}</span>` : ''}
                                     </div>
                                 </div>
                             `;
@@ -2241,7 +2306,6 @@ const FeaturePanel = {
             </div>
         `;
 
-        // Event listeners...
         container.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const filter = btn.getAttribute('data-filter');
@@ -2400,7 +2464,7 @@ const FeaturePanel = {
         }
 
         const filteredAppointments = Data.getAppointmentsInDateRange(startDate, endDate);
-        const stats = this.getAppointmentStats(filteredAppointments);
+        const stats = Utils.getAppointmentStats(filteredAppointments);
 
         if (container) {
             const kpiRow = container.querySelector('.kpi-row');
@@ -2431,15 +2495,18 @@ const FeaturePanel = {
                 } else {
                     appointmentsList.innerHTML = filteredAppointments.map(a => {
                         const score = Utils.calculateLeadScore(a);
-                        const isHotTransfer = Utils.getStatus(a) === 'Hot Transfer';
+                        const status = Utils.getStatus(a);
+                        const primaryStatus = Utils.getPrimaryStatus(status);
+                        const isHotTransfer = status === 'Hot Transfer';
                         return `
                             <div class="appointment-card" data-id="${a.id}" data-date="${a.date}" style="border-left: 4px solid ${isHotTransfer ? '#dc2626' : 'var(--border-color)'};">
                                 <i class="fas fa-grip-vertical drag-handle"></i>
                                 <div class="card-row">
                                     <div class="business-name" onclick="window.showAppointmentDetail('${a.id}')">
                                         <strong>${Utils.escapeHtml(a.business)}</strong>
-                                        <span class="status-tag ${Utils.getStatusClass(Utils.getStatus(a))}">${Utils.getStatus(a)}</span>
+                                        <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
                                         <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
+                                        ${primaryStatus !== status ? `<span style="font-size:0.6rem; color:var(--text-muted);">→ ${primaryStatus}</span>` : ''}
                                     </div>
                                     <div class="card-actions">
                                         <button class="delete-appt-btn" data-id="${a.id}" title="Delete"><i class="fas fa-trash"></i></button>
@@ -2450,6 +2517,7 @@ const FeaturePanel = {
                                     ${a.phone ? `<span>📞 ${Utils.escapeHtml(a.phone)}</span>` : ''}
                                     ${a.time ? `<span>🕐 ${Utils.escapeHtml(a.time)}</span>` : ''}
                                     <span>📅 ${Utils.formatDate(a.date)}</span>
+                                    ${a.tags && a.tags.length > 0 ? `<span>🏷️ ${a.tags.join(', ')}</span>` : ''}
                                 </div>
                             </div>
                         `;
@@ -2483,27 +2551,6 @@ const FeaturePanel = {
         showToast(`Showing ${filteredAppointments.length} appointments for: ${filterLabels[filter] || filter}`, 'info');
     },
 
-    getAppointmentStats: function(appointments) {
-        const stats = {
-            hotTransfers: 0,
-            warmCallbacks: 0,
-            completed: 0,
-            pending: 0,
-            canceled: 0
-        };
-
-        appointments.forEach(a => {
-            const status = Utils.getStatus(a);
-            if (status === 'Hot Transfer') stats.hotTransfers++;
-            else if (status === 'Warm Callback') stats.warmCallbacks++;
-            else if (status === 'Completed') stats.completed++;
-            else if (status === 'Pending') stats.pending++;
-            else if (status === 'Canceled') stats.canceled++;
-        });
-
-        return stats;
-    },
-
     renderCalendarList: function(container) {
         const allAppointments = Data.getAllAppointments();
 
@@ -2528,16 +2575,20 @@ const FeaturePanel = {
                     <span>Business</span><span>Contact</span><span>Status</span><span>Date</span><span>Score</span><span>Actions</span>
                 </div>
                 <div id="listItemsContainer">
-                    ${allAppointments.map(appt => `
-                        <div class="list-item" onclick="window.showAppointmentDetail('${appt.id}')">
-                            <span class="list-business"><strong>${Utils.escapeHtml(appt.business)}</strong></span>
-                            <span class="list-contact">${Utils.escapeHtml(appt.contactName)}</span>
-                            <span class="list-status ${Utils.getStatusClass(Utils.getStatus(appt))}">${Utils.getStatus(appt)}</span>
-                            <span>${Utils.formatDate(appt.dateKey)}</span>
-                            <span><span class="score-badge ${Utils.getScoreColor(Utils.calculateLeadScore(appt))}">${Utils.calculateLeadScore(appt)}</span></span>
-                            <span><button class="delete-appt-btn" data-id="${appt.id}" data-date="${appt.dateKey}" style="background:none; border:none; cursor:pointer; color:var(--danger);"><i class="fas fa-trash"></i></button></span>
-                        </div>
-                    `).join('')}
+                    ${allAppointments.map(appt => {
+                        const status = Utils.getStatus(appt);
+                        const primaryStatus = Utils.getPrimaryStatus(status);
+                        return `
+                            <div class="list-item" onclick="window.showAppointmentDetail('${appt.id}')">
+                                <span class="list-business"><strong>${Utils.escapeHtml(appt.business)}</strong></span>
+                                <span class="list-contact">${Utils.escapeHtml(appt.contactName)}</span>
+                                <span class="list-status ${Utils.getStatusClass(status)}">${status}${primaryStatus !== status ? ` → ${primaryStatus}` : ''}</span>
+                                <span>${Utils.formatDate(appt.dateKey)}</span>
+                                <span><span class="score-badge ${Utils.getScoreColor(Utils.calculateLeadScore(appt))}">${Utils.calculateLeadScore(appt)}</span></span>
+                                <span><button class="delete-appt-btn" data-id="${appt.id}" data-date="${appt.dateKey}" style="background:none; border:none; cursor:pointer; color:var(--danger);"><i class="fas fa-trash"></i></button></span>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
                 ${allAppointments.length === 0 ? '<div class="empty-state"><i class="fas fa-calendar-check"></i><p>No appointments found</p></div>' : ''}
             </div>
@@ -2566,7 +2617,7 @@ const FeaturePanel = {
                 const status = item.querySelector('.list-status')?.textContent || '';
                 let show = true;
                 if (search && !text.includes(search)) show = false;
-                if (statusFilterValue !== 'all' && status !== statusFilterValue) show = false;
+                if (statusFilterValue !== 'all' && !status.includes(statusFilterValue)) show = false;
                 item.style.display = show ? 'grid' : 'none';
             });
         };
@@ -2659,12 +2710,10 @@ const FeaturePanel = {
     },
 
     renderAnalyticsInsights: function(container) {
-        // Calculate personal stats (My Pipeline)
         const myAppointments = [];
         const currentUser = AppState.currentUser;
         const myName = currentUser?.displayName || currentUser?.email || 'Daniel';
         
-        // Find or create a member ID for the current user
         let myMemberId = 'daniel';
         if (AppState.teamMembers.length > 0) {
             const member = AppState.teamMembers.find(m => 
@@ -2674,7 +2723,6 @@ const FeaturePanel = {
             if (member) myMemberId = member.id;
         }
 
-        // Get my appointments
         for (let date in AppState.appointments) {
             if (AppState.appointments[date].reports) {
                 AppState.appointments[date].reports.forEach(appt => {
@@ -2685,31 +2733,33 @@ const FeaturePanel = {
             }
         }
 
-        // Get team appointments (all)
         const teamAppointments = Data.getAllAppointments();
         const useMyPipeline = AppState.pipelineView === 'my';
         const appointments = useMyPipeline ? myAppointments : teamAppointments;
 
-        let total = appointments.length;
-        let hTransfers = 0, wCallbacks = 0, completedCount = 0, pendingCount = 0, canceledCount = 0;
-        let statusCounts = {};
-        let dailyData = {};
-
-        appointments.forEach(a => {
-            const status = Utils.getStatus(a);
-            statusCounts[status] = (statusCounts[status] || 0) + 1;
-            if (status === 'Hot Transfer') hTransfers++;
-            else if (status === 'Warm Callback') wCallbacks++;
-            else if (status === 'Completed') completedCount++;
-            else if (status === 'Pending') pendingCount++;
-            else if (status === 'Canceled') canceledCount++;
-            dailyData[a.date] = (dailyData[a.date] || 0) + 1;
-        });
+        const stats = Utils.getAppointmentStats(appointments);
+        const total = stats.total;
+        const hTransfers = stats.hotTransfers;
+        const wCallbacks = stats.warmCallbacks;
+        const completedCount = stats.completed;
+        const pendingCount = stats.pending;
+        const canceledCount = stats.canceled;
 
         const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
         const hotTransferRate = total > 0 ? Math.round((hTransfers / total) * 100) : 0;
         const warmCallbackRate = total > 0 ? Math.round((wCallbacks / total) * 100) : 0;
         const avgScore = total > 0 ? Math.round(appointments.reduce((sum, a) => sum + Utils.calculateLeadScore(a), 0) / total) : 0;
+
+        const statusCounts = {};
+        appointments.forEach(a => {
+            const primaryStatus = Utils.getPrimaryStatus(Utils.getStatus(a));
+            statusCounts[primaryStatus] = (statusCounts[primaryStatus] || 0) + 1;
+        });
+
+        const dailyData = {};
+        appointments.forEach(a => {
+            dailyData[a.date] = (dailyData[a.date] || 0) + 1;
+        });
 
         container.innerHTML = `
             <div class="analytics-container fade-in">
@@ -2783,7 +2833,6 @@ const FeaturePanel = {
             </div>
         `;
 
-        // Pipeline view toggle
         const myPipelineBtn = DOM.get('myPipelineBtn');
         const teamPipelineBtn = DOM.get('teamPipelineBtn');
         if (myPipelineBtn) {
@@ -2818,9 +2867,14 @@ const FeaturePanel = {
                 AppState.appointments[date].reports.forEach(a => {
                     total++;
                     const status = Utils.getStatus(a);
-                    if (status === 'Completed') completedCount++;
-                    if (status === 'Hot Transfer') hTransfers++;
-                    if (status === 'Warm Callback') wCallbacks++;
+                    const primaryStatus = Utils.getPrimaryStatus(status);
+                    
+                    if (primaryStatus === 'Completed') {
+                        completedCount++;
+                        if (status === 'Hot Transfer') hTransfers++;
+                    } else if (primaryStatus === 'Warm Callback') {
+                        wCallbacks++;
+                    }
                     dailyData[date] = (dailyData[date] || 0) + 1;
 
                     const assigned = a.assigned || 'Unassigned';
@@ -2904,7 +2958,7 @@ const FeaturePanel = {
 
     renderAnalyticsTeam: function(container) {
         let teamStats = {};
-        const members = AppState.teamMembers || CONFIG.TEAM_MEMBERS;
+        const members = AppState.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
         
         members.forEach(member => {
             const stats = Utils.getMemberStats(member.id, AppState.appointments);
@@ -2914,7 +2968,6 @@ const FeaturePanel = {
             };
         });
 
-        // Find top performer
         const topPerformer = Object.values(teamStats).sort((a, b) => b.score - a.score)[0];
         const totalTeamAppts = Object.values(teamStats).reduce((sum, m) => sum + m.total, 0);
 
@@ -3286,6 +3339,7 @@ function showAppointmentDetail(appointmentId) {
             <div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">${Utils.formatDate(appt.date)}</span></div>
             <div class="detail-row"><span class="detail-label">Time</span><span class="detail-value">${Utils.escapeHtml(appt.time || 'N/A')}</span></div>
             <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value"><span class="status-tag ${Utils.getStatusClass(Utils.getStatus(appt))}">${Utils.getStatus(appt)}</span></span></div>
+            <div class="detail-row"><span class="detail-label">Primary Status</span><span class="detail-value">${Utils.getPrimaryStatus(Utils.getStatus(appt))}</span></div>
             <div class="detail-row"><span class="detail-label">Assigned</span><span class="detail-value">${Utils.escapeHtml(appt.assigned || 'Daniel')}</span></div>
             <div class="detail-row"><span class="detail-label">Lead Score</span><span class="detail-value"><span class="score-badge ${Utils.getScoreColor(Utils.calculateLeadScore(appt))}">${Utils.calculateLeadScore(appt)} Pts</span></span></div>
             ${appt.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value" style="white-space:pre-wrap;">${Utils.escapeHtml(appt.notes)}</span></div>` : ''}
@@ -3521,7 +3575,10 @@ function executeBulkAction() {
             for (let date in AppState.appointments) {
                 if (AppState.appointments[date].reports) {
                     const found = AppState.appointments[date].reports.find(r => r.id === id);
-                    if (found) { Data.updateAppointment(date, id, { status: newStatus }); break; }
+                    if (found) { 
+                        Data.updateAppointment(date, id, { status: newStatus });
+                        break;
+                    }
                 }
             }
         });
@@ -3634,7 +3691,6 @@ function initApp() {
     AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS, ...AppState.customShortcuts };
     AppState.scriptFavorites = JSON.parse(localStorage.getItem('scriptFavorites') || '[]');
 
-    // Set up tools menu
     const toolsHeader = DOM.get('toolsHeader');
     const toolsMenu = DOM.get('toolsMenu');
     const toolsChevron = DOM.get('toolsChevron');
@@ -3649,7 +3705,6 @@ function initApp() {
         });
     }
 
-    // Menu toggle
     const menuToggle = DOM.get('menuToggleBtn');
     const sidebar = DOM.get('mainSidebar');
     const mainContent = DOM.get('mainContent');
@@ -3661,12 +3716,10 @@ function initApp() {
         });
     }
 
-    // ESC key
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') handleEscapeKey();
     });
 
-    // Tool items
     document.querySelectorAll('.tool-item').forEach(item => {
         item.addEventListener('click', function() {
             const tool = this.getAttribute('data-tool');
@@ -3696,14 +3749,12 @@ function initApp() {
         });
     });
 
-    // Feature panel close
     const closeFeatureBtn = DOM.get('closeFeaturePanelBtn');
     if (closeFeatureBtn) closeFeatureBtn.addEventListener('click', () => {
         FeaturePanel.hide();
         Scripts.loadScript('opening');
     });
 
-    // Smart Import
     const quickReportBtn = DOM.get('quickReportBtn');
     const parseBtn = DOM.get('parseImportBtn');
     const saveImportBtn = DOM.get('saveImportBtn');
@@ -3714,7 +3765,6 @@ function initApp() {
     if (saveImportBtn) saveImportBtn.addEventListener('click', saveImportedAppointment);
     if (closeImportBtn) closeImportBtn.addEventListener('click', closeSmartImport);
 
-    // Appointment detail
     const copyBtn = DOM.get('apptCopyBtn');
     const editBtn = DOM.get('apptEditBtn');
     const deleteBtn = DOM.get('apptDeleteBtn');
@@ -3722,7 +3772,7 @@ function initApp() {
 
     if (copyBtn) copyBtn.addEventListener('click', () => {
         const appt = Data.getAppointmentById(AppState.currentAppointmentId);
-        if (appt) copyToClipboard(`Business: ${appt.business}\nContact: ${appt.contactName}\nPhone: ${appt.phone || 'N/A'}\nStatus: ${Utils.getStatus(appt)}\nDate: ${Utils.formatDate(appt.date)}${appt.time ? `\nTime: ${appt.time}` : ''}${appt.notes ? `\nNotes: ${appt.notes}` : ''}`);
+        if (appt) copyToClipboard(`Business: ${appt.business}\nContact: ${appt.contactName}\nPhone: ${appt.phone || 'N/A'}\nStatus: ${Utils.getStatus(appt)}\nPrimary: ${Utils.getPrimaryStatus(Utils.getStatus(appt))}\nDate: ${Utils.formatDate(appt.date)}${appt.time ? `\nTime: ${appt.time}` : ''}${appt.notes ? `\nNotes: ${appt.notes}` : ''}`);
     });
 
     if (editBtn) editBtn.addEventListener('click', () => {
@@ -3759,7 +3809,6 @@ function initApp() {
 
     if (closeDetailBtn) closeDetailBtn.addEventListener('click', closeAppointmentDetail);
 
-    // Script editing
     const editScriptBtn = DOM.get('editScriptBtn');
     const saveScriptBtn = DOM.get('saveScriptBtn');
     const cancelEditBtn = DOM.get('cancelEditBtn');
@@ -3780,7 +3829,6 @@ function initApp() {
     if (resetScriptBtn) resetScriptBtn.addEventListener('click', () => Scripts.resetScript());
     if (favoriteScriptBtn) favoriteScriptBtn.addEventListener('click', () => Scripts.toggleFavorite(AppState.currentScriptId));
 
-    // Bulk actions
     const bulkActionsBtn = DOM.get('bulkActionsBtn');
     const closeBulkBtn = DOM.get('closeBulkModalBtn');
     const executeBulkBtn = DOM.get('executeBulkActionBtn');
@@ -3803,11 +3851,9 @@ function initApp() {
         if (options) options.style.display = (value === 'status' || value === 'tag') ? 'block' : 'none';
     });
 
-    // Sign out
     const signOutBtn = DOM.get('signOutBtn');
     if (signOutBtn) signOutBtn.addEventListener('click', () => Auth.signOut());
 
-    // Refresh
     const refreshBtn = DOM.get('refreshBtn');
     if (refreshBtn) refreshBtn.addEventListener('click', async () => {
         if (AppState.isRefreshing) return;
@@ -3828,11 +3874,9 @@ function initApp() {
         }
     });
 
-    // Add script
     const addScriptBtn = DOM.get('addScriptBtnSide');
     if (addScriptBtn) addScriptBtn.addEventListener('click', () => Scripts.createScript());
 
-    // Script search
     const scriptSearch = DOM.get('scriptSearch');
     if (scriptSearch) scriptSearch.addEventListener('input', (e) => {
         AppState.searchTerm = e.target.value.toLowerCase();
@@ -3842,7 +3886,6 @@ function initApp() {
         });
     });
 
-    // Global search
     const searchGlobalBtn = DOM.get('searchGlobalBtn');
     const globalSearchInput = DOM.get('globalSearchInput');
     const globalSearchClose = DOM.get('globalSearchCloseBtn');
@@ -3854,7 +3897,6 @@ function initApp() {
         if (modal) modal.style.display = 'none';
     });
 
-    // CSV Upload
     const csvFileInput = DOM.get('csvFileInput');
     if (csvFileInput) csvFileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
@@ -3897,29 +3939,23 @@ function initApp() {
         e.target.value = '';
     });
 
-    // History button
     const historyBtn = DOM.get('historyBtn');
     if (historyBtn) historyBtn.addEventListener('click', () => showToast('Version history coming soon!', 'info'));
 
-    // Shortcuts modal
     const shortcutsCloseBtn = DOM.get('shortcutsCloseBtn');
     if (shortcutsCloseBtn) shortcutsCloseBtn.addEventListener('click', () => {
         const modal = DOM.get('shortcutsModal');
         if (modal) modal.style.display = 'none';
     });
 
-    // Keyboard shortcuts - global (with editing detection)
     document.addEventListener('keydown', (e) => {
-        // Disable shortcuts if editing or shortcuts are disabled
         if (!AppState.shortcutsEnabled || AppState.isEditing) {
-            // Allow Escape key even during editing
             if (e.key === 'Escape') {
                 handleEscapeKey();
             }
             return;
         }
 
-        // Script shortcuts (1-9) - only when not editing
         if (e.key >= '1' && e.key <= '9') {
             const index = parseInt(e.key) - 1;
             const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
@@ -3930,7 +3966,6 @@ function initApp() {
             }
         }
 
-        // Custom shortcuts
         for (const [action, shortcut] of Object.entries(AppState.shortcuts)) {
             if (shortcut.keys && shortcut.keys.length > 0) {
                 const keys = shortcut.keys;
@@ -3946,7 +3981,6 @@ function initApp() {
         }
     });
 
-    // Auth state listener
     try {
         if (AppState.isFirebaseReady) {
             firebase.auth().onAuthStateChanged(async (user) => {
@@ -4036,12 +4070,13 @@ function initApp() {
     });
 
     console.log('🚀 ScriptFlow Pro initialized successfully!');
-    console.log('📊 Handoff statuses integrated:', CONFIG.STATUS_OPTIONS.join(', '));
+    console.log('📊 Status hierarchy: Hot Transfer & Meeting Booked → Completed');
+    console.log('🎯 Primary statuses:', CONFIG.PRIMARY_STATUSES.join(', '));
+    console.log('🏷️ Secondary statuses:', CONFIG.SECONDARY_STATUSES.join(', '));
     console.log('🎯 Drag & drop enabled for scripts and appointments');
     console.log('✨ Smart import ready with field validation');
     console.log('⌨️ Keyboard shortcuts loaded:', Object.keys(AppState.shortcuts).length);
     console.log('📈 Analytics tabs: Insights, Reports, Team');
-    console.log('🔑 Press ESC to return to Opening Script');
     console.log('👥 Team Management with full CRUD operations');
     console.log(`🔌 Firebase status: ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
 }
