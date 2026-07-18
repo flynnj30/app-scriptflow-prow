@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION
+// SCRIPTFLOW PRO - COMPLETE APPLICATION (FIXED)
 // ================================================================
 
 // ================================================================
@@ -350,7 +350,7 @@ const Utils = {
         for (let date in appointments) {
             if (appointments[date].reports) {
                 appointments[date].reports.forEach(appt => {
-                    if (appt.assigned === memberId || appt.assigned === memberId) {
+                    if (appt.assigned === memberId) {
                         stats.total++;
                         const status = Utils.getStatus(appt);
                         const primaryStatus = Utils.getPrimaryStatus(status);
@@ -1942,7 +1942,6 @@ function showAppointmentDetail(appointmentId) {
     if (contentEl) {
         contentEl.innerHTML = `
             <div style="display:flex; flex-direction:column; gap:12px;">
-                <!-- Header with status -->
                 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding-bottom:12px; border-bottom:2px solid var(--border-color);">
                     <div>
                         <div style="font-size:1.1rem; font-weight:700;">${Utils.escapeHtml(appt.business)}</div>
@@ -1955,7 +1954,6 @@ function showAppointmentDetail(appointmentId) {
                     </div>
                 </div>
 
-                <!-- Contact Details -->
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                     <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
                         <div style="font-size:0.7rem; color:var(--text-muted);">📞 Phone</div>
@@ -1975,7 +1973,6 @@ function showAppointmentDetail(appointmentId) {
                     </div>
                 </div>
 
-                <!-- Assignment & Tags -->
                 <div style="display:flex; gap:16px; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--border-color);">
                     <div><span style="color:var(--text-muted);">👤 Assigned:</span> <strong>${Utils.escapeHtml(appt.assigned || 'Daniel')}</strong></div>
                     ${appt.tags && appt.tags.length > 0 ? `
@@ -1983,7 +1980,6 @@ function showAppointmentDetail(appointmentId) {
                     ` : ''}
                 </div>
 
-                <!-- Notes -->
                 ${appt.notes ? `
                     <div style="background:var(--bg-primary); border-radius:8px; padding:12px; margin-top:4px;">
                         <div style="font-size:0.7rem; color:var(--text-muted);">📝 Notes</div>
@@ -1991,7 +1987,6 @@ function showAppointmentDetail(appointmentId) {
                     </div>
                 ` : ''}
 
-                <!-- Quick Actions -->
                 <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; padding-top:12px; border-top:2px solid var(--border-color);">
                     <button class="btn-icon" onclick="window.openContactDetail('${appt.id}')" style="background:var(--primary); color:white;">
                         <i class="fas fa-user"></i> Open Contact
@@ -2016,6 +2011,12 @@ function showAppointmentDetail(appointmentId) {
     modal.style.display = 'flex';
 }
 
+function closeAppointmentDetail() {
+    const modal = DOM.get('appointmentDetailModal');
+    if (modal) modal.style.display = 'none';
+    AppState.currentAppointmentId = null;
+}
+
 // ================================================================
 // APPOINTMENT QUICK ACTIONS
 // ================================================================
@@ -2024,7 +2025,6 @@ function openContactDetail(appointmentId) {
     const appt = Data.getAppointmentById(appointmentId);
     if (!appt) { showToast('Appointment not found', 'error'); return; }
     
-    // Switch to list view and filter by this contact
     AppState.calendarViewMode = 'list';
     AppState.calendarSearchTerm = appt.business;
     FeaturePanel.refreshCurrentView();
@@ -3538,7 +3538,7 @@ const FeaturePanel = {
 };
 
 // ================================================================
-// GLOBAL SEARCH
+// GLOBAL FUNCTIONS
 // ================================================================
 
 function openGlobalSearch() {
@@ -3643,10 +3643,6 @@ function performGlobalSearch(query) {
     html += `</div>`;
     results.innerHTML = html;
 }
-
-// ================================================================
-// SMART IMPORT
-// ================================================================
 
 function openSmartImport() {
     const modal = DOM.get('smartImportModal');
@@ -3802,10 +3798,6 @@ function saveImportedAppointment() {
     FeaturePanel.refreshCurrentView();
 }
 
-// ================================================================
-// BULK ACTIONS
-// ================================================================
-
 function openBulkActions() {
     const modal = DOM.get('bulkActionsModal');
     const container = DOM.get('bulkSelectionContainer');
@@ -3893,10 +3885,6 @@ function executeBulkAction() {
     FeaturePanel.refreshCurrentView();
 }
 
-// ================================================================
-// HANDLE ESCAPE KEY
-// ================================================================
-
 function handleEscapeKey() {
     if (AppState.isEditing) {
         Scripts.cancelEdit();
@@ -3919,10 +3907,6 @@ function handleEscapeKey() {
     });
     return true;
 }
-
-// ================================================================
-// SHORTCUT EDIT (GLOBAL)
-// ================================================================
 
 function openShortcutEdit(action) {
     const currentKeys = AppState.shortcuts[action]?.keys || [];
@@ -3952,6 +3936,24 @@ function openShortcutEdit(action) {
         }
     }
     return false;
+}
+
+function handleShortcutAction(action) {
+    switch (action) {
+        case 'Smart Import': openSmartImport(); break;
+        case 'Appointment Calendar': FeaturePanel.show('calendar', '📅 Appointment & Handoff Calendar'); break;
+        case 'Call Scripts': FeaturePanel.hide(); Scripts.loadScript('opening'); break;
+        case 'Global Search': openGlobalSearch(); break;
+        case 'Quick Add Appointment': FeaturePanel.openQuickAdd(Utils.getTodayStr()); break;
+        case 'Analytics Hub': AppState.analyticsTab = 'insights'; FeaturePanel.show('analytics', '📊 Analytics Hub'); break;
+        case 'Keyboard Shortcuts': FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts'); break;
+        case 'Export to CSV': Data.exportToCSV(); break;
+        case 'Toggle Theme': document.body.classList.toggle('light'); showToast('Theme toggled', 'info'); break;
+        case 'Refresh Data': { const btn = DOM.get('refreshBtn'); if (btn) btn.click(); break; }
+        case 'Bulk Actions': openBulkActions(); break;
+        case 'Close Panel': handleEscapeKey(); break;
+        default: showToast(`Action: ${action}`, 'info');
+    }
 }
 
 // ================================================================
@@ -4361,29 +4363,12 @@ function initApp() {
     console.log(`🔌 Firebase status: ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
 }
 
-function handleShortcutAction(action) {
-    switch (action) {
-        case 'Smart Import': openSmartImport(); break;
-        case 'Appointment Calendar': FeaturePanel.show('calendar', '📅 Appointment & Handoff Calendar'); break;
-        case 'Call Scripts': FeaturePanel.hide(); Scripts.loadScript('opening'); break;
-        case 'Global Search': openGlobalSearch(); break;
-        case 'Quick Add Appointment': FeaturePanel.openQuickAdd(Utils.getTodayStr()); break;
-        case 'Analytics Hub': AppState.analyticsTab = 'insights'; FeaturePanel.show('analytics', '📊 Analytics Hub'); break;
-        case 'Keyboard Shortcuts': FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts'); break;
-        case 'Export to CSV': Data.exportToCSV(); break;
-        case 'Toggle Theme': document.body.classList.toggle('light'); showToast('Theme toggled', 'info'); break;
-        case 'Refresh Data': { const btn = DOM.get('refreshBtn'); if (btn) btn.click(); break; }
-        case 'Bulk Actions': openBulkActions(); break;
-        case 'Close Panel': handleEscapeKey(); break;
-        default: showToast(`Action: ${action}`, 'info');
-    }
-}
-
 // ================================================================
 // GLOBAL EXPOSURE
 // ================================================================
 
 window.showAppointmentDetail = showAppointmentDetail;
+window.closeAppointmentDetail = closeAppointmentDetail;
 window.loadScript = Scripts.loadScript;
 window.openShortcutEdit = openShortcutEdit;
 window.showToast = showToast;
@@ -4394,6 +4379,10 @@ window.editAppointment = editAppointment;
 window.rescheduleAppointment = rescheduleAppointment;
 window.completeAppointment = completeAppointment;
 window.cancelAppointment = cancelAppointment;
+window.FeaturePanel = FeaturePanel;
+window.Data = Data;
+window.Stats = Stats;
+window.Scripts = Scripts;
 
 // Start the app
 document.addEventListener('DOMContentLoaded', initApp);
