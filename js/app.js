@@ -7,16 +7,9 @@
 // ================================================================
 
 const CONFIG = {
-    // PRIMARY STATUSES - These appear in Analytics Hub metrics
     PRIMARY_STATUSES: ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled'],
-    
-    // SECONDARY STATUSES - These are tags/tracking after booking (count as Completed)
     SECONDARY_STATUSES: ['Meeting Booked', 'Rescheduled', 'Overdue', 'Held'],
-    
-    // All statuses combined (for dropdowns, etc.)
     STATUS_OPTIONS: ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'],
-    
-    // Status colors
     STATUS_COLORS: {
         'Hot Transfer': '#dc2626',
         'Warm Callback': '#f59e0b',
@@ -28,14 +21,12 @@ const CONFIG = {
         'Overdue': '#8b5cf6',
         'Held': '#06b6d4'
     },
-    
     TAG_OPTIONS: [
         { id: 'qualified_warm_call', name: 'Qualified Warm Call', color: '#10b981' },
         { id: 'unqualified_warm_callback', name: 'Unqualified Warm Callback', color: '#f59e0b' },
         { id: 'vip', name: 'VIP', color: '#3b82f6' },
         { id: 'negligent_warm_callback', name: 'Negligent Warm Callback', color: '#ef4444' }
     ],
-    
     DEFAULT_TEAM_MEMBERS: [
         { id: 'daniel', name: 'Daniel', role: 'Team Lead', email: 'daniel@company.com', phone: '+1-555-0101', avatar: '👨‍💼', color: '#3b82f6', active: true },
         { id: 'sarah', name: 'Sarah', role: 'Senior Agent', email: 'sarah@company.com', phone: '+1-555-0102', avatar: '👩‍💼', color: '#8b5cf6', active: true },
@@ -43,7 +34,6 @@ const CONFIG = {
         { id: 'jessica', name: 'Jessica', role: 'Agent', email: 'jessica@company.com', phone: '+1-555-0104', avatar: '👩‍💻', color: '#f59e0b', active: true },
         { id: 'david', name: 'David', role: 'Junior Agent', email: 'david@company.com', phone: '+1-555-0105', avatar: '👨‍🎓', color: '#ef4444', active: true }
     ],
-    
     FIELD_MAPPINGS: {
         'name': ['name', 'client', 'prospect', 'contact', 'customer', 'person', 'full name', 'contact name'],
         'business': ['business', 'company', 'organization', 'org', 'firm', 'brand', 'store'],
@@ -55,7 +45,6 @@ const CONFIG = {
         'notes': ['notes', 'note', 'comment', 'remarks', 'additional notes', 'info', 'details'],
         'assigned': ['assigned', 'assigned to', 'owner', 'agent', 'representative', 'rep', 'assigned agent']
     },
-    
     DEFAULT_SHORTCUTS: {
         'Smart Import': { keys: ['Ctrl', 'Shift', 'I'], description: 'Open Smart Import modal' },
         'Appointment Calendar': { keys: ['Ctrl', 'Shift', 'C'], description: 'Open Appointment Calendar' },
@@ -126,7 +115,6 @@ const AppState = {
     isRefreshing: false,
     shortcutsEnabled: true,
     
-    // Calendar specific state
     calendarViewMode: 'month',
     calendarFilters: {
         meetings: true,
@@ -170,6 +158,11 @@ const Utils = {
 
     formatDateForCompare(date) {
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    },
+
+    formatTime(timeStr) {
+        if (!timeStr) return 'No time';
+        return timeStr;
     },
 
     escapeHtml(s) {
@@ -216,11 +209,6 @@ const Utils = {
     isCompletedStatus(status) {
         const primary = this.getPrimaryStatus(status);
         return primary === 'Completed' || CONFIG.SECONDARY_STATUSES.includes(status);
-    },
-
-    getDisplayStatus(appt) {
-        if (!appt || !appt.status) return 'Pending';
-        return appt.status;
     },
 
     getStatusColor(status) {
@@ -362,7 +350,7 @@ const Utils = {
         for (let date in appointments) {
             if (appointments[date].reports) {
                 appointments[date].reports.forEach(appt => {
-                    if (appt.assigned === memberId) {
+                    if (appt.assigned === memberId || appt.assigned === memberId) {
                         stats.total++;
                         const status = Utils.getStatus(appt);
                         const primaryStatus = Utils.getPrimaryStatus(status);
@@ -1600,11 +1588,11 @@ const TeamManager = {
             return;
         }
 
-        let html = '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:16px;">';
+        let html = '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:16px;">';
         members.forEach(member => {
             const stats = Utils.getMemberStats(member.id, AppState.appointments);
             html += `
-                <div class="team-member-card" data-id="${member.id}" style="background:var(--bg-card); border-radius:16px; padding:20px; border:1px solid var(--border-color); transition:all 0.3s ease; cursor:pointer;">
+                <div class="team-member-card" data-id="${member.id}" style="background:var(--bg-card); border-radius:16px; padding:20px; border:1px solid var(--border-color); transition:all 0.3s ease; cursor:pointer; position:relative;">
                     <div style="display:flex; align-items:center; gap:14px; margin-bottom:12px;">
                         <div style="width:48px; height:48px; border-radius:50%; background:${member.color}20; display:flex; align-items:center; justify-content:center; font-size:1.8rem; border:2px solid ${member.color};">
                             ${member.avatar || '👤'}
@@ -1615,10 +1603,10 @@ const TeamManager = {
                             <div style="font-size:0.7rem; color:var(--text-muted);">${member.active ? '🟢 Active' : '🔴 Inactive'}</div>
                         </div>
                         <div style="display:flex; gap:6px;">
-                            <button class="edit-team-member-btn" data-id="${member.id}" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.9rem; padding:4px;">
+                            <button class="edit-team-member-btn" data-id="${member.id}" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.9rem; padding:4px;" title="Edit Member">
                                 <i class="fas fa-pen"></i>
                             </button>
-                            <button class="delete-team-member-btn" data-id="${member.id}" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:0.9rem; padding:4px;">
+                            <button class="delete-team-member-btn" data-id="${member.id}" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:0.9rem; padding:4px;" title="Delete Member">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -1689,6 +1677,9 @@ const TeamManager = {
                     <span style="margin-left:auto; font-size:0.8rem; padding:4px 12px; border-radius:20px; background:${member.active ? 'var(--success)' : 'var(--danger)'}20; color:${member.active ? 'var(--success)' : 'var(--danger)'};">
                         ${member.active ? '🟢 Active' : '🔴 Inactive'}
                     </span>
+                    <button class="btn-icon-sm" onclick="TeamManager.editMember('${member.id}')" style="background:var(--warning); color:#1e293b; padding:6px 12px; border-radius:20px; border:none; cursor:pointer;">
+                        <i class="fas fa-pen"></i> Edit
+                    </button>
                 </div>
 
                 <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:16px;">
@@ -1928,6 +1919,188 @@ const TeamManager = {
 };
 
 // ================================================================
+// ENHANCED APPOINTMENT DETAIL MODAL
+// ================================================================
+
+function showAppointmentDetail(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    AppState.currentAppointmentId = appointmentId;
+
+    const modal = DOM.get('appointmentDetailModal');
+    if (!modal) return;
+
+    const status = Utils.getStatus(appt);
+    const primaryStatus = Utils.getPrimaryStatus(status);
+    const isSecondary = CONFIG.SECONDARY_STATUSES.includes(status);
+    const score = Utils.calculateLeadScore(appt);
+
+    const titleEl = DOM.get('appointmentDetailTitle');
+    if (titleEl) titleEl.textContent = `📋 ${appt.business} - ${appt.contactName}`;
+
+    const contentEl = DOM.get('appointmentDetailContent');
+    if (contentEl) {
+        contentEl.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                <!-- Header with status -->
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding-bottom:12px; border-bottom:2px solid var(--border-color);">
+                    <div>
+                        <div style="font-size:1.1rem; font-weight:700;">${Utils.escapeHtml(appt.business)}</div>
+                        <div style="font-size:0.9rem; color:var(--text-secondary);">${Utils.escapeHtml(appt.contactName)}</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
+                        ${isSecondary ? `<span style="font-size:0.7rem; color:var(--text-muted);">→ ${primaryStatus}</span>` : ''}
+                        <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
+                    </div>
+                </div>
+
+                <!-- Contact Details -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">📞 Phone</div>
+                        <div style="font-weight:500;">${Utils.escapeHtml(appt.phone || 'N/A')}</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">✉️ Email</div>
+                        <div style="font-weight:500;">${Utils.escapeHtml(appt.email || 'N/A')}</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">📅 Date</div>
+                        <div style="font-weight:500;">${Utils.formatDate(appt.date)}</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">🕐 Time</div>
+                        <div style="font-weight:500;">${Utils.escapeHtml(appt.time || 'N/A')}</div>
+                    </div>
+                </div>
+
+                <!-- Assignment & Tags -->
+                <div style="display:flex; gap:16px; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--border-color);">
+                    <div><span style="color:var(--text-muted);">👤 Assigned:</span> <strong>${Utils.escapeHtml(appt.assigned || 'Daniel')}</strong></div>
+                    ${appt.tags && appt.tags.length > 0 ? `
+                        <div><span style="color:var(--text-muted);">🏷️ Tags:</span> ${appt.tags.map(t => `<span class="status-tag" style="background:var(--bg-primary);">#${t}</span>`).join(' ')}</div>
+                    ` : ''}
+                </div>
+
+                <!-- Notes -->
+                ${appt.notes ? `
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px; margin-top:4px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">📝 Notes</div>
+                        <div style="white-space:pre-wrap; margin-top:4px;">${Utils.escapeHtml(appt.notes)}</div>
+                    </div>
+                ` : ''}
+
+                <!-- Quick Actions -->
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; padding-top:12px; border-top:2px solid var(--border-color);">
+                    <button class="btn-icon" onclick="window.openContactDetail('${appt.id}')" style="background:var(--primary); color:white;">
+                        <i class="fas fa-user"></i> Open Contact
+                    </button>
+                    <button class="btn-icon" onclick="window.editAppointment('${appt.id}')" style="background:var(--warning); color:#1e293b;">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn-icon" onclick="window.rescheduleAppointment('${appt.id}')" style="background:var(--secondary); color:white;">
+                        <i class="fas fa-calendar-alt"></i> Reschedule
+                    </button>
+                    <button class="btn-icon" onclick="window.completeAppointment('${appt.id}')" style="background:var(--success); color:white;">
+                        <i class="fas fa-check"></i> Complete
+                    </button>
+                    <button class="btn-icon" onclick="window.cancelAppointment('${appt.id}')" style="background:var(--danger); color:white;">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    modal.style.display = 'flex';
+}
+
+// ================================================================
+// APPOINTMENT QUICK ACTIONS
+// ================================================================
+
+function openContactDetail(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    
+    // Switch to list view and filter by this contact
+    AppState.calendarViewMode = 'list';
+    AppState.calendarSearchTerm = appt.business;
+    FeaturePanel.refreshCurrentView();
+    closeAppointmentDetail();
+    showToast(`Showing appointments for ${appt.business}`, 'info');
+}
+
+function editAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    
+    closeAppointmentDetail();
+    FeaturePanel.openQuickAdd(appt.date);
+    setTimeout(() => {
+        const businessInput = DOM.get('newApptBusiness');
+        const contactInput = DOM.get('newApptContact');
+        const phoneInput = DOM.get('newApptPhone');
+        const timeInput = DOM.get('newApptTime');
+        const statusSelect = DOM.get('newApptStatus');
+        const notesInput = DOM.get('newApptNotes');
+        const assignedSelect = DOM.get('newApptAssigned');
+        
+        if (businessInput) businessInput.value = appt.business;
+        if (contactInput) contactInput.value = appt.contactName;
+        if (phoneInput) phoneInput.value = appt.phone || '';
+        if (timeInput) timeInput.value = appt.time || '';
+        if (statusSelect) statusSelect.value = Utils.getStatus(appt);
+        if (notesInput) notesInput.value = appt.notes || '';
+        if (assignedSelect) {
+            const member = AppState.teamMembers.find(m => m.name === appt.assigned);
+            if (member) assignedSelect.value = member.id;
+        }
+        Data.deleteAppointment(appt.date, appt.id);
+    }, 100);
+}
+
+function rescheduleAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    
+    const newDate = prompt('Enter new date (YYYY-MM-DD):', appt.date);
+    if (newDate && newDate.trim()) {
+        const newTime = prompt('Enter new time (e.g., 2:30 PM):', appt.time || '');
+        Data.updateAppointment(appt.date, appt.id, { 
+            date: newDate.trim(),
+            time: newTime || appt.time,
+            status: 'Rescheduled'
+        });
+        closeAppointmentDetail();
+        showToast(`Appointment rescheduled to ${Utils.formatDate(newDate)}`, 'success');
+    }
+}
+
+function completeAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    
+    if (confirm(`Mark "${appt.business}" as Completed?`)) {
+        Data.updateAppointment(appt.date, appt.id, { status: 'Completed' });
+        closeAppointmentDetail();
+        showToast('Appointment marked as Completed! 🎉', 'success');
+    }
+}
+
+function cancelAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    
+    if (confirm(`Cancel appointment with ${appt.business}?`)) {
+        Data.updateAppointment(appt.date, appt.id, { status: 'Canceled' });
+        closeAppointmentDetail();
+        showToast('Appointment canceled', 'info');
+    }
+}
+
+// ================================================================
 // CALENDAR VIEW - COMPLETE IMPLEMENTATION
 // ================================================================
 
@@ -2076,7 +2249,7 @@ const CalendarView = {
                             const status = Utils.getStatus(event);
                             const color = this.getEventColor(event);
                             return `
-                                <div class="day-event" style="border-left-color: ${color};" data-id="${event.id}">
+                                <div class="day-event" style="border-left-color: ${color};" data-id="${event.id}" onclick="window.showAppointmentDetail('${event.id}')">
                                     <span class="event-time">${event.time || 'No time'}</span>
                                     <span class="event-title">${Utils.escapeHtml(event.business)}</span>
                                 </div>
@@ -2151,11 +2324,9 @@ const CalendarView = {
             const filtered = this.filterAppointments(dayAppointments);
             
             for (let hour = 6; hour <= 22; hour++) {
-                const hourStr = hour.toString().padStart(2, '0') + ':00';
                 const hasAppointment = filtered.some(appt => {
                     if (!appt.time) return false;
                     const apptHour = parseInt(appt.time.split(':')[0]);
-                    const apptMinute = parseInt(appt.time.split(':')[1] || '0');
                     const apptPeriod = appt.time.includes('PM') ? 12 : 0;
                     const adjustedHour = apptHour + (apptPeriod === 12 && apptHour !== 12 ? 12 : 0);
                     return adjustedHour === hour;
@@ -2165,7 +2336,6 @@ const CalendarView = {
                     const appts = filtered.filter(appt => {
                         if (!appt.time) return false;
                         const apptHour = parseInt(appt.time.split(':')[0]);
-                        const apptMinute = parseInt(appt.time.split(':')[1] || '0');
                         const apptPeriod = appt.time.includes('PM') ? 12 : 0;
                         const adjustedHour = apptHour + (apptPeriod === 12 && apptHour !== 12 ? 12 : 0);
                         return adjustedHour === hour;
@@ -2839,7 +3009,7 @@ const FeaturePanel = {
             allAppointments;
 
         let total = appointments.length;
-        let stats = FeaturePanel.getAppointmentStats(appointments);
+        let stats = this.getAppointmentStats(appointments);
         let statusCounts = {};
         let dailyData = {};
 
@@ -3472,54 +3642,6 @@ function performGlobalSearch(query) {
     });
     html += `</div>`;
     results.innerHTML = html;
-}
-
-// ================================================================
-// APPOINTMENT DETAIL
-// ================================================================
-
-function showAppointmentDetail(appointmentId) {
-    const appt = Data.getAppointmentById(appointmentId);
-    if (!appt) { showToast('Appointment not found', 'error'); return; }
-    AppState.currentAppointmentId = appointmentId;
-
-    const modal = DOM.get('appointmentDetailModal');
-    if (!modal) return;
-
-    const status = Utils.getStatus(appt);
-    const primaryStatus = Utils.getPrimaryStatus(status);
-    const isSecondary = CONFIG.SECONDARY_STATUSES.includes(status);
-
-    const titleEl = DOM.get('appointmentDetailTitle');
-    if (titleEl) titleEl.textContent = `📋 ${appt.business} - ${appt.contactName}`;
-
-    const contentEl = DOM.get('appointmentDetailContent');
-    if (contentEl) {
-        contentEl.innerHTML = `
-            <div class="detail-row"><span class="detail-label">Business</span><span class="detail-value">${Utils.escapeHtml(appt.business)}</span></div>
-            <div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">${Utils.escapeHtml(appt.contactName)}</span></div>
-            <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-value">${Utils.escapeHtml(appt.phone || 'N/A')}</span></div>
-            <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${Utils.escapeHtml(appt.email || 'N/A')}</span></div>
-            <div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">${Utils.formatDate(appt.date)}</span></div>
-            <div class="detail-row"><span class="detail-label">Time</span><span class="detail-value">${Utils.escapeHtml(appt.time || 'N/A')}</span></div>
-            <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">
-                <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
-                ${isSecondary ? `<span style="font-size:0.7rem; color:var(--text-muted); margin-left:8px;">→ Primary: ${primaryStatus}</span>` : ''}
-            </span></div>
-            <div class="detail-row"><span class="detail-label">Assigned</span><span class="detail-value">${Utils.escapeHtml(appt.assigned || 'Daniel')}</span></div>
-            <div class="detail-row"><span class="detail-label">Lead Score</span><span class="detail-value"><span class="score-badge ${Utils.getScoreColor(Utils.calculateLeadScore(appt))}">${Utils.calculateLeadScore(appt)} Pts</span></span></div>
-            ${appt.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value" style="white-space:pre-wrap;">${Utils.escapeHtml(appt.notes)}</span></div>` : ''}
-            ${appt.tags && appt.tags.length > 0 ? `<div class="detail-row"><span class="detail-label">Tags</span><span class="detail-value">${appt.tags.map(t => `#${t}`).join(' ')}</span></div>` : ''}
-        `;
-    }
-
-    modal.style.display = 'flex';
-}
-
-function closeAppointmentDetail() {
-    const modal = DOM.get('appointmentDetailModal');
-    if (modal) modal.style.display = 'none';
-    AppState.currentAppointmentId = null;
 }
 
 // ================================================================
@@ -4267,6 +4389,11 @@ window.openShortcutEdit = openShortcutEdit;
 window.showToast = showToast;
 window.openGlobalSearch = openGlobalSearch;
 window.TeamManager = TeamManager;
+window.openContactDetail = openContactDetail;
+window.editAppointment = editAppointment;
+window.rescheduleAppointment = rescheduleAppointment;
+window.completeAppointment = completeAppointment;
+window.cancelAppointment = cancelAppointment;
 
 // Start the app
 document.addEventListener('DOMContentLoaded', initApp);
