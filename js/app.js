@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION (FIXED)
+// SCRIPTFLOW PRO - COMPLETE APPLICATION (ORIGINAL VERSION)
 // ================================================================
 
 // ================================================================
@@ -123,16 +123,7 @@ const AppState = {
     },
     calendarTimezone: 'Central CDT',
     calendarSearchTerm: '',
-    calendarCurrentDate: new Date(),
-    
-    // Team Pipeline editable metrics
-    teamPipelineMetrics: {
-        hotTransfers: 0,
-        warmCallbacks: 0,
-        completed: 0,
-        pending: 0,
-        canceled: 0
-    }
+    calendarCurrentDate: new Date()
 };
 
 // ================================================================
@@ -755,9 +746,6 @@ const Data = {
                     AppState.appointments = data.appointments || {};
                     AppState.tasks = data.tasks || {};
                     AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
-                    if (data.teamPipelineMetrics) {
-                        AppState.teamPipelineMetrics = data.teamPipelineMetrics;
-                    }
                     showToast('Loaded offline data', 'info');
                     Stats.updateAll();
                     Scripts.renderSidebar();
@@ -793,8 +781,7 @@ const Data = {
                     displayName: AppState.currentUser.displayName || AppState.currentUser.email,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     goals: { daily: 3, weekly: 15, monthly: 60 },
-                    scriptOrder: ['opening'],
-                    teamPipelineMetrics: { hotTransfers: 0, warmCallbacks: 0, completed: 0, pending: 0, canceled: 0 }
+                    scriptOrder: ['opening']
                 });
                 return this.loadUserData();
             }
@@ -807,10 +794,6 @@ const Data = {
                 };
             }
             AppState.scriptOrder = userData.scriptOrder || [];
-            
-            if (userData.teamPipelineMetrics) {
-                AppState.teamPipelineMetrics = userData.teamPipelineMetrics;
-            }
 
             this.subscribeToChanges();
 
@@ -831,8 +814,7 @@ const Data = {
                 scriptOrder: AppState.scriptOrder,
                 appointments: AppState.appointments,
                 tasks: AppState.tasks,
-                teamMembers: AppState.teamMembers,
-                teamPipelineMetrics: AppState.teamPipelineMetrics
+                teamMembers: AppState.teamMembers
             }));
 
             Stats.updateAll();
@@ -961,25 +943,6 @@ const Data = {
             await firebase.firestore().collection('users').doc(AppState.currentUser.uid).update({ scriptOrder: AppState.scriptOrder });
         } catch (error) {
             console.error('Error saving script order:', error);
-        }
-    },
-
-    saveTeamPipelineMetrics: async function() {
-        if (!AppState.currentUser || !AppState.isFirebaseReady) return;
-        try {
-            await firebase.firestore().collection('users').doc(AppState.currentUser.uid).update({
-                teamPipelineMetrics: AppState.teamPipelineMetrics
-            });
-            localStorage.setItem('userData_fallback', JSON.stringify({
-                scripts: AppState.scripts,
-                scriptOrder: AppState.scriptOrder,
-                appointments: AppState.appointments,
-                tasks: AppState.tasks,
-                teamMembers: AppState.teamMembers,
-                teamPipelineMetrics: AppState.teamPipelineMetrics
-            }));
-        } catch (error) {
-            console.error('Error saving team pipeline metrics:', error);
         }
     },
 
@@ -2138,75 +2101,6 @@ function cancelAppointment(appointmentId) {
 }
 
 // ================================================================
-// TEAM PIPELINE METRICS EDIT MODAL
-// ================================================================
-
-function openTeamPipelineEdit() {
-    const modal = DOM.createElement('div', 'modal-overlay');
-    modal.id = 'teamPipelineEditModal';
-    modal.innerHTML = `
-        <div class="modal-card" style="max-width:450px;">
-            <h3><i class="fas fa-chart-line"></i> Edit Team Pipeline Metrics</h3>
-            <p style="color:var(--text-muted); margin-bottom:16px; font-size:0.85rem;">Adjust team pipeline statistics. These will sync across all dashboards.</p>
-            <div class="form-group">
-                <label>🔥 Hot Transfers</label>
-                <input type="number" id="editTeamHot" value="${AppState.teamPipelineMetrics.hotTransfers || 0}" min="0" />
-            </div>
-            <div class="form-group">
-                <label>📞 Warm Callbacks</label>
-                <input type="number" id="editTeamWarm" value="${AppState.teamPipelineMetrics.warmCallbacks || 0}" min="0" />
-            </div>
-            <div class="form-group">
-                <label>✅ Completed</label>
-                <input type="number" id="editTeamCompleted" value="${AppState.teamPipelineMetrics.completed || 0}" min="0" />
-            </div>
-            <div class="form-group">
-                <label>⏳ Pending</label>
-                <input type="number" id="editTeamPending" value="${AppState.teamPipelineMetrics.pending || 0}" min="0" />
-            </div>
-            <div class="form-group">
-                <label>❌ Canceled</label>
-                <input type="number" id="editTeamCanceled" value="${AppState.teamPipelineMetrics.canceled || 0}" min="0" />
-            </div>
-            <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px; flex-wrap:wrap;">
-                <button id="saveTeamPipelineBtn" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-save"></i> Save</button>
-                <button id="cancelTeamPipelineBtn" class="btn-icon">Cancel</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-
-    const saveBtn = DOM.get('saveTeamPipelineBtn');
-    const cancelBtn = DOM.get('cancelTeamPipelineBtn');
-
-    if (saveBtn) {
-        saveBtn.addEventListener('click', async () => {
-            const hot = parseInt(DOM.get('editTeamHot')?.value) || 0;
-            const warm = parseInt(DOM.get('editTeamWarm')?.value) || 0;
-            const completed = parseInt(DOM.get('editTeamCompleted')?.value) || 0;
-            const pending = parseInt(DOM.get('editTeamPending')?.value) || 0;
-            const canceled = parseInt(DOM.get('editTeamCanceled')?.value) || 0;
-
-            AppState.teamPipelineMetrics = { hotTransfers: hot, warmCallbacks: warm, completed, pending, canceled };
-            await Data.saveTeamPipelineMetrics();
-            
-            // Refresh all views
-            Stats.updateAll();
-            FeaturePanel.refreshCurrentView();
-            TeamManager.renderTeamList();
-            
-            modal.remove();
-            showToast('Team pipeline metrics updated!', 'success');
-        });
-    }
-
-    if (cancelBtn) cancelBtn.addEventListener('click', () => modal.remove());
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.remove();
-    });
-}
-
-// ================================================================
 // CALENDAR VIEW - COMPLETE IMPLEMENTATION
 // ================================================================
 
@@ -3110,43 +3004,9 @@ const FeaturePanel = {
         }
 
         const useMyPipeline = AppState.pipelineView === 'my';
-        let appointments = [];
-        
-        if (useMyPipeline) {
-            // My Pipeline - show appointments assigned to the current user
-            appointments = allAppointments.filter(a => 
-                a.assigned === myName || 
-                a.assigned === myMemberId
-            );
-        } else {
-            // Team Pipeline - show aggregated team metrics from AppState.teamPipelineMetrics
-            // These are editable via the Team Pipeline Edit modal
-            const metrics = AppState.teamPipelineMetrics;
-            // For display purposes, we show the metrics as if they are appointments
-            // but they are actually aggregated statistics
-            const total = metrics.hotTransfers + metrics.warmCallbacks + metrics.completed + metrics.pending + metrics.canceled;
-            if (total > 0) {
-                // Create synthetic appointments for display
-                appointments = [];
-                for (let i = 0; i < metrics.hotTransfers; i++) {
-                    appointments.push({ status: 'Hot Transfer', date: Utils.getTodayStr(), business: 'Team Pipeline', contactName: 'Aggregated' });
-                }
-                for (let i = 0; i < metrics.warmCallbacks; i++) {
-                    appointments.push({ status: 'Warm Callback', date: Utils.getTodayStr(), business: 'Team Pipeline', contactName: 'Aggregated' });
-                }
-                for (let i = 0; i < metrics.completed; i++) {
-                    appointments.push({ status: 'Completed', date: Utils.getTodayStr(), business: 'Team Pipeline', contactName: 'Aggregated' });
-                }
-                for (let i = 0; i < metrics.pending; i++) {
-                    appointments.push({ status: 'Pending', date: Utils.getTodayStr(), business: 'Team Pipeline', contactName: 'Aggregated' });
-                }
-                for (let i = 0; i < metrics.canceled; i++) {
-                    appointments.push({ status: 'Canceled', date: Utils.getTodayStr(), business: 'Team Pipeline', contactName: 'Aggregated' });
-                }
-            } else {
-                appointments = [];
-            }
-        }
+        const appointments = useMyPipeline ? 
+            allAppointments.filter(a => a.assigned === myName || a.assigned === myMemberId) : 
+            allAppointments;
 
         let total = appointments.length;
         let stats = this.getAppointmentStats(appointments);
@@ -3175,9 +3035,6 @@ const FeaturePanel = {
                         </button>
                         <button id="teamPipelineBtn" class="view-btn ${AppState.pipelineView === 'team' ? 'active' : ''}" style="padding:6px 16px;">
                             <i class="fas fa-users"></i> Team Pipeline
-                            <button onclick="event.stopPropagation(); window.openTeamPipelineEdit()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.7rem; padding:2px 4px;" title="Edit Team Pipeline Metrics">
-                                <i class="fas fa-pen"></i>
-                            </button>
                         </button>
                     </div>
                     <span class="version-chip"><i class="fas fa-sync-alt"></i> Live Data</span>
@@ -4435,9 +4292,6 @@ function initApp() {
                             AppState.appointments = data.appointments || {};
                             AppState.tasks = data.tasks || {};
                             AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
-                            if (data.teamPipelineMetrics) {
-                                AppState.teamPipelineMetrics = data.teamPipelineMetrics;
-                            }
                             Stats.updateAll();
                             Scripts.renderSidebar();
                             Scripts.loadScript('opening');
@@ -4466,9 +4320,6 @@ function initApp() {
                     AppState.appointments = data.appointments || {};
                     AppState.tasks = data.tasks || {};
                     AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
-                    if (data.teamPipelineMetrics) {
-                        AppState.teamPipelineMetrics = data.teamPipelineMetrics;
-                    }
                     Stats.updateAll();
                     Scripts.renderSidebar();
                     Scripts.loadScript('opening');
@@ -4509,7 +4360,6 @@ function initApp() {
     console.log('📅 Secondary Statuses (count as Completed): Meeting Booked, Rescheduled, Overdue, Held');
     console.log('🎯 Drag & drop enabled for scripts and appointments');
     console.log('👥 Team Management with full CRUD operations');
-    console.log('📈 Team Pipeline metrics are editable via pencil icon');
     console.log(`🔌 Firebase status: ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
 }
 
@@ -4529,7 +4379,6 @@ window.editAppointment = editAppointment;
 window.rescheduleAppointment = rescheduleAppointment;
 window.completeAppointment = completeAppointment;
 window.cancelAppointment = cancelAppointment;
-window.openTeamPipelineEdit = openTeamPipelineEdit;
 window.FeaturePanel = FeaturePanel;
 window.Data = Data;
 window.Stats = Stats;
