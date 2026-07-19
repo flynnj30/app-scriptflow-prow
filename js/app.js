@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION (ORIGINAL VERSION)
+// SCRIPTFLOW PRO - COMPLETE APPLICATION (ORIGINAL WITH NO TEAM)
 // ================================================================
 
 // ================================================================
@@ -87,13 +87,11 @@ const AppState = {
     currentView: 'calendar',
     calendarView: 'calendar',
     analyticsTab: 'insights',
-    pipelineView: 'my',
     taskFilter: 'all',
     selectedAppointments: new Set(),
     currentAppointmentId: null,
     selectedCalDate: null,
     currentCalDate: null,
-    selectedTeamMemberId: null,
 
     dateFilter: 'today',
     customStartDate: null,
@@ -329,63 +327,6 @@ const Utils = {
             return scriptOrder.filter(id => scripts[id]);
         }
         return Object.keys(scripts);
-    },
-
-    getMemberStats(memberId, appointments) {
-        const stats = {
-            total: 0,
-            hotTransfers: 0,
-            warmCallbacks: 0,
-            completed: 0,
-            pending: 0,
-            canceled: 0,
-            meetingBooked: 0,
-            rescheduled: 0,
-            overdue: 0,
-            held: 0,
-            score: 0,
-            appointments: []
-        };
-
-        for (let date in appointments) {
-            if (appointments[date].reports) {
-                appointments[date].reports.forEach(appt => {
-                    if (appt.assigned === memberId) {
-                        stats.total++;
-                        const status = Utils.getStatus(appt);
-                        const primaryStatus = Utils.getPrimaryStatus(status);
-                        
-                        if (primaryStatus === 'Hot Transfer') stats.hotTransfers++;
-                        else if (primaryStatus === 'Warm Callback') stats.warmCallbacks++;
-                        else if (primaryStatus === 'Completed') stats.completed++;
-                        else if (primaryStatus === 'Pending') stats.pending++;
-                        else if (primaryStatus === 'Canceled') stats.canceled++;
-                        
-                        if (status === 'Meeting Booked') stats.meetingBooked++;
-                        else if (status === 'Rescheduled') stats.rescheduled++;
-                        else if (status === 'Overdue') stats.overdue++;
-                        else if (status === 'Held') stats.held++;
-                        
-                        stats.score += Utils.calculateLeadScore(appt);
-                        stats.appointments.push(appt);
-                    }
-                });
-            }
-        }
-
-        if (stats.total > 0) {
-            stats.score = Math.round(stats.score / stats.total);
-        }
-        stats.conversionRate = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
-        return stats;
-    },
-
-    getAllMemberStats(teamMembers, appointments) {
-        const stats = {};
-        teamMembers.forEach(member => {
-            stats[member.id] = this.getMemberStats(member.id, appointments);
-        });
-        return stats;
     }
 };
 
@@ -745,12 +686,10 @@ const Data = {
                     AppState.scriptOrder = data.scriptOrder || [];
                     AppState.appointments = data.appointments || {};
                     AppState.tasks = data.tasks || {};
-                    AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
                     showToast('Loaded offline data', 'info');
                     Stats.updateAll();
                     Scripts.renderSidebar();
                     Scripts.loadScript('opening');
-                    TeamManager.renderTeamList();
                     return;
                 } catch (e) {
                     console.warn('Failed to load offline data:', e);
@@ -813,14 +752,12 @@ const Data = {
                 scripts: AppState.scripts,
                 scriptOrder: AppState.scriptOrder,
                 appointments: AppState.appointments,
-                tasks: AppState.tasks,
-                teamMembers: AppState.teamMembers
+                tasks: AppState.tasks
             }));
 
             Stats.updateAll();
             Scripts.renderSidebar();
             Scripts.loadScript('opening');
-            TeamManager.renderTeamList();
             Auth.closeModal();
             if (statusEl) statusEl.innerHTML = '<i class="fas fa-check"></i> Synced';
         } catch (error) {
@@ -833,7 +770,6 @@ const Data = {
         if (!AppState.currentUser || !AppState.isFirebaseReady) return;
         if (AppState.appointmentsUnsubscribe) AppState.appointmentsUnsubscribe();
         if (AppState.tasksUnsubscribe) AppState.tasksUnsubscribe();
-        if (AppState.teamMembersUnsubscribe) AppState.teamMembersUnsubscribe();
 
         try {
             const db = firebase.firestore();
@@ -851,7 +787,6 @@ const Data = {
                 });
                 Stats.updateAll();
                 FeaturePanel.refreshCurrentView();
-                TeamManager.renderTeamList();
                 localStorage.setItem('appointments_fallback', JSON.stringify(AppState.appointments));
             }, error => {
                 console.warn('Appointments subscription error:', error);
@@ -866,30 +801,10 @@ const Data = {
             }, error => {
                 console.warn('Tasks subscription error:', error);
             });
-
-            AppState.teamMembersUnsubscribe = userRef.collection('teamMembers').onSnapshot(snap => {
-                if (snap.empty) {
-                    AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
-                    AppState.teamMembers.forEach(member => {
-                        userRef.collection('teamMembers').doc(member.id).set(member);
-                    });
-                } else {
-                    AppState.teamMembers = [];
-                    snap.forEach(doc => {
-                        AppState.teamMembers.push({ ...doc.data(), id: doc.id });
-                    });
-                }
-                TeamManager.renderTeamList();
-                FeaturePanel.refreshCurrentView();
-                localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
-            }, error => {
-                console.warn('Team members subscription error:', error);
-            });
         } catch (error) {
             console.warn('Subscription error:', error);
             const appointmentsLocal = localStorage.getItem('appointments_fallback');
             const tasksLocal = localStorage.getItem('tasks_fallback');
-            const teamLocal = localStorage.getItem('teamMembers_fallback');
             
             if (appointmentsLocal) {
                 try {
@@ -903,12 +818,6 @@ const Data = {
                     AppState.tasks = JSON.parse(tasksLocal);
                     Stats.updateTaskStats();
                     FeaturePanel.refreshCurrentView();
-                } catch (e) {}
-            }
-            if (teamLocal) {
-                try {
-                    AppState.teamMembers = JSON.parse(teamLocal);
-                    TeamManager.renderTeamList();
                 } catch (e) {}
             }
         }
@@ -1013,7 +922,6 @@ const Data = {
             this.saveAppointmentsToLocal();
             Stats.updateAll();
             FeaturePanel.refreshCurrentView();
-            TeamManager.renderTeamList();
             return true;
         }
         return false;
@@ -1026,7 +934,6 @@ const Data = {
         this.syncAppointment(appt);
         Stats.updateAll();
         FeaturePanel.refreshCurrentView();
-        TeamManager.renderTeamList();
         return true;
     },
 
@@ -1139,82 +1046,6 @@ const Data = {
             }
         }
         return result.sort((a, b) => new Date(a.dateKey) - new Date(b.dateKey));
-    },
-
-    addTeamMember: async function(member) {
-        if (!AppState.currentUser) { showToast('Please sign in first', 'error'); return; }
-        const newMember = {
-            id: member.id || Utils.generateId(),
-            name: member.name || 'New Member',
-            role: member.role || 'Agent',
-            email: member.email || '',
-            phone: member.phone || '',
-            avatar: member.avatar || '👤',
-            color: member.color || '#3b82f6',
-            active: true,
-            createdAt: new Date().toISOString()
-        };
-        
-        if (AppState.isFirebaseReady && AppState.currentUser) {
-            try {
-                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('teamMembers').doc(newMember.id).set(newMember);
-            } catch (e) {
-                console.error('Error adding team member:', e);
-                AppState.teamMembers.push(newMember);
-                localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
-            }
-        } else {
-            AppState.teamMembers.push(newMember);
-            localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
-        }
-        
-        TeamManager.renderTeamList();
-        showToast(`Team member ${newMember.name} added!`, 'success');
-        return newMember;
-    },
-
-    updateTeamMember: async function(id, updates) {
-        const member = AppState.teamMembers.find(m => m.id === id);
-        if (!member) { showToast('Team member not found', 'error'); return; }
-        
-        Object.assign(member, updates);
-        
-        if (AppState.isFirebaseReady && AppState.currentUser) {
-            try {
-                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('teamMembers').doc(id).update(updates);
-            } catch (e) {
-                console.error('Error updating team member:', e);
-                localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
-            }
-        } else {
-            localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
-        }
-        
-        TeamManager.renderTeamList();
-        showToast(`Team member ${member.name} updated!`, 'success');
-    },
-
-    deleteTeamMember: async function(id) {
-        const member = AppState.teamMembers.find(m => m.id === id);
-        if (!member) { showToast('Team member not found', 'error'); return; }
-        
-        if (!confirm(`Delete ${member.name} from the team?`)) return;
-        
-        AppState.teamMembers = AppState.teamMembers.filter(m => m.id !== id);
-        
-        if (AppState.isFirebaseReady && AppState.currentUser) {
-            try {
-                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('teamMembers').doc(id).delete();
-            } catch (e) {
-                console.error('Error deleting team member:', e);
-                localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
-            }
-        } else {
-            localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
-        }
-        
-        TeamManager.renderTeamList();
-        showToast(`Team member ${member.name} deleted`, 'info');
     }
 };
 
@@ -1564,357 +1395,6 @@ const Scripts = {
 
     isEditing: function() {
         return AppState.isEditing;
-    }
-};
-
-// ================================================================
-// TEAM MANAGER MODULE
-// ================================================================
-
-const TeamManager = {
-    renderTeamList: function() {
-        const container = DOM.get('teamMembersList');
-        if (!container) return;
-
-        const members = AppState.teamMembers || [];
-        
-        if (members.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-users"></i>
-                    <p>No team members found. Add your first team member!</p>
-                </div>
-            `;
-            return;
-        }
-
-        let html = '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:16px;">';
-        members.forEach(member => {
-            const stats = Utils.getMemberStats(member.id, AppState.appointments);
-            html += `
-                <div class="team-member-card" data-id="${member.id}" style="background:var(--bg-card); border-radius:16px; padding:20px; border:1px solid var(--border-color); transition:all 0.3s ease; cursor:pointer; position:relative;">
-                    <div style="display:flex; align-items:center; gap:14px; margin-bottom:12px;">
-                        <div style="width:48px; height:48px; border-radius:50%; background:${member.color}20; display:flex; align-items:center; justify-content:center; font-size:1.8rem; border:2px solid ${member.color};">
-                            ${member.avatar || '👤'}
-                        </div>
-                        <div style="flex:1;">
-                            <div style="font-weight:600; font-size:1rem;">${Utils.escapeHtml(member.name)}</div>
-                            <div style="font-size:0.75rem; color:var(--text-muted);">${Utils.escapeHtml(member.role)}</div>
-                            <div style="font-size:0.7rem; color:var(--text-muted);">${member.active ? '🟢 Active' : '🔴 Inactive'}</div>
-                        </div>
-                        <div style="display:flex; gap:6px;">
-                            <button class="edit-team-member-btn" data-id="${member.id}" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.9rem; padding:4px;" title="Edit Member">
-                                <i class="fas fa-pen"></i>
-                            </button>
-                            <button class="delete-team-member-btn" data-id="${member.id}" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:0.9rem; padding:4px;" title="Delete Member">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; font-size:0.75rem;">
-                        <div><span style="color:var(--text-muted);">Total</span><br><strong>${stats.total}</strong></div>
-                        <div><span style="color:var(--text-muted);">🔥 Hot</span><br><strong style="color:#dc2626;">${stats.hotTransfers}</strong></div>
-                        <div><span style="color:var(--text-muted);">📞 Warm</span><br><strong style="color:var(--warning);">${stats.warmCallbacks}</strong></div>
-                        <div><span style="color:var(--text-muted);">✅ Done</span><br><strong style="color:var(--success);">${stats.completed}</strong></div>
-                        <div><span style="color:var(--text-muted);">⏳ Pending</span><br><strong>${stats.pending}</strong></div>
-                        <div><span style="color:var(--text-muted);">Score</span><br><strong>${stats.score}</strong></div>
-                    </div>
-                    <div style="margin-top:10px; background:var(--bg-primary); height:4px; border-radius:4px; overflow:hidden;">
-                        <div style="background:${member.color}; width:${stats.conversionRate || 0}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; font-size:0.65rem; color:var(--text-muted); margin-top:4px;">
-                        <span>Conversion Rate</span>
-                        <span>${stats.conversionRate || 0}%</span>
-                    </div>
-                </div>
-            `;
-        });
-        html += '</div>';
-        container.innerHTML = html;
-
-        container.querySelectorAll('.team-member-card').forEach(card => {
-            card.addEventListener('click', (e) => {
-                if (e.target.closest('.edit-team-member-btn') || e.target.closest('.delete-team-member-btn')) return;
-                const id = card.getAttribute('data-id');
-                TeamManager.showMemberDetail(id);
-            });
-        });
-
-        container.querySelectorAll('.edit-team-member-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                TeamManager.editMember(btn.getAttribute('data-id'));
-            });
-        });
-
-        container.querySelectorAll('.delete-team-member-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                Data.deleteTeamMember(btn.getAttribute('data-id'));
-            });
-        });
-    },
-
-    showMemberDetail: function(memberId) {
-        const member = AppState.teamMembers.find(m => m.id === memberId);
-        if (!member) { showToast('Member not found', 'error'); return; }
-
-        const stats = Utils.getMemberStats(memberId, AppState.appointments);
-        
-        const modal = DOM.createElement('div', 'modal-overlay');
-        modal.id = 'memberDetailModal';
-        modal.innerHTML = `
-            <div class="modal-card" style="max-width:650px;">
-                <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px;">
-                    <div style="width:64px; height:64px; border-radius:50%; background:${member.color}20; display:flex; align-items:center; justify-content:center; font-size:2.5rem; border:3px solid ${member.color};">
-                        ${member.avatar || '👤'}
-                    </div>
-                    <div>
-                        <h3 style="margin:0;">${Utils.escapeHtml(member.name)}</h3>
-                        <div style="color:var(--text-muted);">${Utils.escapeHtml(member.role)}</div>
-                        <div style="font-size:0.8rem; color:var(--text-muted);">${member.email || 'No email'}</div>
-                    </div>
-                    <span style="margin-left:auto; font-size:0.8rem; padding:4px 12px; border-radius:20px; background:${member.active ? 'var(--success)' : 'var(--danger)'}20; color:${member.active ? 'var(--success)' : 'var(--danger)'};">
-                        ${member.active ? '🟢 Active' : '🔴 Inactive'}
-                    </span>
-                    <button class="btn-icon-sm" onclick="TeamManager.editMember('${member.id}')" style="background:var(--warning); color:#1e293b; padding:6px 12px; border-radius:20px; border:none; cursor:pointer;">
-                        <i class="fas fa-pen"></i> Edit
-                    </button>
-                </div>
-
-                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:16px;">
-                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
-                        <div style="font-size:1.5rem; font-weight:700;">${stats.total}</div>
-                        <div style="font-size:0.7rem; color:var(--text-muted);">Total Pipeline</div>
-                    </div>
-                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
-                        <div style="font-size:1.5rem; font-weight:700; color:#dc2626;">${stats.hotTransfers}</div>
-                        <div style="font-size:0.7rem; color:var(--text-muted);">🔥 Hot Transfers</div>
-                    </div>
-                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
-                        <div style="font-size:1.5rem; font-weight:700; color:var(--warning);">${stats.warmCallbacks}</div>
-                        <div style="font-size:0.7rem; color:var(--text-muted);">📞 Warm Callbacks</div>
-                    </div>
-                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
-                        <div style="font-size:1.5rem; font-weight:700; color:var(--success);">${stats.completed}</div>
-                        <div style="font-size:0.7rem; color:var(--text-muted);">✅ Completed</div>
-                    </div>
-                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
-                        <div style="font-size:1.5rem; font-weight:700; color:var(--text-muted);">${stats.pending}</div>
-                        <div style="font-size:0.7rem; color:var(--text-muted);">⏳ Pending</div>
-                    </div>
-                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
-                        <div style="font-size:1.5rem; font-weight:700; color:var(--danger);">${stats.canceled}</div>
-                        <div style="font-size:0.7rem; color:var(--text-muted);">❌ Canceled</div>
-                    </div>
-                </div>
-
-                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:16px;">
-                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
-                        <div style="font-size:1.2rem; font-weight:700; color:#3b82f6;">${stats.meetingBooked || 0}</div>
-                        <div style="font-size:0.7rem; color:var(--text-muted);">📅 Meeting Booked</div>
-                    </div>
-                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
-                        <div style="font-size:1.2rem; font-weight:700; color:#f97316;">${stats.rescheduled || 0}</div>
-                        <div style="font-size:0.7rem; color:var(--text-muted);">🔄 Rescheduled</div>
-                    </div>
-                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
-                        <div style="font-size:1.2rem; font-weight:700; color:#06b6d4;">${stats.held || 0}</div>
-                        <div style="font-size:0.7rem; color:var(--text-muted);">📌 Held</div>
-                    </div>
-                </div>
-
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
-                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
-                        <div style="font-size:1.2rem; font-weight:700; color:var(--secondary);">${stats.score || 0}</div>
-                        <div style="font-size:0.7rem; color:var(--text-muted);">Avg Lead Score</div>
-                    </div>
-                    <div style="background:var(--bg-primary); border-radius:12px; padding:12px; text-align:center;">
-                        <div style="font-size:1.2rem; font-weight:700; color:var(--primary);">${stats.conversionRate || 0}%</div>
-                        <div style="font-size:0.7rem; color:var(--text-muted);">Conversion Rate</div>
-                    </div>
-                </div>
-
-                <div style="margin-top:16px;">
-                    <h4 style="margin-bottom:8px;">📋 Activity History</h4>
-                    <div style="max-height:150px; overflow-y:auto; font-size:0.8rem;">
-                        ${stats.appointments && stats.appointments.length > 0 ? 
-                            stats.appointments.slice(0, 10).map(appt => {
-                                const status = Utils.getStatus(appt);
-                                const primaryStatus = Utils.getPrimaryStatus(status);
-                                const isSecondary = CONFIG.SECONDARY_STATUSES.includes(status);
-                                return `
-                                    <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border-color);">
-                                        <span>${Utils.escapeHtml(appt.business)} - ${Utils.escapeHtml(appt.contactName)}</span>
-                                        <span style="color:var(--text-muted);">${Utils.formatDate(appt.date)}</span>
-                                        <span style="display:flex; gap:4px; align-items:center;">
-                                            <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
-                                            ${isSecondary ? `<span style="font-size:0.6rem; color:var(--text-muted);">→ ${primaryStatus}</span>` : ''}
-                                        </span>
-                                    </div>
-                                `;
-                            }).join('')
-                            : '<div style="color:var(--text-muted); padding:8px;">No activity yet</div>'
-                        }
-                    </div>
-                </div>
-
-                <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px; flex-wrap:wrap;">
-                    <button id="closeMemberDetailBtn" class="btn-icon">Close</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-
-        const closeBtn = DOM.get('closeMemberDetailBtn');
-        if (closeBtn) closeBtn.addEventListener('click', () => modal.remove());
-
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.remove();
-        });
-    },
-
-    editMember: function(memberId) {
-        const member = AppState.teamMembers.find(m => m.id === memberId);
-        if (!member) { showToast('Member not found', 'error'); return; }
-
-        const modal = DOM.createElement('div', 'modal-overlay');
-        modal.id = 'editMemberModal';
-        modal.innerHTML = `
-            <div class="modal-card" style="max-width:450px;">
-                <h3><i class="fas fa-user-edit"></i> Edit Team Member</h3>
-                <div class="form-group">
-                    <label>Name *</label>
-                    <input type="text" id="editMemberName" value="${Utils.escapeHtml(member.name)}" />
-                </div>
-                <div class="form-group">
-                    <label>Role</label>
-                    <input type="text" id="editMemberRole" value="${Utils.escapeHtml(member.role)}" />
-                </div>
-                <div class="form-group">
-                    <label>Email</label>
-                    <input type="email" id="editMemberEmail" value="${Utils.escapeHtml(member.email || '')}" />
-                </div>
-                <div class="form-group">
-                    <label>Phone</label>
-                    <input type="text" id="editMemberPhone" value="${Utils.escapeHtml(member.phone || '')}" />
-                </div>
-                <div class="form-group">
-                    <label>Avatar (emoji)</label>
-                    <input type="text" id="editMemberAvatar" value="${member.avatar || '👤'}" maxlength="2" />
-                </div>
-                <div class="form-group">
-                    <label>Color</label>
-                    <input type="color" id="editMemberColor" value="${member.color || '#3b82f6'}" />
-                </div>
-                <div class="form-group">
-                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                        <input type="checkbox" id="editMemberActive" ${member.active ? 'checked' : ''} />
-                        Active
-                    </label>
-                </div>
-                <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px; flex-wrap:wrap;">
-                    <button id="saveMemberEditBtn" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-save"></i> Save</button>
-                    <button id="cancelMemberEditBtn" class="btn-icon">Cancel</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-
-        const saveBtn = DOM.get('saveMemberEditBtn');
-        const cancelBtn = DOM.get('cancelMemberEditBtn');
-
-        if (saveBtn) {
-            saveBtn.addEventListener('click', () => {
-                const name = DOM.get('editMemberName')?.value?.trim();
-                if (!name) { showToast('Name is required', 'error'); return; }
-
-                const updates = {
-                    name: name,
-                    role: DOM.get('editMemberRole')?.value?.trim() || 'Agent',
-                    email: DOM.get('editMemberEmail')?.value?.trim() || '',
-                    phone: DOM.get('editMemberPhone')?.value?.trim() || '',
-                    avatar: DOM.get('editMemberAvatar')?.value || '👤',
-                    color: DOM.get('editMemberColor')?.value || '#3b82f6',
-                    active: DOM.get('editMemberActive')?.checked || false
-                };
-
-                Data.updateTeamMember(memberId, updates);
-                modal.remove();
-            });
-        }
-
-        if (cancelBtn) cancelBtn.addEventListener('click', () => modal.remove());
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.remove();
-        });
-    },
-
-    addMember: function() {
-        const modal = DOM.createElement('div', 'modal-overlay');
-        modal.id = 'addMemberModal';
-        modal.innerHTML = `
-            <div class="modal-card" style="max-width:450px;">
-                <h3><i class="fas fa-user-plus"></i> Add Team Member</h3>
-                <div class="form-group">
-                    <label>Name *</label>
-                    <input type="text" id="addMemberName" placeholder="Enter full name" />
-                </div>
-                <div class="form-group">
-                    <label>Role</label>
-                    <input type="text" id="addMemberRole" placeholder="e.g., Agent, Team Lead" value="Agent" />
-                </div>
-                <div class="form-group">
-                    <label>Email</label>
-                    <input type="email" id="addMemberEmail" placeholder="email@company.com" />
-                </div>
-                <div class="form-group">
-                    <label>Phone</label>
-                    <input type="text" id="addMemberPhone" placeholder="+1-555-0000" />
-                </div>
-                <div class="form-group">
-                    <label>Avatar (emoji)</label>
-                    <input type="text" id="addMemberAvatar" value="👤" maxlength="2" />
-                </div>
-                <div class="form-group">
-                    <label>Color</label>
-                    <input type="color" id="addMemberColor" value="#3b82f6" />
-                </div>
-                <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px; flex-wrap:wrap;">
-                    <button id="saveMemberAddBtn" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-save"></i> Add Member</button>
-                    <button id="cancelMemberAddBtn" class="btn-icon">Cancel</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-
-        const saveBtn = DOM.get('saveMemberAddBtn');
-        const cancelBtn = DOM.get('cancelMemberAddBtn');
-
-        if (saveBtn) {
-            saveBtn.addEventListener('click', () => {
-                const name = DOM.get('addMemberName')?.value?.trim();
-                if (!name) { showToast('Name is required', 'error'); return; }
-
-                const newMember = {
-                    name: name,
-                    role: DOM.get('addMemberRole')?.value?.trim() || 'Agent',
-                    email: DOM.get('addMemberEmail')?.value?.trim() || '',
-                    phone: DOM.get('addMemberPhone')?.value?.trim() || '',
-                    avatar: DOM.get('addMemberAvatar')?.value || '👤',
-                    color: DOM.get('addMemberColor')?.value || '#3b82f6',
-                    active: true
-                };
-
-                Data.addTeamMember(newMember);
-                modal.remove();
-            });
-        }
-
-        if (cancelBtn) cancelBtn.addEventListener('click', () => modal.remove());
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.remove();
-        });
     }
 };
 
@@ -2673,8 +2153,7 @@ const FeaturePanel = {
                 'calendar': 'fa-calendar-alt', 
                 'tasks': 'fa-tasks', 
                 'analytics': 'fa-chart-pie', 
-                'shortcuts': 'fa-keyboard',
-                'team': 'fa-users'
+                'shortcuts': 'fa-keyboard'
             };
             featureTitle.innerHTML = `<i class="fas ${iconMap[featureType] || 'fa-sticky-note'}"></i> ${title}`;
         }
@@ -2694,14 +2173,6 @@ const FeaturePanel = {
                     <div class="view-toggle" id="analyticsTabContainer">
                         <button id="insightsTabBtn" class="view-btn ${AppState.analyticsTab === 'insights' ? 'active' : ''}">📊 Insights</button>
                         <button id="reportsTabBtn" class="view-btn ${AppState.analyticsTab === 'reports' ? 'active' : ''}">📈 Reports</button>
-                        <button id="teamTabBtn" class="view-btn ${AppState.analyticsTab === 'team' ? 'active' : ''}">👥 Team</button>
-                    </div>
-                `;
-            } else if (featureType === 'team') {
-                html = `
-                    <div class="view-toggle" id="teamViewToggle">
-                        <button id="teamListBtn" class="view-btn active">📋 Team Members</button>
-                        <button id="teamManageBtn" class="view-btn">⚙️ Manage</button>
                     </div>
                 `;
             } else if (featureType === 'tasks') {
@@ -2729,8 +2200,6 @@ const FeaturePanel = {
                 this.renderAnalytics(featureBody);
             } else if (featureType === 'shortcuts') {
                 this.renderShortcuts(featureBody);
-            } else if (featureType === 'team') {
-                this.renderTeamManagement(featureBody);
             } else if (featureType === 'notepad') {
                 showToast('📝 Notes feature coming soon!', 'info');
                 this.hide();
@@ -2756,8 +2225,6 @@ const FeaturePanel = {
             this.renderAnalytics(body);
         } else if (AppState.currentView === 'shortcuts') {
             this.renderShortcuts(body);
-        } else if (AppState.currentView === 'team') {
-            this.renderTeamManagement(body);
         }
     },
 
@@ -2780,26 +2247,16 @@ const FeaturePanel = {
         } else if (featureType === 'analytics') {
             const insightsBtn = DOM.get('insightsTabBtn');
             const reportsBtn = DOM.get('reportsTabBtn');
-            const teamBtn = DOM.get('teamTabBtn');
             if (insightsBtn) insightsBtn.addEventListener('click', () => {
                 AppState.analyticsTab = 'insights';
                 insightsBtn.classList.add('active');
                 if (reportsBtn) reportsBtn.classList.remove('active');
-                if (teamBtn) teamBtn.classList.remove('active');
                 this.refreshCurrentView();
             });
             if (reportsBtn) reportsBtn.addEventListener('click', () => {
                 AppState.analyticsTab = 'reports';
                 reportsBtn.classList.add('active');
                 if (insightsBtn) insightsBtn.classList.remove('active');
-                if (teamBtn) teamBtn.classList.remove('active');
-                this.refreshCurrentView();
-            });
-            if (teamBtn) teamBtn.addEventListener('click', () => {
-                AppState.analyticsTab = 'team';
-                teamBtn.classList.add('active');
-                if (insightsBtn) insightsBtn.classList.remove('active');
-                if (reportsBtn) reportsBtn.classList.remove('active');
                 this.refreshCurrentView();
             });
         } else if (featureType === 'tasks') {
@@ -2828,88 +2285,7 @@ const FeaturePanel = {
                 if (pendingBtn) pendingBtn.classList.remove('active');
                 this.refreshCurrentView();
             });
-        } else if (featureType === 'team') {
-            const listBtn = DOM.get('teamListBtn');
-            const manageBtn = DOM.get('teamManageBtn');
-            if (listBtn) listBtn.addEventListener('click', () => {
-                listBtn.classList.add('active');
-                if (manageBtn) manageBtn.classList.remove('active');
-                this.renderTeamManagement(DOM.get('featurePanelBody'));
-            });
-            if (manageBtn) manageBtn.addEventListener('click', () => {
-                manageBtn.classList.add('active');
-                if (listBtn) listBtn.classList.remove('active');
-                this.renderTeamManagement(DOM.get('featurePanelBody'));
-            });
         }
-    },
-
-    renderTeamManagement: function(container) {
-        if (!container) return;
-
-        const members = AppState.teamMembers || [];
-        const memberStats = Utils.getAllMemberStats(members, AppState.appointments);
-
-        let teamTotal = 0, teamHot = 0, teamWarm = 0, teamCompleted = 0, teamPending = 0, teamCanceled = 0;
-        let teamMeetingBooked = 0, teamRescheduled = 0, teamHeld = 0;
-        let teamScore = 0;
-        
-        Object.values(memberStats).forEach(stat => {
-            teamTotal += stat.total;
-            teamHot += stat.hotTransfers;
-            teamWarm += stat.warmCallbacks;
-            teamCompleted += stat.completed;
-            teamPending += stat.pending;
-            teamCanceled += stat.canceled;
-            teamMeetingBooked += stat.meetingBooked || 0;
-            teamRescheduled += stat.rescheduled || 0;
-            teamHeld += stat.held || 0;
-            teamScore += stat.score || 0;
-        });
-        const teamConversion = teamTotal > 0 ? Math.round((teamCompleted / teamTotal) * 100) : 0;
-        const avgTeamScore = Object.keys(memberStats).length > 0 ? Math.round(teamScore / Object.keys(memberStats).length) : 0;
-
-        container.innerHTML = `
-            <div class="team-management-container fade-in">
-                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
-                    <h3><i class="fas fa-users"></i> Team Management</h3>
-                    <button id="addTeamMemberBtn" class="btn-icon" style="background:var(--success); color:white;">
-                        <i class="fas fa-plus"></i> Add Member
-                    </button>
-                </div>
-
-                <div class="report-metrics scale-in" style="margin-bottom:16px;">
-                    <div class="metric-card"><div class="metric-value">${members.length}</div><div class="metric-label">👥 Team Members</div></div>
-                    <div class="metric-card"><div class="metric-value" style="color:var(--primary);">${teamTotal}</div><div class="metric-label">📋 Total Pipeline</div></div>
-                    <div class="metric-card"><div class="metric-value" style="color:#dc2626;">${teamHot}</div><div class="metric-label">🔥 Hot Transfers</div></div>
-                    <div class="metric-card"><div class="metric-value" style="color:var(--warning);">${teamWarm}</div><div class="metric-label">📞 Warm Callbacks</div></div>
-                    <div class="metric-card"><div class="metric-value" style="color:var(--success);">${teamCompleted}</div><div class="metric-label">✅ Completed</div></div>
-                    <div class="metric-card"><div class="metric-value" style="color:var(--secondary);">${teamConversion}%</div><div class="metric-label">📈 Team Conversion</div></div>
-                </div>
-
-                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:16px;">
-                    <div class="metric-card" style="background:var(--bg-primary);">
-                        <div class="metric-value" style="color:#3b82f6; font-size:1.2rem;">${teamMeetingBooked}</div>
-                        <div class="metric-label">📅 Meeting Booked</div>
-                    </div>
-                    <div class="metric-card" style="background:var(--bg-primary);">
-                        <div class="metric-value" style="color:#f97316; font-size:1.2rem;">${teamRescheduled}</div>
-                        <div class="metric-label">🔄 Rescheduled</div>
-                    </div>
-                    <div class="metric-card" style="background:var(--bg-primary);">
-                        <div class="metric-value" style="color:#06b6d4; font-size:1.2rem;">${teamHeld}</div>
-                        <div class="metric-label">📌 Held</div>
-                    </div>
-                </div>
-
-                <div id="teamMembersList" style="margin-top:12px;"></div>
-            </div>
-        `;
-
-        TeamManager.renderTeamList();
-
-        const addBtn = DOM.get('addTeamMemberBtn');
-        if (addBtn) addBtn.addEventListener('click', () => TeamManager.addMember());
     },
 
     renderTasks: function(container) {
@@ -2980,83 +2356,57 @@ const FeaturePanel = {
         if (!container) return;
         if (AppState.analyticsTab === 'insights') this.renderAnalyticsInsights(container);
         else if (AppState.analyticsTab === 'reports') this.renderAnalyticsReports(container);
-        else if (AppState.analyticsTab === 'team') this.renderAnalyticsTeam(container);
     },
 
     renderAnalyticsInsights: function(container) {
-        const currentUser = AppState.currentUser;
-        const myName = currentUser?.displayName || currentUser?.email || 'Daniel';
-        
-        let myMemberId = 'daniel';
-        if (AppState.teamMembers.length > 0) {
-            const member = AppState.teamMembers.find(m => 
-                m.name.toLowerCase() === myName.toLowerCase() || 
-                m.email === currentUser?.email
-            );
-            if (member) myMemberId = member.id;
-        }
-
-        const allAppointments = [];
-        for (let date in AppState.appointments) {
-            if (AppState.appointments[date].reports) {
-                allAppointments.push(...AppState.appointments[date].reports);
-            }
-        }
-
-        const useMyPipeline = AppState.pipelineView === 'my';
-        const appointments = useMyPipeline ? 
-            allAppointments.filter(a => a.assigned === myName || a.assigned === myMemberId) : 
-            allAppointments;
-
-        let total = appointments.length;
-        let stats = this.getAppointmentStats(appointments);
+        let total = 0, hTransfers = 0, wCallbacks = 0, completedCount = 0, pendingCount = 0, canceledCount = 0;
         let statusCounts = {};
         let dailyData = {};
 
-        appointments.forEach(a => {
-            const status = Utils.getStatus(a);
-            const primaryStatus = Utils.getPrimaryStatus(status);
-            statusCounts[primaryStatus] = (statusCounts[primaryStatus] || 0) + 1;
-            dailyData[a.date] = (dailyData[a.date] || 0) + 1;
-        });
+        for (let date in AppState.appointments) {
+            if (AppState.appointments[date].reports) {
+                AppState.appointments[date].reports.forEach(a => {
+                    total++;
+                    const status = Utils.getStatus(a);
+                    const primaryStatus = Utils.getPrimaryStatus(status);
+                    statusCounts[primaryStatus] = (statusCounts[primaryStatus] || 0) + 1;
+                    if (primaryStatus === 'Hot Transfer') hTransfers++;
+                    else if (primaryStatus === 'Warm Callback') wCallbacks++;
+                    else if (primaryStatus === 'Completed') completedCount++;
+                    else if (primaryStatus === 'Pending') pendingCount++;
+                    else if (primaryStatus === 'Canceled') canceledCount++;
+                    dailyData[a.date] = (dailyData[a.date] || 0) + 1;
+                });
+            }
+        }
 
-        const conversionRate = total > 0 ? Math.round((stats.completed / total) * 100) : 0;
-        const hotTransferRate = total > 0 ? Math.round((stats.hotTransfers / total) * 100) : 0;
-        const warmCallbackRate = total > 0 ? Math.round((stats.warmCallbacks / total) * 100) : 0;
-        const avgScore = total > 0 ? Math.round(appointments.reduce((sum, a) => sum + Utils.calculateLeadScore(a), 0) / total) : 0;
+        const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+        const hotTransferRate = total > 0 ? Math.round((hTransfers / total) * 100) : 0;
+        const warmCallbackRate = total > 0 ? Math.round((wCallbacks / total) * 100) : 0;
 
         container.innerHTML = `
             <div class="analytics-container fade-in">
                 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
                     <h3><i class="fas fa-chart-pie"></i> Pipeline Insights Dashboard</h3>
-                    <div style="display:flex; gap:8px; align-items:center; background:var(--bg-primary); padding:4px; border-radius:40px;">
-                        <button id="myPipelineBtn" class="view-btn ${AppState.pipelineView === 'my' ? 'active' : ''}" style="padding:6px 16px;">
-                            <i class="fas fa-user"></i> My Pipeline
-                        </button>
-                        <button id="teamPipelineBtn" class="view-btn ${AppState.pipelineView === 'team' ? 'active' : ''}" style="padding:6px 16px;">
-                            <i class="fas fa-users"></i> Team Pipeline
-                        </button>
-                    </div>
                     <span class="version-chip"><i class="fas fa-sync-alt"></i> Live Data</span>
                 </div>
 
                 <div class="report-metrics scale-in">
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">${useMyPipeline ? 'My' : 'Team'} Pipeline</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${stats.hotTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${stats.warmCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${stats.completed}</div><div class="metric-label">✅ Completed</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--text-muted);">${stats.pending}</div><div class="metric-label">⏳ Pending</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--danger);">${stats.canceled}</div><div class="metric-label">❌ Canceled</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">Total Pipeline</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--text-muted);">${pendingCount}</div><div class="metric-label">⏳ Pending</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--danger);">${canceledCount}</div><div class="metric-label">❌ Canceled</div></div>
                 </div>
 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
                     <div class="feature-card slide-up">
-                        <h4>📊 Performance Metrics</h4>
+                        <h4>📊 Conversion Rates</h4>
                         <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
                             <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Completed Rate</span><span>${conversionRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--success); width:${conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
                             <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Hot Transfer Rate</span><span>${hotTransferRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:#dc2626; width:${hotTransferRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
                             <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Warm Callback Rate</span><span>${warmCallbackRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--warning); width:${warmCallbackRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
-                            <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Avg Lead Score</span><span>${avgScore}</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--secondary); width:${Math.min(avgScore, 100)}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
                         </div>
                     </div>
 
@@ -3069,11 +2419,6 @@ const FeaturePanel = {
                                     <span style="font-weight:600;">${count} (${Math.round((count/total)*100)}%)</span>
                                 </div>
                             `).join('')}
-                        </div>
-                        <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; font-size:0.7rem; color:var(--text-muted);">
-                            <span>📅 Meeting Booked: ${stats.meetingBooked || 0}</span>
-                            <span>🔄 Rescheduled: ${stats.rescheduled || 0}</span>
-                            <span>📌 Held: ${stats.held || 0}</span>
                         </div>
                     </div>
                 </div>
@@ -3102,33 +2447,13 @@ const FeaturePanel = {
             </div>
         `;
 
-        const myPipelineBtn = DOM.get('myPipelineBtn');
-        const teamPipelineBtn = DOM.get('teamPipelineBtn');
-        if (myPipelineBtn) {
-            myPipelineBtn.addEventListener('click', () => {
-                AppState.pipelineView = 'my';
-                myPipelineBtn.classList.add('active');
-                if (teamPipelineBtn) teamPipelineBtn.classList.remove('active');
-                this.renderAnalyticsInsights(container);
-            });
-        }
-        if (teamPipelineBtn) {
-            teamPipelineBtn.addEventListener('click', () => {
-                AppState.pipelineView = 'team';
-                teamPipelineBtn.classList.add('active');
-                if (myPipelineBtn) myPipelineBtn.classList.remove('active');
-                this.renderAnalyticsInsights(container);
-            });
-        }
-
         setTimeout(() => {
             this.initAnalyticsCharts(dailyData, statusCounts);
         }, 200);
     },
 
     renderAnalyticsReports: function(container) {
-        let total = 0;
-        let stats = { hotTransfers: 0, warmCallbacks: 0, completed: 0, pending: 0, canceled: 0, meetingBooked: 0, rescheduled: 0, held: 0 };
+        let total = 0, completedCount = 0, hTransfers = 0, wCallbacks = 0;
         let dailyData = {};
         let assignedStats = {};
 
@@ -3138,25 +2463,18 @@ const FeaturePanel = {
                     total++;
                     const status = Utils.getStatus(a);
                     const primaryStatus = Utils.getPrimaryStatus(status);
-                    
-                    if (primaryStatus === 'Hot Transfer') stats.hotTransfers++;
-                    else if (primaryStatus === 'Warm Callback') stats.warmCallbacks++;
-                    else if (primaryStatus === 'Completed') stats.completed++;
-                    else if (primaryStatus === 'Pending') stats.pending++;
-                    else if (primaryStatus === 'Canceled') stats.canceled++;
-                    
-                    if (status === 'Meeting Booked') stats.meetingBooked++;
-                    else if (status === 'Rescheduled') stats.rescheduled++;
-                    else if (status === 'Held') stats.held++;
-                    
-                    dailyData[date] = (dailyData[date] || 0) + 1;
+                    if (primaryStatus === 'Completed') completedCount++;
+                    if (primaryStatus === 'Hot Transfer') hTransfers++;
+                    if (primaryStatus === 'Warm Callback') wCallbacks++;
+                    dailyData[a.date] = (dailyData[a.date] || 0) + 1;
+
                     const assigned = a.assigned || 'Unassigned';
                     assignedStats[assigned] = (assignedStats[assigned] || 0) + 1;
                 });
             }
         }
 
-        const conversionRate = total > 0 ? Math.round((stats.completed / total) * 100) : 0;
+        const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
         const avgScore = Stats.getAverageScore();
 
         container.innerHTML = `
@@ -3170,26 +2488,11 @@ const FeaturePanel = {
 
                 <div class="report-metrics scale-in">
                     <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">Total Appointments</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${stats.completed}</div><div class="metric-label">✅ Completed</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${stats.hotTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${stats.warmCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
                     <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--primary);">${conversionRate}%</div><div class="metric-label">Conversion Rate</div></div>
                     <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--secondary);">${avgScore}</div><div class="metric-label">Avg Lead Score</div></div>
-                </div>
-
-                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:12px;">
-                    <div class="metric-card" style="background:var(--bg-primary);">
-                        <div class="metric-value" style="color:#3b82f6; font-size:1.2rem;">${stats.meetingBooked || 0}</div>
-                        <div class="metric-label">📅 Meeting Booked</div>
-                    </div>
-                    <div class="metric-card" style="background:var(--bg-primary);">
-                        <div class="metric-value" style="color:#f97316; font-size:1.2rem;">${stats.rescheduled || 0}</div>
-                        <div class="metric-label">🔄 Rescheduled</div>
-                    </div>
-                    <div class="metric-card" style="background:var(--bg-primary);">
-                        <div class="metric-value" style="color:#06b6d4; font-size:1.2rem;">${stats.held || 0}</div>
-                        <div class="metric-label">📌 Held</div>
-                    </div>
                 </div>
 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
@@ -3242,135 +2545,6 @@ const FeaturePanel = {
 
         const exportCSV = DOM.get('reportsExportCSV');
         if (exportCSV) exportCSV.addEventListener('click', () => Data.exportToCSV());
-    },
-
-    renderAnalyticsTeam: function(container) {
-        let teamStats = {};
-        const members = AppState.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
-        
-        members.forEach(member => {
-            const stats = Utils.getMemberStats(member.id, AppState.appointments);
-            teamStats[member.id] = {
-                ...member,
-                ...stats
-            };
-        });
-
-        const topPerformer = Object.values(teamStats).sort((a, b) => b.score - a.score)[0];
-        const totalTeamAppts = Object.values(teamStats).reduce((sum, m) => sum + m.total, 0);
-
-        container.innerHTML = `
-            <div class="analytics-container fade-in">
-                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
-                    <h3><i class="fas fa-users"></i> Team Performance Dashboard</h3>
-                    <span class="version-chip"><i class="fas fa-crown"></i> ${topPerformer ? `${topPerformer.avatar} ${topPerformer.name} is leading!` : 'No data yet'}</span>
-                </div>
-
-                <div class="report-metrics scale-in">
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${members.length}</div><div class="metric-label">👥 Team Members</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${totalTeamAppts}</div><div class="metric-label">📋 Total Appointments</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--primary);">${topPerformer ? topPerformer.score : 0}</div><div class="metric-label">🏆 Top Score</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${topPerformer ? topPerformer.conversionRate : 0}%</div><div class="metric-label">📈 Top Conversion</div></div>
-                </div>
-
-                <div class="feature-card slide-up">
-                    <h4>👤 Team Member Performance</h4>
-                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-top:12px;">
-                        ${Object.values(teamStats).map(member => `
-                            <div style="background:var(--bg-primary); border-radius:12px; padding:16px; border-left: 4px solid ${member.color}; transition:all 0.3s ease; cursor:pointer;" onclick="window.TeamManager?.showMemberDetail('${member.id}')">
-                                <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-                                    <span style="font-size:2rem;">${member.avatar}</span>
-                                    <div>
-                                        <div style="font-weight:600;">${member.name}</div>
-                                        <div style="font-size:0.7rem; color:var(--text-muted);">${member.role}</div>
-                                    </div>
-                                    ${member.id === topPerformer?.id ? '<span style="margin-left:auto; font-size:1.2rem;">👑</span>' : ''}
-                                </div>
-                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:0.8rem;">
-                                    <span>📋 ${member.total}</span>
-                                    <span>✅ ${member.completed}</span>
-                                    <span>🔥 ${member.hotTransfers}</span>
-                                    <span>📞 ${member.warmCallbacks}</span>
-                                    <span style="font-weight:600;">Score: ${member.score}</span>
-                                    <span style="font-weight:600;">Conv: ${member.conversionRate}%</span>
-                                </div>
-                                <div style="margin-top:8px; background:var(--bg-card); height:4px; border-radius:4px; overflow:hidden;">
-                                    <div style="background:${member.color}; width:${member.conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-
-                <div class="feature-card scale-in">
-                    <h4>📊 Team Performance Chart</h4>
-                    <div class="chart-container" style="height:200px;">
-                        <canvas id="teamChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        setTimeout(() => {
-            const teamCtx = DOM.get('teamChart')?.getContext('2d');
-            if (teamCtx) {
-                const labels = Object.values(teamStats).map(m => m.name);
-                const scores = Object.values(teamStats).map(m => m.score);
-                const colors = Object.values(teamStats).map(m => m.color);
-                new Chart(teamCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Lead Score',
-                            data: scores,
-                            backgroundColor: colors.map(c => c + '80'),
-                            borderColor: colors,
-                            borderWidth: 2,
-                            borderRadius: 4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: { y: { beginAtZero: true } }
-                    }
-                });
-            }
-        }, 200);
-    },
-
-    getAppointmentStats: function(appointments) {
-        const stats = {
-            hotTransfers: 0,
-            warmCallbacks: 0,
-            completed: 0,
-            pending: 0,
-            canceled: 0,
-            meetingBooked: 0,
-            rescheduled: 0,
-            overdue: 0,
-            held: 0
-        };
-
-        appointments.forEach(a => {
-            const status = Utils.getStatus(a);
-            const primaryStatus = Utils.getPrimaryStatus(status);
-            
-            if (primaryStatus === 'Hot Transfer') stats.hotTransfers++;
-            else if (primaryStatus === 'Warm Callback') stats.warmCallbacks++;
-            else if (primaryStatus === 'Completed') stats.completed++;
-            else if (primaryStatus === 'Pending') stats.pending++;
-            else if (primaryStatus === 'Canceled') stats.canceled++;
-            
-            if (status === 'Meeting Booked') stats.meetingBooked++;
-            else if (status === 'Rescheduled') stats.rescheduled++;
-            else if (status === 'Overdue') stats.overdue++;
-            else if (status === 'Held') stats.held++;
-        });
-
-        return stats;
     },
 
     initAnalyticsCharts: function(dailyData, statusCounts) {
@@ -3585,13 +2759,6 @@ function performGlobalSearch(query) {
         }
     }
 
-    AppState.teamMembers.forEach(member => {
-        const searchable = `${member.name} ${member.role} ${member.email || ''}`.toLowerCase();
-        if (searchable.includes(q)) {
-            searchResults.push({ type: 'team', data: member });
-        }
-    });
-
     if (searchResults.length === 0) {
         results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">No results found.</p>';
         return;
@@ -3626,16 +2793,6 @@ function performGlobalSearch(query) {
                         <span style="font-weight:600;">${Utils.escapeHtml(result.data.name)}</span>
                         <span style="font-size:0.75rem; color:var(--text-muted);">📜 Script</span>
                     </div>
-                </div>
-            `;
-        } else if (result.type === 'team') {
-            html += `
-                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="window.TeamManager?.showMemberDetail('${result.data.id}')">
-                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
-                        <span style="font-weight:600;">${Utils.escapeHtml(result.data.name)}</span>
-                        <span style="font-size:0.75rem; color:var(--text-muted);">👤 Team Member</span>
-                    </div>
-                    <div style="font-size:0.8rem; color:var(--text-secondary);">${Utils.escapeHtml(result.data.role)}</div>
                 </div>
             `;
         }
@@ -4291,11 +3448,9 @@ function initApp() {
                             AppState.scriptOrder = data.scriptOrder || [];
                             AppState.appointments = data.appointments || {};
                             AppState.tasks = data.tasks || {};
-                            AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
                             Stats.updateAll();
                             Scripts.renderSidebar();
                             Scripts.loadScript('opening');
-                            TeamManager.renderTeamList();
                             showToast('Loaded offline data', 'info');
                         } catch (e) {}
                     }
@@ -4319,11 +3474,9 @@ function initApp() {
                     AppState.scriptOrder = data.scriptOrder || [];
                     AppState.appointments = data.appointments || {};
                     AppState.tasks = data.tasks || {};
-                    AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
                     Stats.updateAll();
                     Scripts.renderSidebar();
                     Scripts.loadScript('opening');
-                    TeamManager.renderTeamList();
                 } catch (e) {}
             }
             const loadingScreen = DOM.get('loadingScreen');
@@ -4359,7 +3512,6 @@ function initApp() {
     console.log('📊 Status Hierarchy: Hot Transfer → Completed → Warm Callback → Pending → Canceled');
     console.log('📅 Secondary Statuses (count as Completed): Meeting Booked, Rescheduled, Overdue, Held');
     console.log('🎯 Drag & drop enabled for scripts and appointments');
-    console.log('👥 Team Management with full CRUD operations');
     console.log(`🔌 Firebase status: ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
 }
 
@@ -4373,7 +3525,6 @@ window.loadScript = Scripts.loadScript;
 window.openShortcutEdit = openShortcutEdit;
 window.showToast = showToast;
 window.openGlobalSearch = openGlobalSearch;
-window.TeamManager = TeamManager;
 window.openContactDetail = openContactDetail;
 window.editAppointment = editAppointment;
 window.rescheduleAppointment = rescheduleAppointment;
