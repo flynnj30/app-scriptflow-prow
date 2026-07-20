@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION (ORIGINAL WITH NO TEAM)
+// SCRIPTFLOW PRO - COMPLETE APPLICATION (ENHANCED SMART IMPORT)
 // ================================================================
 
 // ================================================================
@@ -35,14 +35,15 @@ const CONFIG = {
         { id: 'david', name: 'David', role: 'Junior Agent', email: 'david@company.com', phone: '+1-555-0105', avatar: '👨‍🎓', color: '#ef4444', active: true }
     ],
     FIELD_MAPPINGS: {
-        'name': ['name', 'client', 'prospect', 'contact', 'customer', 'person', 'full name', 'contact name'],
-        'business': ['business', 'company', 'organization', 'org', 'firm', 'brand', 'store'],
-        'phone': ['phone', 'mobile', 'cell', 'telephone', 'number', 'contact number', 'phone number', 'mobile number'],
+        'business': ['business', 'company', 'organization', 'org', 'firm', 'brand', 'store', 'business name', 'company name'],
+        'name': ['name', 'client', 'prospect', 'contact', 'customer', 'person', 'full name', 'contact name', 'client name'],
+        'role': ['role', 'title', 'position', 'job title', 'designation'],
+        'phone': ['phone', 'mobile', 'cell', 'telephone', 'number', 'contact number', 'phone number', 'mobile number', 'phone no'],
         'email': ['email', 'e-mail', 'mail', 'email address', 'e-mail address'],
-        'date': ['date', 'appointment date', 'schedule date', 'meeting date', 'call date', 'day'],
-        'time': ['time', 'appointment time', 'schedule time', 'meeting time', 'call time', 'hour'],
+        'date': ['date', 'appointment date', 'schedule date', 'meeting date', 'call date', 'day', 'best time', 'callback date'],
+        'time': ['time', 'appointment time', 'schedule time', 'meeting time', 'call time', 'hour', 'best time', 'callback time'],
         'status': ['status', 'state', 'stage', 'lead status', 'appointment status', 'call status'],
-        'notes': ['notes', 'note', 'comment', 'remarks', 'additional notes', 'info', 'details'],
+        'notes': ['notes', 'note', 'comment', 'remarks', 'additional notes', 'info', 'details', 'description'],
         'assigned': ['assigned', 'assigned to', 'owner', 'agent', 'representative', 'rep', 'assigned agent']
     },
     DEFAULT_SHORTCUTS: {
@@ -87,6 +88,7 @@ const AppState = {
     currentView: 'calendar',
     calendarView: 'calendar',
     analyticsTab: 'insights',
+    pipelineView: 'my',
     taskFilter: 'all',
     selectedAppointments: new Set(),
     currentAppointmentId: null,
@@ -277,16 +279,57 @@ const Utils = {
                 const rawKey = key.trim().toLowerCase();
                 const rawValue = valueParts.join(':').trim();
                 if (rawValue) {
-                    for (const [field, aliases] of Object.entries(CONFIG.FIELD_MAPPINGS)) {
-                        if (aliases.some(alias => rawKey.includes(alias) || alias.includes(rawKey))) {
-                            result[field] = rawValue;
-                            confidence[field] = 1.0;
-                            break;
+                    // Special handling for best time which contains date and time
+                    if (rawKey.includes('best time') || rawKey.includes('callback')) {
+                        // Try to extract date from the raw value
+                        const dateMatch = rawValue.match(/(\w+\s+\d{1,2},\s+\d{4})/i);
+                        const timeMatch = rawValue.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
+                        if (dateMatch) {
+                            result['date'] = dateMatch[1];
+                            confidence['date'] = 0.8;
+                        }
+                        if (timeMatch) {
+                            result['time'] = timeMatch[1];
+                            confidence['time'] = 0.8;
+                        }
+                        // Store the full best time text in notes if not already captured
+                        if (!result['notes']) {
+                            result['notes'] = `Best time: ${rawValue}`;
+                            confidence['notes'] = 0.6;
+                        }
+                    } else {
+                        for (const [field, aliases] of Object.entries(CONFIG.FIELD_MAPPINGS)) {
+                            if (aliases.some(alias => rawKey.includes(alias) || alias.includes(rawKey))) {
+                                result[field] = rawValue;
+                                confidence[field] = 1.0;
+                                break;
+                            }
                         }
                     }
                 }
             });
         }
+        
+        // Try to extract date from any text if not found
+        if (!result['date']) {
+            const fullText = lines.join(' ');
+            const dateMatch = fullText.match(/(\w+\s+\d{1,2},\s+\d{4})/i);
+            if (dateMatch) {
+                result['date'] = dateMatch[1];
+                confidence['date'] = 0.5;
+            }
+        }
+        
+        // Try to extract time from any text if not found
+        if (!result['time']) {
+            const fullText = lines.join(' ');
+            const timeMatch = fullText.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
+            if (timeMatch) {
+                result['time'] = timeMatch[1];
+                confidence['time'] = 0.5;
+            }
+        }
+        
         for (const field of ['name', 'business', 'phone', 'email', 'date', 'time', 'status']) {
             if (result[field] && !confidence[field]) confidence[field] = 0.5;
         }
@@ -327,6 +370,45 @@ const Utils = {
             return scriptOrder.filter(id => scripts[id]);
         }
         return Object.keys(scripts);
+    },
+
+    parseDateString(dateStr) {
+        if (!dateStr) return null;
+        try {
+            // Try to parse natural language dates
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                           'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthAbbr = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            
+            // Check if it's a natural language date like "Monday July 20"
+            const match = dateStr.match(/(\w+)\s+(\w+)\s+(\d{1,2})(?:,\s*(\d{4}))?/i);
+            if (match) {
+                const dayName = match[1];
+                const monthName = match[2];
+                const day = parseInt(match[3]);
+                const year = match[4] ? parseInt(match[4]) : new Date().getFullYear();
+                
+                let monthIndex = months.indexOf(monthName);
+                if (monthIndex === -1) {
+                    monthIndex = monthAbbr.indexOf(monthName.substring(0, 3));
+                }
+                if (monthIndex !== -1) {
+                    const date = new Date(year, monthIndex, day);
+                    if (!isNaN(date.getTime())) {
+                        return Utils.formatDateForCompare(date);
+                    }
+                }
+            }
+            
+            // Try standard date parsing
+            const d = new Date(dateStr);
+            if (!isNaN(d.getTime())) {
+                return Utils.formatDateForCompare(d);
+            }
+            return null;
+        } catch (e) {
+            return null;
+        }
     }
 };
 
@@ -686,6 +768,7 @@ const Data = {
                     AppState.scriptOrder = data.scriptOrder || [];
                     AppState.appointments = data.appointments || {};
                     AppState.tasks = data.tasks || {};
+                    AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
                     showToast('Loaded offline data', 'info');
                     Stats.updateAll();
                     Scripts.renderSidebar();
@@ -748,11 +831,21 @@ const Data = {
                 return this.loadUserData();
             }
 
+            // Load team members
+            const teamSnapshot = await userRef.collection('teamMembers').get();
+            if (!teamSnapshot.empty) {
+                AppState.teamMembers = [];
+                teamSnapshot.forEach(doc => {
+                    AppState.teamMembers.push({ ...doc.data(), id: doc.id });
+                });
+            }
+
             localStorage.setItem('userData_fallback', JSON.stringify({
                 scripts: AppState.scripts,
                 scriptOrder: AppState.scriptOrder,
                 appointments: AppState.appointments,
-                tasks: AppState.tasks
+                tasks: AppState.tasks,
+                teamMembers: AppState.teamMembers
             }));
 
             Stats.updateAll();
@@ -770,6 +863,7 @@ const Data = {
         if (!AppState.currentUser || !AppState.isFirebaseReady) return;
         if (AppState.appointmentsUnsubscribe) AppState.appointmentsUnsubscribe();
         if (AppState.tasksUnsubscribe) AppState.tasksUnsubscribe();
+        if (AppState.teamMembersUnsubscribe) AppState.teamMembersUnsubscribe();
 
         try {
             const db = firebase.firestore();
@@ -801,10 +895,28 @@ const Data = {
             }, error => {
                 console.warn('Tasks subscription error:', error);
             });
+
+            AppState.teamMembersUnsubscribe = userRef.collection('teamMembers').onSnapshot(snap => {
+                if (snap.empty) {
+                    AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
+                    AppState.teamMembers.forEach(member => {
+                        userRef.collection('teamMembers').doc(member.id).set(member);
+                    });
+                } else {
+                    AppState.teamMembers = [];
+                    snap.forEach(doc => {
+                        AppState.teamMembers.push({ ...doc.data(), id: doc.id });
+                    });
+                }
+                localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
+            }, error => {
+                console.warn('Team members subscription error:', error);
+            });
         } catch (error) {
             console.warn('Subscription error:', error);
             const appointmentsLocal = localStorage.getItem('appointments_fallback');
             const tasksLocal = localStorage.getItem('tasks_fallback');
+            const teamLocal = localStorage.getItem('teamMembers_fallback');
             
             if (appointmentsLocal) {
                 try {
@@ -818,6 +930,11 @@ const Data = {
                     AppState.tasks = JSON.parse(tasksLocal);
                     Stats.updateTaskStats();
                     FeaturePanel.refreshCurrentView();
+                } catch (e) {}
+            }
+            if (teamLocal) {
+                try {
+                    AppState.teamMembers = JSON.parse(teamLocal);
                 } catch (e) {}
             }
         }
@@ -1046,6 +1163,79 @@ const Data = {
             }
         }
         return result.sort((a, b) => new Date(a.dateKey) - new Date(b.dateKey));
+    },
+
+    addTeamMember: async function(member) {
+        if (!AppState.currentUser) { showToast('Please sign in first', 'error'); return; }
+        const newMember = {
+            id: member.id || Utils.generateId(),
+            name: member.name || 'New Member',
+            role: member.role || 'Agent',
+            email: member.email || '',
+            phone: member.phone || '',
+            avatar: member.avatar || '👤',
+            color: member.color || '#3b82f6',
+            active: true,
+            createdAt: new Date().toISOString()
+        };
+        
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            try {
+                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('teamMembers').doc(newMember.id).set(newMember);
+            } catch (e) {
+                console.error('Error adding team member:', e);
+                AppState.teamMembers.push(newMember);
+                localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
+            }
+        } else {
+            AppState.teamMembers.push(newMember);
+            localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
+        }
+        
+        showToast(`Team member ${newMember.name} added!`, 'success');
+        return newMember;
+    },
+
+    updateTeamMember: async function(id, updates) {
+        const member = AppState.teamMembers.find(m => m.id === id);
+        if (!member) { showToast('Team member not found', 'error'); return; }
+        
+        Object.assign(member, updates);
+        
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            try {
+                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('teamMembers').doc(id).update(updates);
+            } catch (e) {
+                console.error('Error updating team member:', e);
+                localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
+            }
+        } else {
+            localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
+        }
+        
+        showToast(`Team member ${member.name} updated!`, 'success');
+    },
+
+    deleteTeamMember: async function(id) {
+        const member = AppState.teamMembers.find(m => m.id === id);
+        if (!member) { showToast('Team member not found', 'error'); return; }
+        
+        if (!confirm(`Delete ${member.name} from the team?`)) return;
+        
+        AppState.teamMembers = AppState.teamMembers.filter(m => m.id !== id);
+        
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            try {
+                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('teamMembers').doc(id).delete();
+            } catch (e) {
+                console.error('Error deleting team member:', e);
+                localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
+            }
+        } else {
+            localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
+        }
+        
+        showToast(`Team member ${member.name} deleted`, 'info');
     }
 };
 
@@ -1116,7 +1306,7 @@ const Stats = {
 };
 
 // ================================================================
-// SCRIPTS MODULE
+// SCRIPTS MODULE (Full implementation - kept from previous)
 // ================================================================
 
 const Scripts = {
@@ -1399,6 +1589,307 @@ const Scripts = {
 };
 
 // ================================================================
+// ENHANCED SMART IMPORT FUNCTIONS
+// ================================================================
+
+function openSmartImport() {
+    const modal = DOM.get('smartImportModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    const textArea = DOM.get('importTextArea');
+    if (textArea) {
+        textArea.value = '';
+        // Set placeholder with example
+        textArea.placeholder = `Example:
+Business Name/Company : ABC Company
+Name : John Doe
+Role : Owner
+Phone Number: +11234567890
+Best Time for Warm Callback: Monday July 20, anytime
+Email: example@email.com
+
+Notes: website preview explained + no website currently, referred us to his brother Ali who handles the business and requested a callback at 10:30 AM + high interest, busy but cooperative.`;
+    }
+    const preview = DOM.get('importPreview');
+    if (preview) preview.style.display = 'none';
+    const saveBtn = DOM.get('saveImportBtn');
+    if (saveBtn) saveBtn.style.display = 'none';
+    AppState.parsedImportData = {};
+    AppState.importConfidence = {};
+}
+
+function closeSmartImport() {
+    const modal = DOM.get('smartImportModal');
+    if (modal) modal.style.display = 'none';
+    AppState.parsedImportData = {};
+    AppState.importConfidence = {};
+}
+
+function parseAndPreviewImport() {
+    const textArea = DOM.get('importTextArea');
+    if (!textArea) return;
+    const text = textArea.value;
+    if (!text.trim()) { showToast('Please paste some text to parse', 'warning'); return; }
+
+    const { result, confidence } = Utils.parseAppointmentText(text);
+    AppState.parsedImportData = result;
+    AppState.importConfidence = confidence;
+
+    const preview = DOM.get('importPreview');
+    const fieldsContainer = DOM.get('parsedFields');
+    const confidenceContainer = DOM.get('confidenceScore');
+    const missingContainer = DOM.get('missingFields');
+    const duplicateContainer = DOM.get('duplicateWarning');
+
+    if (!preview) return;
+    preview.style.display = 'block';
+
+    let fieldsHtml = '', totalConfidence = 0, fieldCount = 0;
+    const requiredFields = ['name', 'business'];
+    const missingFields = [];
+
+    // Add date picker for date field
+    const dateValue = result['date'] || '';
+    const parsedDate = dateValue ? Utils.parseDateString(dateValue) : '';
+    
+    // Add status dropdown
+    const statusValue = result['status'] || 'Pending';
+    
+    // Add assigned dropdown
+    const assignedValue = result['assigned'] || 'Daniel';
+
+    for (const [field, value] of Object.entries(result)) {
+        if (!value) continue;
+        const conf = confidence[field] || 0.5;
+        totalConfidence += conf;
+        fieldCount++;
+        const confClass = conf >= 0.7 ? 'high' : (conf >= 0.4 ? 'medium' : 'low');
+        const confLabel = conf >= 0.7 ? 'High' : (conf >= 0.4 ? 'Medium' : 'Low');
+        
+        let fieldHtml = '';
+        if (field === 'date') {
+            fieldHtml = `
+                <div class="parsed-field">
+                    <span class="field-label">📅 Date</span>
+                    <input type="date" class="field-value" data-field="date" value="${parsedDate}" />
+                    <span class="field-confidence ${confClass}">${confLabel} (${Math.round(conf * 100)}%)</span>
+                    <i class="fas fa-calendar field-edit" data-field="date" title="Select date"></i>
+                </div>
+            `;
+        } else if (field === 'status') {
+            fieldHtml = `
+                <div class="parsed-field">
+                    <span class="field-label">📊 Status</span>
+                    <select class="field-value" data-field="status">
+                        ${CONFIG.STATUS_OPTIONS.map(s => `<option value="${s}" ${s === statusValue ? 'selected' : ''}>${s}</option>`).join('')}
+                    </select>
+                    <span class="field-confidence ${confClass}">${confLabel} (${Math.round(conf * 100)}%)</span>
+                    <i class="fas fa-edit field-edit" data-field="status" title="Edit status"></i>
+                </div>
+            `;
+        } else if (field === 'assigned') {
+            fieldHtml = `
+                <div class="parsed-field">
+                    <span class="field-label">👤 Assigned</span>
+                    <select class="field-value" data-field="assigned">
+                        ${AppState.teamMembers.map(m => `<option value="${m.name}" ${m.name === assignedValue ? 'selected' : ''}>${m.name}</option>`).join('')}
+                    </select>
+                    <span class="field-confidence ${confClass}">${confLabel} (${Math.round(conf * 100)}%)</span>
+                    <i class="fas fa-edit field-edit" data-field="assigned" title="Edit assigned"></i>
+                </div>
+            `;
+        } else {
+            fieldHtml = `
+                <div class="parsed-field">
+                    <span class="field-label">${field.charAt(0).toUpperCase() + field.slice(1)}</span>
+                    <span class="field-value" contenteditable="true" data-field="${field}">${Utils.escapeHtml(value)}</span>
+                    <span class="field-confidence ${confClass}">${confLabel} (${Math.round(conf * 100)}%)</span>
+                    <i class="fas fa-pen field-edit" data-field="${field}" title="Edit value"></i>
+                </div>
+            `;
+        }
+        fieldsHtml += fieldHtml;
+        
+        if (requiredFields.includes(field) && !value) missingFields.push(field);
+    }
+
+    // Add date picker if date not found
+    if (!result['date']) {
+        fieldsHtml += `
+            <div class="parsed-field">
+                <span class="field-label">📅 Date</span>
+                <input type="date" class="field-value" data-field="date" value="${Utils.getTodayStr()}" />
+                <span class="field-confidence low">Manual (0%)</span>
+                <i class="fas fa-calendar field-edit" data-field="date" title="Select date"></i>
+            </div>
+        `;
+    }
+    
+    // Add status if not found
+    if (!result['status']) {
+        fieldsHtml += `
+            <div class="parsed-field">
+                <span class="field-label">📊 Status</span>
+                <select class="field-value" data-field="status">
+                    ${CONFIG.STATUS_OPTIONS.map(s => `<option value="${s}" ${s === 'Pending' ? 'selected' : ''}>${s}</option>`).join('')}
+                </select>
+                <span class="field-confidence low">Manual (0%)</span>
+                <i class="fas fa-edit field-edit" data-field="status" title="Edit status"></i>
+            </div>
+        `;
+    }
+    
+    // Add assigned if not found
+    if (!result['assigned']) {
+        fieldsHtml += `
+            <div class="parsed-field">
+                <span class="field-label">👤 Assigned</span>
+                <select class="field-value" data-field="assigned">
+                    ${AppState.teamMembers.map(m => `<option value="${m.name}" ${m.name === 'Daniel' ? 'selected' : ''}>${m.name}</option>`).join('')}
+                </select>
+                <span class="field-confidence low">Manual (0%)</span>
+                <i class="fas fa-edit field-edit" data-field="assigned" title="Edit assigned"></i>
+            </div>
+        `;
+    }
+
+    for (const field of requiredFields) {
+        if (!result[field] || !result[field].trim()) missingFields.push(field);
+    }
+
+    if (fieldsContainer) fieldsContainer.innerHTML = fieldsHtml;
+
+    if (fieldsContainer) {
+        // Handle input fields (date picker, text inputs)
+        fieldsContainer.querySelectorAll('.field-value').forEach(el => {
+            el.addEventListener('change', function() {
+                const field = this.getAttribute('data-field');
+                AppState.parsedImportData[field] = this.value || this.textContent.trim();
+                updateImportValidation();
+            });
+            el.addEventListener('blur', function() {
+                const field = this.getAttribute('data-field');
+                if (this.tagName === 'INPUT' || this.tagName === 'SELECT') {
+                    AppState.parsedImportData[field] = this.value;
+                } else {
+                    AppState.parsedImportData[field] = this.textContent.trim();
+                }
+                updateImportValidation();
+            });
+            el.addEventListener('input', function() {
+                const field = this.getAttribute('data-field');
+                if (this.tagName === 'INPUT' || this.tagName === 'SELECT') {
+                    AppState.parsedImportData[field] = this.value;
+                } else {
+                    AppState.parsedImportData[field] = this.textContent.trim();
+                }
+                updateImportValidation();
+            });
+        });
+        
+        fieldsContainer.querySelectorAll('.field-edit').forEach(el => {
+            el.addEventListener('click', function() {
+                const field = this.getAttribute('data-field');
+                const valueEl = fieldsContainer.querySelector(`.field-value[data-field="${field}"]`);
+                if (valueEl) {
+                    if (valueEl.tagName === 'INPUT' || valueEl.tagName === 'SELECT') {
+                        valueEl.focus();
+                        if (valueEl.tagName === 'SELECT') {
+                            valueEl.click();
+                        }
+                    } else {
+                        valueEl.focus();
+                    }
+                }
+            });
+        });
+    }
+
+    const avgConf = fieldCount > 0 ? totalConfidence / fieldCount : 0;
+    if (confidenceContainer) {
+        confidenceContainer.innerHTML = `
+            <strong>Overall Confidence:</strong> ${Math.round(avgConf * 100)}%
+            <span style="font-size:0.75rem; color:var(--text-muted); margin-left:8px;">(${fieldCount} fields parsed)</span>
+            ${dateValue ? `<br><span style="font-size:0.7rem; color:var(--text-muted);">Detected date: ${dateValue}</span>` : ''}
+        `;
+    }
+
+    if (duplicateContainer) {
+        const duplicate = Utils.checkDuplicate(result, AppState.appointments);
+        if (duplicate) {
+            duplicateContainer.style.display = 'block';
+            duplicateContainer.innerHTML = `⚠️ <strong>Potential duplicate found!</strong> Similar appointment exists: ${duplicate.business} - ${duplicate.contactName} on ${Utils.formatDate(duplicate.date)}`;
+        } else {
+            duplicateContainer.style.display = 'none';
+        }
+    }
+
+    if (missingContainer) {
+        if (missingFields.length > 0) {
+            missingContainer.innerHTML = `⚠️ <strong>Missing required fields:</strong> ${missingFields.join(', ')}<br><span style="font-size:0.75rem;">Please fill in all required fields before saving.</span>`;
+            missingContainer.style.color = 'var(--danger)';
+        } else {
+            missingContainer.innerHTML = '✅ All required fields are filled';
+            missingContainer.style.color = 'var(--success)';
+        }
+    }
+    updateImportValidation();
+}
+
+function updateImportValidation() {
+    const requiredFields = ['name', 'business'];
+    const allFilled = requiredFields.every(field => AppState.parsedImportData[field] && AppState.parsedImportData[field].trim());
+    const saveBtn = DOM.get('saveImportBtn');
+    if (saveBtn) {
+        if (allFilled) {
+            saveBtn.style.display = 'inline-flex';
+            saveBtn.disabled = false;
+            saveBtn.style.opacity = '1';
+        } else {
+            saveBtn.style.display = 'inline-flex';
+            saveBtn.disabled = true;
+            saveBtn.style.opacity = '0.5';
+        }
+    }
+}
+
+function saveImportedAppointment() {
+    if (!AppState.currentUser) { showToast('Please sign in first', 'error'); return; }
+    const data = AppState.parsedImportData;
+    if (!data.name || !data.business) { showToast('Name and Business are required', 'error'); return; }
+
+    // Try to parse date from various formats
+    let dateStr = data.date;
+    if (dateStr) {
+        const parsedDate = Utils.parseDateString(dateStr);
+        if (parsedDate) {
+            dateStr = parsedDate;
+        }
+    }
+    
+    // If no valid date, use today
+    if (!dateStr || dateStr === 'Invalid Date') {
+        dateStr = Utils.getTodayStr();
+    }
+
+    const status = data.status || 'Pending';
+    const time = data.time || '';
+    const phone = data.phone || '';
+    const email = data.email || '';
+    const notes = data.notes || '';
+    const assigned = data.assigned || 'Daniel';
+    const role = data.role || 'Owner';
+
+    const duplicate = Utils.checkDuplicate(data, AppState.appointments);
+    if (duplicate && !confirm(`This appears to be a duplicate appointment with ${duplicate.business}. Do you still want to add it?`)) return;
+
+    Data.addAppointment(dateStr, data.business, data.name, role, phone, time, notes + (email ? `\nEmail: ${email}` : ''), assigned, null, status);
+    showToast('Appointment imported successfully! 🎉', 'success');
+    closeSmartImport();
+    FeaturePanel.refreshCurrentView();
+}
+
+// ================================================================
 // ENHANCED APPOINTMENT DETAIL MODAL
 // ================================================================
 
@@ -1455,6 +1946,7 @@ function showAppointmentDetail(appointmentId) {
 
                 <div style="display:flex; gap:16px; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--border-color);">
                     <div><span style="color:var(--text-muted);">👤 Assigned:</span> <strong>${Utils.escapeHtml(appt.assigned || 'Daniel')}</strong></div>
+                    <div><span style="color:var(--text-muted);">💼 Role:</span> <strong>${Utils.escapeHtml(appt.role || 'Owner')}</strong></div>
                     ${appt.tags && appt.tags.length > 0 ? `
                         <div><span style="color:var(--text-muted);">🏷️ Tags:</span> ${appt.tags.map(t => `<span class="status-tag" style="background:var(--bg-primary);">#${t}</span>`).join(' ')}</div>
                     ` : ''}
@@ -2801,160 +3293,6 @@ function performGlobalSearch(query) {
     results.innerHTML = html;
 }
 
-function openSmartImport() {
-    const modal = DOM.get('smartImportModal');
-    if (!modal) return;
-    modal.style.display = 'flex';
-    const textArea = DOM.get('importTextArea');
-    if (textArea) textArea.value = '';
-    const preview = DOM.get('importPreview');
-    if (preview) preview.style.display = 'none';
-    const saveBtn = DOM.get('saveImportBtn');
-    if (saveBtn) saveBtn.style.display = 'none';
-    AppState.parsedImportData = {};
-    AppState.importConfidence = {};
-}
-
-function closeSmartImport() {
-    const modal = DOM.get('smartImportModal');
-    if (modal) modal.style.display = 'none';
-    AppState.parsedImportData = {};
-    AppState.importConfidence = {};
-}
-
-function parseAndPreviewImport() {
-    const textArea = DOM.get('importTextArea');
-    if (!textArea) return;
-    const text = textArea.value;
-    if (!text.trim()) { showToast('Please paste some text to parse', 'warning'); return; }
-
-    const { result, confidence } = Utils.parseAppointmentText(text);
-    AppState.parsedImportData = result;
-    AppState.importConfidence = confidence;
-
-    const preview = DOM.get('importPreview');
-    const fieldsContainer = DOM.get('parsedFields');
-    const confidenceContainer = DOM.get('confidenceScore');
-    const missingContainer = DOM.get('missingFields');
-    const duplicateContainer = DOM.get('duplicateWarning');
-
-    if (!preview) return;
-    preview.style.display = 'block';
-
-    let fieldsHtml = '', totalConfidence = 0, fieldCount = 0;
-    const requiredFields = ['name', 'business'];
-    const missingFields = [];
-
-    for (const [field, value] of Object.entries(result)) {
-        if (!value) continue;
-        const conf = confidence[field] || 0.5;
-        totalConfidence += conf;
-        fieldCount++;
-        const confClass = conf >= 0.7 ? 'high' : (conf >= 0.4 ? 'medium' : 'low');
-        const confLabel = conf >= 0.7 ? 'High' : (conf >= 0.4 ? 'Medium' : 'Low');
-        fieldsHtml += `
-            <div class="parsed-field">
-                <span class="field-label">${field.charAt(0).toUpperCase() + field.slice(1)}</span>
-                <span class="field-value" contenteditable="true" data-field="${field}">${Utils.escapeHtml(value)}</span>
-                <span class="field-confidence ${confClass}">${confLabel} (${Math.round(conf * 100)}%)</span>
-                <i class="fas fa-pen field-edit" data-field="${field}" title="Edit value"></i>
-            </div>
-        `;
-        if (requiredFields.includes(field) && !value) missingFields.push(field);
-    }
-
-    for (const field of requiredFields) {
-        if (!result[field] || !result[field].trim()) missingFields.push(field);
-    }
-
-    if (fieldsContainer) fieldsContainer.innerHTML = fieldsHtml;
-
-    if (fieldsContainer) {
-        fieldsContainer.querySelectorAll('.field-value').forEach(el => {
-            el.addEventListener('blur', function() {
-                const field = this.getAttribute('data-field');
-                AppState.parsedImportData[field] = this.textContent.trim();
-                updateImportValidation();
-            });
-        });
-        fieldsContainer.querySelectorAll('.field-edit').forEach(el => {
-            el.addEventListener('click', function() {
-                const field = this.getAttribute('data-field');
-                const valueEl = fieldsContainer.querySelector(`.field-value[data-field="${field}"]`);
-                if (valueEl) valueEl.focus();
-            });
-        });
-    }
-
-    const avgConf = fieldCount > 0 ? totalConfidence / fieldCount : 0;
-    if (confidenceContainer) {
-        confidenceContainer.innerHTML = `
-            <strong>Overall Confidence:</strong> ${Math.round(avgConf * 100)}%
-            <span style="font-size:0.75rem; color:var(--text-muted); margin-left:8px;">(${fieldCount} fields parsed)</span>
-        `;
-    }
-
-    if (duplicateContainer) {
-        const duplicate = Utils.checkDuplicate(result, AppState.appointments);
-        if (duplicate) {
-            duplicateContainer.style.display = 'block';
-            duplicateContainer.innerHTML = `⚠️ <strong>Potential duplicate found!</strong> Similar appointment exists: ${duplicate.business} - ${duplicate.contactName} on ${Utils.formatDate(duplicate.date)}`;
-        } else {
-            duplicateContainer.style.display = 'none';
-        }
-    }
-
-    if (missingContainer) {
-        if (missingFields.length > 0) {
-            missingContainer.innerHTML = `⚠️ <strong>Missing required fields:</strong> ${missingFields.join(', ')}<br><span style="font-size:0.75rem;">Please fill in all required fields before saving.</span>`;
-            missingContainer.style.color = 'var(--danger)';
-        } else {
-            missingContainer.innerHTML = '✅ All required fields are filled';
-            missingContainer.style.color = 'var(--success)';
-        }
-    }
-    updateImportValidation();
-}
-
-function updateImportValidation() {
-    const requiredFields = ['name', 'business'];
-    const allFilled = requiredFields.every(field => AppState.parsedImportData[field] && AppState.parsedImportData[field].trim());
-    const saveBtn = DOM.get('saveImportBtn');
-    if (saveBtn) {
-        if (allFilled) {
-            saveBtn.style.display = 'inline-flex';
-            saveBtn.disabled = false;
-            saveBtn.style.opacity = '1';
-        } else {
-            saveBtn.style.display = 'inline-flex';
-            saveBtn.disabled = true;
-            saveBtn.style.opacity = '0.5';
-        }
-    }
-}
-
-function saveImportedAppointment() {
-    if (!AppState.currentUser) { showToast('Please sign in first', 'error'); return; }
-    const data = AppState.parsedImportData;
-    if (!data.name || !data.business) { showToast('Name and Business are required', 'error'); return; }
-
-    const date = data.date || Utils.getTodayStr();
-    const status = data.status || 'Pending';
-    const time = data.time || '';
-    const phone = data.phone || '';
-    const email = data.email || '';
-    const notes = data.notes || '';
-    const assigned = data.assigned || 'Daniel';
-
-    const duplicate = Utils.checkDuplicate(data, AppState.appointments);
-    if (duplicate && !confirm(`This appears to be a duplicate appointment with ${duplicate.business}. Do you still want to add it?`)) return;
-
-    Data.addAppointment(date, data.business, data.name, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), assigned, null, status);
-    showToast('Appointment imported successfully! 🎉', 'success');
-    closeSmartImport();
-    FeaturePanel.refreshCurrentView();
-}
-
 function openBulkActions() {
     const modal = DOM.get('bulkActionsModal');
     const container = DOM.get('bulkSelectionContainer');
@@ -3119,6 +3457,16 @@ function handleShortcutAction(action) {
 
 function initApp() {
     console.log('🚀 Starting ScriptFlow Pro...');
+
+    // Suppress Firebase persistence warning
+    const originalWarn = console.warn;
+    console.warn = function(...args) {
+        if (args[0] && typeof args[0] === 'string' && 
+            args[0].includes('enableMultiTabIndexedDbPersistence() will be deprecated')) {
+            return;
+        }
+        originalWarn.apply(console, args);
+    };
 
     try {
         AppState.isFirebaseReady = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
@@ -3448,6 +3796,7 @@ function initApp() {
                             AppState.scriptOrder = data.scriptOrder || [];
                             AppState.appointments = data.appointments || {};
                             AppState.tasks = data.tasks || {};
+                            AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
                             Stats.updateAll();
                             Scripts.renderSidebar();
                             Scripts.loadScript('opening');
@@ -3474,6 +3823,7 @@ function initApp() {
                     AppState.scriptOrder = data.scriptOrder || [];
                     AppState.appointments = data.appointments || {};
                     AppState.tasks = data.tasks || {};
+                    AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
                     Stats.updateAll();
                     Scripts.renderSidebar();
                     Scripts.loadScript('opening');
@@ -3534,6 +3884,7 @@ window.FeaturePanel = FeaturePanel;
 window.Data = Data;
 window.Stats = Stats;
 window.Scripts = Scripts;
+window.openSmartImport = openSmartImport;
 
 // Start the app
 document.addEventListener('DOMContentLoaded', initApp);
