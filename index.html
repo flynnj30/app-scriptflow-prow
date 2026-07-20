@@ -163,20 +163,45 @@
 
     <!-- Modals -->
     <div id="smartImportModal" class="modal-overlay" style="display:none;">
-        <div class="modal-card" style="max-width:800px;">
-            <h3><i class="fas fa-magic"></i> Smart Appointment Import</h3>
-            <p style="color:var(--text-muted); margin-bottom:16px;">Paste appointment details below. The system will intelligently parse and extract all relevant information.</p>
-            <div class="form-group"><label for="importTextArea">Paste Appointment Text</label><textarea id="importTextArea" rows="6" placeholder="Example:&#10;Client: John Smith&#10;Company: Acme Corp&#10;Phone: 555-123-4567&#10;Email: john@acme.com&#10;Date: 2026-07-20&#10;Time: 2:30 PM&#10;Status: Warm Callback"></textarea></div>
-            <div id="importPreview" style="display:none; background:var(--bg-primary); border-radius:12px; padding:16px; margin-bottom:16px;">
-                <h4 style="margin-bottom:12px;">📋 Parsed Information</h4>
-                <div id="parsedFields" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;"></div>
-                <div id="confidenceScore" style="margin-top:12px; padding:8px; background:var(--bg-card); border-radius:8px;"></div>
-                <div id="duplicateWarning" style="margin-top:8px; display:none; color:var(--warning);"></div>
-                <div id="missingFields" style="margin-top:8px; color:var(--danger);"></div>
+        <div class="modal-card" style="max-width: 900px;">
+            <h3><i class="fas fa-magic"></i> Smart Import <span class="version-chip">Enhanced</span></h3>
+            <p style="color:var(--text-muted); margin-bottom:16px;">
+                Paste appointment details below. The system will intelligently parse and extract all relevant information from various formats.
+            </p>
+            
+            <!-- Input Area -->
+            <div class="form-group">
+                <label for="importTextArea">📝 Paste Appointment Text</label>
+                <textarea id="importTextArea" rows="8" placeholder="Paste your appointment text here..."></textarea>
             </div>
-            <div style="display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap;">
-                <button id="parseImportBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-robot"></i> Parse & Preview</button>
-                <button id="saveImportBtn" class="btn-icon" style="background:var(--success); color:white; display:none;"><i class="fas fa-save"></i> Save</button>
+            
+            <!-- Progress -->
+            <div id="importProgressContainer" style="display:none; margin-bottom:16px;">
+                <div class="progress-bar-track">
+                    <div id="importProgressBar" class="progress-bar-fill" style="width:0%;"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-top:4px;">
+                    <span id="importProgressStatus" style="font-size:0.75rem; color:var(--text-muted);">Processing...</span>
+                    <span id="importProgressText" style="font-size:0.75rem; color:var(--text-muted);">0%</span>
+                </div>
+            </div>
+            
+            <!-- Summary -->
+            <div id="importSummary" style="display:none;"></div>
+            
+            <!-- Results -->
+            <div id="importPreview" style="display:none;">
+                <div id="importResultsContainer"></div>
+            </div>
+            
+            <!-- Actions -->
+            <div style="display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap; margin-top:16px;">
+                <button id="parseImportBtn" class="btn-icon" style="background:var(--primary); color:white;">
+                    <i class="fas fa-robot"></i> Parse & Preview
+                </button>
+                <button id="saveImportBtn" class="btn-icon" style="background:var(--success); color:white; display:none;">
+                    <i class="fas fa-save"></i> Save Records
+                </button>
                 <button id="closeImportBtn" class="btn-icon">Cancel</button>
             </div>
         </div>
