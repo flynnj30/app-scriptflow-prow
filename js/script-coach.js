@@ -7,7 +7,6 @@
 // ================================================================
 
 const SCRIPT_COACH_CONFIG = {
-    // Tone types with their characteristics
     TONES: {
         confident: {
             label: 'Confident',
@@ -65,12 +64,8 @@ const SCRIPT_COACH_CONFIG = {
             confidence: 0.8
         }
     },
-    
-    // Playback speeds
     SPEEDS: [0.75, 1.0, 1.25, 1.5],
     DEFAULT_SPEED: 1.0,
-    
-    // Section markers
     SECTIONS: [
         { id: 'introduction', label: 'Introduction', icon: '👋', pattern: /(?:hi|hello|hey|greetings|introduction|intro)/i },
         { id: 'qualification', label: 'Qualification', icon: '🔍', pattern: /(?:qualif|understand|tell me about|current situation|business|company)/i },
@@ -78,8 +73,6 @@ const SCRIPT_COACH_CONFIG = {
         { id: 'objection_handling', label: 'Objection Handling', icon: '🛡️', pattern: /(?:objection|concern|understand|appreciate|that\'s a great question|valid point)/i },
         { id: 'closing', label: 'Closing', icon: '🎯', pattern: /(?:close|next steps|follow up|thank you|appreciate|schedule|call|meeting)/i }
     ],
-    
-    // Emphasis cues
     EMPHASIS_CUES: [
         { pattern: /\!/, label: 'Exclamation', color: '#f59e0b' },
         { pattern: /\?/, label: 'Question', color: '#3b82f6' },
@@ -355,11 +348,17 @@ function analyzeScriptContent(content) {
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0);
     const paragraphs = content.split(/\n+/).filter(p => p.trim().length > 0);
     
-    // Detect sections
-    const sections = detectSections(content);
-    
-    // Calculate metrics
-    const metrics = {};
+    // Default metrics with fallback values
+    const metrics = {
+        tonality: 0.5,
+        pacing: 0.5,
+        phrasing: 0.5,
+        emphasis: 0.5,
+        pauses: 0.5,
+        confidence: 0.5,
+        objections: 0.5,
+        flow: 0.5
+    };
     let totalScore = 0;
     
     const tonalityScore = analyzeTonality(content);
@@ -398,13 +397,10 @@ function analyzeScriptContent(content) {
     const recommendations = generateRecommendations(metrics);
     const bestTone = identifyBestTone(metrics);
     const wordAnnotations = generateWordAnnotations(words, metrics);
-    
-    // Generate word timings for karaoke playback
     const wordTimings = generateWordTimings(words, wordAnnotations);
     const totalDuration = wordTimings.reduce((sum, w) => sum + w.duration, 0);
-    
-    // Generate lines for display
     const lines = content.split('\n').filter(l => l.trim().length > 0);
+    const sections = detectSections(content);
     
     return {
         overall: overallScore,
@@ -440,9 +436,6 @@ function detectSections(content) {
                 break;
             }
         }
-        if (!matched && index > 0) {
-            // Use previous section
-        }
         sections.push({
             lineIndex: index,
             sectionId: currentSection,
@@ -457,31 +450,15 @@ function detectSections(content) {
 function generateWordTimings(words, annotations) {
     const timings = [];
     let totalTime = 0;
-    const baseDuration = 250; // ms per word
+    const baseDuration = 250;
     
     words.forEach((word, index) => {
-        const annotation = annotations[index] || {};
+        const annotation = (annotations && annotations[index]) ? annotations[index] : {};
         let duration = baseDuration;
-        
-        // Adjust for emphasis - slower for emphasized words
-        if (annotation.emphasis > 0.7) {
-            duration *= 1.3;
-        }
-        
-        // Adjust for pauses
-        if (annotation.hasPause) {
-            duration += 150;
-        }
-        
-        // Adjust for punctuation
-        if (annotation.isPunctuation) {
-            duration += 100;
-        }
-        
-        // Adjust for confidence
-        if (annotation.confidence < 0.4) {
-            duration *= 1.2; // slower for low confidence words
-        }
+        if (annotation.emphasis > 0.7) duration *= 1.3;
+        if (annotation.hasPause) duration += 150;
+        if (annotation.isPunctuation) duration += 100;
+        if (annotation.confidence < 0.4) duration *= 1.2;
         
         timings.push({
             word: word,
@@ -494,10 +471,8 @@ function generateWordTimings(words, annotations) {
             hasPause: annotation.hasPause || false,
             pitchVariation: annotation.pitchVariation || 0
         });
-        
         totalTime += duration;
     });
-    
     return timings;
 }
 
@@ -517,15 +492,12 @@ function analyzeTonality(content) {
     }
     
     const questionCount = (content.match(/\?/g) || []).length;
-    if (questionCount > 0) {
-        score = Math.min(1, score + 0.1);
-    }
-    
+    if (questionCount > 0) score = Math.min(1, score + 0.1);
     return Math.max(0, Math.min(1, score));
 }
 
 function analyzePacing(sentences) {
-    if (sentences.length === 0) return 0.5;
+    if (!sentences || sentences.length === 0) return 0.5;
     const lengths = sentences.map(s => s.split(/\s+/).length);
     const avg = lengths.reduce((a, b) => a + b, 0) / lengths.length;
     if (avg >= 8 && avg <= 18) return 0.8;
@@ -534,7 +506,7 @@ function analyzePacing(sentences) {
 }
 
 function analyzePhrasing(words) {
-    if (words.length === 0) return 0.5;
+    if (!words || words.length === 0) return 0.5;
     const uniqueWords = new Set(words.map(w => w.toLowerCase())).size;
     const ratio = uniqueWords / words.length;
     if (ratio >= 0.5 && ratio <= 0.8) return 0.8;
@@ -677,9 +649,9 @@ function getBestTone() {
 
 function generateWordAnnotations(words, metrics) {
     const annotations = [];
-    let confidence = metrics.confidence || 0.5;
-    let emphasis = metrics.emphasis || 0.5;
-    let pauses = metrics.pauses || 0.5;
+    const confidence = metrics.confidence || 0.5;
+    const emphasis = metrics.emphasis || 0.5;
+    const pauses = metrics.pauses || 0.5;
     
     for (let i = 0; i < words.length; i++) {
         const word = words[i];
@@ -689,7 +661,7 @@ function generateWordAnnotations(words, metrics) {
         if (emphasisWords.some(w => lower.includes(w))) wordEmphasis = Math.min(1, emphasis + 0.3);
         let hasPause = false;
         const pauseWords = ['and', 'but', 'so', 'now', 'well', 'right', 'okay', 'you know'];
-        if (pauseWords.includes(lower) && pauses > 0.5) hasPause = true;
+        if (pauseWords.some(w => lower.includes(w)) && pauses > 0.5) hasPause = true;
         const hasPunctuation = /[.,!?;:]/.test(word);
         if (hasPunctuation) hasPause = true;
         let pitchVariation = 0;
@@ -708,8 +680,10 @@ function generateWordAnnotations(words, metrics) {
 
 function showAnalysisResults(results) {
     if (!results) return;
+    
     const scriptBody = document.getElementById('scriptBody');
     if (!scriptBody) return;
+    
     const existing = document.querySelector('.coach-results-overlay');
     if (existing) existing.remove();
     
@@ -771,6 +745,7 @@ function showAnalysisResults(results) {
             </div>
         </div>
     `;
+    
     scriptBody.appendChild(overlay);
     updateCoachUI(true);
     showToast('✅ Script analysis complete! Click Play to start karaoke-style coaching.', 'success');
@@ -816,7 +791,6 @@ function startScriptPlayback() {
     const content = ScriptCoachState.currentScriptContent;
     if (!content) { showToast('No script content to play.', 'error'); return; }
     
-    // Get or create the karaoke container
     let karaokeContainer = document.getElementById('coachKaraokeContainer');
     if (!karaokeContainer) {
         karaokeContainer = createKaraokeContainer();
@@ -825,7 +799,6 @@ function startScriptPlayback() {
     const contentDiv = document.getElementById('scriptContent');
     if (!contentDiv) return;
     
-    // Hide the original content and show karaoke container
     contentDiv.innerHTML = '';
     contentDiv.appendChild(karaokeContainer);
     
@@ -833,7 +806,6 @@ function startScriptPlayback() {
     const wordTimings = ScriptCoachState.analysisResults.wordTimings || [];
     const lines = ScriptCoachState.analysisResults.lines || [];
     
-    // Ensure word timings exist
     while (wordTimings.length < words.length) {
         wordTimings.push({
             word: words[wordTimings.length],
@@ -856,7 +828,6 @@ function startScriptPlayback() {
     ScriptCoachState.progress = 0;
     ScriptCoachState.currentTime = 0;
     
-    // Update play button
     const playBtn = document.getElementById('coachPlayBtn');
     if (playBtn) {
         playBtn.innerHTML = '<i class="fas fa-pause"></i> Pause';
@@ -864,17 +835,12 @@ function startScriptPlayback() {
         playBtn.style.color = '#1e293b';
     }
     
-    // Render karaoke display
     renderKaraokeDisplay(karaokeContainer, words, wordTimings, lines);
     
-    // Calculate total duration
     const totalDuration = wordTimings.reduce((sum, w) => sum + w.duration, 0);
     ScriptCoachState.totalDuration = totalDuration;
     
-    // Start playback with Web Audio timing
     startKaraokePlayback();
-    
-    // Show karaoke controls
     showKaraokeControls(karaokeContainer);
 }
 
@@ -917,21 +883,11 @@ function createKaraokeContainer() {
         </div>
         <div class="coach-karaoke-footer">
             <div class="coach-karaoke-actions">
-                <button class="coach-action-btn" id="coachLoopBtn" title="Loop Section">
-                    <i class="fas fa-repeat"></i>
-                </button>
-                <button class="coach-action-btn" id="coachReplayBtn" title="Replay">
-                    <i class="fas fa-undo"></i>
-                </button>
-                <button class="coach-action-btn" id="coachFocusBtn" title="Focus Mode">
-                    <i class="fas fa-eye"></i>
-                </button>
-                <button class="coach-action-btn" id="coachCuesBtn" title="Show Cues">
-                    <i class="fas fa-flag"></i>
-                </button>
-                <button class="coach-action-btn" id="coachRecordBtn" title="Record">
-                    <i class="fas fa-microphone"></i>
-                </button>
+                <button class="coach-action-btn" id="coachLoopBtn" title="Loop Section"><i class="fas fa-repeat"></i></button>
+                <button class="coach-action-btn" id="coachReplayBtn" title="Replay"><i class="fas fa-undo"></i></button>
+                <button class="coach-action-btn" id="coachFocusBtn" title="Focus Mode"><i class="fas fa-eye"></i></button>
+                <button class="coach-action-btn" id="coachCuesBtn" title="Show Cues"><i class="fas fa-flag"></i></button>
+                <button class="coach-action-btn" id="coachRecordBtn" title="Record"><i class="fas fa-microphone"></i></button>
             </div>
             <div class="coach-karaoke-status" id="coachStatusDisplay">
                 <span class="coach-status-text">Ready</span>
@@ -939,14 +895,13 @@ function createKaraokeContainer() {
         </div>
     `;
     
-    // Add event listeners for speed buttons
+    // Speed buttons
     container.querySelectorAll('.coach-speed-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             container.querySelectorAll('.coach-speed-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             ScriptCoachState.playbackSpeed = parseFloat(btn.dataset.speed);
             if (ScriptCoachState.isPlaying || ScriptCoachState.isPaused) {
-                // Restart playback with new speed
                 stopScriptPlayback();
                 startScriptPlayback();
             }
@@ -968,7 +923,6 @@ function createKaraokeContainer() {
             ScriptCoachState.isLooping = !ScriptCoachState.isLooping;
             loopBtn.classList.toggle('active');
             if (ScriptCoachState.isLooping) {
-                // Set loop start to current position
                 ScriptCoachState.loopStart = ScriptCoachState.currentWordIndex;
                 showToast('🔁 Loop start set', 'info');
             } else {
@@ -1043,7 +997,6 @@ function createKaraokeContainer() {
                 seekToPosition();
             }
         });
-        // Touch support
         progressBar.addEventListener('touchstart', (e) => {
             ScriptCoachState.isDragging = true;
             updateProgressFromTouch(e);
@@ -1073,7 +1026,6 @@ function updateProgressFromEvent(e) {
     if (fill) fill.style.width = (x * 100) + '%';
     ScriptCoachState.progress = x;
     
-    // Update time display
     const currentTime = document.getElementById('coachCurrentTime');
     if (currentTime && ScriptCoachState.totalDuration) {
         const time = x * ScriptCoachState.totalDuration;
@@ -1101,8 +1053,6 @@ function updateProgressFromTouch(e) {
 function seekToPosition() {
     const index = Math.floor(ScriptCoachState.progress * ScriptCoachState.words.length);
     ScriptCoachState.currentWordIndex = Math.max(0, Math.min(index, ScriptCoachState.words.length - 1));
-    
-    // Restart playback from new position
     if (ScriptCoachState.isPlaying || ScriptCoachState.isPaused) {
         stopScriptPlayback();
         startScriptPlayback();
@@ -1120,15 +1070,13 @@ function renderKaraokeDisplay(container, words, wordTimings, lines) {
     const linesContainer = container.querySelector('#coachKaraokeLines');
     if (!linesContainer) return;
     
-    if (lines.length === 0) {
-        // Fallback: treat each sentence as a line
+    if (!lines || lines.length === 0) {
         const content = ScriptCoachState.currentScriptContent;
-        const sentenceLines = content.split(/[.!?]\s+/).filter(l => l.trim().length > 0);
+        const sentenceLines = content ? content.split(/[.!?]\s+/).filter(l => l.trim().length > 0) : [];
         renderWordByWord(linesContainer, words, wordTimings);
         return;
     }
     
-    // Render line by line
     let html = '';
     let wordIndex = 0;
     
@@ -1146,14 +1094,12 @@ function renderKaraokeDisplay(container, words, wordTimings, lines) {
         
         html += `<div class="${lineClass}" data-line="${lineIndex}">`;
         
-        // Speaker label
         if (isSetter || isProspect) {
             html += `<span class="coach-speaker-label">${isSetter ? '👤 Setter' : '👥 Prospect'}</span>`;
         }
         
-        // Words in the line
         lineWords.forEach((word) => {
-            const timing = wordTimings[wordIndex] || { emphasis: 0.5, confidence: 0.5, hasPause: false };
+            const timing = (wordTimings && wordTimings[wordIndex]) ? wordTimings[wordIndex] : { emphasis: 0.5, confidence: 0.5, hasPause: false };
             const isCurrent = wordIndex === ScriptCoachState.currentWordIndex;
             const emphasis = timing.emphasis || 0.5;
             const confidence = timing.confidence || 0.5;
@@ -1168,27 +1114,23 @@ function renderKaraokeDisplay(container, words, wordTimings, lines) {
             const color = getWordColor(emphasis, confidence);
             html += `<span class="${wordClass}" data-index="${wordIndex}" style="color:${color};">${word}</span>`;
             
-            // Cue indicators
             if (ScriptCoachState.showCues) {
                 const cue = getWordCue(word);
                 if (cue) {
                     html += `<span class="coach-cue" style="color:${cue.color};">${cue.label}</span>`;
                 }
             }
-            
             wordIndex++;
         });
-        
         html += `</div>`;
     });
-    
     linesContainer.innerHTML = html;
 }
 
 function renderWordByWord(container, words, wordTimings) {
     let html = '<div class="coach-line active">';
     words.forEach((word, index) => {
-        const timing = wordTimings[index] || { emphasis: 0.5, confidence: 0.5, hasPause: false };
+        const timing = (wordTimings && wordTimings[index]) ? wordTimings[index] : { emphasis: 0.5, confidence: 0.5, hasPause: false };
         const isCurrent = index === ScriptCoachState.currentWordIndex;
         const emphasis = timing.emphasis || 0.5;
         const confidence = timing.confidence || 0.5;
@@ -1235,29 +1177,22 @@ function startKaraokePlayback() {
     const speed = ScriptCoachState.playbackSpeed;
     const totalDuration = ScriptCoachState.totalDuration;
     
-    // Set initial highlight
     highlightWord(startIndex);
     updateActiveLine(startIndex);
     
-    // Update total time
     const totalTimeEl = document.getElementById('coachTotalTime');
     if (totalTimeEl) totalTimeEl.textContent = formatTime(totalDuration);
-    
-    // Audio context for word sounds
-    const audioCtx = ScriptCoachState.audioContext;
     
     ScriptCoachState.playbackInterval = setInterval(() => {
         if (ScriptCoachState.isPaused) {
             startTime = Date.now() - elapsed;
             return;
         }
-        
         if (ScriptCoachState.isDragging) return;
         
         elapsed = (Date.now() - startTime) * speed;
         let accumulatedTime = 0;
         
-        // Find the current word based on elapsed time
         let foundIndex = -1;
         for (let i = startIndex; i < wordTimings.length; i++) {
             if (elapsed >= accumulatedTime && elapsed < accumulatedTime + wordTimings[i].duration) {
@@ -1268,7 +1203,6 @@ function startKaraokePlayback() {
         }
         
         if (foundIndex === -1 && elapsed >= accumulatedTime) {
-            // Playback completed
             stopScriptPlayback();
             showToast('✅ Playback complete!', 'success');
             return;
@@ -1279,20 +1213,15 @@ function startKaraokePlayback() {
             lastHighlightIndex = foundIndex;
             ScriptCoachState.currentWordIndex = currentIndex;
             
-            // Highlight the current word
             highlightWord(currentIndex);
             updateActiveLine(currentIndex);
-            
-            // Play word sound
             playWordSound(currentIndex);
             
-            // Update progress
             const progress = currentIndex / words.length;
             ScriptCoachState.progress = progress;
             const fill = document.getElementById('coachProgressFill');
             if (fill) fill.style.width = (progress * 100) + '%';
             
-            // Update current time
             const currentTimeEl = document.getElementById('coachCurrentTime');
             if (currentTimeEl) {
                 const currentTime = currentIndex > 0 ? 
@@ -1301,11 +1230,9 @@ function startKaraokePlayback() {
                 ScriptCoachState.currentTime = currentTime;
             }
             
-            // Check for section change
             updateSectionIndicator(currentIndex);
         }
         
-        // Check for loop
         if (ScriptCoachState.isLooping && currentIndex >= ScriptCoachState.words.length - 1) {
             ScriptCoachState.currentWordIndex = ScriptCoachState.loopStart;
             startTime = Date.now();
@@ -1313,7 +1240,6 @@ function startKaraokePlayback() {
             lastHighlightIndex = -1;
             showToast('🔄 Loop repeat', 'info');
         }
-        
     }, 50);
 }
 
@@ -1323,7 +1249,6 @@ function highlightWord(index) {
         el.classList.remove('current', 'speaking');
         if (i === index) {
             el.classList.add('current', 'speaking');
-            // Smooth scroll to keep active line centered
             const line = el.closest('.coach-line');
             if (line) {
                 const container = document.getElementById('coachKaraokeBody');
@@ -1347,7 +1272,6 @@ function updateActiveLine(index) {
     const wordElements = document.querySelectorAll('.coach-word');
     let currentLineIndex = -1;
     
-    // Find which line contains the current word
     wordElements.forEach((el, i) => {
         if (i === index) {
             const line = el.closest('.coach-line');
@@ -1380,7 +1304,7 @@ function updateSectionIndicator(index) {
     
     let currentSection = 0;
     for (let i = 0; i < sections.length; i++) {
-        if (sections[i].lineIndex <= index) {
+        if (sections[i] && sections[i].lineIndex <= index) {
             currentSection = sections[i].sectionId;
         }
     }
@@ -1398,9 +1322,8 @@ function navigateToSection(sectionIndex) {
     let targetIndex = 0;
     
     for (let i = 0; i < sections.length; i++) {
-        if (sections[i].sectionId === sectionIndex) {
+        if (sections[i] && sections[i].sectionId === sectionIndex) {
             targetIndex = sections[i].lineIndex;
-            // Find the first word in this line
             const lines = document.querySelectorAll('.coach-line');
             if (lines[i]) {
                 const firstWord = lines[i].querySelector('.coach-word');
@@ -1418,7 +1341,6 @@ function navigateToSection(sectionIndex) {
             }
         }
     }
-    
     showToast(`Navigated to ${SCRIPT_COACH_CONFIG.SECTIONS[sectionIndex]?.label || 'Section'}`, 'info');
 }
 
@@ -1431,7 +1353,6 @@ function pauseScriptPlayback() {
         playBtn.style.background = 'var(--success)';
         playBtn.style.color = 'white';
     }
-    // Pause the word highlighting
     document.querySelectorAll('.coach-word.speaking').forEach(el => {
         el.classList.remove('speaking');
     });
@@ -1447,7 +1368,6 @@ function resumeScriptPlayback() {
         playBtn.style.background = 'var(--warning)';
         playBtn.style.color = '#1e293b';
     }
-    // Resume with current position
     startKaraokePlayback();
     showToast('▶️ Resumed', 'info');
 }
@@ -1461,7 +1381,6 @@ function stopScriptPlayback() {
         ScriptCoachState.playbackInterval = null;
     }
     
-    // Reset play button
     const playBtn = document.getElementById('coachPlayBtn');
     if (playBtn) {
         playBtn.innerHTML = '<i class="fas fa-play"></i> Play';
@@ -1469,19 +1388,16 @@ function stopScriptPlayback() {
         playBtn.style.color = '';
     }
     
-    // Reset word highlighting
     document.querySelectorAll('.coach-word').forEach(el => {
         el.classList.remove('current', 'speaking');
     });
     
-    // Reset status
     const statusDisplay = document.getElementById('coachStatusDisplay');
     if (statusDisplay) {
         const statusText = statusDisplay.querySelector('.coach-status-text');
         if (statusText) statusText.textContent = 'Stopped';
     }
     
-    // Stop recording if active
     if (ScriptCoachState.isRecording) {
         stopRecording();
     }
@@ -1572,7 +1488,6 @@ function startRecording() {
                     statusDisplay.appendChild(audio);
                 }
                 
-                // Download button
                 const downloadBtn = document.createElement('button');
                 downloadBtn.className = 'btn-icon';
                 downloadBtn.style.cssText = 'margin-top:8px; background:var(--primary); color:white; padding:4px 12px; font-size:0.7rem;';
@@ -1645,7 +1560,6 @@ function initScriptCoach() {
         ScriptCoachState.activeLineIndex = -1;
         ScriptCoachState.progress = 0;
         
-        // Remove karaoke container if exists
         const existing = document.getElementById('coachKaraokeContainer');
         if (existing) existing.remove();
         
@@ -1663,9 +1577,7 @@ function initScriptCoach() {
         }
     }, { once: true });
     
-    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-        // Only handle if coach is active
         if (!document.querySelector('.coach-karaoke-container')) return;
         
         switch(e.key) {

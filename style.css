@@ -133,13 +133,8 @@ body {
 }
 
 @keyframes wordGlow {
-    0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.2); }
-    50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.4); }
-}
-
-@keyframes progressPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.6; }
+    0%, 100% { box-shadow: 0 0 20px rgba(250, 204, 21, 0.2); }
+    50% { box-shadow: 0 0 40px rgba(250, 204, 21, 0.5); }
 }
 
 .fade-in { animation: fadeIn 0.4s ease forwards; }
@@ -1016,7 +1011,7 @@ body {
     margin-bottom: 2px;
 }
 
-/* Words */
+/* Words - YELLOW HIGHLIGHT FOR KARAOKE */
 .coach-word {
     display: inline-block;
     transition: all 0.15s ease;
