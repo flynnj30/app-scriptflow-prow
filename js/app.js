@@ -158,7 +158,6 @@ const AppState = {
     calendarSearchTerm: '',
     calendarCurrentDate: new Date(),
     
-    // Smart Import date selection
     importDefaultDate: null
 };
 
@@ -1834,9 +1833,6 @@ const Scripts = {
 // ENHANCED SMART IMPORT FUNCTIONS WITH DATE SYNC
 // ================================================================
 
-/**
- * Parse appointment text with enhanced date handling
- */
 function parseAppointmentTextEnhanced(text, defaultDate = null) {
     const result = {};
     const confidence = {};
@@ -1942,7 +1938,7 @@ function parseKeyValueFormatEnhanced(lines, result, confidence, context) {
                     matchedField = matchFieldName(key);
                 }
                 
-                if (key.includes('best time') || key.includes('callback') && key.includes('time')) {
+                if (key.includes('best time') || (key.includes('callback') && key.includes('time'))) {
                     const dateMatch = value.match(/(\w+\s+\d{1,2},?\s+\d{4})/i);
                     const timeMatch = value.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
                     const relativeDateMatch = value.match(/\b(today|tomorrow|yesterday|next week|this week)\b/i);
@@ -2234,9 +2230,6 @@ function enhanceParsedDataEnhanced(result, confidence, fullText, context, defaul
         result.email = result.email.toLowerCase().trim();
     }
     
-    // ============================================================
-    // FIX: Use defaultDate from AppState.importDefaultDate
-    // ============================================================
     const effectiveDefaultDate = defaultDate || AppState.importDefaultDate || Utils.getTodayStr();
     
     if (result.date) {
@@ -3135,9 +3128,6 @@ function saveAllImportedAppointments() {
             }
         }
         
-        // ============================================================
-        // FIX: Use the parsed date or default date
-        // ============================================================
         const dateToUse = data.date || AppState.importDefaultDate || Utils.getTodayStr();
         
         const result = Data.addAppointment(
@@ -3162,9 +3152,6 @@ function saveAllImportedAppointments() {
     
     showToast(`Saved ${savedCount} appointment(s)! ${skippedCount > 0 ? `Skipped ${skippedCount} duplicates.` : ''}`, 'success');
     
-    // ============================================================
-    // Refresh calendar view to show new appointments
-    // ============================================================
     closeSmartImportEnhanced();
     FeaturePanel.refreshCurrentView();
     Stats.updateAll();
@@ -3176,7 +3163,6 @@ function openSmartImportEnhanced() {
     
     modal.style.display = 'flex';
     
-    // Reset state
     ImportState.parsedRecords = [];
     ImportState.validatedRecords = [];
     ImportState.duplicates = [];
@@ -3189,9 +3175,6 @@ function openSmartImportEnhanced() {
     ImportState.processingStatus = 'idle';
     ImportState.progress = 0;
     
-    // ============================================================
-    // FIX: Set default date from AppState or today
-    // ============================================================
     const defaultDate = AppState.importDefaultDate || Utils.getTodayStr();
     const dateInput = DOM.get('importDefaultDate');
     if (dateInput) {
@@ -3250,9 +3233,6 @@ function parseAndPreviewImportEnhanced() {
         return;
     }
     
-    // ============================================================
-    // FIX: Get date from AppState or date picker
-    // ============================================================
     const dateInput = DOM.get('importDefaultDate');
     const defaultDate = dateInput ? dateInput.value : (AppState.importDefaultDate || Utils.getTodayStr());
     AppState.importDefaultDate = defaultDate;
@@ -5100,9 +5080,7 @@ function initApp() {
         clipboardBtn.addEventListener('click', quickImportFromClipboard);
     }
 
-    // ============================================================
-    // FIX: Set default date when import modal opens
-    // ============================================================
+    // Set default date when import modal opens
     const importModal = DOM.get('smartImportModal');
     if (importModal) {
         const observer = new MutationObserver(() => {

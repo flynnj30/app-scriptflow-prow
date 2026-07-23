@@ -352,9 +352,7 @@ function analyzeScriptContent(content) {
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0);
     const paragraphs = content.split(/\n+/).filter(p => p.trim().length > 0);
     
-    // ============================================================
-    // FIX: Initialize all metrics with default values
-    // ============================================================
+    // Initialize all metrics with default values
     const metrics = {
         tonality: 0.5,
         pacing: 0.5,
@@ -693,9 +691,7 @@ function showAnalysisResults(results) {
     const existing = document.querySelector('.coach-results-overlay');
     if (existing) existing.remove();
     
-    // ============================================================
-    // FIX: Create safe metrics with guaranteed default values
-    // ============================================================
+    // Create safe metrics with guaranteed default values
     const defaultMetrics = {
         tonality: 0.5,
         pacing: 0.5,
@@ -840,9 +836,6 @@ function startScriptPlayback() {
     contentDiv.innerHTML = '';
     contentDiv.appendChild(karaokeContainer);
     
-    // ============================================================
-    // FIX: Safely get words and timings with fallbacks
-    // ============================================================
     const words = (ScriptCoachState.analysisResults.words && ScriptCoachState.analysisResults.words.length > 0) 
         ? ScriptCoachState.analysisResults.words 
         : content.split(/\s+/).filter(w => w.length > 0);
@@ -1613,10 +1606,19 @@ function updateRecordButton(isRecording) {
 }
 
 // ================================================================
-// SCRIPT COACH INITIALIZATION
+// SCRIPT COACH INITIALIZATION - FIXED
 // ================================================================
 
 function initScriptCoach() {
+    // ============================================================
+    // FIX: Check if Scripts is defined before using it
+    // ============================================================
+    if (typeof Scripts === 'undefined' || !Scripts.loadScript) {
+        console.warn('⚠️ Scripts not yet loaded, retrying in 500ms...');
+        setTimeout(initScriptCoach, 500);
+        return;
+    }
+    
     const originalLoadScript = Scripts.loadScript;
     Scripts.loadScript = function(id) {
         originalLoadScript.call(this, id);
@@ -1727,6 +1729,7 @@ window.analyzeScriptContent = analyzeScriptContent;
 window.navigateToSection = navigateToSection;
 window.toggleRecording = toggleRecording;
 
+// Auto-initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(initScriptCoach, 500);
 });
