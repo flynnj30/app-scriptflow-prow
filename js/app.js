@@ -318,6 +318,99 @@ const Utils = {
         return conflicts;
     },
 
+    parseAppointmentText(text) {
+        const result = {};
+        const confidence = {};
+        const lines = text.split('\n').filter(line => line.trim());
+        const hasKeyValue = lines.some(line => line.includes(':'));
+
+        if (hasKeyValue) {
+            lines.forEach(line => {
+                const [key, ...valueParts] = line.split(':');
+                const rawKey = key.trim().toLowerCase();
+                const rawValue = valueParts.join(':').trim();
+                if (rawValue) {
+                    if (rawKey.includes('best time') || rawKey.includes('callback')) {
+                        const dateMatch = rawValue.match(/(\w+\s+\d{1,2},\s+\d{4})/i);
+                        const timeMatch = rawValue.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
+                        if (dateMatch) {
+                            result['date'] = dateMatch[1];
+                            confidence['date'] = 0.8;
+                        }
+                        if (timeMatch) {
+                            result['time'] = timeMatch[1];
+                            confidence['time'] = 0.8;
+                        }
+                        if (!result['notes']) {
+                            result['notes'] = `Best time: ${rawValue}`;
+                            confidence['notes'] = 0.6;
+                        }
+                    } else {
+                        for (const [field, aliases] of Object.entries(CONFIG.FIELD_MAPPINGS)) {
+                            if (aliases.some(alias => rawKey.includes(alias) || alias.includes(rawKey))) {
+                                result[field] = rawValue;
+                                confidence[field] = 1.0;
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        if (!result['date']) {
+            const fullText = lines.join(' ');
+            const dateMatch = fullText.match(/(\w+\s+\d{1,2},\s+\d{4})/i);
+            if (dateMatch) {
+                result['date'] = dateMatch[1];
+                confidence['date'] = 0.5;
+            }
+        }
+        
+        if (!result['time']) {
+            const fullText = lines.join(' ');
+            const timeMatch = fullText.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
+            if (timeMatch) {
+                result['time'] = timeMatch[1];
+                confidence['time'] = 0.5;
+            }
+        }
+        
+        for (const field of ['name', 'business', 'phone', 'email', 'date', 'time', 'status']) {
+            if (result[field] && !confidence[field]) confidence[field] = 0.5;
+        }
+        return { result, confidence };
+    },
+
+    checkDuplicate(appointment, appointments) {
+        if (!appointment.name && !appointment.phone && !appointment.email) return null;
+        for (let date in appointments) {
+            if (appointments[date]?.reports) {
+                for (const existing of appointments[date].reports) {
+                    let matchCount = 0, totalChecks = 0;
+                    if (appointment.name && existing.contactName) {
+                        totalChecks++;
+                        if (appointment.name.toLowerCase() === existing.contactName.toLowerCase()) matchCount++;
+                    }
+                    if (appointment.phone && existing.phone) {
+                        totalChecks++;
+                        if (appointment.phone === existing.phone) matchCount++;
+                    }
+                    if (appointment.email && existing.email) {
+                        totalChecks++;
+                        if (appointment.email.toLowerCase() === existing.email.toLowerCase()) matchCount++;
+                    }
+                    if (appointment.business && existing.business) {
+                        totalChecks++;
+                        if (appointment.business.toLowerCase() === existing.business.toLowerCase()) matchCount++;
+                    }
+                    if (totalChecks > 0 && matchCount / totalChecks >= 0.6) return existing;
+                }
+            }
+        }
+        return null;
+    },
+
     getOrderedVisible(scripts, scriptOrder) {
         if (scriptOrder && scriptOrder.length > 0) {
             return scriptOrder.filter(id => scripts && scripts[id]);
@@ -1735,7 +1828,7 @@ const Scripts = {
 };
 
 // ================================================================
-// ENHANCED SMART IMPORT FUNCTIONS WITH DATE SELECTION
+// ENHANCED SMART IMPORT FUNCTIONS
 // ================================================================
 
 function parseAppointmentTextEnhanced(text, defaultDate = null) {
@@ -5298,6 +5391,19 @@ function initApp() {
         }
     });
 
+    // ================================================================
+    // SCRIPT COACH INITIALIZATION
+    // ================================================================
+    // Initialize Script Coach after app is fully ready
+    setTimeout(() => {
+        if (typeof initScriptCoach === 'function') {
+            initScriptCoach();
+            console.log('🎯 Script Coach initialized successfully');
+        } else {
+            console.log('📝 Script Coach script loading...');
+        }
+    }, 1000);
+
     console.log('🚀 ScriptFlow Pro initialized successfully!');
     console.log('📊 Status Hierarchy: Hot Transfer → Completed → Warm Callback → Pending → Canceled');
     console.log('📅 Secondary Statuses (count as Completed): Meeting Booked, Rescheduled, Overdue, Held');
@@ -5305,6 +5411,7 @@ function initApp() {
     console.log(`🔌 Firebase status: ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
     console.log('✨ Enhanced Smart Import loaded with intelligent parsing');
     console.log('📜 Script management: Create, Edit Title, Delete, Favorite');
+    console.log('🎯 Script Coach: AI-powered script analysis and playback');
 }
 
 // ================================================================

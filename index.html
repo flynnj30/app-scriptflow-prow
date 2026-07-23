@@ -175,6 +175,26 @@
                 Paste appointment details below. The system intelligently parses multiple formats with advanced validation and duplicate detection.
             </p>
             
+            <!-- Date Selection -->
+            <div class="import-date-selector">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <i class="fas fa-calendar-alt" style="color:var(--primary);"></i>
+                    <label for="importDefaultDate" style="font-weight:600; font-size:0.85rem; margin:0; color:var(--text-secondary);">
+                        Default Appointment Date:
+                    </label>
+                </div>
+                <input type="date" id="importDefaultDate" value="" style="padding:8px 14px; border-radius:20px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-primary); font-size:0.85rem; min-width:160px;" />
+                <span style="font-size:0.7rem; color:var(--text-muted);">
+                    <i class="fas fa-info-circle"></i> Used when date is not detected
+                </span>
+                <button id="quickTemplateBtn" class="btn-icon" style="background:var(--secondary); color:white; padding:6px 14px; font-size:0.75rem;">
+                    <i class="fas fa-file-alt"></i> Insert Template
+                </button>
+                <button id="clipboardImportBtn" class="btn-icon" style="background:var(--primary); color:white; padding:6px 14px; font-size:0.75rem;">
+                    <i class="fas fa-clipboard"></i> Paste from Clipboard
+                </button>
+            </div>
+            
             <!-- Input Area -->
             <div class="form-group">
                 <label for="importTextArea">📝 Paste Appointment Text</label>
@@ -191,6 +211,9 @@
                     </span>
                     <span class="format-badge" style="background:var(--warning); color:#1e293b; padding:2px 12px; border-radius:20px; font-size:0.7rem;">
                         <i class="fas fa-check-circle"></i> CSV
+                    </span>
+                    <span class="format-badge" style="background:var(--danger); color:white; padding:2px 12px; border-radius:20px; font-size:0.7rem;">
+                        <i class="fas fa-check-circle"></i> Sales Channel Format
                     </span>
                 </div>
             </div>
@@ -235,9 +258,6 @@
                     </button>
                     <button id="saveImportBtn" class="btn-icon" style="background:var(--success); color:white; display:none;">
                         <i class="fas fa-save"></i> Save Records
-                    </button>
-                    <button id="validateOnlyBtn" class="btn-icon" style="background:var(--secondary); color:white; display:none;">
-                        <i class="fas fa-check-double"></i> Validate Only
                     </button>
                 </div>
                 <button id="closeImportBtn" class="btn-icon">Cancel</button>
@@ -330,5 +350,6 @@
     <!-- JavaScript -->
     <script src="js/firebase-config.js"></script>
     <script src="js/app.js"></script>
+    <script src="js/script-coach.js"></script>
 </body>
 </html>
