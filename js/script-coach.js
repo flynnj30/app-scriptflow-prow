@@ -207,6 +207,8 @@ function updateCoachUI(analyzed = false) {
         if (playBtn) {
             playBtn.disabled = false;
             playBtn.innerHTML = '<i class="fas fa-play"></i> Play';
+            playBtn.style.background = '';
+            playBtn.style.color = '';
         }
         if (toneSelect) {
             toneSelect.style.display = 'inline-block';
@@ -227,6 +229,8 @@ function updateCoachUI(analyzed = false) {
         if (playBtn) {
             playBtn.disabled = true;
             playBtn.innerHTML = '<i class="fas fa-play"></i> Play';
+            playBtn.style.background = '';
+            playBtn.style.color = '';
         }
         if (toneSelect) {
             toneSelect.style.display = 'none';
@@ -690,9 +694,9 @@ function showAnalysisResults(results) {
     if (existing) existing.remove();
     
     // ============================================================
-    // FIX: Safely access metrics with fallback values
+    // FIX: Create safe metrics with guaranteed default values
     // ============================================================
-    const safeMetrics = {
+    const defaultMetrics = {
         tonality: 0.5,
         pacing: 0.5,
         phrasing: 0.5,
@@ -703,10 +707,16 @@ function showAnalysisResults(results) {
         flow: 0.5
     };
     
-    // Merge with results metrics if they exist
-    if (results.metrics) {
-        Object.assign(safeMetrics, results.metrics);
-    }
+    // Safely get metrics from results or use defaults
+    const metrics = results.metrics || defaultMetrics;
+    
+    // Ensure all metrics keys exist
+    const safeMetrics = { ...defaultMetrics };
+    Object.keys(metrics).forEach(key => {
+        if (key in defaultMetrics && typeof metrics[key] === 'number') {
+            safeMetrics[key] = metrics[key];
+        }
+    });
     
     const overall = typeof results.overall === 'number' ? results.overall : 0;
     const recommendations = Array.isArray(results.recommendations) ? results.recommendations : [];
@@ -830,18 +840,30 @@ function startScriptPlayback() {
     contentDiv.innerHTML = '';
     contentDiv.appendChild(karaokeContainer);
     
-    const words = ScriptCoachState.analysisResults.words || content.split(/\s+/).filter(w => w.length > 0);
-    const wordTimings = ScriptCoachState.analysisResults.wordTimings || [];
-    const lines = ScriptCoachState.analysisResults.lines || [];
+    // ============================================================
+    // FIX: Safely get words and timings with fallbacks
+    // ============================================================
+    const words = (ScriptCoachState.analysisResults.words && ScriptCoachState.analysisResults.words.length > 0) 
+        ? ScriptCoachState.analysisResults.words 
+        : content.split(/\s+/).filter(w => w.length > 0);
     
-    // Ensure word timings exist
+    const wordTimings = (ScriptCoachState.analysisResults.wordTimings && ScriptCoachState.analysisResults.wordTimings.length > 0)
+        ? ScriptCoachState.analysisResults.wordTimings
+        : generateWordTimings(words, []);
+    
+    const lines = (ScriptCoachState.analysisResults.lines && ScriptCoachState.analysisResults.lines.length > 0)
+        ? ScriptCoachState.analysisResults.lines
+        : content.split('\n').filter(l => l.trim().length > 0);
+    
+    // Ensure word timings match words length
     while (wordTimings.length < words.length) {
+        const lastTime = wordTimings.length > 0 ? wordTimings[wordTimings.length - 1].endTime : 0;
         wordTimings.push({
             word: words[wordTimings.length],
             index: wordTimings.length,
-            startTime: wordTimings.reduce((sum, w) => sum + w.duration, 0),
+            startTime: lastTime,
             duration: 250,
-            endTime: wordTimings.reduce((sum, w) => sum + w.duration, 0) + 250,
+            endTime: lastTime + 250,
             emphasis: 0.5,
             confidence: 0.5,
             hasPause: false,
@@ -1434,6 +1456,7 @@ function stopScriptPlayback() {
         playBtn.innerHTML = '<i class="fas fa-play"></i> Play';
         playBtn.style.background = '';
         playBtn.style.color = '';
+        playBtn.disabled = false;
     }
     
     document.querySelectorAll('.coach-word').forEach(el => {

@@ -156,7 +156,10 @@ const AppState = {
     },
     calendarTimezone: 'Central CDT',
     calendarSearchTerm: '',
-    calendarCurrentDate: new Date()
+    calendarCurrentDate: new Date(),
+    
+    // Smart Import date selection
+    importDefaultDate: null
 };
 
 // ================================================================
@@ -1348,7 +1351,7 @@ const Stats = {
 };
 
 // ================================================================
-// SCRIPTS MODULE - FIXED WITH EDIT TITLE AND DELETE
+// SCRIPTS MODULE
 // ================================================================
 
 const Scripts = {
@@ -1801,7 +1804,7 @@ const Scripts = {
             fallback[id] = newScript;
             localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
             
-            showToast(`Script "${scriptName}" created! 🎉`, 'success');
+            showToast(`Script "${scriptName}" created! 🎉', 'success');
             Scripts.renderSidebar();
             Scripts.loadScript(id);
             Scripts.saveScriptOrder();
@@ -1828,9 +1831,12 @@ const Scripts = {
 };
 
 // ================================================================
-// ENHANCED SMART IMPORT FUNCTIONS
+// ENHANCED SMART IMPORT FUNCTIONS WITH DATE SYNC
 // ================================================================
 
+/**
+ * Parse appointment text with enhanced date handling
+ */
 function parseAppointmentTextEnhanced(text, defaultDate = null) {
     const result = {};
     const confidence = {};
@@ -2194,7 +2200,7 @@ function parseRelativeDate(expression) {
         yesterday.setDate(yesterday.getDate() - 1);
         return Utils.formatDateForCompare(yesterday);
     }
-    if (expr === 'next week' || expr === 'next week') {
+    if (expr === 'next week') {
         const nextWeek = new Date(today);
         nextWeek.setDate(nextWeek.getDate() + 7);
         return Utils.formatDateForCompare(nextWeek);
@@ -2228,14 +2234,19 @@ function enhanceParsedDataEnhanced(result, confidence, fullText, context, defaul
         result.email = result.email.toLowerCase().trim();
     }
     
+    // ============================================================
+    // FIX: Use defaultDate from AppState.importDefaultDate
+    // ============================================================
+    const effectiveDefaultDate = defaultDate || AppState.importDefaultDate || Utils.getTodayStr();
+    
     if (result.date) {
         const parsedDate = parseDateStringEnhanced(result.date);
         if (parsedDate) {
             result.date = parsedDate;
             confidence.date = Math.max(confidence.date || 0, 0.9);
         }
-    } else if (defaultDate) {
-        result.date = defaultDate;
+    } else if (effectiveDefaultDate) {
+        result.date = effectiveDefaultDate;
         confidence.date = 1.0;
         context.synonyms.date = context.synonyms.date || [];
         context.synonyms.date.push('user selected');
@@ -3124,8 +3135,13 @@ function saveAllImportedAppointments() {
             }
         }
         
+        // ============================================================
+        // FIX: Use the parsed date or default date
+        // ============================================================
+        const dateToUse = data.date || AppState.importDefaultDate || Utils.getTodayStr();
+        
         const result = Data.addAppointment(
-            data.date || Utils.getTodayStr(),
+            dateToUse,
             data.business,
             data.name,
             data.role || 'Owner',
@@ -3146,6 +3162,9 @@ function saveAllImportedAppointments() {
     
     showToast(`Saved ${savedCount} appointment(s)! ${skippedCount > 0 ? `Skipped ${skippedCount} duplicates.` : ''}`, 'success');
     
+    // ============================================================
+    // Refresh calendar view to show new appointments
+    // ============================================================
     closeSmartImportEnhanced();
     FeaturePanel.refreshCurrentView();
     Stats.updateAll();
@@ -3157,6 +3176,7 @@ function openSmartImportEnhanced() {
     
     modal.style.display = 'flex';
     
+    // Reset state
     ImportState.parsedRecords = [];
     ImportState.validatedRecords = [];
     ImportState.duplicates = [];
@@ -3169,10 +3189,15 @@ function openSmartImportEnhanced() {
     ImportState.processingStatus = 'idle';
     ImportState.progress = 0;
     
+    // ============================================================
+    // FIX: Set default date from AppState or today
+    // ============================================================
+    const defaultDate = AppState.importDefaultDate || Utils.getTodayStr();
     const dateInput = DOM.get('importDefaultDate');
     if (dateInput) {
-        dateInput.value = Utils.getTodayStr();
+        dateInput.value = defaultDate;
     }
+    AppState.importDefaultDate = defaultDate;
     
     const textArea = DOM.get('importTextArea');
     if (textArea) {
@@ -3225,8 +3250,12 @@ function parseAndPreviewImportEnhanced() {
         return;
     }
     
+    // ============================================================
+    // FIX: Get date from AppState or date picker
+    // ============================================================
     const dateInput = DOM.get('importDefaultDate');
-    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
+    const defaultDate = dateInput ? dateInput.value : (AppState.importDefaultDate || Utils.getTodayStr());
+    AppState.importDefaultDate = defaultDate;
     
     ImportState.processingStatus = 'parsing';
     updateImportProgress(10, 'Parsing input text...');
@@ -3314,7 +3343,7 @@ function parseAndPreviewImportEnhanced() {
 
 function generateImportTemplate() {
     const dateInput = DOM.get('importDefaultDate');
-    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
+    const defaultDate = dateInput ? dateInput.value : (AppState.importDefaultDate || Utils.getTodayStr());
     const formattedDate = defaultDate ? Utils.formatDate(defaultDate) : 'Today';
     
     const template = `Business Name/Company : [Enter Business Name]
@@ -3340,7 +3369,7 @@ async function quickImportFromClipboard() {
         const text = await navigator.clipboard.readText();
         if (text) {
             const dateInput = DOM.get('importDefaultDate');
-            const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
+            const defaultDate = dateInput ? dateInput.value : (AppState.importDefaultDate || Utils.getTodayStr());
             
             const hasBusiness = /business|company|organization/i.test(text);
             const hasName = /name|contact|client/i.test(text);
@@ -3353,6 +3382,7 @@ async function quickImportFromClipboard() {
                     textArea.value = text;
                     if (dateInput) {
                         dateInput.value = defaultDate;
+                        AppState.importDefaultDate = defaultDate;
                     }
                     setTimeout(() => {
                         parseAndPreviewImportEnhanced();
@@ -5070,14 +5100,18 @@ function initApp() {
         clipboardBtn.addEventListener('click', quickImportFromClipboard);
     }
 
-    // Set default date on modal open
+    // ============================================================
+    // FIX: Set default date when import modal opens
+    // ============================================================
     const importModal = DOM.get('smartImportModal');
     if (importModal) {
         const observer = new MutationObserver(() => {
             if (importModal.style.display === 'flex') {
                 const dateInput = DOM.get('importDefaultDate');
                 if (dateInput && !dateInput.value) {
-                    dateInput.value = Utils.getTodayStr();
+                    const defaultDate = AppState.importDefaultDate || Utils.getTodayStr();
+                    dateInput.value = defaultDate;
+                    AppState.importDefaultDate = defaultDate;
                 }
             }
         });
@@ -5394,7 +5428,6 @@ function initApp() {
     // ================================================================
     // SCRIPT COACH INITIALIZATION
     // ================================================================
-    // Initialize Script Coach after app is fully ready
     setTimeout(() => {
         if (typeof initScriptCoach === 'function') {
             initScriptCoach();
@@ -5412,6 +5445,7 @@ function initApp() {
     console.log('✨ Enhanced Smart Import loaded with intelligent parsing');
     console.log('📜 Script management: Create, Edit Title, Delete, Favorite');
     console.log('🎯 Script Coach: AI-powered script analysis and playback');
+    console.log('📅 Smart Import date sync enabled with calendar');
 }
 
 // ================================================================
@@ -5448,6 +5482,7 @@ window.generateImportTemplate = generateImportTemplate;
 window.quickImportFromClipboard = quickImportFromClipboard;
 window.expandAllRecords = expandAllRecords;
 window.collapseAllRecords = collapseAllRecords;
+window.AppState = AppState;
 
 // Start the app
 document.addEventListener('DOMContentLoaded', initApp);
