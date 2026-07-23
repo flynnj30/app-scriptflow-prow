@@ -118,28 +118,26 @@ body {
 }
 
 @keyframes pulse-ring {
-    0% {
-        transform: scale(0.8);
-        opacity: 0.8;
-    }
-    100% {
-        transform: scale(1.4);
-        opacity: 0;
-    }
+    0% { transform: scale(0.8); opacity: 0.8; }
+    100% { transform: scale(1.4); opacity: 0; }
 }
 
 @keyframes dot-bounce {
-    0%, 80%, 100% {
-        transform: scale(0.6);
-        opacity: 0.3;
-    }
-    40% {
-        transform: scale(1);
-        opacity: 1;
-    }
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.3; }
+    40% { transform: scale(1); opacity: 1; }
 }
 
 @keyframes synonymPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+@keyframes wordGlow {
+    0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.2); }
+    50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.4); }
+}
+
+@keyframes progressPulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.6; }
 }
@@ -739,10 +737,8 @@ body {
 }
 
 /* ============================================================
-   SCRIPT COACH - KARAOKE-STYLE SCRIPT PLAYER
+   SCRIPT COACH - BUTTON GROUP
    ============================================================ */
-
-/* Script Coach Button Group */
 .script-coach-btn-group {
     display: inline-flex;
     align-items: center;
@@ -809,6 +805,327 @@ body {
     padding: 4px 10px;
 }
 
+/* ============================================================
+   KARAOKE SCRIPT COACH STYLES
+   ============================================================ */
+
+/* Karaoke Container */
+.coach-karaoke-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 500px;
+    background: var(--bg-card);
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.coach-karaoke-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.coach-karaoke-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.coach-karaoke-icon {
+    font-size: 1.2rem;
+}
+
+.coach-karaoke-controls {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.coach-speed-btn {
+    padding: 4px 10px;
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.coach-speed-btn:hover {
+    border-color: var(--primary);
+    color: var(--text-primary);
+}
+
+.coach-speed-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+/* Progress Bar */
+.coach-karaoke-progress {
+    padding: 8px 20px;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.coach-progress-bar {
+    position: relative;
+    width: 100%;
+    height: 6px;
+    background: var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    overflow: visible;
+}
+
+.coach-progress-fill {
+    height: 100%;
+    background: var(--accent-gradient);
+    border-radius: 4px;
+    transition: width 0.1s ease;
+    position: relative;
+}
+
+.coach-progress-handle {
+    position: absolute;
+    top: 50%;
+    right: -6px;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 12px;
+    background: var(--primary);
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.coach-progress-bar:hover .coach-progress-handle {
+    opacity: 1;
+}
+
+.coach-progress-time {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+/* Sections */
+.coach-karaoke-sections {
+    display: flex;
+    gap: 4px;
+    padding: 8px 20px;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    flex-wrap: wrap;
+    overflow-x: auto;
+}
+
+.coach-section-btn {
+    padding: 4px 12px;
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: var(--transition);
+    white-space: nowrap;
+}
+
+.coach-section-btn:hover {
+    border-color: var(--primary);
+    color: var(--text-primary);
+}
+
+.coach-section-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+/* Karaoke Body */
+.coach-karaoke-body {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    max-height: 400px;
+    min-height: 300px;
+    background: var(--script-bg);
+    scroll-behavior: smooth;
+}
+
+.coach-karaoke-body::-webkit-scrollbar {
+    width: 4px;
+}
+
+.coach-karaoke-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.coach-karaoke-body::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 4px;
+}
+
+/* Lines */
+.coach-line {
+    padding: 8px 12px;
+    margin-bottom: 4px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    border-left: 3px solid transparent;
+}
+
+.coach-line.active {
+    border-left-color: var(--primary);
+    background: rgba(59, 130, 246, 0.08);
+}
+
+.coach-line.dimmed {
+    opacity: 0.4;
+}
+
+.coach-line.setter {
+    border-left-color: var(--primary);
+}
+
+.coach-line.prospect {
+    border-left-color: var(--secondary);
+}
+
+.coach-line .coach-speaker-label {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+}
+
+/* Words */
+.coach-word {
+    display: inline-block;
+    transition: all 0.15s ease;
+    padding: 2px 2px;
+    border-radius: 4px;
+    font-size: 1.05rem;
+    line-height: 1.8;
+}
+
+.coach-word.current {
+    background: rgba(250, 204, 21, 0.3);
+    border-radius: 4px;
+    color: #facc15 !important;
+}
+
+.coach-word.speaking {
+    background: rgba(250, 204, 21, 0.4);
+    transform: scale(1.08);
+    box-shadow: 0 0 30px rgba(250, 204, 21, 0.3);
+    color: #facc15 !important;
+    animation: wordGlow 0.5s ease-in-out;
+}
+
+.coach-word.emphasis {
+    font-weight: 700;
+}
+
+.coach-word.low-confidence {
+    opacity: 0.6;
+}
+
+.coach-word.pause::after {
+    content: ' ⏸';
+    font-size: 0.5rem;
+    opacity: 0.4;
+}
+
+/* Cues */
+.coach-cue {
+    font-size: 0.5rem;
+    margin-left: 2px;
+    opacity: 0.6;
+    display: inline-block;
+}
+
+/* Footer */
+.coach-karaoke-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background: var(--bg-primary);
+    border-top: 1px solid var(--border-color);
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.coach-karaoke-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.coach-action-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.coach-action-btn:hover {
+    border-color: var(--primary);
+    color: var(--text-primary);
+}
+
+.coach-action-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.coach-action-btn.recording {
+    background: var(--danger);
+    color: white;
+    animation: pulse 1s ease-in-out infinite;
+}
+
+.coach-karaoke-status {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.coach-status-text {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ============================================================
+   SCRIPT COACH - LOADING & RESULTS OVERLAYS
+   ============================================================ */
+
 /* Loading Overlay */
 .coach-loading-overlay {
     position: absolute;
@@ -859,12 +1176,8 @@ body {
     animation: pulse-ring 2s ease-out infinite;
 }
 
-.coach-pulse-ring.delay-1 {
-    animation-delay: 0.5s;
-}
-.coach-pulse-ring.delay-2 {
-    animation-delay: 1s;
-}
+.coach-pulse-ring.delay-1 { animation-delay: 0.5s; }
+.coach-pulse-ring.delay-2 { animation-delay: 1s; }
 
 .coach-loading-title {
     font-size: 1.2rem;
@@ -911,15 +1224,9 @@ body {
     animation: dot-bounce 1.4s ease-in-out infinite;
 }
 
-.coach-loading-dots .dot.delay-1 {
-    animation-delay: 0.2s;
-}
-.coach-loading-dots .dot.delay-2 {
-    animation-delay: 0.4s;
-}
-.coach-loading-dots .dot.delay-3 {
-    animation-delay: 0.6s;
-}
+.coach-loading-dots .dot.delay-1 { animation-delay: 0.2s; }
+.coach-loading-dots .dot.delay-2 { animation-delay: 0.4s; }
+.coach-loading-dots .dot.delay-3 { animation-delay: 0.6s; }
 
 /* Results Overlay */
 .coach-results-overlay {
@@ -1011,7 +1318,6 @@ body {
     color: var(--text-muted);
 }
 
-/* Metrics Grid */
 .coach-metrics-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1039,10 +1345,7 @@ body {
     margin-bottom: 6px;
 }
 
-.coach-metric-icon {
-    font-size: 0.9rem;
-}
-
+.coach-metric-icon { font-size: 0.9rem; }
 .coach-metric-name {
     flex: 1;
     font-size: 0.75rem;
@@ -1055,15 +1358,9 @@ body {
     font-weight: 700;
 }
 
-.coach-metric-value.good {
-    color: var(--success);
-}
-.coach-metric-value.fair {
-    color: var(--warning);
-}
-.coach-metric-value.poor {
-    color: var(--danger);
-}
+.coach-metric-value.good { color: var(--success); }
+.coach-metric-value.fair { color: var(--warning); }
+.coach-metric-value.poor { color: var(--danger); }
 
 .coach-metric-bar {
     width: 100%;
@@ -1080,7 +1377,6 @@ body {
     background: var(--accent-gradient);
 }
 
-/* Recommendations */
 .coach-recommendations {
     margin-bottom: 20px;
 }
@@ -1108,15 +1404,9 @@ body {
     background: var(--bg-primary);
 }
 
-.coach-recommendation.high {
-    border-left-color: var(--danger);
-}
-.coach-recommendation.medium {
-    border-left-color: var(--warning);
-}
-.coach-recommendation.positive {
-    border-left-color: var(--success);
-}
+.coach-recommendation.high { border-left-color: var(--danger); }
+.coach-recommendation.medium { border-left-color: var(--warning); }
+.coach-recommendation.positive { border-left-color: var(--success); }
 
 .coach-rec-header {
     display: flex;
@@ -1158,7 +1448,6 @@ body {
     line-height: 1.5;
 }
 
-/* Stats */
 .coach-stats {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1166,12 +1455,6 @@ body {
     padding: 12px;
     background: var(--bg-primary);
     border-radius: 12px;
-}
-
-@media (max-width: 480px) {
-    .coach-stats {
-        grid-template-columns: 1fr 1fr;
-    }
 }
 
 .coach-stat-item {
@@ -1192,300 +1475,12 @@ body {
     color: var(--text-primary);
 }
 
-/* Results Footer */
 .coach-results-footer {
     margin-top: 16px;
     padding-top: 12px;
     border-top: 1px solid var(--border-color);
     display: flex;
     justify-content: flex-end;
-}
-
-/* ============================================================
-   KARAOKE CONTROLS
-   ============================================================ */
-
-.coach-karaoke-controls {
-    position: sticky;
-    bottom: 0;
-    background: var(--bg-secondary);
-    border-top: 2px solid var(--border-color);
-    padding: 16px 20px;
-    z-index: 50;
-    border-radius: 0 0 24px 24px;
-    backdrop-filter: blur(10px);
-}
-
-.coach-controls-top {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-/* Progress Bar */
-.coach-progress-container {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.coach-progress-bar {
-    flex: 1;
-    height: 6px;
-    background: var(--border-color);
-    border-radius: 4px;
-    position: relative;
-    cursor: pointer;
-    transition: height 0.2s ease;
-}
-
-.coach-progress-bar:hover {
-    height: 8px;
-}
-
-.coach-progress-fill {
-    height: 100%;
-    background: var(--accent-gradient);
-    border-radius: 4px;
-    transition: width 0.3s ease;
-    position: relative;
-}
-
-.coach-progress-thumb {
-    position: absolute;
-    top: 50%;
-    width: 14px;
-    height: 14px;
-    background: var(--primary);
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
-}
-
-.coach-progress-bar:hover .coach-progress-thumb {
-    opacity: 1;
-}
-
-.coach-time-display {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    min-width: 100px;
-    font-variant-numeric: tabular-nums;
-}
-
-/* Controls Row */
-.coach-controls-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.coach-controls-left,
-.coach-controls-center,
-.coach-controls-right {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-
-.coach-control-btn {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 30px;
-    padding: 6px 12px;
-    color: var(--text-primary);
-    cursor: pointer;
-    transition: var(--transition);
-    font-size: 0.8rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.coach-control-btn:hover {
-    background: var(--primary);
-    color: white;
-    transform: scale(1.05);
-}
-
-.coach-control-btn.active {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-
-.coach-control-btn i {
-    font-size: 0.9rem;
-}
-
-.coach-speed-select {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 30px;
-    padding: 4px 10px;
-    color: var(--text-primary);
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: var(--transition);
-}
-
-.coach-speed-select:focus {
-    outline: 2px solid var(--primary);
-    border-color: var(--primary);
-}
-
-/* Section Navigation */
-.coach-section-nav {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    padding-top: 8px;
-    border-top: 1px solid var(--border-color);
-}
-
-.coach-section-btn {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 20px;
-    padding: 4px 12px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: var(--transition);
-    font-size: 0.7rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.coach-section-btn:hover {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-
-.coach-section-btn.active {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-
-/* Recording Status */
-.coach-recording-status {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 16px;
-    background: rgba(239, 68, 68, 0.1);
-    border-radius: 30px;
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    color: var(--danger);
-}
-
-.recording-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--danger);
-    animation: pulse 1s ease-in-out infinite;
-}
-
-/* ============================================================
-   KARAOKE DISPLAY
-   ============================================================ */
-
-.coach-karaoke-display {
-    font-size: 1.1rem;
-    line-height: 2.2;
-    padding: 16px 8px;
-}
-
-.coach-sentence-group {
-    margin-bottom: 8px;
-}
-
-.coach-speaker-label {
-    font-size: 0.65rem;
-    font-weight: 600;
-    padding: 2px 10px;
-    border-radius: 12px;
-    display: inline-block;
-    margin-bottom: 2px;
-}
-
-.coach-speaker-setter {
-    background: rgba(59, 130, 246, 0.15);
-    color: var(--primary);
-}
-
-.coach-speaker-prospect {
-    background: rgba(16, 185, 129, 0.15);
-    color: var(--success);
-}
-
-.coach-sentence {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2px;
-    padding: 4px 8px;
-    border-radius: 8px;
-    transition: all 0.3s ease;
-}
-
-.coach-sentence.coach-sentence-active {
-    background: rgba(59, 130, 246, 0.05);
-}
-
-.coach-karaoke-word {
-    display: inline-block;
-    padding: 2px 4px;
-    border-radius: 4px;
-    transition: all 0.15s ease;
-    font-size: 1.05rem;
-    cursor: default;
-}
-
-.coach-karaoke-word.coach-active-word {
-    background: #fbbf24 !important;
-    color: #1e293b !important;
-    transform: scale(1.15);
-    box-shadow: 0 2px 12px rgba(251, 191, 36, 0.4);
-    border-radius: 6px;
-    font-weight: 700;
-}
-
-.coach-karaoke-word.coach-active-sentence {
-    background: rgba(251, 191, 36, 0.15);
-    color: var(--text-primary);
-}
-
-.coach-karaoke-word.coach-dimmed {
-    opacity: 0.35;
-}
-
-.coach-karaoke-word.coach-done {
-    opacity: 0.7;
-}
-
-.coach-karaoke-word.coach-punctuation {
-    opacity: 0.5;
-}
-
-.coach-karaoke-word.coach-emphasis-word {
-    font-weight: 700;
-    color: #fbbf24;
-}
-
-.coach-karaoke-word.coach-pause-word::after {
-    content: ' ⏸';
-    font-size: 0.5rem;
-    opacity: 0.3;
 }
 
 /* ============================================================
@@ -3205,6 +3200,37 @@ body {
         font-size: 0.7rem;
     }
     .list-event-item .list-event-contact { display: none; }
+    
+    /* Karaoke responsive */
+    .coach-karaoke-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    .coach-karaoke-controls {
+        justify-content: center;
+    }
+    .coach-karaoke-sections {
+        justify-content: center;
+        padding: 6px 12px;
+    }
+    .coach-karaoke-body {
+        padding: 12px;
+        max-height: 300px;
+        min-height: 200px;
+    }
+    .coach-word {
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+    .coach-karaoke-footer {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    .coach-karaoke-actions {
+        justify-content: center;
+    }
 }
 
 @media (max-width: 768px) {
@@ -3334,34 +3360,30 @@ body {
         font-size: 1.2rem;
     }
     
-    /* Karaoke Controls Responsive */
-    .coach-controls-row {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 8px;
+    /* Karaoke responsive */
+    .coach-karaoke-container {
+        min-height: 400px;
     }
-    .coach-controls-left,
-    .coach-controls-center,
-    .coach-controls-right {
-        justify-content: center;
+    .coach-karaoke-body {
+        padding: 12px;
+        max-height: 250px;
+        min-height: 150px;
     }
-    .coach-section-nav {
-        justify-content: center;
-    }
-    .coach-karaoke-display {
-        font-size: 0.95rem;
-        line-height: 1.8;
-    }
-    .coach-karaoke-word {
+    .coach-word {
         font-size: 0.9rem;
+        line-height: 1.5;
     }
-    .coach-control-btn {
-        padding: 4px 10px;
-        font-size: 0.7rem;
+    .coach-karaoke-controls .coach-speed-btn {
+        padding: 3px 8px;
+        font-size: 0.65rem;
     }
-    .coach-progress-container {
-        flex-direction: column;
-        gap: 4px;
+    .coach-section-btn {
+        padding: 3px 10px;
+        font-size: 0.65rem;
+    }
+    .coach-action-btn {
+        width: 32px;
+        height: 32px;
     }
     
     /* Import responsive */
@@ -3480,27 +3502,9 @@ body {
         min-width: 60px;
         font-size: 0.6rem;
     }
-    
-    /* Karaoke Controls Responsive */
-    .coach-karaoke-display {
-        font-size: 0.85rem;
-        line-height: 1.6;
-    }
-    .coach-karaoke-word {
-        font-size: 0.8rem;
-        padding: 1px 2px;
-    }
-    .coach-control-btn {
-        padding: 3px 8px;
-        font-size: 0.6rem;
-    }
-    .coach-section-btn {
-        font-size: 0.6rem;
-        padding: 2px 8px;
-    }
-    .coach-speed-select {
-        font-size: 0.65rem;
-        padding: 3px 8px;
+    .coach-script-display {
+        font-size: 0.95rem;
+        line-height: 1.8;
     }
     
     /* Script item responsive */
@@ -3512,6 +3516,41 @@ body {
     .script-item .key-hint {
         font-size: 0.6rem;
         padding: 1px 6px;
+    }
+    
+    /* Karaoke responsive */
+    .coach-karaoke-container {
+        min-height: 350px;
+    }
+    .coach-karaoke-body {
+        padding: 8px;
+        max-height: 200px;
+        min-height: 120px;
+    }
+    .coach-word {
+        font-size: 0.8rem;
+        line-height: 1.4;
+    }
+    .coach-karaoke-controls .coach-speed-btn {
+        padding: 2px 8px;
+        font-size: 0.6rem;
+    }
+    .coach-section-btn {
+        padding: 2px 8px;
+        font-size: 0.6rem;
+    }
+    .coach-action-btn {
+        width: 30px;
+        height: 30px;
+    }
+    .coach-karaoke-progress {
+        padding: 6px 12px;
+    }
+    .coach-karaoke-sections {
+        padding: 4px 8px;
+    }
+    .coach-karaoke-footer {
+        padding: 6px 12px;
     }
     
     /* Import responsive */
