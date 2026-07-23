@@ -63,18 +63,15 @@ const CONFIG = {
 };
 
 // ================================================================
-// ENHANCED SMART IMPORT CONFIGURATION
+// SMART IMPORT CONFIGURATION (Enhanced)
 // ================================================================
 
 const SMART_IMPORT_CONFIG = {
-    // Confidence thresholds
     CONFIDENCE: {
         HIGH: 0.8,
         MEDIUM: 0.5,
         LOW: 0.3
     },
-    
-    // Field validation rules
     VALIDATION: {
         name: { required: true, minLength: 2, maxLength: 100 },
         business: { required: true, minLength: 2, maxLength: 100 },
@@ -84,8 +81,6 @@ const SMART_IMPORT_CONFIG = {
         date: { pattern: /^(0?[1-9]|1[0-2])\/(0?[1-9]|[12][0-9]|3[01])\/\d{4}$|^\d{4}-\d{2}-\d{2}$|^[A-Za-z]+\s+\d{1,2},?\s+\d{4}$/ },
         status: { allowed: ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'] }
     },
-    
-    // Field aliases for better matching
     FIELD_ALIASES: {
         name: ['name', 'full name', 'contact name', 'client name', 'customer name', 'person name', 'first name', 'last name', 'contact', 'client', 'customer', 'person', 'prospect', 'lead name'],
         business: ['business', 'company', 'organization', 'org', 'firm', 'brand', 'store', 'business name', 'company name', 'organization name', 'account', 'client company'],
@@ -335,9 +330,7 @@ const Utils = {
                 const rawKey = key.trim().toLowerCase();
                 const rawValue = valueParts.join(':').trim();
                 if (rawValue) {
-                    // Special handling for best time which contains date and time
                     if (rawKey.includes('best time') || rawKey.includes('callback')) {
-                        // Try to extract date from the raw value
                         const dateMatch = rawValue.match(/(\w+\s+\d{1,2},\s+\d{4})/i);
                         const timeMatch = rawValue.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
                         if (dateMatch) {
@@ -348,7 +341,6 @@ const Utils = {
                             result['time'] = timeMatch[1];
                             confidence['time'] = 0.8;
                         }
-                        // Store the full best time text in notes if not already captured
                         if (!result['notes']) {
                             result['notes'] = `Best time: ${rawValue}`;
                             confidence['notes'] = 0.6;
@@ -366,7 +358,6 @@ const Utils = {
             });
         }
         
-        // Try to extract date from any text if not found
         if (!result['date']) {
             const fullText = lines.join(' ');
             const dateMatch = fullText.match(/(\w+\s+\d{1,2},\s+\d{4})/i);
@@ -376,7 +367,6 @@ const Utils = {
             }
         }
         
-        // Try to extract time from any text if not found
         if (!result['time']) {
             const fullText = lines.join(' ');
             const timeMatch = fullText.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
@@ -431,12 +421,10 @@ const Utils = {
     parseDateString(dateStr) {
         if (!dateStr) return null;
         try {
-            // Try to parse natural language dates
             const months = ['January', 'February', 'March', 'April', 'May', 'June', 
                            'July', 'August', 'September', 'October', 'November', 'December'];
             const monthAbbr = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             
-            // Check if it's a natural language date like "Monday July 20"
             const match = dateStr.match(/(\w+)\s+(\w+)\s+(\d{1,2})(?:,\s*(\d{4}))?/i);
             if (match) {
                 const dayName = match[1];
@@ -456,7 +444,6 @@ const Utils = {
                 }
             }
             
-            // Try standard date parsing
             const d = new Date(dateStr);
             if (!isNaN(d.getTime())) {
                 return Utils.formatDateForCompare(d);
@@ -887,7 +874,6 @@ const Data = {
                 return this.loadUserData();
             }
 
-            // Load team members
             const teamSnapshot = await userRef.collection('teamMembers').get();
             if (!teamSnapshot.empty) {
                 AppState.teamMembers = [];
@@ -1661,12 +1647,10 @@ function parseAppointmentTextEnhanced(text) {
         detectedFormat: 'unknown'
     };
     
-    // Clean and prepare text
     const cleanText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const lines = cleanText.split('\n').filter(line => line.trim());
     const fullText = lines.join(' ');
     
-    // Detect format
     context.hasKeyValue = lines.some(line => line.includes(':') || line.includes('=') || line.includes('->'));
     context.hasBulletPoints = lines.some(line => /^[\s]*[•\-*]\s/.test(line));
     context.hasNaturalLanguage = !context.hasKeyValue && !context.hasBulletPoints;
@@ -1675,7 +1659,6 @@ function parseAppointmentTextEnhanced(text) {
     else if (context.hasBulletPoints) context.detectedFormat = 'bullet_points';
     else if (context.hasNaturalLanguage) context.detectedFormat = 'natural_language';
     
-    // Parse based on detected format
     if (context.detectedFormat === 'key_value') {
         parseKeyValueFormat(lines, result, confidence);
     } else if (context.detectedFormat === 'bullet_points') {
@@ -1684,15 +1667,11 @@ function parseAppointmentTextEnhanced(text) {
         parseNaturalLanguageFormat(fullText, lines, result, confidence);
     }
     
-    // Post-processing enhancements
     enhanceParsedData(result, confidence, fullText);
     
     return { result, confidence, context };
 }
 
-/**
- * Parse key-value format (field: value)
- */
 function parseKeyValueFormat(lines, result, confidence) {
     const separators = [':', '=', '->', '=>'];
     
@@ -1718,7 +1697,6 @@ function parseKeyValueFormat(lines, result, confidence) {
                     result[matchedField] = value;
                     confidence[matchedField] = 0.9;
                 } else {
-                    // Store unmatched as potential notes
                     if (!result.notes) {
                         result.notes = '';
                     }
@@ -1727,7 +1705,6 @@ function parseKeyValueFormat(lines, result, confidence) {
                 }
             }
         } else if (line.trim()) {
-            // Line without separator - add to notes
             if (!result.notes) {
                 result.notes = '';
             }
@@ -1737,9 +1714,6 @@ function parseKeyValueFormat(lines, result, confidence) {
     });
 }
 
-/**
- * Parse bullet point format
- */
 function parseBulletPointFormat(lines, result, confidence) {
     const bulletPattern = /^[\s]*[•\-*]\s*(.*)$/;
     let currentSection = 'notes';
@@ -1749,7 +1723,6 @@ function parseBulletPointFormat(lines, result, confidence) {
         if (match) {
             const content = match[1].trim();
             
-            // Try to detect if this is a field
             const fieldMatch = content.match(/^([^:]+):\s*(.*)$/);
             if (fieldMatch) {
                 const key = fieldMatch[1].trim().toLowerCase();
@@ -1760,13 +1733,11 @@ function parseBulletPointFormat(lines, result, confidence) {
                     confidence[matchedField] = 0.85;
                     currentSection = matchedField;
                 } else {
-                    // Store as notes
                     if (!result.notes) result.notes = '';
                     result.notes += (result.notes ? '\n' : '') + content;
                     confidence.notes = 0.4;
                 }
             } else {
-                // Append to current section or notes
                 if (result[currentSection] && currentSection !== 'notes') {
                     result[currentSection] += ' ' + content;
                 } else {
@@ -1779,11 +1750,7 @@ function parseBulletPointFormat(lines, result, confidence) {
     });
 }
 
-/**
- * Parse natural language format
- */
 function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
-    // Extract name - look for common patterns
     const namePatterns = [
         /(?:name|contact|client|customer|person|full name)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
         /(?:from|with|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
@@ -1800,7 +1767,6 @@ function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
         }
     }
     
-    // Extract business/company
     const businessPatterns = [
         /(?:business|company|organization|org|firm|brand|store)[:\s]+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i,
         /(?:from|at|with)\s+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i,
@@ -1816,7 +1782,6 @@ function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
         }
     }
     
-    // Extract phone - multiple patterns
     const phonePatterns = [
         /(?:phone|mobile|cell|telephone|number|call)[:\s]+([+\d\s\-\(\)]{7,20})/i,
         /([+\d\s\-\(\)]{10,20})(?:\s*(?:is|was|will be|the|their|his|her))/i,
@@ -1834,7 +1799,6 @@ function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
         }
     }
     
-    // Extract email
     const emailPatterns = [
         /(?:email|e-mail|mail)[:\s]+([^\s@]+@[^\s@]+\.[^\s@]+)/i,
         /([^\s@]+@[^\s@]+\.[^\s@]+)/
@@ -1849,7 +1813,6 @@ function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
         }
     }
     
-    // Extract date
     const datePatterns = [
         /(?:date|appointment|scheduled|meeting|call|day)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,
         /(?:best time|callback)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,
@@ -1867,7 +1830,6 @@ function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
         }
     }
     
-    // Extract time
     const timePatterns = [
         /(?:time|at|scheduled|appointment|meeting|call)[:\s]+(\d{1,2}:\d{2}\s*(?:AM|PM))/i,
         /(\d{1,2}:\d{2}\s*(?:AM|PM))/i,
@@ -1878,9 +1840,7 @@ function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
         const match = fullText.match(pattern);
         if (match && match[1]) {
             const time = match[1].trim();
-            // Normalize time format
             if (!time.includes(':')) {
-                // Convert "2 PM" to "2:00 PM"
                 const parts = time.match(/(\d+)\s*(AM|PM)/i);
                 if (parts) {
                     result.time = `${parts[1]}:00 ${parts[2].toUpperCase()}`;
@@ -1894,7 +1854,6 @@ function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
         }
     }
     
-    // Extract status
     const statusValues = SMART_IMPORT_CONFIG.VALIDATION.status.allowed;
     for (const status of statusValues) {
         if (fullText.toLowerCase().includes(status.toLowerCase())) {
@@ -1904,7 +1863,6 @@ function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
         }
     }
     
-    // Extract assigned/agent
     const assignedPatterns = [
         /(?:assigned to|owner|agent|representative|rep|handler|manager)[:\s]+([A-Z][a-z]+)/i,
         /(?:with|by|to)\s+([A-Z][a-z]+)(?:\s+(?:from|at|is|will))/i
@@ -1919,16 +1877,12 @@ function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
         }
     }
     
-    // If we couldn't find structured fields, use the whole text as notes
     if (Object.keys(result).length === 0) {
         result.notes = fullText;
         confidence.notes = 0.3;
     }
 }
 
-/**
- * Match field name against aliases
- */
 function matchFieldName(key) {
     const normalizedKey = key.toLowerCase().trim();
     
@@ -1945,21 +1899,15 @@ function matchFieldName(key) {
     return null;
 }
 
-/**
- * Enhance parsed data with additional extraction
- */
 function enhanceParsedData(result, confidence, fullText) {
-    // Normalize phone number
     if (result.phone) {
         result.phone = normalizePhoneNumber(result.phone);
     }
     
-    // Normalize email
     if (result.email) {
         result.email = result.email.toLowerCase().trim();
     }
     
-    // Normalize date
     if (result.date) {
         const parsedDate = parseDateStringEnhanced(result.date);
         if (parsedDate) {
@@ -1968,7 +1916,6 @@ function enhanceParsedData(result, confidence, fullText) {
         }
     }
     
-    // Extract role from notes if not explicitly found
     if (!result.role && result.notes) {
         const roleMatch = result.notes.match(/(?:role|title|position|job title)[:\s]+([A-Za-z\s]+?)(?:[,.\n]|$)/i);
         if (roleMatch && roleMatch[1]) {
@@ -1977,9 +1924,7 @@ function enhanceParsedData(result, confidence, fullText) {
         }
     }
     
-    // Extract additional notes context
     if (result.notes) {
-        // Look for sentiment indicators
         const sentimentIndicators = {
             high_interest: /(?:high interest|very interested|excited|enthusiastic|positive|great|excellent)/i,
             medium_interest: /(?:interested|considering|thinking about|maybe|possibly)/i,
@@ -2000,19 +1945,13 @@ function enhanceParsedData(result, confidence, fullText) {
     }
 }
 
-/**
- * Normalize phone number to a standard format
- */
 function normalizePhoneNumber(phone) {
-    // Remove all non-digit characters except '+'
     let cleaned = phone.replace(/[^\d+]/g, '');
     
-    // If it starts with 1 and has 11 digits, remove the 1
     if (cleaned.length === 11 && cleaned.startsWith('1')) {
         cleaned = cleaned.substring(1);
     }
     
-    // If it has 10 digits, format as (XXX) XXX-XXXX
     if (cleaned.length === 10 && /^\d{10}$/.test(cleaned)) {
         return `(${cleaned.substring(0, 3)}) ${cleaned.substring(3, 6)}-${cleaned.substring(6)}`;
     }
@@ -2020,15 +1959,11 @@ function normalizePhoneNumber(phone) {
     return cleaned;
 }
 
-/**
- * Enhanced date parsing with multiple formats
- */
 function parseDateStringEnhanced(dateStr) {
     if (!dateStr) return null;
     
     const trimmed = dateStr.trim();
     
-    // Try ISO format first
     const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (isoMatch) {
         const year = parseInt(isoMatch[1]);
@@ -2040,7 +1975,6 @@ function parseDateStringEnhanced(dateStr) {
         }
     }
     
-    // Try MM/DD/YYYY format
     const usMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (usMatch) {
         const month = parseInt(usMatch[1]) - 1;
@@ -2052,7 +1986,6 @@ function parseDateStringEnhanced(dateStr) {
         }
     }
     
-    // Try natural language: "July 20, 2024" or "July 20 2024"
     const naturalMatch = trimmed.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/i);
     if (naturalMatch) {
         const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
@@ -2068,7 +2001,6 @@ function parseDateStringEnhanced(dateStr) {
         }
     }
     
-    // Try "20 July 2024" format
     const reverseMatch = trimmed.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
     if (reverseMatch) {
         const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
@@ -2084,7 +2016,6 @@ function parseDateStringEnhanced(dateStr) {
         }
     }
     
-    // Try relative dates
     if (/today/i.test(trimmed)) {
         return Utils.getTodayStr();
     }
@@ -2102,15 +2033,11 @@ function parseDateStringEnhanced(dateStr) {
     return null;
 }
 
-/**
- * Validate imported appointment data
- */
 function validateAppointmentData(data) {
     const errors = [];
     const warnings = [];
     const validated = {};
     
-    // Required fields
     if (!data.name || data.name.trim().length < 2) {
         errors.push({ field: 'name', message: 'Contact name is required (minimum 2 characters)' });
     } else {
@@ -2123,7 +2050,6 @@ function validateAppointmentData(data) {
         validated.business = data.business.trim();
     }
     
-    // Validate phone
     if (data.phone) {
         const cleanPhone = data.phone.replace(/[^\d+]/g, '');
         if (cleanPhone.length < 7 || cleanPhone.length > 15) {
@@ -2132,7 +2058,6 @@ function validateAppointmentData(data) {
         validated.phone = cleanPhone;
     }
     
-    // Validate email
     if (data.email) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(data.email)) {
@@ -2141,7 +2066,6 @@ function validateAppointmentData(data) {
         validated.email = data.email.toLowerCase().trim();
     }
     
-    // Validate date
     if (data.date) {
         const parsedDate = parseDateStringEnhanced(data.date);
         if (parsedDate) {
@@ -2154,12 +2078,9 @@ function validateAppointmentData(data) {
         validated.date = Utils.getTodayStr();
     }
     
-    // Validate time
     if (data.time) {
-        // Try to normalize time
         let timeStr = data.time.trim();
         if (!timeStr.includes('AM') && !timeStr.includes('PM')) {
-            // Try to add AM/PM if it's a valid hour
             const hourMatch = timeStr.match(/^(\d{1,2}):?(\d{2})?$/);
             if (hourMatch) {
                 const hour = parseInt(hourMatch[1]);
@@ -2175,7 +2096,6 @@ function validateAppointmentData(data) {
         validated.time = timeStr;
     }
     
-    // Validate status
     if (data.status) {
         const statusOptions = SMART_IMPORT_CONFIG.VALIDATION.status.allowed;
         const matchedStatus = statusOptions.find(s => 
@@ -2193,7 +2113,6 @@ function validateAppointmentData(data) {
         validated.status = 'Pending';
     }
     
-    // Copy remaining fields
     ['assigned', 'role', 'notes', 'tags', 'email'].forEach(field => {
         if (data[field]) {
             validated[field] = data[field];
@@ -2208,9 +2127,6 @@ function validateAppointmentData(data) {
     };
 }
 
-/**
- * Enhanced duplicate detection with fuzzy matching
- */
 function detectDuplicatesEnhanced(newData, existingAppointments) {
     const duplicates = [];
     const allAppointments = Data.getAllAppointments();
@@ -2227,7 +2143,6 @@ function detectDuplicatesEnhanced(newData, existingAppointments) {
         let matchedFields = [];
         let totalFields = 0;
         
-        // Check name match
         if (newName && existing.contactName) {
             const existingName = existing.contactName.toLowerCase().trim();
             totalFields++;
@@ -2240,7 +2155,6 @@ function detectDuplicatesEnhanced(newData, existingAppointments) {
             }
         }
         
-        // Check business match
         if (newBusiness && existing.business) {
             const existingBusiness = existing.business.toLowerCase().trim();
             totalFields++;
@@ -2253,7 +2167,6 @@ function detectDuplicatesEnhanced(newData, existingAppointments) {
             }
         }
         
-        // Check phone match
         if (newPhone && existing.phone) {
             const existingPhone = existing.phone.replace(/[^\d+]/g, '');
             totalFields++;
@@ -2266,7 +2179,6 @@ function detectDuplicatesEnhanced(newData, existingAppointments) {
             }
         }
         
-        // Check email match
         if (newEmail && existing.email) {
             const existingEmail = existing.email.toLowerCase().trim();
             totalFields++;
@@ -2276,7 +2188,6 @@ function detectDuplicatesEnhanced(newData, existingAppointments) {
             }
         }
         
-        // Calculate confidence
         const confidence = totalFields > 0 ? Math.min(score + (totalFields - 1) * 0.1, 1) : 0;
         
         if (confidence >= 0.5) {
@@ -2289,25 +2200,17 @@ function detectDuplicatesEnhanced(newData, existingAppointments) {
         }
     }
     
-    // Sort by confidence (highest first)
     duplicates.sort((a, b) => b.confidence - a.confidence);
-    
     return duplicates;
 }
 
-/**
- * Split text into individual appointments
- */
 function splitAppointments(text) {
     const appointments = [];
     const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-    
-    // Try to detect if there are multiple appointments
     let currentAppointment = [];
     let inAppointment = false;
     
     for (const line of lines) {
-        // Check if this line starts a new appointment
         const isNewAppointment = 
             line.match(/^[A-Z][a-zA-Z]+\s+(?:Company|Corp|Inc|LLC|Ltd|Agency|Studio|Designs|Solutions|Services|Consulting|Group|Partners|&|Associates)/) ||
             line.match(/^---+\s*$/) ||
@@ -2321,7 +2224,6 @@ function splitAppointments(text) {
             inAppointment = false;
         }
         
-        // Check for key-value format with a colon - likely the start of an appointment
         if (line.includes(':') && line.split(':')[0].trim().length > 0 && line.split(':')[0].trim().length < 30) {
             const key = line.split(':')[0].trim().toLowerCase();
             const isField = SMART_IMPORT_CONFIG.FIELD_ALIASES[key] || 
@@ -2336,12 +2238,10 @@ function splitAppointments(text) {
         currentAppointment.push(line);
     }
     
-    // Add the last appointment
     if (currentAppointment.length > 0) {
         appointments.push(currentAppointment.join('\n'));
     }
     
-    // If no appointments were detected with separator logic, treat the whole text as one
     if (appointments.length === 0 && text.trim()) {
         appointments.push(text.trim());
     }
@@ -2349,9 +2249,6 @@ function splitAppointments(text) {
     return appointments;
 }
 
-/**
- * Update import progress bar
- */
 function updateImportProgress(percent, message) {
     ImportState.progress = percent;
     const progressBar = DOM.get('importProgressBar');
@@ -2369,9 +2266,6 @@ function updateImportProgress(percent, message) {
     }
 }
 
-/**
- * Render import results
- */
 function renderImportResults(records) {
     const preview = DOM.get('importPreview');
     const resultsContainer = DOM.get('importResultsContainer');
@@ -2385,7 +2279,6 @@ function renderImportResults(records) {
     
     if (progressContainer) progressContainer.style.display = 'block';
     
-    // Summary
     if (summary) {
         const total = records.length;
         const valid = records.filter(r => r.isValid).length;
@@ -2415,13 +2308,15 @@ function renderImportResults(records) {
         `;
     }
     
-    // Results list
     let resultsHtml = '';
     
     records.forEach((record, idx) => {
         const statusClass = record.isValid ? 'valid' : 'invalid';
         const hasDuplicate = record.hasDuplicate;
         const hasWarnings = record.warnings && record.warnings.length > 0;
+        
+        const avgConfidence = getAverageConfidence(record.confidence);
+        const confColor = avgConfidence >= 0.7 ? 'high' : avgConfidence >= 0.4 ? 'medium' : 'low';
         
         resultsHtml += `
             <div class="import-record ${statusClass} ${hasDuplicate ? 'duplicate' : ''}">
@@ -2438,7 +2333,7 @@ function renderImportResults(records) {
                         ${hasDuplicate ? '<span class="badge duplicate">🔄 Duplicate</span>' : ''}
                         ${hasWarnings ? `<span class="badge warning">⚠️ ${record.warnings.length}</span>` : ''}
                         ${!record.isValid ? `<span class="badge error">❌ ${record.errors.length}</span>` : ''}
-                        <span class="badge confidence">${Math.round(getAverageConfidence(record.confidence) * 100)}%</span>
+                        <span class="badge confidence ${confColor}">${Math.round(avgConfidence * 100)}%</span>
                     </div>
                     <span class="record-toggle">▼</span>
                 </div>
@@ -2461,7 +2356,7 @@ function renderImportResults(records) {
                     ${record.hasDuplicate ? `
                         <div class="record-duplicates">
                             <strong>🔄 Potential Duplicates:</strong>
-                            <ul>${record.duplicates.filter(d => d.confidence >= 70).map(d => 
+                            <ul>${record.duplicates.filter(d => d.confidence >= 60).map(d => 
                                 `<li>${Utils.escapeHtml(d.existing.business)} - ${Utils.escapeHtml(d.existing.contactName)} (${d.confidence}% match)</li>`
                             ).join('')}</ul>
                             <button class="btn-icon" onclick="window.mergeDuplicate('${record.index}')" style="background:var(--warning); color:#1e293b; margin-top:8px;">
@@ -2476,6 +2371,11 @@ function renderImportResults(records) {
                         <button class="btn-icon" onclick="window.skipImportRecord('${record.index}')" style="background:var(--danger); color:white;">
                             <i class="fas fa-times"></i> Skip
                         </button>
+                        ${record.isValid ? `
+                            <button class="btn-icon" onclick="window.saveSingleRecord('${record.index}')" style="background:var(--success); color:white;">
+                                <i class="fas fa-save"></i> Save
+                            </button>
+                        ` : ''}
                     </div>
                 </div>
             </div>
@@ -2484,7 +2384,6 @@ function renderImportResults(records) {
     
     resultsContainer.innerHTML = resultsHtml;
     
-    // Show save button if there are valid records
     const validRecords = records.filter(r => r.isValid);
     if (saveBtn && validRecords.length > 0) {
         saveBtn.style.display = 'inline-flex';
@@ -2496,9 +2395,6 @@ function renderImportResults(records) {
     }
 }
 
-/**
- * Render record fields
- */
 function renderRecordFields(record) {
     const fields = record.validated || record.parsed || {};
     const confidence = record.confidence || {};
@@ -2536,18 +2432,12 @@ function renderRecordFields(record) {
     return html;
 }
 
-/**
- * Get average confidence from confidence object
- */
 function getAverageConfidence(confidence) {
     const values = Object.values(confidence || {});
     if (values.length === 0) return 0;
     return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
-/**
- * Toggle import record expansion
- */
 function toggleImportRecord(header) {
     const body = header.nextElementSibling;
     if (body) {
@@ -2560,14 +2450,10 @@ function toggleImportRecord(header) {
     }
 }
 
-/**
- * Edit import record inline
- */
 function editImportRecord(index) {
     const record = ImportState.parsedRecords.find(r => r.index === index);
     if (!record) return;
     
-    // Find the record body
     const recordElements = document.querySelectorAll('.import-record');
     let targetElement = null;
     for (const el of recordElements) {
@@ -2586,12 +2472,10 @@ function editImportRecord(index) {
     const body = targetElement.querySelector('.record-body');
     if (!body) return;
     
-    // Expand if collapsed
     body.style.display = 'block';
     const toggle = targetElement.querySelector('.record-toggle');
     if (toggle) toggle.textContent = '▼';
     
-    // Replace fields with editable inputs
     const fields = record.validated || record.parsed || {};
     const fieldOrder = ['name', 'business', 'phone', 'email', 'date', 'time', 'status', 'assigned', 'role', 'notes'];
     
@@ -2666,21 +2550,16 @@ function editImportRecord(index) {
         </div>
     </div>`;
     
-    // Replace the record fields with edit fields
     const fieldsContainer = body.querySelector('.record-fields');
     if (fieldsContainer) {
         fieldsContainer.innerHTML = editHtml;
     }
 }
 
-/**
- * Save import record edit
- */
 function saveImportRecordEdit(index) {
     const record = ImportState.parsedRecords.find(r => r.index === index);
     if (!record) return;
     
-    // Find the record element
     const recordElements = document.querySelectorAll('.import-record');
     let targetElement = null;
     for (const el of recordElements) {
@@ -2706,17 +2585,14 @@ function saveImportRecordEdit(index) {
         }
     });
     
-    // Re-validate
     const validationResult = validateAppointmentData(updatedData);
     
-    // Update record
     record.parsed = updatedData;
     record.validated = validationResult.validated;
     record.isValid = validationResult.isValid;
     record.errors = validationResult.errors;
     record.warnings = validationResult.warnings;
     
-    // Re-render
     renderImportResults(ImportState.parsedRecords);
     
     if (validationResult.isValid) {
@@ -2726,16 +2602,10 @@ function saveImportRecordEdit(index) {
     }
 }
 
-/**
- * Cancel import record edit
- */
 function cancelImportRecordEdit(index) {
     renderImportResults(ImportState.parsedRecords);
 }
 
-/**
- * Skip import record
- */
 function skipImportRecord(index) {
     if (!confirm(`Skip record #${index}?`)) return;
     
@@ -2746,9 +2616,6 @@ function skipImportRecord(index) {
     showToast(`Record #${index} skipped`, 'info');
 }
 
-/**
- * Merge duplicate record
- */
 function mergeDuplicate(index) {
     const record = ImportState.parsedRecords.find(r => r.index === index);
     if (!record) return;
@@ -2761,7 +2628,6 @@ function mergeDuplicate(index) {
     
     if (!confirm(`Merge this record with existing appointment "${duplicate.existing.business}"?`)) return;
     
-    // Update existing appointment with new data
     const existing = duplicate.existing;
     const newData = record.validated || record.parsed;
     
@@ -2782,7 +2648,6 @@ function mergeDuplicate(index) {
         }
     }
     
-    // Apply updates
     if (Object.keys(updates).length > 0) {
         Data.updateAppointment(existing.date, existing.id, updates);
         showToast(`Merged into ${existing.business}`, 'success');
@@ -2790,15 +2655,11 @@ function mergeDuplicate(index) {
         showToast('No new information to merge', 'info');
     }
     
-    // Remove this record from the list
     ImportState.parsedRecords = ImportState.parsedRecords.filter(r => r.index !== index);
     ImportState.validatedRecords = ImportState.validatedRecords.filter(r => r.index !== index);
     renderImportResults(ImportState.parsedRecords);
 }
 
-/**
- * Save all imported appointments
- */
 function saveAllImportedAppointments() {
     const validRecords = ImportState.parsedRecords.filter(r => r.isValid);
     
@@ -2812,7 +2673,6 @@ function saveAllImportedAppointments() {
         return;
     }
     
-    // Confirm before saving
     const duplicateCount = validRecords.filter(r => r.hasDuplicate).length;
     let confirmMsg = `Save ${validRecords.length} appointment(s)?`;
     if (duplicateCount > 0) {
@@ -2827,11 +2687,9 @@ function saveAllImportedAppointments() {
     validRecords.forEach(record => {
         const data = record.validated || record.parsed;
         
-        // Check if we should skip duplicates
         if (record.hasDuplicate) {
             const duplicate = record.duplicates && record.duplicates.length > 0 ? record.duplicates[0] : null;
             if (duplicate && duplicate.confidence >= 80) {
-                // High confidence duplicate - skip if user didn't choose to merge
                 if (!confirm(`"${data.business}" appears to be a duplicate (${duplicate.confidence}% match). Skip?`)) {
                     return;
                 }
@@ -2840,7 +2698,6 @@ function saveAllImportedAppointments() {
             }
         }
         
-        // Add the appointment
         const result = Data.addAppointment(
             data.date || Utils.getTodayStr(),
             data.business,
@@ -2868,16 +2725,12 @@ function saveAllImportedAppointments() {
     Stats.updateAll();
 }
 
-/**
- * Open enhanced Smart Import modal
- */
 function openSmartImportEnhanced() {
     const modal = DOM.get('smartImportModal');
     if (!modal) return;
     
     modal.style.display = 'flex';
     
-    // Reset state
     ImportState.parsedRecords = [];
     ImportState.validatedRecords = [];
     ImportState.duplicates = [];
@@ -2920,7 +2773,6 @@ Format 3 (Bullet Points):
 • Notes: Decision maker, urgent need`;
     }
     
-    // Reset UI
     const preview = DOM.get('importPreview');
     if (preview) preview.style.display = 'none';
     
@@ -2940,9 +2792,6 @@ Format 3 (Bullet Points):
     AppState.importConfidence = {};
 }
 
-/**
- * Close enhanced Smart Import modal
- */
 function closeSmartImportEnhanced() {
     const modal = DOM.get('smartImportModal');
     if (modal) modal.style.display = 'none';
@@ -2951,9 +2800,6 @@ function closeSmartImportEnhanced() {
     ImportState.processingStatus = 'idle';
 }
 
-/**
- * Parse and preview multiple appointments
- */
 function parseAndPreviewImportEnhanced() {
     const textArea = DOM.get('importTextArea');
     if (!textArea) return;
@@ -2964,11 +2810,9 @@ function parseAndPreviewImportEnhanced() {
         return;
     }
     
-    // Update progress
     ImportState.processingStatus = 'parsing';
     updateImportProgress(10, 'Parsing input text...');
     
-    // Split into individual appointments
     const appointments = splitAppointments(text);
     const total = appointments.length;
     ImportState.totalProcessed = total;
@@ -2979,7 +2823,6 @@ function parseAndPreviewImportEnhanced() {
         return;
     }
     
-    // Parse each appointment
     const parsedResults = [];
     const allDuplicates = [];
     const allErrors = [];
@@ -2991,17 +2834,11 @@ function parseAndPreviewImportEnhanced() {
     appointments.forEach((apptText, index) => {
         updateImportProgress(10 + (index / total) * 50, `Parsing appointment ${index + 1} of ${total}...`);
         
-        // Parse the appointment
         const { result, confidence, context } = parseAppointmentTextEnhanced(apptText);
-        
-        // Validate the appointment
         const validationResult = validateAppointmentData(result);
-        
-        // Check for duplicates
         const duplicates = detectDuplicatesEnhanced(result, AppState.appointments);
         const hasSignificantDuplicate = duplicates.some(d => d.confidence >= 70);
         
-        // Track stats
         if (validationResult.isValid) {
             validCount++;
         } else {
@@ -3042,7 +2879,6 @@ function parseAndPreviewImportEnhanced() {
         });
     });
     
-    // Update state
     ImportState.parsedRecords = parsedResults;
     ImportState.validatedRecords = parsedResults.filter(r => r.isValid);
     ImportState.duplicates = allDuplicates;
@@ -3055,12 +2891,11 @@ function parseAndPreviewImportEnhanced() {
     
     updateImportProgress(100, 'Parsing complete!');
     
-    // Render results
     renderImportResults(parsedResults);
 }
 
 // ================================================================
-// ENHANCED APPOINTMENT DETAIL MODAL
+// APPOINTMENT DETAIL MODAL
 // ================================================================
 
 function showAppointmentDetail(appointmentId) {
@@ -3243,7 +3078,7 @@ function cancelAppointment(appointmentId) {
 }
 
 // ================================================================
-// CALENDAR VIEW - COMPLETE IMPLEMENTATION
+// CALENDAR VIEW
 // ================================================================
 
 const CalendarView = {
@@ -4628,7 +4463,6 @@ function handleShortcutAction(action) {
 function initApp() {
     console.log('🚀 Starting ScriptFlow Pro...');
 
-    // Suppress Firebase persistence warning
     const originalWarn = console.warn;
     console.warn = function(...args) {
         if (args[0] && typeof args[0] === 'string' && 
@@ -5066,6 +4900,7 @@ window.skipImportRecord = skipImportRecord;
 window.mergeDuplicate = mergeDuplicate;
 window.saveAllImportedAppointments = saveAllImportedAppointments;
 window.ImportState = ImportState;
+window.SMART_IMPORT_CONFIG = SMART_IMPORT_CONFIG;
 
 // Start the app
 document.addEventListener('DOMContentLoaded', initApp);
