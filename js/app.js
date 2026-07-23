@@ -318,99 +318,6 @@ const Utils = {
         return conflicts;
     },
 
-    parseAppointmentText(text) {
-        const result = {};
-        const confidence = {};
-        const lines = text.split('\n').filter(line => line.trim());
-        const hasKeyValue = lines.some(line => line.includes(':'));
-
-        if (hasKeyValue) {
-            lines.forEach(line => {
-                const [key, ...valueParts] = line.split(':');
-                const rawKey = key.trim().toLowerCase();
-                const rawValue = valueParts.join(':').trim();
-                if (rawValue) {
-                    if (rawKey.includes('best time') || rawKey.includes('callback')) {
-                        const dateMatch = rawValue.match(/(\w+\s+\d{1,2},\s+\d{4})/i);
-                        const timeMatch = rawValue.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
-                        if (dateMatch) {
-                            result['date'] = dateMatch[1];
-                            confidence['date'] = 0.8;
-                        }
-                        if (timeMatch) {
-                            result['time'] = timeMatch[1];
-                            confidence['time'] = 0.8;
-                        }
-                        if (!result['notes']) {
-                            result['notes'] = `Best time: ${rawValue}`;
-                            confidence['notes'] = 0.6;
-                        }
-                    } else {
-                        for (const [field, aliases] of Object.entries(CONFIG.FIELD_MAPPINGS)) {
-                            if (aliases.some(alias => rawKey.includes(alias) || alias.includes(rawKey))) {
-                                result[field] = rawValue;
-                                confidence[field] = 1.0;
-                                break;
-                            }
-                        }
-                    }
-                }
-            });
-        }
-        
-        if (!result['date']) {
-            const fullText = lines.join(' ');
-            const dateMatch = fullText.match(/(\w+\s+\d{1,2},\s+\d{4})/i);
-            if (dateMatch) {
-                result['date'] = dateMatch[1];
-                confidence['date'] = 0.5;
-            }
-        }
-        
-        if (!result['time']) {
-            const fullText = lines.join(' ');
-            const timeMatch = fullText.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
-            if (timeMatch) {
-                result['time'] = timeMatch[1];
-                confidence['time'] = 0.5;
-            }
-        }
-        
-        for (const field of ['name', 'business', 'phone', 'email', 'date', 'time', 'status']) {
-            if (result[field] && !confidence[field]) confidence[field] = 0.5;
-        }
-        return { result, confidence };
-    },
-
-    checkDuplicate(appointment, appointments) {
-        if (!appointment.name && !appointment.phone && !appointment.email) return null;
-        for (let date in appointments) {
-            if (appointments[date]?.reports) {
-                for (const existing of appointments[date].reports) {
-                    let matchCount = 0, totalChecks = 0;
-                    if (appointment.name && existing.contactName) {
-                        totalChecks++;
-                        if (appointment.name.toLowerCase() === existing.contactName.toLowerCase()) matchCount++;
-                    }
-                    if (appointment.phone && existing.phone) {
-                        totalChecks++;
-                        if (appointment.phone === existing.phone) matchCount++;
-                    }
-                    if (appointment.email && existing.email) {
-                        totalChecks++;
-                        if (appointment.email.toLowerCase() === existing.email.toLowerCase()) matchCount++;
-                    }
-                    if (appointment.business && existing.business) {
-                        totalChecks++;
-                        if (appointment.business.toLowerCase() === existing.business.toLowerCase()) matchCount++;
-                    }
-                    if (totalChecks > 0 && matchCount / totalChecks >= 0.6) return existing;
-                }
-            }
-        }
-        return null;
-    },
-
     getOrderedVisible(scripts, scriptOrder) {
         if (scriptOrder && scriptOrder.length > 0) {
             return scriptOrder.filter(id => scripts && scripts[id]);
@@ -1356,7 +1263,6 @@ const Scripts = {
         const container = DOM.get('scriptListContainer');
         if (!container) return;
 
-        // Ensure scripts is an object
         const scripts = AppState.scripts || {};
         const scriptOrder = AppState.scriptOrder || [];
         
@@ -1395,7 +1301,6 @@ const Scripts = {
         }
         container.innerHTML = html;
 
-        // Destroy existing Sortable instance
         if (window.sortableInstance) {
             window.sortableInstance.destroy();
             window.sortableInstance = null;
@@ -1422,7 +1327,6 @@ const Scripts = {
             });
         }
 
-        // Click to load script
         container.querySelectorAll('.script-item').forEach(el => {
             el.addEventListener('click', (e) => {
                 if (e.target.closest('.drag-handle')) return;
@@ -1433,7 +1337,6 @@ const Scripts = {
             });
         });
 
-        // Favorite toggle
         container.querySelectorAll('.favorite-star').forEach(el => {
             el.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1441,7 +1344,6 @@ const Scripts = {
             });
         });
 
-        // Edit script name
         container.querySelectorAll('.script-edit-btn').forEach(el => {
             el.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1450,7 +1352,6 @@ const Scripts = {
             });
         });
 
-        // Delete script
         container.querySelectorAll('.script-delete-btn').forEach(el => {
             el.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1473,10 +1374,8 @@ const Scripts = {
         if (newName && newName.trim() && newName.trim() !== script.name) {
             const updatedName = newName.trim();
             
-            // Update locally
             AppState.scripts[id] = { ...script, name: updatedName };
             
-            // Update in Firebase if available
             if (AppState.isFirebaseReady && AppState.currentUser) {
                 firebase.firestore()
                     .collection('users')
@@ -1487,19 +1386,16 @@ const Scripts = {
                     .then(() => {
                         showToast('Script name updated!', 'success');
                         Scripts.renderSidebar();
-                        // Update the current script name display if this is the active script
                         if (AppState.currentScriptId === id) {
                             DOM.setText('currentScriptName', updatedName);
                         }
                     })
                     .catch(err => {
                         handleError(err, 'Updating script name');
-                        // Revert local change on error
                         AppState.scripts[id] = script;
                         Scripts.renderSidebar();
                     });
             } else {
-                // Offline mode - save to localStorage
                 const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
                 if (fallback[id]) {
                     fallback[id].name = updatedName;
@@ -1521,7 +1417,6 @@ const Scripts = {
             return;
         }
 
-        // Prevent deleting the last script
         const scriptCount = Object.keys(AppState.scripts).length;
         if (scriptCount <= 1) {
             showToast('Cannot delete the last script. Create a new one first.', 'warning');
@@ -1532,16 +1427,10 @@ const Scripts = {
             return;
         }
 
-        // Remove from local state
         delete AppState.scripts[id];
-        
-        // Remove from script order
         AppState.scriptOrder = AppState.scriptOrder.filter(scriptId => scriptId !== id);
-        
-        // Remove from favorites
         AppState.scriptFavorites = AppState.scriptFavorites.filter(scriptId => scriptId !== id);
 
-        // Remove from Firebase if available
         if (AppState.isFirebaseReady && AppState.currentUser) {
             firebase.firestore()
                 .collection('users')
@@ -1551,8 +1440,6 @@ const Scripts = {
                 .delete()
                 .then(() => {
                     showToast(`Script "${script.name}" deleted`, 'info');
-                    
-                    // If the current script was deleted, load the first available script
                     if (AppState.currentScriptId === id) {
                         const remainingIds = Object.keys(AppState.scripts);
                         if (remainingIds.length > 0) {
@@ -1564,19 +1451,16 @@ const Scripts = {
                 })
                 .catch(err => {
                     handleError(err, 'Deleting script');
-                    // Re-add the script on error
                     AppState.scripts[id] = script;
                     AppState.scriptOrder.push(id);
                     Scripts.renderSidebar();
                 });
         } else {
-            // Offline mode - update localStorage
             const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
             delete fallback[id];
             localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
             
             showToast(`Script "${script.name}" deleted`, 'info');
-            
             if (AppState.currentScriptId === id) {
                 const remainingIds = Object.keys(AppState.scripts);
                 if (remainingIds.length > 0) {
@@ -1609,7 +1493,6 @@ const Scripts = {
 
     loadScript: function(id) {
         if (!AppState.scripts[id]) {
-            // If script doesn't exist, try to load the first available script
             const ids = Object.keys(AppState.scripts);
             if (ids.length > 0) {
                 id = ids[0];
@@ -1793,7 +1676,6 @@ const Scripts = {
             version: 1
         };
 
-        // Add to local state
         AppState.scripts[id] = newScript;
         AppState.scriptOrder.push(id);
 
@@ -1817,13 +1699,11 @@ const Scripts = {
                 })
                 .catch(err => {
                     handleError(err, 'Creating script');
-                    // Revert local changes on error
                     delete AppState.scripts[id];
                     AppState.scriptOrder = AppState.scriptOrder.filter(sid => sid !== id);
                     Scripts.renderSidebar();
                 });
         } else {
-            // Offline mode - save to localStorage
             const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
             fallback[id] = newScript;
             localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
@@ -1836,7 +1716,6 @@ const Scripts = {
     },
 
     saveScriptOrder: function() {
-        // Save script order to Firebase or localStorage
         if (AppState.isFirebaseReady && AppState.currentUser) {
             firebase.firestore()
                 .collection('users')
@@ -1856,20 +1735,23 @@ const Scripts = {
 };
 
 // ================================================================
-// ENHANCED SMART IMPORT FUNCTIONS
+// ENHANCED SMART IMPORT FUNCTIONS WITH DATE SELECTION
 // ================================================================
 
-/**
- * Enhanced intelligent parsing of appointment text with context awareness
- */
-function parseAppointmentTextEnhanced(text) {
+function parseAppointmentTextEnhanced(text, defaultDate = null) {
     const result = {};
     const confidence = {};
     const context = {
         hasKeyValue: false,
         hasBulletPoints: false,
         hasNaturalLanguage: false,
-        detectedFormat: 'unknown'
+        detectedFormat: 'unknown',
+        synonyms: {
+            date: [],
+            time: [],
+            status: [],
+            assigned: []
+        }
     };
     
     const cleanText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -1885,20 +1767,52 @@ function parseAppointmentTextEnhanced(text) {
     else if (context.hasNaturalLanguage) context.detectedFormat = 'natural_language';
     
     if (context.detectedFormat === 'key_value') {
-        parseKeyValueFormat(lines, result, confidence);
+        parseKeyValueFormatEnhanced(lines, result, confidence, context);
     } else if (context.detectedFormat === 'bullet_points') {
         parseBulletPointFormat(lines, result, confidence);
     } else {
         parseNaturalLanguageFormat(fullText, lines, result, confidence);
     }
     
-    enhanceParsedData(result, confidence, fullText);
+    enhanceParsedDataEnhanced(result, confidence, fullText, context, defaultDate);
     
     return { result, confidence, context };
 }
 
-function parseKeyValueFormat(lines, result, confidence) {
+function parseKeyValueFormatEnhanced(lines, result, confidence, context) {
     const separators = [':', '=', '->', '=>'];
+    
+    const synonymMap = {
+        'best time': 'time',
+        'callback time': 'time',
+        'callback date': 'date',
+        'scheduled date': 'date',
+        'appointment date': 'date',
+        'meeting date': 'date',
+        'call date': 'date',
+        'scheduled time': 'time',
+        'meeting time': 'time',
+        'appointment time': 'time',
+        'call time': 'time',
+        'lead status': 'status',
+        'call status': 'status',
+        'appointment status': 'status',
+        'assigned agent': 'assigned',
+        'assigned to': 'assigned',
+        'team member': 'assigned',
+        'handler': 'assigned',
+        'contact number': 'phone',
+        'mobile number': 'phone',
+        'cell phone': 'phone',
+        'business name': 'business',
+        'company name': 'business',
+        'organization name': 'business',
+        'full name': 'name',
+        'contact name': 'name',
+        'client name': 'name',
+        'customer name': 'name',
+        'person name': 'name'
+    };
     
     lines.forEach(line => {
         let separatorIndex = -1;
@@ -1913,28 +1827,74 @@ function parseKeyValueFormat(lines, result, confidence) {
         }
         
         if (separatorIndex !== -1) {
-            const key = line.substring(0, separatorIndex).trim().toLowerCase();
+            let key = line.substring(0, separatorIndex).trim().toLowerCase();
             const value = line.substring(separatorIndex + separatorUsed.length).trim();
             
             if (value) {
-                const matchedField = matchFieldName(key);
-                if (matchedField) {
+                let matchedField = null;
+                
+                if (synonymMap[key]) {
+                    matchedField = synonymMap[key];
+                    context.synonyms[matchedField] = context.synonyms[matchedField] || [];
+                    context.synonyms[matchedField].push(key);
+                }
+                
+                if (!matchedField) {
+                    matchedField = matchFieldName(key);
+                }
+                
+                if (key.includes('best time') || key.includes('callback') && key.includes('time')) {
+                    const dateMatch = value.match(/(\w+\s+\d{1,2},?\s+\d{4})/i);
+                    const timeMatch = value.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
+                    const relativeDateMatch = value.match(/\b(today|tomorrow|yesterday|next week|this week)\b/i);
+                    
+                    if (dateMatch) {
+                        result['date'] = dateMatch[1];
+                        confidence['date'] = 0.9;
+                        context.synonyms.date.push('best time');
+                    }
+                    if (timeMatch) {
+                        result['time'] = timeMatch[1];
+                        confidence['time'] = 0.9;
+                        context.synonyms.time.push('best time');
+                    }
+                    if (relativeDateMatch) {
+                        const relativeDate = parseRelativeDate(relativeDateMatch[1]);
+                        if (relativeDate) {
+                            result['date'] = relativeDate;
+                            confidence['date'] = 0.85;
+                            context.synonyms.date.push(relativeDateMatch[1]);
+                        }
+                    }
+                    if (!result['notes']) {
+                        result['notes'] = '';
+                    }
+                    result['notes'] += (result['notes'] ? '\n' : '') + `Best time: ${value}`;
+                    confidence['notes'] = 0.6;
+                } else if (matchedField) {
                     result[matchedField] = value;
                     confidence[matchedField] = 0.9;
-                } else {
-                    if (!result.notes) {
-                        result.notes = '';
+                    if (matchedField === 'date') {
+                        const parsedDate = parseDateStringEnhanced(value);
+                        if (parsedDate) {
+                            result['date'] = parsedDate;
+                            confidence['date'] = 0.95;
+                        }
                     }
-                    result.notes += (result.notes ? '\n' : '') + `${key}: ${value}`;
-                    confidence.notes = 0.5;
+                } else {
+                    if (!result['notes']) {
+                        result['notes'] = '';
+                    }
+                    result['notes'] += (result['notes'] ? '\n' : '') + `${key}: ${value}`;
+                    confidence['notes'] = 0.5;
                 }
             }
         } else if (line.trim()) {
-            if (!result.notes) {
-                result.notes = '';
+            if (!result['notes']) {
+                result['notes'] = '';
             }
-            result.notes += (result.notes ? '\n' : '') + line.trim();
-            confidence.notes = 0.4;
+            result['notes'] += (result['notes'] ? '\n' : '') + line.trim();
+            confidence['notes'] = 0.4;
         }
     });
 }
@@ -2124,7 +2084,49 @@ function matchFieldName(key) {
     return null;
 }
 
-function enhanceParsedData(result, confidence, fullText) {
+function parseRelativeDate(expression) {
+    const today = new Date();
+    const expr = expression.toLowerCase().trim();
+    
+    if (expr === 'today') {
+        return Utils.formatDateForCompare(today);
+    }
+    if (expr === 'tomorrow') {
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        return Utils.formatDateForCompare(tomorrow);
+    }
+    if (expr === 'yesterday') {
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        return Utils.formatDateForCompare(yesterday);
+    }
+    if (expr === 'next week' || expr === 'next week') {
+        const nextWeek = new Date(today);
+        nextWeek.setDate(nextWeek.getDate() + 7);
+        return Utils.formatDateForCompare(nextWeek);
+    }
+    if (expr === 'this week') {
+        const thisWeek = new Date(today);
+        thisWeek.setDate(thisWeek.getDate() + (7 - thisWeek.getDay()));
+        return Utils.formatDateForCompare(thisWeek);
+    }
+    
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayIndex = dayNames.indexOf(expr);
+    if (dayIndex !== -1) {
+        const currentDay = today.getDay();
+        let daysUntil = dayIndex - currentDay;
+        if (daysUntil <= 0) daysUntil += 7;
+        const targetDate = new Date(today);
+        targetDate.setDate(targetDate.getDate() + daysUntil);
+        return Utils.formatDateForCompare(targetDate);
+    }
+    
+    return null;
+}
+
+function enhanceParsedDataEnhanced(result, confidence, fullText, context, defaultDate) {
     if (result.phone) {
         result.phone = normalizePhoneNumber(result.phone);
     }
@@ -2139,6 +2141,19 @@ function enhanceParsedData(result, confidence, fullText) {
             result.date = parsedDate;
             confidence.date = Math.max(confidence.date || 0, 0.9);
         }
+    } else if (defaultDate) {
+        result.date = defaultDate;
+        confidence.date = 1.0;
+        context.synonyms.date = context.synonyms.date || [];
+        context.synonyms.date.push('user selected');
+    }
+    
+    if (result.time) {
+        const normalizedTime = normalizeTimeEnhanced(result.time);
+        if (normalizedTime) {
+            result.time = normalizedTime;
+            confidence.time = Math.max(confidence.time || 0, 0.9);
+        }
     }
     
     if (!result.role && result.notes) {
@@ -2151,23 +2166,96 @@ function enhanceParsedData(result, confidence, fullText) {
     
     if (result.notes) {
         const sentimentIndicators = {
-            high_interest: /(?:high interest|very interested|excited|enthusiastic|positive|great|excellent)/i,
-            medium_interest: /(?:interested|considering|thinking about|maybe|possibly)/i,
-            low_interest: /(?:not interested|no interest|uninterested|not sure|hesitant|maybe later)/i,
-            cooperative: /(?:cooperative|helpful|easy to talk to|friendly|polite|professional)/i,
-            difficult: /(?:difficult|challenging|uncooperative|rude|unpleasant|hostile)/i,
-            urgent: /(?:urgent|asap|immediately|quickly|as soon as possible|emergency)/i
+            high_interest: /(?:high interest|very interested|excited|enthusiastic|positive|great|excellent|wants|would like|looking forward)/i,
+            medium_interest: /(?:interested|considering|thinking about|maybe|possibly|curious|willing to discuss)/i,
+            low_interest: /(?:not interested|no interest|uninterested|not sure|hesitant|maybe later|not now)/i,
+            cooperative: /(?:cooperative|helpful|easy to talk to|friendly|polite|professional|warm|great conversation)/i,
+            difficult: /(?:difficult|challenging|uncooperative|rude|unpleasant|hostile|argumentative)/i,
+            urgent: /(?:urgent|asap|immediately|quickly|as soon as possible|emergency|time sensitive)/i,
+            decision_maker: /(?:owner|ceo|president|founder|director|vp|vice president|head of|lead|manager|decision maker)/i,
+            no_website: /(?:no website|doesn't have a website|needs website|wants website|website redesign|new website)/i,
+            callback_requested: /(?:callback|call back|return call|follow up|follow-up|next steps|schedule call)/i,
+            referred: /(?:referred|reference|referral|recommended|suggested|from|sent by)/i
         };
         
+        const tags = result.tags || [];
         for (const [key, pattern] of Object.entries(sentimentIndicators)) {
             if (pattern.test(result.notes)) {
-                if (!result.tags) result.tags = [];
-                result.tags.push(key);
+                if (!tags.includes(key)) {
+                    tags.push(key);
+                }
                 confidence.tags = 0.6;
-                break;
+                context.synonyms[key] = context.synonyms[key] || [];
+                context.synonyms[key].push(key);
             }
         }
+        result.tags = tags;
     }
+}
+
+function normalizeTimeEnhanced(timeStr) {
+    if (!timeStr) return null;
+    
+    let cleaned = timeStr.trim();
+    
+    const timezoneMatch = cleaned.match(/\b(EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC|ET|CT|MT|PT)\b/i);
+    let timezone = null;
+    if (timezoneMatch) {
+        timezone = timezoneMatch[1].toUpperCase();
+        cleaned = cleaned.replace(/\b(EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC|ET|CT|MT|PT)\b/i, '').trim();
+    }
+    
+    let hour, minute, period;
+    let match = cleaned.match(/^(\d{1,2}):?(\d{2})?\s*(AM|PM)?$/i);
+    
+    if (!match) {
+        match = cleaned.match(/at\s+(\d{1,2}):?(\d{2})?\s*(AM|PM)?/i);
+        if (!match) {
+            match = cleaned.match(/^(\d{1,2})\s*(AM|PM)$/i);
+            if (match) {
+                hour = parseInt(match[1]);
+                period = match[2].toUpperCase();
+                minute = 0;
+            } else {
+                return null;
+            }
+        } else {
+            hour = parseInt(match[1]);
+            minute = parseInt(match[2] || '0');
+            period = match[3] ? match[3].toUpperCase() : null;
+        }
+    } else {
+        hour = parseInt(match[1]);
+        minute = parseInt(match[2] || '0');
+        period = match[3] ? match[3].toUpperCase() : null;
+    }
+    
+    if (hour < 1 || hour > 12) {
+        return null;
+    }
+    
+    if (minute < 0 || minute > 59) {
+        return null;
+    }
+    
+    if (!period) {
+        if (hour >= 6 && hour <= 11) {
+            period = 'AM';
+        } else if (hour === 12) {
+            period = 'PM';
+        } else if (hour >= 1 && hour <= 5) {
+            period = 'PM';
+        } else {
+            period = 'AM';
+        }
+    }
+    
+    let formatted = `${hour}:${String(minute).padStart(2, '0')} ${period}`;
+    if (timezone) {
+        formatted += ` ${timezone}`;
+    }
+    
+    return formatted;
 }
 
 function normalizePhoneNumber(phone) {
@@ -2491,7 +2579,7 @@ function updateImportProgress(percent, message) {
     }
 }
 
-function renderImportResults(records) {
+function renderImportResultsEnhanced(records) {
     const preview = DOM.get('importPreview');
     const resultsContainer = DOM.get('importResultsContainer');
     const saveBtn = DOM.get('saveImportBtn');
@@ -2543,6 +2631,9 @@ function renderImportResults(records) {
         const avgConfidence = getAverageConfidence(record.confidence);
         const confColor = avgConfidence >= 0.7 ? 'high' : avgConfidence >= 0.4 ? 'medium' : 'low';
         
+        const synonyms = record.context?.synonyms || {};
+        const hasSynonyms = Object.values(synonyms).some(arr => arr && arr.length > 0);
+        
         resultsHtml += `
             <div class="import-record ${statusClass} ${hasDuplicate ? 'duplicate' : ''}">
                 <div class="record-header" onclick="toggleImportRecord(this)">
@@ -2553,8 +2644,10 @@ function renderImportResults(records) {
                     <div class="record-summary">
                         <span class="record-name">${Utils.escapeHtml(record.validated.name || record.parsed.name || 'Unknown')}</span>
                         <span class="record-business">${Utils.escapeHtml(record.validated.business || record.parsed.business || 'Unknown Business')}</span>
+                        ${record.parsed.date ? `<span class="record-date">📅 ${Utils.escapeHtml(record.parsed.date)}</span>` : ''}
                     </div>
                     <div class="record-badges">
+                        ${hasSynonyms ? `<span class="badge synonym">🔍 Synonyms</span>` : ''}
                         ${hasDuplicate ? '<span class="badge duplicate">🔄 Duplicate</span>' : ''}
                         ${hasWarnings ? `<span class="badge warning">⚠️ ${record.warnings.length}</span>` : ''}
                         ${!record.isValid ? `<span class="badge error">❌ ${record.errors.length}</span>` : ''}
@@ -2564,20 +2657,32 @@ function renderImportResults(records) {
                 </div>
                 <div class="record-body" style="display:none;">
                     <div class="record-fields">
-                        ${renderRecordFields(record)}
+                        ${renderRecordFieldsEnhanced(record)}
                     </div>
+                    
+                    ${hasSynonyms ? `
+                        <div class="record-synonyms">
+                            <strong>🔍 Detected Synonyms:</strong>
+                            <ul>${Object.entries(synonyms).filter(([key, arr]) => arr && arr.length > 0).map(([key, arr]) => 
+                                `<li><strong>${key}:</strong> ${arr.join(', ')}</li>`
+                            ).join('')}</ul>
+                        </div>
+                    ` : ''}
+                    
                     ${record.warnings && record.warnings.length > 0 ? `
                         <div class="record-warnings">
                             <strong>⚠️ Warnings:</strong>
                             <ul>${record.warnings.map(w => `<li>${w.field}: ${w.message}</li>`).join('')}</ul>
                         </div>
                     ` : ''}
+                    
                     ${!record.isValid ? `
                         <div class="record-errors">
                             <strong>❌ Errors:</strong>
                             <ul>${record.errors.map(e => `<li>${e.field}: ${e.message}</li>`).join('')}</ul>
                         </div>
                     ` : ''}
+                    
                     ${record.hasDuplicate ? `
                         <div class="record-duplicates">
                             <strong>🔄 Potential Duplicates:</strong>
@@ -2589,6 +2694,7 @@ function renderImportResults(records) {
                             </button>
                         </div>
                     ` : ''}
+                    
                     <div class="record-actions">
                         <button class="btn-icon" onclick="window.editImportRecord('${record.index}')" style="background:var(--primary); color:white;">
                             <i class="fas fa-edit"></i> Edit
@@ -2620,7 +2726,7 @@ function renderImportResults(records) {
     }
 }
 
-function renderRecordFields(record) {
+function renderRecordFieldsEnhanced(record) {
     const fields = record.validated || record.parsed || {};
     const confidence = record.confidence || {};
     
@@ -2644,10 +2750,12 @@ function renderRecordFields(record) {
         if (fields[field]) {
             const conf = confidence[field] || 0.5;
             const confClass = conf >= 0.7 ? 'high' : (conf >= 0.4 ? 'medium' : 'low');
+            const isDate = field === 'date';
+            const valueDisplay = isDate ? Utils.formatDate(fields[field]) : Utils.escapeHtml(fields[field]);
             html += `
-                <div class="field-row">
+                <div class="field-row ${isDate ? 'date-field' : ''}">
                     <span class="field-label">${fieldLabels[field] || field}</span>
-                    <span class="field-value">${Utils.escapeHtml(fields[field])}</span>
+                    <span class="field-value">${valueDisplay}</span>
                     <span class="field-confidence ${confClass}">${Math.round(conf * 100)}%</span>
                 </div>
             `;
@@ -2818,7 +2926,7 @@ function saveImportRecordEdit(index) {
     record.errors = validationResult.errors;
     record.warnings = validationResult.warnings;
     
-    renderImportResults(ImportState.parsedRecords);
+    renderImportResultsEnhanced(ImportState.parsedRecords);
     
     if (validationResult.isValid) {
         showToast(`Record #${index} updated successfully!`, 'success');
@@ -2828,7 +2936,7 @@ function saveImportRecordEdit(index) {
 }
 
 function cancelImportRecordEdit(index) {
-    renderImportResults(ImportState.parsedRecords);
+    renderImportResultsEnhanced(ImportState.parsedRecords);
 }
 
 function skipImportRecord(index) {
@@ -2837,7 +2945,7 @@ function skipImportRecord(index) {
     ImportState.parsedRecords = ImportState.parsedRecords.filter(r => r.index !== index);
     ImportState.validatedRecords = ImportState.validatedRecords.filter(r => r.index !== index);
     
-    renderImportResults(ImportState.parsedRecords);
+    renderImportResultsEnhanced(ImportState.parsedRecords);
     showToast(`Record #${index} skipped`, 'info');
 }
 
@@ -2882,7 +2990,7 @@ function mergeDuplicate(index) {
     
     ImportState.parsedRecords = ImportState.parsedRecords.filter(r => r.index !== index);
     ImportState.validatedRecords = ImportState.validatedRecords.filter(r => r.index !== index);
-    renderImportResults(ImportState.parsedRecords);
+    renderImportResultsEnhanced(ImportState.parsedRecords);
 }
 
 function saveAllImportedAppointments() {
@@ -2968,34 +3076,23 @@ function openSmartImportEnhanced() {
     ImportState.processingStatus = 'idle';
     ImportState.progress = 0;
     
+    const dateInput = DOM.get('importDefaultDate');
+    if (dateInput) {
+        dateInput.value = Utils.getTodayStr();
+    }
+    
     const textArea = DOM.get('importTextArea');
     if (textArea) {
         textArea.value = '';
-        textArea.placeholder = `Paste multiple appointments here. Each appointment can be in various formats:
+        textArea.placeholder = `Paste appointment details here. The system will intelligently parse:
 
-Format 1 (Key-Value):
-Business: ABC Company
-Name: John Doe
-Phone: +1-555-123-4567
-Email: john@abc.com
-Date: July 20, 2024
-Time: 2:30 PM
-Status: Warm Callback
-Notes: High interest, referred by Sarah
-
-Format 2 (Natural):
-John Smith from XYZ Corp called today. 
-Phone: 555-123-4567, Email: john@xyz.com.
-Best time for callback: Monday July 22 at 3 PM.
-Very interested in our services.
-
-Format 3 (Bullet Points):
-• ABC Company - Sarah Johnson
-• Phone: 555-987-6543
-• Email: sarah@abc.com
-• Appointment on July 20 at 10:00 AM
-• Status: Hot Transfer
-• Notes: Decision maker, urgent need`;
+Example:
+Business Name/Company : Correa and Son's Landscaping LLC
+Name : Kelvin
+Role : Owner
+Phone Number: +12678808990
+Best Time for Warm Callback: Tomorrow at 1pm EDT
+Notes: Custom website preview offered + no website currently + high interest, positive and booked a manager callback to review the website.`;
     }
     
     const preview = DOM.get('importPreview');
@@ -3035,6 +3132,9 @@ function parseAndPreviewImportEnhanced() {
         return;
     }
     
+    const dateInput = DOM.get('importDefaultDate');
+    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
+    
     ImportState.processingStatus = 'parsing';
     updateImportProgress(10, 'Parsing input text...');
     
@@ -3059,7 +3159,7 @@ function parseAndPreviewImportEnhanced() {
     appointments.forEach((apptText, index) => {
         updateImportProgress(10 + (index / total) * 50, `Parsing appointment ${index + 1} of ${total}...`);
         
-        const { result, confidence, context } = parseAppointmentTextEnhanced(apptText);
+        const { result, confidence, context } = parseAppointmentTextEnhanced(apptText, defaultDate);
         const validationResult = validateAppointmentData(result);
         const duplicates = detectDuplicatesEnhanced(result, AppState.appointments);
         const hasSignificantDuplicate = duplicates.some(d => d.confidence >= 70);
@@ -3116,7 +3216,82 @@ function parseAndPreviewImportEnhanced() {
     
     updateImportProgress(100, 'Parsing complete!');
     
-    renderImportResults(parsedResults);
+    renderImportResultsEnhanced(parsedResults);
+}
+
+function generateImportTemplate() {
+    const dateInput = DOM.get('importDefaultDate');
+    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
+    const formattedDate = defaultDate ? Utils.formatDate(defaultDate) : 'Today';
+    
+    const template = `Business Name/Company : [Enter Business Name]
+Name : [Enter Contact Name]
+Role : [Owner/Manager/Decision Maker]
+Phone Number: [Enter Phone Number]
+Best Time for Warm Callback: ${formattedDate} at [Time] [Timezone]
+
+Notes: [Enter notes about the conversation, interest level, and next steps]`;
+    
+    const textArea = DOM.get('importTextArea');
+    if (textArea) {
+        if (textArea.value) {
+            if (!confirm('This will replace your current text. Continue?')) return;
+        }
+        textArea.value = template;
+        showToast('Template inserted! Fill in the details and click Parse.', 'success');
+    }
+}
+
+async function quickImportFromClipboard() {
+    try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+            const dateInput = DOM.get('importDefaultDate');
+            const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
+            
+            const hasBusiness = /business|company|organization/i.test(text);
+            const hasName = /name|contact|client/i.test(text);
+            const hasPhone = /phone|mobile|call|number/i.test(text);
+            
+            if (hasBusiness && hasName && hasPhone) {
+                openSmartImportEnhanced();
+                const textArea = DOM.get('importTextArea');
+                if (textArea) {
+                    textArea.value = text;
+                    if (dateInput) {
+                        dateInput.value = defaultDate;
+                    }
+                    setTimeout(() => {
+                        parseAndPreviewImportEnhanced();
+                    }, 300);
+                }
+            } else {
+                showToast('Clipboard content doesn\'t match appointment format. Please paste manually.', 'warning');
+            }
+        } else {
+            showToast('Clipboard is empty', 'warning');
+        }
+    } catch (error) {
+        showToast('Unable to read clipboard. Please paste manually.', 'error');
+    }
+}
+
+function expandAllRecords() {
+    document.querySelectorAll('.import-record .record-body').forEach(body => {
+        body.style.display = 'block';
+    });
+    document.querySelectorAll('.import-record .record-toggle').forEach(toggle => {
+        toggle.textContent = '▼';
+    });
+}
+
+function collapseAllRecords() {
+    document.querySelectorAll('.import-record .record-body').forEach(body => {
+        body.style.display = 'none';
+    });
+    document.querySelectorAll('.import-record .record-toggle').forEach(toggle => {
+        toggle.textContent = '▶';
+    });
 }
 
 // ================================================================
@@ -4712,7 +4887,6 @@ function initApp() {
     AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS, ...AppState.customShortcuts };
     AppState.scriptFavorites = JSON.parse(localStorage.getItem('scriptFavorites') || '[]');
 
-    // Ensure scripts exist
     if (!AppState.scripts || Object.keys(AppState.scripts).length === 0) {
         AppState.scripts = {};
         AppState.scriptOrder = [];
@@ -4791,6 +4965,35 @@ function initApp() {
     if (parseBtn) parseBtn.addEventListener('click', parseAndPreviewImportEnhanced);
     if (saveImportBtn) saveImportBtn.addEventListener('click', saveAllImportedAppointments);
     if (closeImportBtn) closeImportBtn.addEventListener('click', closeSmartImportEnhanced);
+
+    // Template and Clipboard buttons
+    const templateBtn = DOM.get('quickTemplateBtn');
+    if (templateBtn) {
+        templateBtn.addEventListener('click', generateImportTemplate);
+    }
+
+    const clipboardBtn = DOM.get('clipboardImportBtn');
+    if (clipboardBtn) {
+        clipboardBtn.addEventListener('click', quickImportFromClipboard);
+    }
+
+    // Set default date on modal open
+    const importModal = DOM.get('smartImportModal');
+    if (importModal) {
+        const observer = new MutationObserver(() => {
+            if (importModal.style.display === 'flex') {
+                const dateInput = DOM.get('importDefaultDate');
+                if (dateInput && !dateInput.value) {
+                    dateInput.value = Utils.getTodayStr();
+                }
+            }
+        });
+        observer.observe(importModal, { attributes: true, attributeFilter: ['style'] });
+    }
+
+    // Expand/Collapse all records
+    window.expandAllRecords = expandAllRecords;
+    window.collapseAllRecords = collapseAllRecords;
 
     const copyBtn = DOM.get('apptCopyBtn');
     const editBtn = DOM.get('apptEditBtn');
@@ -5134,6 +5337,10 @@ window.mergeDuplicate = mergeDuplicate;
 window.saveAllImportedAppointments = saveAllImportedAppointments;
 window.ImportState = ImportState;
 window.SMART_IMPORT_CONFIG = SMART_IMPORT_CONFIG;
+window.generateImportTemplate = generateImportTemplate;
+window.quickImportFromClipboard = quickImportFromClipboard;
+window.expandAllRecords = expandAllRecords;
+window.collapseAllRecords = collapseAllRecords;
 
 // Start the app
 document.addEventListener('DOMContentLoaded', initApp);

@@ -117,6 +117,11 @@ body {
     100% { transform: rotate(360deg); }
 }
 
+@keyframes synonymPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
 .fade-in { animation: fadeIn 0.4s ease forwards; }
 .fade-in-up { animation: fadeInUp 0.5s ease forwards; }
 .scale-in { animation: scaleIn 0.4s ease forwards; }
@@ -1810,101 +1815,53 @@ body {
 }
 
 /* ============================================================
-   ANALYTICS
-   ============================================================ */
-.analytics-container { display: flex; flex-direction: column; gap: 24px; }
-
-.analytics-filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    padding: 16px;
-    background: var(--bg-card);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-color);
-    align-items: center;
-}
-
-.analytics-filters label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-muted);
-}
-
-.analytics-filters input,
-.analytics-filters select {
-    padding: 6px 12px;
-    border-radius: var(--radius-full);
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    font-size: 0.8rem;
-}
-
-.report-metrics {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-    gap: 12px;
-}
-
-.metric-card {
-    background: var(--bg-card);
-    padding: 16px;
-    border-radius: 12px;
-    text-align: center;
-    border: 1px solid var(--border-color);
-    transition: var(--transition);
-}
-
-.metric-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-md);
-}
-
-.metric-value { font-size: 1.8rem; font-weight: 700; }
-.metric-label { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
-
-.feature-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    padding: 16px;
-    border-radius: 12px;
-}
-
-.feature-card h4 {
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.chart-container { position: relative; height: 250px; width: 100%; }
-.chart-container-sm { height: 180px; }
-
-/* ============================================================
-   BULK ACTIONS
-   ============================================================ */
-.bulk-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--border-color);
-    transition: var(--transition);
-}
-
-.bulk-item:hover { background: var(--bg-primary); }
-
-.bulk-item input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--primary);
-    cursor: pointer;
-}
-
-/* ============================================================
    SMART IMPORT - ENHANCED STYLES
    ============================================================ */
+
+/* Date Selection Area */
+.import-date-selector {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+    background: var(--bg-primary);
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+}
+
+.import-date-selector label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.import-date-selector input[type="date"] {
+    padding: 8px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    min-width: 160px;
+}
+
+.import-date-selector input[type="date"]:focus {
+    outline: 2px solid var(--primary);
+    border-color: var(--primary);
+}
+
+/* Format Badges */
+.format-badge {
+    padding: 2px 12px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
 
 /* Progress Bar */
 .progress-bar-track {
@@ -2034,6 +1991,12 @@ body {
     color: var(--text-secondary);
 }
 
+.record-date {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-left: 6px;
+}
+
 .record-badges {
     display: flex;
     gap: 6px;
@@ -2067,6 +2030,11 @@ body {
 .badge.confidence {
     background: var(--primary);
     color: white;
+    transition: all 0.3s ease;
+}
+
+.badge.confidence:hover {
+    transform: scale(1.05);
 }
 
 .badge.confidence.low {
@@ -2080,6 +2048,13 @@ body {
 
 .badge.confidence.high {
     background: var(--success);
+}
+
+/* Synonyms Badge */
+.badge.synonym {
+    background: var(--secondary);
+    color: white;
+    animation: synonymPulse 2s ease-in-out infinite;
 }
 
 .record-toggle {
@@ -2115,6 +2090,11 @@ body {
     padding: 4px 8px;
     background: var(--bg-primary);
     border-radius: 6px;
+}
+
+.field-row.date-field {
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.15);
 }
 
 .field-label {
@@ -2155,7 +2135,8 @@ body {
 /* Record Warnings & Errors */
 .record-warnings,
 .record-errors,
-.record-duplicates {
+.record-duplicates,
+.record-synonyms {
     padding: 8px 12px;
     border-radius: 8px;
     margin: 4px 0;
@@ -2176,9 +2157,15 @@ body {
     border-left: 3px solid var(--warning);
 }
 
+.record-synonyms {
+    background: rgba(139, 92, 246, 0.1);
+    border-left: 3px solid var(--secondary);
+}
+
 .record-warnings ul,
 .record-errors ul,
-.record-duplicates ul {
+.record-duplicates ul,
+.record-synonyms ul {
     margin: 4px 0 0 16px;
     font-size: 0.8rem;
 }
@@ -2193,6 +2180,14 @@ body {
 
 .record-duplicates li {
     color: var(--warning);
+}
+
+.record-synonyms li {
+    color: var(--text-secondary);
+}
+
+.record-synonyms li strong {
+    color: var(--secondary);
 }
 
 /* Record Actions */
@@ -2261,6 +2256,99 @@ body {
     grid-column: 1 / -1;
     margin-top: 4px;
     flex-wrap: wrap;
+}
+
+/* ============================================================
+   ANALYTICS
+   ============================================================ */
+.analytics-container { display: flex; flex-direction: column; gap: 24px; }
+
+.analytics-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 16px;
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    align-items: center;
+}
+
+.analytics-filters label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.analytics-filters input,
+.analytics-filters select {
+    padding: 6px 12px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.8rem;
+}
+
+.report-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+}
+
+.metric-card {
+    background: var(--bg-card);
+    padding: 16px;
+    border-radius: 12px;
+    text-align: center;
+    border: 1px solid var(--border-color);
+    transition: var(--transition);
+}
+
+.metric-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+}
+
+.metric-value { font-size: 1.8rem; font-weight: 700; }
+.metric-label { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+
+.feature-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 16px;
+    border-radius: 12px;
+}
+
+.feature-card h4 {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.chart-container { position: relative; height: 250px; width: 100%; }
+.chart-container-sm { height: 180px; }
+
+/* ============================================================
+   BULK ACTIONS
+   ============================================================ */
+.bulk-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    transition: var(--transition);
+}
+
+.bulk-item:hover { background: var(--bg-primary); }
+
+.bulk-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+    cursor: pointer;
 }
 
 /* ============================================================
@@ -2446,6 +2534,16 @@ body {
     .analytics-filters select { width: 100%; }
     .report-metrics { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .script-actions { justify-content: flex-start; }
+    
+    /* Import responsive */
+    .import-date-selector {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    .import-date-selector input[type="date"] {
+        width: 100%;
+    }
 }
 
 @media (max-width: 480px) {
@@ -2552,6 +2650,30 @@ body {
     .script-item .key-hint {
         font-size: 0.6rem;
         padding: 1px 6px;
+    }
+    
+    /* Import responsive */
+    .import-date-selector {
+        padding: 10px 12px;
+    }
+    .import-date-selector label {
+        font-size: 0.75rem;
+    }
+    .import-date-selector input[type="date"] {
+        font-size: 0.75rem;
+        padding: 6px 10px;
+        min-width: 120px;
+    }
+    .record-summary {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .record-date {
+        font-size: 0.65rem;
+        margin-left: 0;
+    }
+    .record-fields {
+        grid-template-columns: 1fr;
     }
 }
 
