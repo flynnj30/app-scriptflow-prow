@@ -111,7 +111,7 @@
                     <div class="stat"><span class="stat-label"><i class="fas fa-star"></i> Avg Score</span><span class="stat-number" id="avgScore">0</span></div>
                     <div class="stat"><span class="stat-label"><i class="fas fa-tasks"></i> Tasks</span><span class="stat-number" id="pendingTasks">0</span></div>
                 </div>
-                <div class="action-buttons">
+                <div class="action-buttons" id="actionButtons">
                     <button class="btn-icon" id="quickReportBtn"><i class="fas fa-magic"></i> Smart Import</button>
                     <button class="btn-icon" id="bulkActionsBtn"><i class="fas fa-check-double"></i> Bulk Actions</button>
                     <label class="btn-icon csv-upload-btn"><i class="fas fa-file-upload"></i> CSV<input type="file" id="csvFileInput" accept=".csv" /></label>
@@ -161,18 +161,38 @@
         </div>
     </div>
 
-    <!-- Modals -->
+    <!-- Smart Import Modal -->
     <div id="smartImportModal" class="modal-overlay" style="display:none;">
-        <div class="modal-card" style="max-width: 900px;">
-            <h3><i class="fas fa-magic"></i> Smart Import <span class="version-chip">Enhanced</span></h3>
+        <div class="modal-card" style="max-width: 950px;">
+            <h3>
+                <i class="fas fa-magic"></i> Smart Import 
+                <span class="version-chip">Enhanced v2.0</span>
+                <span class="version-chip" style="background:var(--success); color:white;">
+                    <i class="fas fa-rocket"></i> Intelligent
+                </span>
+            </h3>
             <p style="color:var(--text-muted); margin-bottom:16px;">
-                Paste appointment details below. The system will intelligently parse and extract all relevant information from various formats.
+                Paste appointment details below. The system intelligently parses multiple formats with advanced validation and duplicate detection.
             </p>
             
             <!-- Input Area -->
             <div class="form-group">
                 <label for="importTextArea">📝 Paste Appointment Text</label>
                 <textarea id="importTextArea" rows="8" placeholder="Paste your appointment text here..."></textarea>
+                <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                    <span class="format-badge" style="background:var(--primary); color:white; padding:2px 12px; border-radius:20px; font-size:0.7rem;">
+                        <i class="fas fa-check-circle"></i> Key-Value
+                    </span>
+                    <span class="format-badge" style="background:var(--secondary); color:white; padding:2px 12px; border-radius:20px; font-size:0.7rem;">
+                        <i class="fas fa-check-circle"></i> Natural Language
+                    </span>
+                    <span class="format-badge" style="background:var(--success); color:white; padding:2px 12px; border-radius:20px; font-size:0.7rem;">
+                        <i class="fas fa-check-circle"></i> Bullet Points
+                    </span>
+                    <span class="format-badge" style="background:var(--warning); color:#1e293b; padding:2px 12px; border-radius:20px; font-size:0.7rem;">
+                        <i class="fas fa-check-circle"></i> CSV
+                    </span>
+                </div>
             </div>
             
             <!-- Progress -->
@@ -191,22 +211,41 @@
             
             <!-- Results -->
             <div id="importPreview" style="display:none;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                    <span style="font-size:0.85rem; color:var(--text-muted);">
+                        <i class="fas fa-info-circle"></i> Click on a record to expand and edit
+                    </span>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn-icon" onclick="window.expandAllRecords()" style="background:var(--primary); color:white; padding:4px 12px; font-size:0.75rem;">
+                            <i class="fas fa-expand"></i> Expand All
+                        </button>
+                        <button class="btn-icon" onclick="window.collapseAllRecords()" style="background:var(--secondary); color:white; padding:4px 12px; font-size:0.75rem;">
+                            <i class="fas fa-compress"></i> Collapse All
+                        </button>
+                    </div>
+                </div>
                 <div id="importResultsContainer"></div>
             </div>
             
             <!-- Actions -->
-            <div style="display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap; margin-top:16px;">
-                <button id="parseImportBtn" class="btn-icon" style="background:var(--primary); color:white;">
-                    <i class="fas fa-robot"></i> Parse & Preview
-                </button>
-                <button id="saveImportBtn" class="btn-icon" style="background:var(--success); color:white; display:none;">
-                    <i class="fas fa-save"></i> Save Records
-                </button>
+            <div style="display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap; margin-top:16px; border-top:1px solid var(--border-color); padding-top:16px;">
+                <div style="display:flex; gap:8px; flex:1; flex-wrap:wrap;">
+                    <button id="parseImportBtn" class="btn-icon" style="background:var(--primary); color:white;">
+                        <i class="fas fa-robot"></i> Parse & Preview
+                    </button>
+                    <button id="saveImportBtn" class="btn-icon" style="background:var(--success); color:white; display:none;">
+                        <i class="fas fa-save"></i> Save Records
+                    </button>
+                    <button id="validateOnlyBtn" class="btn-icon" style="background:var(--secondary); color:white; display:none;">
+                        <i class="fas fa-check-double"></i> Validate Only
+                    </button>
+                </div>
                 <button id="closeImportBtn" class="btn-icon">Cancel</button>
             </div>
         </div>
     </div>
 
+    <!-- Appointment Detail Modal -->
     <div id="appointmentDetailModal" class="modal-overlay" style="display:none;">
         <div class="modal-card" style="max-width:500px;">
             <h3 id="appointmentDetailTitle">Appointment Details</h3>
@@ -220,6 +259,7 @@
         </div>
     </div>
 
+    <!-- Shortcuts Modal -->
     <div id="shortcutsModal" class="modal-overlay" style="display:none;">
         <div class="modal-card" style="max-width:700px;">
             <h3><i class="fas fa-keyboard"></i> Keyboard Shortcuts Manager</h3>
@@ -236,6 +276,7 @@
         </div>
     </div>
 
+    <!-- Bulk Actions Modal -->
     <div id="bulkActionsModal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
             <h3><i class="fas fa-check-double"></i> Bulk Actions</h3>
@@ -253,6 +294,7 @@
         </div>
     </div>
 
+    <!-- Global Search Modal -->
     <div id="globalSearchModal" class="modal-overlay" style="display:none;">
         <div class="modal-card" style="max-width:600px;">
             <h3><i class="fas fa-search"></i> Global Search</h3>
