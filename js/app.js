@@ -413,9 +413,9 @@ const Utils = {
 
     getOrderedVisible(scripts, scriptOrder) {
         if (scriptOrder && scriptOrder.length > 0) {
-            return scriptOrder.filter(id => scripts[id]);
+            return scriptOrder.filter(id => scripts && scripts[id]);
         }
-        return Object.keys(scripts);
+        return Object.keys(scripts || {});
     },
 
     parseDateString(dateStr) {
@@ -1348,7 +1348,7 @@ const Stats = {
 };
 
 // ================================================================
-// SCRIPTS MODULE
+// SCRIPTS MODULE - FIXED WITH EDIT TITLE AND DELETE
 // ================================================================
 
 const Scripts = {
@@ -1356,7 +1356,11 @@ const Scripts = {
         const container = DOM.get('scriptListContainer');
         if (!container) return;
 
-        const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
+        // Ensure scripts is an object
+        const scripts = AppState.scripts || {};
+        const scriptOrder = AppState.scriptOrder || [];
+        
+        const visible = Utils.getOrderedVisible(scripts, scriptOrder);
         const sorted = [...visible].sort((a, b) => {
             const aFav = AppState.scriptFavorites.includes(a);
             const bFav = AppState.scriptFavorites.includes(b);
@@ -1366,51 +1370,70 @@ const Scripts = {
         });
 
         let html = '';
-        sorted.forEach((id, idx) => {
-            const s = AppState.scripts[id];
-            if (!s) return;
-            const active = AppState.currentScriptId === id;
-            const isFavorite = AppState.scriptFavorites.includes(id);
-            html += `
-                <div class="script-item ${active ? 'active' : ''}" data-id="${id}">
-                    <i class="fas fa-grip-vertical drag-handle"></i>
-                    <span class="script-name">${Utils.escapeHtml(s.name)}</span>
-                    <i class="fas fa-star favorite-star ${isFavorite ? 'active' : ''}" data-id="${id}"></i>
-                    <span class="key-hint">${idx < 9 ? idx + 1 : ''}</span>
-                </div>
-            `;
-        });
+        if (sorted.length === 0) {
+            html = `<div class="empty-scripts-msg" style="padding:20px; text-align:center; color:var(--text-muted); font-size:0.85rem;">
+                <i class="fas fa-scroll" style="font-size:2rem; display:block; margin-bottom:8px; opacity:0.3;"></i>
+                No scripts yet. Click "New Script" to create one.
+            </div>`;
+        } else {
+            sorted.forEach((id, idx) => {
+                const s = scripts[id];
+                if (!s) return;
+                const active = AppState.currentScriptId === id;
+                const isFavorite = AppState.scriptFavorites.includes(id);
+                html += `
+                    <div class="script-item ${active ? 'active' : ''}" data-id="${id}">
+                        <i class="fas fa-grip-vertical drag-handle"></i>
+                        <span class="script-name">${Utils.escapeHtml(s.name)}</span>
+                        <i class="fas fa-star favorite-star ${isFavorite ? 'active' : ''}" data-id="${id}"></i>
+                        <span class="key-hint">${idx < 9 ? idx + 1 : ''}</span>
+                        <i class="fas fa-edit script-edit-btn" data-id="${id}" title="Edit script name"></i>
+                        <i class="fas fa-trash script-delete-btn" data-id="${id}" title="Delete script"></i>
+                    </div>
+                `;
+            });
+        }
         container.innerHTML = html;
 
-        if (window.sortableInstance) window.sortableInstance.destroy();
+        // Destroy existing Sortable instance
+        if (window.sortableInstance) {
+            window.sortableInstance.destroy();
+            window.sortableInstance = null;
+        }
 
-        window.sortableInstance = new Sortable(container, {
-            handle: '.drag-handle',
-            animation: 150,
-            ghostClass: 'sortable-ghost',
-            chosenClass: 'sortable-chosen',
-            dragClass: 'sortable-drag',
-            onEnd: async function() {
-                const newOrder = [];
-                container.querySelectorAll('.script-item').forEach(item => {
-                    const id = item.getAttribute('data-id');
-                    if (id) newOrder.push(id);
-                });
-                AppState.scriptOrder = newOrder;
-                await Data.saveScriptOrder();
-                Scripts.renderSidebar();
-                Scripts.updateKeyHints();
-            }
-        });
+        if (sorted.length > 0) {
+            window.sortableInstance = new Sortable(container, {
+                handle: '.drag-handle',
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                chosenClass: 'sortable-chosen',
+                dragClass: 'sortable-drag',
+                onEnd: async function() {
+                    const newOrder = [];
+                    container.querySelectorAll('.script-item').forEach(item => {
+                        const id = item.getAttribute('data-id');
+                        if (id) newOrder.push(id);
+                    });
+                    AppState.scriptOrder = newOrder;
+                    await Data.saveScriptOrder();
+                    Scripts.renderSidebar();
+                    Scripts.updateKeyHints();
+                }
+            });
+        }
 
+        // Click to load script
         container.querySelectorAll('.script-item').forEach(el => {
             el.addEventListener('click', (e) => {
                 if (e.target.closest('.drag-handle')) return;
                 if (e.target.closest('.favorite-star')) return;
+                if (e.target.closest('.script-edit-btn')) return;
+                if (e.target.closest('.script-delete-btn')) return;
                 Scripts.loadScript(el.getAttribute('data-id'));
             });
         });
 
+        // Favorite toggle
         container.querySelectorAll('.favorite-star').forEach(el => {
             el.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1418,7 +1441,151 @@ const Scripts = {
             });
         });
 
+        // Edit script name
+        container.querySelectorAll('.script-edit-btn').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = el.getAttribute('data-id');
+                Scripts.editScriptTitle(id);
+            });
+        });
+
+        // Delete script
+        container.querySelectorAll('.script-delete-btn').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = el.getAttribute('data-id');
+                Scripts.deleteScript(id);
+            });
+        });
+
         this.updateKeyHints();
+    },
+
+    editScriptTitle: function(id) {
+        const script = AppState.scripts[id];
+        if (!script) {
+            showToast('Script not found', 'error');
+            return;
+        }
+
+        const newName = prompt('Edit script name:', script.name);
+        if (newName && newName.trim() && newName.trim() !== script.name) {
+            const updatedName = newName.trim();
+            
+            // Update locally
+            AppState.scripts[id] = { ...script, name: updatedName };
+            
+            // Update in Firebase if available
+            if (AppState.isFirebaseReady && AppState.currentUser) {
+                firebase.firestore()
+                    .collection('users')
+                    .doc(AppState.currentUser.uid)
+                    .collection('scripts')
+                    .doc(id)
+                    .update({ name: updatedName })
+                    .then(() => {
+                        showToast('Script name updated!', 'success');
+                        Scripts.renderSidebar();
+                        // Update the current script name display if this is the active script
+                        if (AppState.currentScriptId === id) {
+                            DOM.setText('currentScriptName', updatedName);
+                        }
+                    })
+                    .catch(err => {
+                        handleError(err, 'Updating script name');
+                        // Revert local change on error
+                        AppState.scripts[id] = script;
+                        Scripts.renderSidebar();
+                    });
+            } else {
+                // Offline mode - save to localStorage
+                const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
+                if (fallback[id]) {
+                    fallback[id].name = updatedName;
+                    localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+                }
+                showToast('Script name updated!', 'success');
+                Scripts.renderSidebar();
+                if (AppState.currentScriptId === id) {
+                    DOM.setText('currentScriptName', updatedName);
+                }
+            }
+        }
+    },
+
+    deleteScript: function(id) {
+        const script = AppState.scripts[id];
+        if (!script) {
+            showToast('Script not found', 'error');
+            return;
+        }
+
+        // Prevent deleting the last script
+        const scriptCount = Object.keys(AppState.scripts).length;
+        if (scriptCount <= 1) {
+            showToast('Cannot delete the last script. Create a new one first.', 'warning');
+            return;
+        }
+
+        if (!confirm(`Delete script "${script.name}"? This cannot be undone.`)) {
+            return;
+        }
+
+        // Remove from local state
+        delete AppState.scripts[id];
+        
+        // Remove from script order
+        AppState.scriptOrder = AppState.scriptOrder.filter(scriptId => scriptId !== id);
+        
+        // Remove from favorites
+        AppState.scriptFavorites = AppState.scriptFavorites.filter(scriptId => scriptId !== id);
+
+        // Remove from Firebase if available
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            firebase.firestore()
+                .collection('users')
+                .doc(AppState.currentUser.uid)
+                .collection('scripts')
+                .doc(id)
+                .delete()
+                .then(() => {
+                    showToast(`Script "${script.name}" deleted`, 'info');
+                    
+                    // If the current script was deleted, load the first available script
+                    if (AppState.currentScriptId === id) {
+                        const remainingIds = Object.keys(AppState.scripts);
+                        if (remainingIds.length > 0) {
+                            Scripts.loadScript(remainingIds[0]);
+                        }
+                    }
+                    Scripts.renderSidebar();
+                    Scripts.saveScriptOrder();
+                })
+                .catch(err => {
+                    handleError(err, 'Deleting script');
+                    // Re-add the script on error
+                    AppState.scripts[id] = script;
+                    AppState.scriptOrder.push(id);
+                    Scripts.renderSidebar();
+                });
+        } else {
+            // Offline mode - update localStorage
+            const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
+            delete fallback[id];
+            localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+            
+            showToast(`Script "${script.name}" deleted`, 'info');
+            
+            if (AppState.currentScriptId === id) {
+                const remainingIds = Object.keys(AppState.scripts);
+                if (remainingIds.length > 0) {
+                    Scripts.loadScript(remainingIds[0]);
+                }
+            }
+            Scripts.renderSidebar();
+            Scripts.saveScriptOrder();
+        }
     },
 
     updateKeyHints: function() {
@@ -1441,7 +1608,16 @@ const Scripts = {
     },
 
     loadScript: function(id) {
-        if (!AppState.scripts[id]) return;
+        if (!AppState.scripts[id]) {
+            // If script doesn't exist, try to load the first available script
+            const ids = Object.keys(AppState.scripts);
+            if (ids.length > 0) {
+                id = ids[0];
+            } else {
+                showToast('No scripts available. Create a new script.', 'warning');
+                return;
+            }
+        }
         if (AppState.isEditing) {
             if (!confirm('You have unsaved changes. Discard them?')) return;
             this.cancelEdit();
@@ -1601,27 +1777,76 @@ const Scripts = {
     },
 
     createScript: function() {
-        if (!AppState.currentUser) { showToast('Please sign in first', 'error'); return; }
-        const name = prompt('Enter script name:');
-        if (name && name.trim()) {
-            const id = 'script_' + Utils.generateId();
-            if (AppState.isFirebaseReady) {
-                firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts').doc(id).set({
-                    name: name.trim(),
-                    content: 'New script content...',
+        if (!AppState.currentUser) { 
+            showToast('Please sign in first', 'error'); 
+            return; 
+        }
+        
+        const name = prompt('Enter new script name:');
+        if (!name || !name.trim()) return;
+        
+        const scriptName = name.trim();
+        const id = 'script_' + Utils.generateId();
+        const newScript = {
+            name: scriptName,
+            content: 'New script content...\n\nStart writing your script here.',
+            version: 1
+        };
+
+        // Add to local state
+        AppState.scripts[id] = newScript;
+        AppState.scriptOrder.push(id);
+
+        if (AppState.isFirebaseReady) {
+            firebase.firestore()
+                .collection('users')
+                .doc(AppState.currentUser.uid)
+                .collection('scripts')
+                .doc(id)
+                .set({
+                    name: scriptName,
+                    content: newScript.content,
                     version: 1,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                }).then(() => {
-                    showToast('Script created!', 'success');
-                    Data.loadUserData(true);
-                }).catch(err => handleError(err, 'Creating script'));
-            } else {
-                AppState.scripts[id] = { name: name.trim(), content: 'New script content...', version: 1 };
-                localStorage.setItem('scripts_fallback', JSON.stringify(AppState.scripts));
-                showToast('Script created locally!', 'success');
-                this.renderSidebar();
-                this.loadScript(id);
-            }
+                })
+                .then(() => {
+                    showToast(`Script "${scriptName}" created! 🎉`, 'success');
+                    Scripts.renderSidebar();
+                    Scripts.loadScript(id);
+                    Data.saveScriptOrder();
+                })
+                .catch(err => {
+                    handleError(err, 'Creating script');
+                    // Revert local changes on error
+                    delete AppState.scripts[id];
+                    AppState.scriptOrder = AppState.scriptOrder.filter(sid => sid !== id);
+                    Scripts.renderSidebar();
+                });
+        } else {
+            // Offline mode - save to localStorage
+            const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
+            fallback[id] = newScript;
+            localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+            
+            showToast(`Script "${scriptName}" created! 🎉`, 'success');
+            Scripts.renderSidebar();
+            Scripts.loadScript(id);
+            Scripts.saveScriptOrder();
+        }
+    },
+
+    saveScriptOrder: function() {
+        // Save script order to Firebase or localStorage
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            firebase.firestore()
+                .collection('users')
+                .doc(AppState.currentUser.uid)
+                .update({ scriptOrder: AppState.scriptOrder })
+                .catch(err => console.warn('Error saving script order:', err));
+        } else {
+            const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
+            fallback.scriptOrder = AppState.scriptOrder;
+            localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
         }
     },
 
@@ -4487,6 +4712,12 @@ function initApp() {
     AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS, ...AppState.customShortcuts };
     AppState.scriptFavorites = JSON.parse(localStorage.getItem('scriptFavorites') || '[]');
 
+    // Ensure scripts exist
+    if (!AppState.scripts || Object.keys(AppState.scripts).length === 0) {
+        AppState.scripts = {};
+        AppState.scriptOrder = [];
+    }
+
     const toolsHeader = DOM.get('toolsHeader');
     const toolsMenu = DOM.get('toolsMenu');
     const toolsChevron = DOM.get('toolsChevron');
@@ -4605,6 +4836,7 @@ function initApp() {
 
     if (closeDetailBtn) closeDetailBtn.addEventListener('click', closeAppointmentDetail);
 
+    // Script editing buttons
     const editScriptBtn = DOM.get('editScriptBtn');
     const saveScriptBtn = DOM.get('saveScriptBtn');
     const cancelEditBtn = DOM.get('cancelEditBtn');
@@ -4869,6 +5101,7 @@ function initApp() {
     console.log('🎯 Drag & drop enabled for scripts and appointments');
     console.log(`🔌 Firebase status: ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
     console.log('✨ Enhanced Smart Import loaded with intelligent parsing');
+    console.log('📜 Script management: Create, Edit Title, Delete, Favorite');
 }
 
 // ================================================================

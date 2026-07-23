@@ -383,12 +383,83 @@ body {
 }
 
 .script-item .favorite-star.active { opacity: 1; }
+
+/* Script Edit and Delete Buttons */
+.script-item .script-edit-btn,
+.script-item .script-delete-btn {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    padding: 2px 4px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: var(--transition);
+    opacity: 0.3;
+    flex-shrink: 0;
+}
+
+.script-item:hover .script-edit-btn,
+.script-item:hover .script-delete-btn {
+    opacity: 0.7;
+}
+
+.script-item .script-edit-btn:hover {
+    color: var(--primary);
+    opacity: 1;
+    background: rgba(59, 130, 246, 0.15);
+}
+
+.script-item .script-delete-btn:hover {
+    color: var(--danger);
+    opacity: 1;
+    background: rgba(239, 68, 68, 0.15);
+}
+
+.script-item .script-edit-btn {
+    margin-right: 2px;
+}
+
+.script-item.active .script-edit-btn,
+.script-item.active .script-delete-btn {
+    color: rgba(255, 255, 255, 0.7);
+    opacity: 0.6;
+}
+
+.script-item.active .script-edit-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    opacity: 1;
+}
+
+.script-item.active .script-delete-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #ff6b6b;
+    opacity: 1;
+}
+
 .script-item.sortable-chosen {
     background: var(--sidebar-active);
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     transform: scale(1.02);
 }
 .script-item.sortable-ghost { opacity: 0.3; }
+
+/* Empty scripts message */
+.empty-scripts-msg {
+    padding: 30px 20px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.empty-scripts-msg i {
+    font-size: 2.5rem;
+    display: block;
+    margin-bottom: 12px;
+    opacity: 0.3;
+}
+
+.empty-scripts-msg p {
+    font-size: 0.9rem;
+}
 
 .add-script-btn {
     width: 100%;
@@ -2471,6 +2542,17 @@ body {
         font-size: 1rem;
     }
     .feature-panel-body { padding: 12px; }
+    
+    /* Script item responsive */
+    .script-item .script-edit-btn,
+    .script-item .script-delete-btn {
+        font-size: 0.6rem;
+        padding: 1px 3px;
+    }
+    .script-item .key-hint {
+        font-size: 0.6rem;
+        padding: 1px 6px;
+    }
 }
 
 /* ============================================================
