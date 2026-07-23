@@ -348,7 +348,9 @@ function analyzeScriptContent(content) {
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0);
     const paragraphs = content.split(/\n+/).filter(p => p.trim().length > 0);
     
-    // Default metrics with fallback values
+    // ============================================================
+    // FIX: Initialize all metrics with default values
+    // ============================================================
     const metrics = {
         tonality: 0.5,
         pacing: 0.5,
@@ -687,6 +689,27 @@ function showAnalysisResults(results) {
     const existing = document.querySelector('.coach-results-overlay');
     if (existing) existing.remove();
     
+    // ============================================================
+    // FIX: Safely access metrics with fallback values
+    // ============================================================
+    const metrics = results.metrics || {
+        tonality: 0.5,
+        pacing: 0.5,
+        phrasing: 0.5,
+        emphasis: 0.5,
+        pauses: 0.5,
+        confidence: 0.5,
+        objections: 0.5,
+        flow: 0.5
+    };
+    
+    const overall = results.overall || 0;
+    const recommendations = results.recommendations || [];
+    const wordCount = results.wordCount || 0;
+    const sentenceCount = results.sentenceCount || 0;
+    const paragraphCount = results.paragraphCount || 0;
+    const bestTone = results.bestTone || SCRIPT_COACH_CONFIG.DEFAULT_TONE;
+    
     const overlay = document.createElement('div');
     overlay.className = 'coach-results-overlay';
     overlay.id = 'coachResultsOverlay';
@@ -701,14 +724,14 @@ function showAnalysisResults(results) {
                     <div class="coach-score-circle">
                         <svg viewBox="0 0 120 120">
                             <circle cx="60" cy="60" r="50" fill="none" stroke="var(--border-color)" stroke-width="10"/>
-                            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--primary)" stroke-width="10" stroke-dasharray="${results.overall * 3.14}" stroke-dashoffset="157" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+                            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--primary)" stroke-width="10" stroke-dasharray="${overall * 3.14}" stroke-dashoffset="157" stroke-linecap="round" transform="rotate(-90 60 60)"/>
                         </svg>
-                        <span class="coach-score-number">${results.overall}%</span>
+                        <span class="coach-score-number">${overall}%</span>
                     </div>
                     <div class="coach-score-label">Overall Score</div>
                 </div>
                 <div class="coach-metrics-grid">
-                    ${Object.entries(results.metrics).map(([key, value]) => `
+                    ${Object.entries(metrics).map(([key, value]) => `
                         <div class="coach-metric-item">
                             <div class="coach-metric-header">
                                 <span class="coach-metric-icon">${SCRIPT_COACH_CONFIG.METRICS[key]?.icon || '📊'}</span>
@@ -722,7 +745,7 @@ function showAnalysisResults(results) {
                 <div class="coach-recommendations">
                     <h4><i class="fas fa-lightbulb" style="color:var(--warning);"></i> Recommendations</h4>
                     <div class="coach-recommendations-list">
-                        ${results.recommendations.length > 0 ? results.recommendations.map(rec => `
+                        ${recommendations.length > 0 ? recommendations.map(rec => `
                             <div class="coach-recommendation ${rec.severity}">
                                 <div class="coach-rec-header">
                                     <span class="coach-rec-metric">${rec.metric}</span>
@@ -734,10 +757,10 @@ function showAnalysisResults(results) {
                     </div>
                 </div>
                 <div class="coach-stats">
-                    <div class="coach-stat-item"><span class="coach-stat-label">📝 Words</span><span class="coach-stat-value">${results.wordCount}</span></div>
-                    <div class="coach-stat-item"><span class="coach-stat-label">📄 Sentences</span><span class="coach-stat-value">${results.sentenceCount}</span></div>
-                    <div class="coach-stat-item"><span class="coach-stat-label">📚 Paragraphs</span><span class="coach-stat-value">${results.paragraphCount}</span></div>
-                    <div class="coach-stat-item"><span class="coach-stat-label">🏆 Best Tone</span><span class="coach-stat-value" style="color:${SCRIPT_COACH_CONFIG.TONES[results.bestTone]?.color || 'var(--primary)'}">${SCRIPT_COACH_CONFIG.TONES[results.bestTone]?.icon || '🎯'} ${SCRIPT_COACH_CONFIG.TONES[results.bestTone]?.label || results.bestTone}</span></div>
+                    <div class="coach-stat-item"><span class="coach-stat-label">📝 Words</span><span class="coach-stat-value">${wordCount}</span></div>
+                    <div class="coach-stat-item"><span class="coach-stat-label">📄 Sentences</span><span class="coach-stat-value">${sentenceCount}</span></div>
+                    <div class="coach-stat-item"><span class="coach-stat-label">📚 Paragraphs</span><span class="coach-stat-value">${paragraphCount}</span></div>
+                    <div class="coach-stat-item"><span class="coach-stat-label">🏆 Best Tone</span><span class="coach-stat-value" style="color:${SCRIPT_COACH_CONFIG.TONES[bestTone]?.color || 'var(--primary)'}">${SCRIPT_COACH_CONFIG.TONES[bestTone]?.icon || '🎯'} ${SCRIPT_COACH_CONFIG.TONES[bestTone]?.label || bestTone}</span></div>
                 </div>
             </div>
             <div class="coach-results-footer">
