@@ -1,5 +1,6 @@
+
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION (ENHANCED SMART IMPORT)
+// SCRIPTFLOW PRO - COMPLETE APPLICATION
 // ================================================================
 
 // ================================================================
@@ -63,7 +64,7 @@ const CONFIG = {
 };
 
 // ================================================================
-// SMART IMPORT CONFIGURATION (Enhanced)
+// SMART IMPORT CONFIGURATION
 // ================================================================
 
 const SMART_IMPORT_CONFIG = {
@@ -78,7 +79,6 @@ const SMART_IMPORT_CONFIG = {
         phone: { pattern: /^[\+\d\s\-\(\)]{7,20}$/ },
         email: { pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ },
         time: { pattern: /^(0?[1-9]|1[0-2]):[0-5][0-9]\s*(AM|PM)$/i },
-        date: { pattern: /^(0?[1-9]|1[0-2])\/(0?[1-9]|[12][0-9]|3[01])\/\d{4}$|^\d{4}-\d{2}-\d{2}$|^[A-Za-z]+\s+\d{1,2},?\s+\d{4}$/ },
         status: { allowed: ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'] }
     },
     FIELD_ALIASES: {
@@ -96,7 +96,7 @@ const SMART_IMPORT_CONFIG = {
 };
 
 // ================================================================
-// STATE MANAGEMENT
+// APPLICATION STATE
 // ================================================================
 
 const AppState = {
@@ -121,7 +121,6 @@ const AppState = {
     currentView: 'calendar',
     calendarView: 'calendar',
     analyticsTab: 'insights',
-    pipelineView: 'my',
     taskFilter: 'all',
     selectedAppointments: new Set(),
     currentAppointmentId: null,
@@ -158,25 +157,33 @@ const AppState = {
     calendarSearchTerm: '',
     calendarCurrentDate: new Date(),
     
-    importDefaultDate: null
-};
-
-// ================================================================
-// IMPORT STATE MANAGEMENT
-// ================================================================
-
-const ImportState = {
-    parsedRecords: [],
-    validatedRecords: [],
-    duplicates: [],
-    errors: [],
-    warnings: [],
-    totalProcessed: 0,
-    totalValid: 0,
-    totalInvalid: 0,
-    totalDuplicates: 0,
-    processingStatus: 'idle',
-    progress: 0
+    // Script Coach state
+    coachIsAnalyzing: false,
+    coachIsPlaying: false,
+    coachIsPaused: false,
+    coachAnalysisResults: null,
+    coachAnalysisComplete: false,
+    coachPlaybackSpeed: 1.0,
+    coachCurrentWordIndex: 0,
+    coachWords: [],
+    coachWordTimings: [],
+    coachPlaybackInterval: null,
+    coachAudioContext: null,
+    coachCurrentSection: 0,
+    coachIsLooping: false,
+    coachLoopStart: 0,
+    coachIsRecording: false,
+    coachMediaRecorder: null,
+    coachRecordedChunks: [],
+    coachFocusMode: true,
+    coachShowCues: true,
+    coachProgress: 0,
+    coachTotalDuration: 0,
+    coachCurrentTime: 0,
+    coachIsDragging: false,
+    coachActiveLineIndex: -1,
+    coachLines: [],
+    coachSectionMarkers: []
 };
 
 // ================================================================
@@ -257,11 +264,6 @@ const Utils = {
             return 'Completed';
         }
         return 'Pending';
-    },
-
-    isCompletedStatus(status) {
-        const primary = this.getPrimaryStatus(status);
-        return primary === 'Completed' || CONFIG.SECONDARY_STATUSES.includes(status);
     },
 
     getStatusColor(status) {
@@ -1608,6 +1610,11 @@ const Scripts = {
         this.updateFavoriteStar();
         this.renderSidebar();
         this.updateKeyHints();
+        
+        // Update Script Coach
+        if (typeof ScriptCoach !== 'undefined' && ScriptCoach.onScriptLoaded) {
+            ScriptCoach.onScriptLoaded(id, script.content);
+        }
     },
 
     toggleFavorite: function(id) {
@@ -1803,7 +1810,7 @@ const Scripts = {
             fallback[id] = newScript;
             localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
             
-            showToast(`Script "${scriptName}" created! 🎉', 'success');
+            showToast(`Script "${scriptName}" created! 🎉`, 'success');
             Scripts.renderSidebar();
             Scripts.loadScript(id);
             Scripts.saveScriptOrder();
@@ -1830,7 +1837,7 @@ const Scripts = {
 };
 
 // ================================================================
-// ENHANCED SMART IMPORT FUNCTIONS WITH DATE SYNC
+// ENHANCED SMART IMPORT FUNCTIONS
 // ================================================================
 
 function parseAppointmentTextEnhanced(text, defaultDate = null) {
@@ -1867,6 +1874,13 @@ function parseAppointmentTextEnhanced(text, defaultDate = null) {
         parseBulletPointFormat(lines, result, confidence);
     } else {
         parseNaturalLanguageFormat(fullText, lines, result, confidence);
+    }
+    
+    // Ensure date uses the default date if provided and no date found
+    if (!result.date && defaultDate) {
+        result.date = defaultDate;
+        confidence.date = 1.0;
+        context.synonyms.date.push('user selected');
     }
     
     enhanceParsedDataEnhanced(result, confidence, fullText, context, defaultDate);
@@ -1938,7 +1952,7 @@ function parseKeyValueFormatEnhanced(lines, result, confidence, context) {
                     matchedField = matchFieldName(key);
                 }
                 
-                if (key.includes('best time') || (key.includes('callback') && key.includes('time'))) {
+                if (key.includes('best time') || key.includes('callback') && key.includes('time')) {
                     const dateMatch = value.match(/(\w+\s+\d{1,2},?\s+\d{4})/i);
                     const timeMatch = value.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
                     const relativeDateMatch = value.match(/\b(today|tomorrow|yesterday|next week|this week)\b/i);
@@ -2196,7 +2210,7 @@ function parseRelativeDate(expression) {
         yesterday.setDate(yesterday.getDate() - 1);
         return Utils.formatDateForCompare(yesterday);
     }
-    if (expr === 'next week') {
+    if (expr === 'next week' || expr === 'next week') {
         const nextWeek = new Date(today);
         nextWeek.setDate(nextWeek.getDate() + 7);
         return Utils.formatDateForCompare(nextWeek);
@@ -2230,16 +2244,14 @@ function enhanceParsedDataEnhanced(result, confidence, fullText, context, defaul
         result.email = result.email.toLowerCase().trim();
     }
     
-    const effectiveDefaultDate = defaultDate || AppState.importDefaultDate || Utils.getTodayStr();
-    
     if (result.date) {
         const parsedDate = parseDateStringEnhanced(result.date);
         if (parsedDate) {
             result.date = parsedDate;
             confidence.date = Math.max(confidence.date || 0, 0.9);
         }
-    } else if (effectiveDefaultDate) {
-        result.date = effectiveDefaultDate;
+    } else if (defaultDate) {
+        result.date = defaultDate;
         confidence.date = 1.0;
         context.synonyms.date = context.synonyms.date || [];
         context.synonyms.date.push('user selected');
@@ -2660,16 +2672,11 @@ function splitAppointments(text) {
 }
 
 function updateImportProgress(percent, message) {
-    ImportState.progress = percent;
     const progressBar = DOM.get('importProgressBar');
-    const progressText = DOM.get('importProgressText');
     const progressStatus = DOM.get('importProgressStatus');
     
     if (progressBar) {
         progressBar.style.width = Math.min(percent, 100) + '%';
-    }
-    if (progressText) {
-        progressText.textContent = Math.min(percent, 100) + '%';
     }
     if (progressStatus && message) {
         progressStatus.textContent = message;
@@ -2682,12 +2689,17 @@ function renderImportResultsEnhanced(records) {
     const saveBtn = DOM.get('saveImportBtn');
     const progressContainer = DOM.get('importProgressContainer');
     const summary = DOM.get('importSummary');
+    const recordCount = DOM.get('importRecordCount');
     
     if (!preview || !resultsContainer) return;
     
     preview.style.display = 'block';
     
     if (progressContainer) progressContainer.style.display = 'block';
+    
+    if (recordCount) {
+        recordCount.textContent = records.length;
+    }
     
     if (summary) {
         const total = records.length;
@@ -2786,25 +2798,8 @@ function renderImportResultsEnhanced(records) {
                             <ul>${record.duplicates.filter(d => d.confidence >= 60).map(d => 
                                 `<li>${Utils.escapeHtml(d.existing.business)} - ${Utils.escapeHtml(d.existing.contactName)} (${d.confidence}% match)</li>`
                             ).join('')}</ul>
-                            <button class="btn-icon" onclick="window.mergeDuplicate('${record.index}')" style="background:var(--warning); color:#1e293b; margin-top:8px;">
-                                <i class="fas fa-merge"></i> Merge
-                            </button>
                         </div>
                     ` : ''}
-                    
-                    <div class="record-actions">
-                        <button class="btn-icon" onclick="window.editImportRecord('${record.index}')" style="background:var(--primary); color:white;">
-                            <i class="fas fa-edit"></i> Edit
-                        </button>
-                        <button class="btn-icon" onclick="window.skipImportRecord('${record.index}')" style="background:var(--danger); color:white;">
-                            <i class="fas fa-times"></i> Skip
-                        </button>
-                        ${record.isValid ? `
-                            <button class="btn-icon" onclick="window.saveSingleRecord('${record.index}')" style="background:var(--success); color:white;">
-                                <i class="fas fa-save"></i> Save
-                            </button>
-                        ` : ''}
-                    </div>
                 </div>
             </div>
         `;
@@ -2815,7 +2810,6 @@ function renderImportResultsEnhanced(records) {
     const validRecords = records.filter(r => r.isValid);
     if (saveBtn && validRecords.length > 0) {
         saveBtn.style.display = 'inline-flex';
-        saveBtn.disabled = false;
         saveBtn.textContent = `Save ${validRecords.length} Record(s)`;
         saveBtn.onclick = () => saveAllImportedAppointments();
     } else if (saveBtn) {
@@ -2880,216 +2874,6 @@ function toggleImportRecord(header) {
     }
 }
 
-function editImportRecord(index) {
-    const record = ImportState.parsedRecords.find(r => r.index === index);
-    if (!record) return;
-    
-    const recordElements = document.querySelectorAll('.import-record');
-    let targetElement = null;
-    for (const el of recordElements) {
-        const header = el.querySelector('.record-header');
-        if (header) {
-            const indexSpan = header.querySelector('.record-index');
-            if (indexSpan && indexSpan.textContent === `#${index}`) {
-                targetElement = el;
-                break;
-            }
-        }
-    }
-    
-    if (!targetElement) return;
-    
-    const body = targetElement.querySelector('.record-body');
-    if (!body) return;
-    
-    body.style.display = 'block';
-    const toggle = targetElement.querySelector('.record-toggle');
-    if (toggle) toggle.textContent = '▼';
-    
-    const fields = record.validated || record.parsed || {};
-    const fieldOrder = ['name', 'business', 'phone', 'email', 'date', 'time', 'status', 'assigned', 'role', 'notes'];
-    
-    let editHtml = '<div class="edit-fields">';
-    for (const field of fieldOrder) {
-        if (fields[field] || field === 'notes') {
-            const value = fields[field] || '';
-            const label = {
-                name: 'Name *',
-                business: 'Business *',
-                phone: 'Phone',
-                email: 'Email',
-                date: 'Date',
-                time: 'Time',
-                status: 'Status',
-                assigned: 'Assigned',
-                role: 'Role',
-                notes: 'Notes'
-            }[field] || field;
-            
-            const isRequired = ['name', 'business'].includes(field);
-            const isSelect = field === 'status' || field === 'assigned';
-            const isTextarea = field === 'notes';
-            
-            if (isSelect) {
-                let options = '';
-                if (field === 'status') {
-                    const statusOptions = SMART_IMPORT_CONFIG.VALIDATION.status.allowed;
-                    options = statusOptions.map(s => 
-                        `<option value="${s}" ${s === value ? 'selected' : ''}>${s}</option>`
-                    ).join('');
-                } else if (field === 'assigned') {
-                    const teamMembers = AppState.teamMembers || [];
-                    options = teamMembers.map(m => 
-                        `<option value="${m.name}" ${m.name === value ? 'selected' : ''}>${m.name}</option>`
-                    ).join('');
-                    if (!teamMembers.some(m => m.name === value)) {
-                        options += `<option value="${value}" selected>${value}</option>`;
-                    }
-                }
-                editHtml += `
-                    <div class="edit-field">
-                        <label>${label} ${isRequired ? '*' : ''}</label>
-                        <select class="edit-input" data-field="${field}">${options}</select>
-                    </div>
-                `;
-            } else if (isTextarea) {
-                editHtml += `
-                    <div class="edit-field">
-                        <label>${label}</label>
-                        <textarea class="edit-input" data-field="${field}" rows="2">${Utils.escapeHtml(value)}</textarea>
-                    </div>
-                `;
-            } else {
-                editHtml += `
-                    <div class="edit-field">
-                        <label>${label} ${isRequired ? '*' : ''}</label>
-                        <input class="edit-input" data-field="${field}" value="${Utils.escapeHtml(value)}" ${isRequired ? 'required' : ''} />
-                    </div>
-                `;
-            }
-        }
-    }
-    editHtml += `
-        <div class="edit-actions">
-            <button class="btn-icon" onclick="window.saveImportRecordEdit('${index}')" style="background:var(--success); color:white;">
-                <i class="fas fa-save"></i> Save Changes
-            </button>
-            <button class="btn-icon" onclick="window.cancelImportRecordEdit('${index}')" style="background:var(--danger); color:white;">
-                <i class="fas fa-times"></i> Cancel
-            </button>
-        </div>
-    </div>`;
-    
-    const fieldsContainer = body.querySelector('.record-fields');
-    if (fieldsContainer) {
-        fieldsContainer.innerHTML = editHtml;
-    }
-}
-
-function saveImportRecordEdit(index) {
-    const record = ImportState.parsedRecords.find(r => r.index === index);
-    if (!record) return;
-    
-    const recordElements = document.querySelectorAll('.import-record');
-    let targetElement = null;
-    for (const el of recordElements) {
-        const header = el.querySelector('.record-header');
-        if (header) {
-            const indexSpan = header.querySelector('.record-index');
-            if (indexSpan && indexSpan.textContent === `#${index}`) {
-                targetElement = el;
-                break;
-            }
-        }
-    }
-    
-    if (!targetElement) return;
-    
-    const inputs = targetElement.querySelectorAll('.edit-input');
-    const updatedData = { ...record.parsed };
-    
-    inputs.forEach(input => {
-        const field = input.getAttribute('data-field');
-        if (field) {
-            updatedData[field] = input.value.trim();
-        }
-    });
-    
-    const validationResult = validateAppointmentData(updatedData);
-    
-    record.parsed = updatedData;
-    record.validated = validationResult.validated;
-    record.isValid = validationResult.isValid;
-    record.errors = validationResult.errors;
-    record.warnings = validationResult.warnings;
-    
-    renderImportResultsEnhanced(ImportState.parsedRecords);
-    
-    if (validationResult.isValid) {
-        showToast(`Record #${index} updated successfully!`, 'success');
-    } else {
-        showToast(`Record #${index} has errors that need fixing.`, 'warning');
-    }
-}
-
-function cancelImportRecordEdit(index) {
-    renderImportResultsEnhanced(ImportState.parsedRecords);
-}
-
-function skipImportRecord(index) {
-    if (!confirm(`Skip record #${index}?`)) return;
-    
-    ImportState.parsedRecords = ImportState.parsedRecords.filter(r => r.index !== index);
-    ImportState.validatedRecords = ImportState.validatedRecords.filter(r => r.index !== index);
-    
-    renderImportResultsEnhanced(ImportState.parsedRecords);
-    showToast(`Record #${index} skipped`, 'info');
-}
-
-function mergeDuplicate(index) {
-    const record = ImportState.parsedRecords.find(r => r.index === index);
-    if (!record) return;
-    
-    const duplicate = record.duplicates && record.duplicates.length > 0 ? record.duplicates[0] : null;
-    if (!duplicate) {
-        showToast('No duplicate found to merge', 'warning');
-        return;
-    }
-    
-    if (!confirm(`Merge this record with existing appointment "${duplicate.existing.business}"?`)) return;
-    
-    const existing = duplicate.existing;
-    const newData = record.validated || record.parsed;
-    
-    const updates = {};
-    if (newData.name && !existing.contactName) updates.contactName = newData.name;
-    if (newData.business && !existing.business) updates.business = newData.business;
-    if (newData.phone && !existing.phone) updates.phone = newData.phone;
-    if (newData.email && !existing.email) updates.email = newData.email;
-    if (newData.time && !existing.time) updates.time = newData.time;
-    if (newData.notes) {
-        updates.notes = existing.notes ? existing.notes + '\n\n' + newData.notes : newData.notes;
-    }
-    if (newData.tags) {
-        const existingTags = existing.tags || [];
-        const newTags = newData.tags.filter(t => !existingTags.includes(t));
-        if (newTags.length > 0) {
-            updates.tags = [...existingTags, ...newTags];
-        }
-    }
-    
-    if (Object.keys(updates).length > 0) {
-        Data.updateAppointment(existing.date, existing.id, updates);
-        showToast(`Merged into ${existing.business}`, 'success');
-    } else {
-        showToast('No new information to merge', 'info');
-    }
-    
-    ImportState.parsedRecords = ImportState.parsedRecords.filter(r => r.index !== index);
-    ImportState.validatedRecords = ImportState.validatedRecords.filter(r => r.index !== index);
-    renderImportResultsEnhanced(ImportState.parsedRecords);
-}
-
 function saveAllImportedAppointments() {
     const validRecords = ImportState.parsedRecords.filter(r => r.isValid);
     
@@ -3112,26 +2896,15 @@ function saveAllImportedAppointments() {
     if (!confirm(confirmMsg)) return;
     
     let savedCount = 0;
-    let skippedCount = 0;
     
     validRecords.forEach(record => {
         const data = record.validated || record.parsed;
         
-        if (record.hasDuplicate) {
-            const duplicate = record.duplicates && record.duplicates.length > 0 ? record.duplicates[0] : null;
-            if (duplicate && duplicate.confidence >= 80) {
-                if (!confirm(`"${data.business}" appears to be a duplicate (${duplicate.confidence}% match). Skip?`)) {
-                    return;
-                }
-                skippedCount++;
-                return;
-            }
-        }
-        
-        const dateToUse = data.date || AppState.importDefaultDate || Utils.getTodayStr();
+        // Use the date from the parsed data, which should already be in YYYY-MM-DD format
+        const dateStr = data.date || Utils.getTodayStr();
         
         const result = Data.addAppointment(
-            dateToUse,
+            dateStr,
             data.business,
             data.name,
             data.role || 'Owner',
@@ -3150,12 +2923,34 @@ function saveAllImportedAppointments() {
         }
     });
     
-    showToast(`Saved ${savedCount} appointment(s)! ${skippedCount > 0 ? `Skipped ${skippedCount} duplicates.` : ''}`, 'success');
+    showToast(`Saved ${savedCount} appointment(s)!`, 'success');
     
     closeSmartImportEnhanced();
     FeaturePanel.refreshCurrentView();
     Stats.updateAll();
 }
+
+// ================================================================
+// IMPORT STATE
+// ================================================================
+
+const ImportState = {
+    parsedRecords: [],
+    validatedRecords: [],
+    duplicates: [],
+    errors: [],
+    warnings: [],
+    totalProcessed: 0,
+    totalValid: 0,
+    totalInvalid: 0,
+    totalDuplicates: 0,
+    processingStatus: 'idle',
+    progress: 0
+};
+
+// ================================================================
+// SMART IMPORT UI FUNCTIONS
+// ================================================================
 
 function openSmartImportEnhanced() {
     const modal = DOM.get('smartImportModal');
@@ -3175,18 +2970,16 @@ function openSmartImportEnhanced() {
     ImportState.processingStatus = 'idle';
     ImportState.progress = 0;
     
-    const defaultDate = AppState.importDefaultDate || Utils.getTodayStr();
     const dateInput = DOM.get('importDefaultDate');
     if (dateInput) {
-        dateInput.value = defaultDate;
+        dateInput.value = Utils.getTodayStr();
     }
-    AppState.importDefaultDate = defaultDate;
     
     const textArea = DOM.get('importTextArea');
     if (textArea) {
         textArea.value = '';
         textArea.placeholder = `Paste appointment details here. The system will intelligently parse:
-
+        
 Example:
 Business Name/Company : Correa and Son's Landscaping LLC
 Name : Kelvin
@@ -3234,8 +3027,7 @@ function parseAndPreviewImportEnhanced() {
     }
     
     const dateInput = DOM.get('importDefaultDate');
-    const defaultDate = dateInput ? dateInput.value : (AppState.importDefaultDate || Utils.getTodayStr());
-    AppState.importDefaultDate = defaultDate;
+    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
     
     ImportState.processingStatus = 'parsing';
     updateImportProgress(10, 'Parsing input text...');
@@ -3323,7 +3115,7 @@ function parseAndPreviewImportEnhanced() {
 
 function generateImportTemplate() {
     const dateInput = DOM.get('importDefaultDate');
-    const defaultDate = dateInput ? dateInput.value : (AppState.importDefaultDate || Utils.getTodayStr());
+    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
     const formattedDate = defaultDate ? Utils.formatDate(defaultDate) : 'Today';
     
     const template = `Business Name/Company : [Enter Business Name]
@@ -3349,7 +3141,7 @@ async function quickImportFromClipboard() {
         const text = await navigator.clipboard.readText();
         if (text) {
             const dateInput = DOM.get('importDefaultDate');
-            const defaultDate = dateInput ? dateInput.value : (AppState.importDefaultDate || Utils.getTodayStr());
+            const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
             
             const hasBusiness = /business|company|organization/i.test(text);
             const hasName = /name|contact|client/i.test(text);
@@ -3362,7 +3154,6 @@ async function quickImportFromClipboard() {
                     textArea.value = text;
                     if (dateInput) {
                         dateInput.value = defaultDate;
-                        AppState.importDefaultDate = defaultDate;
                     }
                     setTimeout(() => {
                         parseAndPreviewImportEnhanced();
@@ -3468,9 +3259,6 @@ function showAppointmentDetail(appointmentId) {
                 ` : ''}
 
                 <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; padding-top:12px; border-top:2px solid var(--border-color);">
-                    <button class="btn-icon" onclick="window.openContactDetail('${appt.id}')" style="background:var(--primary); color:white;">
-                        <i class="fas fa-user"></i> Open Contact
-                    </button>
                     <button class="btn-icon" onclick="window.editAppointment('${appt.id}')" style="background:var(--warning); color:#1e293b;">
                         <i class="fas fa-edit"></i> Edit
                     </button>
@@ -3495,21 +3283,6 @@ function closeAppointmentDetail() {
     const modal = DOM.get('appointmentDetailModal');
     if (modal) modal.style.display = 'none';
     AppState.currentAppointmentId = null;
-}
-
-// ================================================================
-// APPOINTMENT QUICK ACTIONS
-// ================================================================
-
-function openContactDetail(appointmentId) {
-    const appt = Data.getAppointmentById(appointmentId);
-    if (!appt) { showToast('Appointment not found', 'error'); return; }
-    
-    AppState.calendarViewMode = 'list';
-    AppState.calendarSearchTerm = appt.business;
-    FeaturePanel.refreshCurrentView();
-    closeAppointmentDetail();
-    showToast(`Showing appointments for ${appt.business}`, 'info');
 }
 
 function editAppointment(appointmentId) {
@@ -4960,11 +4733,47 @@ function handleShortcutAction(action) {
 }
 
 // ================================================================
+// LOADING SCREEN
+// ================================================================
+
+function updateLoadingProgress(percent, message = '') {
+    const bar = document.getElementById('loadingProgress');
+    const percentDisplay = document.getElementById('loadingPercent');
+    const subtitle = document.querySelector('.loading-subtitle');
+    
+    if (bar) {
+        bar.style.width = Math.min(percent, 100) + '%';
+    }
+    if (percentDisplay) {
+        percentDisplay.textContent = Math.min(percent, 100) + '%';
+    }
+    if (subtitle && message) {
+        subtitle.textContent = message;
+    }
+}
+
+function hideLoadingScreen() {
+    const screen = document.getElementById('loadingScreen');
+    const appWrapper = document.getElementById('appWrapper');
+    
+    if (screen) {
+        screen.classList.add('hidden');
+        setTimeout(() => {
+            screen.style.display = 'none';
+        }, 600);
+    }
+    if (appWrapper) {
+        appWrapper.style.display = 'flex';
+    }
+}
+
+// ================================================================
 // INITIALIZATION
 // ================================================================
 
 function initApp() {
     console.log('🚀 Starting ScriptFlow Pro...');
+    updateLoadingProgress(10, 'Initializing application...');
 
     const originalWarn = console.warn;
     console.warn = function(...args) {
@@ -4985,6 +4794,7 @@ function initApp() {
         console.warn('⚠️ Firebase not available - running in offline mode');
         showToast('Offline mode - Some features may be limited', 'warning');
     }
+    updateLoadingProgress(35, 'Connecting to services...');
 
     AppState.customShortcuts = JSON.parse(localStorage.getItem('customShortcuts') || '{}');
     AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS, ...AppState.customShortcuts };
@@ -5008,6 +4818,7 @@ function initApp() {
             localStorage.setItem('toolsMenuOpen', isOpen);
         });
     }
+    updateLoadingProgress(50, 'Setting up UI...');
 
     const menuToggle = DOM.get('menuToggleBtn');
     const sidebar = DOM.get('mainSidebar');
@@ -5023,6 +4834,7 @@ function initApp() {
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') handleEscapeKey();
     });
+    updateLoadingProgress(65, 'Loading features...');
 
     document.querySelectorAll('.tool-item').forEach(item => {
         item.addEventListener('click', function() {
@@ -5080,16 +4892,14 @@ function initApp() {
         clipboardBtn.addEventListener('click', quickImportFromClipboard);
     }
 
-    // Set default date when import modal opens
+    // Set default date on modal open
     const importModal = DOM.get('smartImportModal');
     if (importModal) {
         const observer = new MutationObserver(() => {
             if (importModal.style.display === 'flex') {
                 const dateInput = DOM.get('importDefaultDate');
                 if (dateInput && !dateInput.value) {
-                    const defaultDate = AppState.importDefaultDate || Utils.getTodayStr();
-                    dateInput.value = defaultDate;
-                    AppState.importDefaultDate = defaultDate;
+                    dateInput.value = Utils.getTodayStr();
                 }
             }
         });
@@ -5324,14 +5134,7 @@ function initApp() {
                     AppState.currentUser = user;
                     Auth.updateUI();
                     await Data.loadUserData();
-                    const loadingScreen = DOM.get('loadingScreen');
-                    const appWrapper = DOM.get('appWrapper');
-                    if (loadingScreen && appWrapper) {
-                        loadingScreen.style.opacity = '0';
-                        loadingScreen.style.transition = 'opacity 0.5s';
-                        appWrapper.style.display = 'flex';
-                        setTimeout(() => loadingScreen.style.display = 'none', 500);
-                    }
+                    updateLoadingProgress(85, 'Loading your data...');
                 } else {
                     const localData = localStorage.getItem('userData_fallback');
                     if (localData) {
@@ -5348,16 +5151,10 @@ function initApp() {
                             showToast('Loaded offline data', 'info');
                         } catch (e) {}
                     }
-                    const loadingScreen = DOM.get('loadingScreen');
-                    const appWrapper = DOM.get('appWrapper');
-                    if (loadingScreen && appWrapper) {
-                        loadingScreen.style.opacity = '0';
-                        loadingScreen.style.transition = 'opacity 0.5s';
-                        appWrapper.style.display = 'flex';
-                        setTimeout(() => loadingScreen.style.display = 'none', 500);
-                    }
                     Auth.showModal();
                 }
+                updateLoadingProgress(100, 'Ready!');
+                setTimeout(hideLoadingScreen, 400);
             });
         } else {
             const localData = localStorage.getItem('userData_fallback');
@@ -5374,27 +5171,15 @@ function initApp() {
                     Scripts.loadScript('opening');
                 } catch (e) {}
             }
-            const loadingScreen = DOM.get('loadingScreen');
-            const appWrapper = DOM.get('appWrapper');
-            if (loadingScreen && appWrapper) {
-                loadingScreen.style.opacity = '0';
-                loadingScreen.style.transition = 'opacity 0.5s';
-                appWrapper.style.display = 'flex';
-                setTimeout(() => loadingScreen.style.display = 'none', 500);
-            }
             Auth.showModal();
+            updateLoadingProgress(100, 'Ready!');
+            setTimeout(hideLoadingScreen, 400);
         }
     } catch (error) {
         console.warn('Auth setup error:', error);
-        const loadingScreen = DOM.get('loadingScreen');
-        const appWrapper = DOM.get('appWrapper');
-        if (loadingScreen && appWrapper) {
-            loadingScreen.style.opacity = '0';
-            loadingScreen.style.transition = 'opacity 0.5s';
-            appWrapper.style.display = 'flex';
-            setTimeout(() => loadingScreen.style.display = 'none', 500);
-        }
         Auth.showModal();
+        updateLoadingProgress(100, 'Ready!');
+        setTimeout(hideLoadingScreen, 400);
     }
 
     document.addEventListener('click', (e) => {
@@ -5403,9 +5188,7 @@ function initApp() {
         }
     });
 
-    // ================================================================
-    // SCRIPT COACH INITIALIZATION
-    // ================================================================
+    // Initialize Script Coach
     setTimeout(() => {
         if (typeof initScriptCoach === 'function') {
             initScriptCoach();
@@ -5422,8 +5205,7 @@ function initApp() {
     console.log(`🔌 Firebase status: ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
     console.log('✨ Enhanced Smart Import loaded with intelligent parsing');
     console.log('📜 Script management: Create, Edit Title, Delete, Favorite');
-    console.log('🎯 Script Coach: AI-powered script analysis and playback');
-    console.log('📅 Smart Import date sync enabled with calendar');
+    console.log('🎤 Script Coach: AI-powered script analysis and playback');
 }
 
 // ================================================================
@@ -5436,7 +5218,6 @@ window.loadScript = Scripts.loadScript;
 window.openShortcutEdit = openShortcutEdit;
 window.showToast = showToast;
 window.openGlobalSearch = openGlobalSearch;
-window.openContactDetail = openContactDetail;
 window.editAppointment = editAppointment;
 window.rescheduleAppointment = rescheduleAppointment;
 window.completeAppointment = completeAppointment;
@@ -5448,11 +5229,6 @@ window.Scripts = Scripts;
 window.openSmartImport = openSmartImportEnhanced;
 window.parseAndPreviewImportEnhanced = parseAndPreviewImportEnhanced;
 window.toggleImportRecord = toggleImportRecord;
-window.editImportRecord = editImportRecord;
-window.saveImportRecordEdit = saveImportRecordEdit;
-window.cancelImportRecordEdit = cancelImportRecordEdit;
-window.skipImportRecord = skipImportRecord;
-window.mergeDuplicate = mergeDuplicate;
 window.saveAllImportedAppointments = saveAllImportedAppointments;
 window.ImportState = ImportState;
 window.SMART_IMPORT_CONFIG = SMART_IMPORT_CONFIG;
@@ -5460,7 +5236,8 @@ window.generateImportTemplate = generateImportTemplate;
 window.quickImportFromClipboard = quickImportFromClipboard;
 window.expandAllRecords = expandAllRecords;
 window.collapseAllRecords = collapseAllRecords;
-window.AppState = AppState;
+window.Auth = Auth;
+window.CONFIG = CONFIG;
 
 // Start the app
 document.addEventListener('DOMContentLoaded', initApp);
