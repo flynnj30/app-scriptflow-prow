@@ -692,7 +692,7 @@ function showAnalysisResults(results) {
     // ============================================================
     // FIX: Safely access metrics with fallback values
     // ============================================================
-    const metrics = results.metrics || {
+    const safeMetrics = {
         tonality: 0.5,
         pacing: 0.5,
         phrasing: 0.5,
@@ -703,11 +703,16 @@ function showAnalysisResults(results) {
         flow: 0.5
     };
     
-    const overall = results.overall || 0;
-    const recommendations = results.recommendations || [];
-    const wordCount = results.wordCount || 0;
-    const sentenceCount = results.sentenceCount || 0;
-    const paragraphCount = results.paragraphCount || 0;
+    // Merge with results metrics if they exist
+    if (results.metrics) {
+        Object.assign(safeMetrics, results.metrics);
+    }
+    
+    const overall = typeof results.overall === 'number' ? results.overall : 0;
+    const recommendations = Array.isArray(results.recommendations) ? results.recommendations : [];
+    const wordCount = typeof results.wordCount === 'number' ? results.wordCount : 0;
+    const sentenceCount = typeof results.sentenceCount === 'number' ? results.sentenceCount : 0;
+    const paragraphCount = typeof results.paragraphCount === 'number' ? results.paragraphCount : 0;
     const bestTone = results.bestTone || SCRIPT_COACH_CONFIG.DEFAULT_TONE;
     
     const overlay = document.createElement('div');
@@ -731,7 +736,7 @@ function showAnalysisResults(results) {
                     <div class="coach-score-label">Overall Score</div>
                 </div>
                 <div class="coach-metrics-grid">
-                    ${Object.entries(metrics).map(([key, value]) => `
+                    ${Object.entries(safeMetrics).map(([key, value]) => `
                         <div class="coach-metric-item">
                             <div class="coach-metric-header">
                                 <span class="coach-metric-icon">${SCRIPT_COACH_CONFIG.METRICS[key]?.icon || '📊'}</span>
@@ -829,6 +834,7 @@ function startScriptPlayback() {
     const wordTimings = ScriptCoachState.analysisResults.wordTimings || [];
     const lines = ScriptCoachState.analysisResults.lines || [];
     
+    // Ensure word timings exist
     while (wordTimings.length < words.length) {
         wordTimings.push({
             word: words[wordTimings.length],
@@ -850,7 +856,9 @@ function startScriptPlayback() {
     ScriptCoachState.currentWordIndex = 0;
     ScriptCoachState.progress = 0;
     ScriptCoachState.currentTime = 0;
+    ScriptCoachState.activeLineIndex = 0;
     
+    // Update play button
     const playBtn = document.getElementById('coachPlayBtn');
     if (playBtn) {
         playBtn.innerHTML = '<i class="fas fa-pause"></i> Pause';
@@ -858,11 +866,14 @@ function startScriptPlayback() {
         playBtn.style.color = '#1e293b';
     }
     
+    // Render karaoke display
     renderKaraokeDisplay(karaokeContainer, words, wordTimings, lines);
     
+    // Calculate total duration
     const totalDuration = wordTimings.reduce((sum, w) => sum + w.duration, 0);
     ScriptCoachState.totalDuration = totalDuration;
     
+    // Start playback
     startKaraokePlayback();
     showKaraokeControls(karaokeContainer);
 }
@@ -1094,8 +1105,6 @@ function renderKaraokeDisplay(container, words, wordTimings, lines) {
     if (!linesContainer) return;
     
     if (!lines || lines.length === 0) {
-        const content = ScriptCoachState.currentScriptContent;
-        const sentenceLines = content ? content.split(/[.!?]\s+/).filter(l => l.trim().length > 0) : [];
         renderWordByWord(linesContainer, words, wordTimings);
         return;
     }
@@ -1147,6 +1156,7 @@ function renderKaraokeDisplay(container, words, wordTimings, lines) {
         });
         html += `</div>`;
     });
+    
     linesContainer.innerHTML = html;
 }
 
@@ -1200,9 +1210,11 @@ function startKaraokePlayback() {
     const speed = ScriptCoachState.playbackSpeed;
     const totalDuration = ScriptCoachState.totalDuration;
     
+    // Set initial highlight
     highlightWord(startIndex);
     updateActiveLine(startIndex);
     
+    // Update total time
     const totalTimeEl = document.getElementById('coachTotalTime');
     if (totalTimeEl) totalTimeEl.textContent = formatTime(totalDuration);
     
@@ -1216,6 +1228,7 @@ function startKaraokePlayback() {
         elapsed = (Date.now() - startTime) * speed;
         let accumulatedTime = 0;
         
+        // Find the current word based on elapsed time
         let foundIndex = -1;
         for (let i = startIndex; i < wordTimings.length; i++) {
             if (elapsed >= accumulatedTime && elapsed < accumulatedTime + wordTimings[i].duration) {
@@ -1226,6 +1239,7 @@ function startKaraokePlayback() {
         }
         
         if (foundIndex === -1 && elapsed >= accumulatedTime) {
+            // Playback completed
             stopScriptPlayback();
             showToast('✅ Playback complete!', 'success');
             return;
@@ -1236,15 +1250,20 @@ function startKaraokePlayback() {
             lastHighlightIndex = foundIndex;
             ScriptCoachState.currentWordIndex = currentIndex;
             
+            // Highlight the current word
             highlightWord(currentIndex);
             updateActiveLine(currentIndex);
+            
+            // Play word sound
             playWordSound(currentIndex);
             
+            // Update progress
             const progress = currentIndex / words.length;
             ScriptCoachState.progress = progress;
             const fill = document.getElementById('coachProgressFill');
             if (fill) fill.style.width = (progress * 100) + '%';
             
+            // Update current time
             const currentTimeEl = document.getElementById('coachCurrentTime');
             if (currentTimeEl) {
                 const currentTime = currentIndex > 0 ? 
@@ -1253,9 +1272,11 @@ function startKaraokePlayback() {
                 ScriptCoachState.currentTime = currentTime;
             }
             
+            // Check for section change
             updateSectionIndicator(currentIndex);
         }
         
+        // Check for loop
         if (ScriptCoachState.isLooping && currentIndex >= ScriptCoachState.words.length - 1) {
             ScriptCoachState.currentWordIndex = ScriptCoachState.loopStart;
             startTime = Date.now();
@@ -1263,6 +1284,7 @@ function startKaraokePlayback() {
             lastHighlightIndex = -1;
             showToast('🔄 Loop repeat', 'info');
         }
+        
     }, 50);
 }
 
@@ -1272,6 +1294,7 @@ function highlightWord(index) {
         el.classList.remove('current', 'speaking');
         if (i === index) {
             el.classList.add('current', 'speaking');
+            // Smooth scroll to keep active line centered
             const line = el.closest('.coach-line');
             if (line) {
                 const container = document.getElementById('coachKaraokeBody');
@@ -1295,6 +1318,7 @@ function updateActiveLine(index) {
     const wordElements = document.querySelectorAll('.coach-word');
     let currentLineIndex = -1;
     
+    // Find which line contains the current word
     wordElements.forEach((el, i) => {
         if (i === index) {
             const line = el.closest('.coach-line');
@@ -1347,6 +1371,7 @@ function navigateToSection(sectionIndex) {
     for (let i = 0; i < sections.length; i++) {
         if (sections[i] && sections[i].sectionId === sectionIndex) {
             targetIndex = sections[i].lineIndex;
+            // Find the first word in this line
             const lines = document.querySelectorAll('.coach-line');
             if (lines[i]) {
                 const firstWord = lines[i].querySelector('.coach-word');
@@ -1600,6 +1625,7 @@ function initScriptCoach() {
         }
     }, { once: true });
     
+    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         if (!document.querySelector('.coach-karaoke-container')) return;
         
