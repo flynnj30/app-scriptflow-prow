@@ -17,23 +17,24 @@ try {
     if (typeof firebase !== 'undefined') {
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
-            console.log('âœ… Firebase initialized successfully');
+            console.log('✅ Firebase initialized successfully');
         }
         
+        // Enable offline persistence for better performance
         firebase.firestore().enablePersistence({ synchronizeTabs: true })
-            .then(() => console.log('âœ… Firebase persistence enabled'))
+            .then(() => console.log('✅ Firebase persistence enabled'))
             .catch(err => {
                 if (err.code === 'failed-precondition') {
-                    console.warn('âš ï¸ Firebase persistence: multiple tabs open, persistence disabled');
+                    console.warn('⚠️ Firebase persistence: multiple tabs open, persistence disabled');
                 } else if (err.code === 'unimplemented') {
-                    console.warn('âš ï¸ Firebase persistence not supported in this browser');
+                    console.warn('⚠️ Firebase persistence not supported in this browser');
                 } else {
-                    console.warn('âš ï¸ Firebase persistence error:', err.message);
+                    console.warn('⚠️ Firebase persistence error:', err.message);
                 }
             });
     } else {
-        console.warn('âš ï¸ Firebase SDK not loaded');
+        console.warn('⚠️ Firebase SDK not loaded');
     }
 } catch (e) {
-    console.warn('âš ï¸ Firebase initialization failed:', e.message);
+    console.warn('⚠️ Firebase initialization failed:', e.message);
 }
