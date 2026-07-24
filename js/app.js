@@ -1,4 +1,3 @@
-
 // ================================================================
 // SCRIPTFLOW PRO - COMPLETE APPLICATION
 // ================================================================
@@ -220,11 +219,6 @@ const Utils = {
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     },
 
-    formatTime(timeStr) {
-        if (!timeStr) return 'No time';
-        return timeStr;
-    },
-
     escapeHtml(s) {
         if (!s) return '';
         return String(s).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
@@ -320,99 +314,6 @@ const Utils = {
             }
         }
         return conflicts;
-    },
-
-    parseAppointmentText(text) {
-        const result = {};
-        const confidence = {};
-        const lines = text.split('\n').filter(line => line.trim());
-        const hasKeyValue = lines.some(line => line.includes(':'));
-
-        if (hasKeyValue) {
-            lines.forEach(line => {
-                const [key, ...valueParts] = line.split(':');
-                const rawKey = key.trim().toLowerCase();
-                const rawValue = valueParts.join(':').trim();
-                if (rawValue) {
-                    if (rawKey.includes('best time') || rawKey.includes('callback')) {
-                        const dateMatch = rawValue.match(/(\w+\s+\d{1,2},\s+\d{4})/i);
-                        const timeMatch = rawValue.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
-                        if (dateMatch) {
-                            result['date'] = dateMatch[1];
-                            confidence['date'] = 0.8;
-                        }
-                        if (timeMatch) {
-                            result['time'] = timeMatch[1];
-                            confidence['time'] = 0.8;
-                        }
-                        if (!result['notes']) {
-                            result['notes'] = `Best time: ${rawValue}`;
-                            confidence['notes'] = 0.6;
-                        }
-                    } else {
-                        for (const [field, aliases] of Object.entries(CONFIG.FIELD_MAPPINGS)) {
-                            if (aliases.some(alias => rawKey.includes(alias) || alias.includes(rawKey))) {
-                                result[field] = rawValue;
-                                confidence[field] = 1.0;
-                                break;
-                            }
-                        }
-                    }
-                }
-            });
-        }
-        
-        if (!result['date']) {
-            const fullText = lines.join(' ');
-            const dateMatch = fullText.match(/(\w+\s+\d{1,2},\s+\d{4})/i);
-            if (dateMatch) {
-                result['date'] = dateMatch[1];
-                confidence['date'] = 0.5;
-            }
-        }
-        
-        if (!result['time']) {
-            const fullText = lines.join(' ');
-            const timeMatch = fullText.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
-            if (timeMatch) {
-                result['time'] = timeMatch[1];
-                confidence['time'] = 0.5;
-            }
-        }
-        
-        for (const field of ['name', 'business', 'phone', 'email', 'date', 'time', 'status']) {
-            if (result[field] && !confidence[field]) confidence[field] = 0.5;
-        }
-        return { result, confidence };
-    },
-
-    checkDuplicate(appointment, appointments) {
-        if (!appointment.name && !appointment.phone && !appointment.email) return null;
-        for (let date in appointments) {
-            if (appointments[date]?.reports) {
-                for (const existing of appointments[date].reports) {
-                    let matchCount = 0, totalChecks = 0;
-                    if (appointment.name && existing.contactName) {
-                        totalChecks++;
-                        if (appointment.name.toLowerCase() === existing.contactName.toLowerCase()) matchCount++;
-                    }
-                    if (appointment.phone && existing.phone) {
-                        totalChecks++;
-                        if (appointment.phone === existing.phone) matchCount++;
-                    }
-                    if (appointment.email && existing.email) {
-                        totalChecks++;
-                        if (appointment.email.toLowerCase() === existing.email.toLowerCase()) matchCount++;
-                    }
-                    if (appointment.business && existing.business) {
-                        totalChecks++;
-                        if (appointment.business.toLowerCase() === existing.business.toLowerCase()) matchCount++;
-                    }
-                    if (totalChecks > 0 && matchCount / totalChecks >= 0.6) return existing;
-                }
-            }
-        }
-        return null;
     },
 
     getOrderedVisible(scripts, scriptOrder) {
@@ -558,6 +459,41 @@ function handleError(error, context = '') {
     }
     showToast(message, 'error');
     return { success: false, message };
+}
+
+// ================================================================
+// LOADING SCREEN
+// ================================================================
+
+function updateLoadingProgress(percent, message = '') {
+    const bar = document.getElementById('loadingProgress');
+    const percentDisplay = document.getElementById('loadingPercent');
+    const subtitle = document.querySelector('.loading-subtitle');
+    
+    if (bar) {
+        bar.style.width = Math.min(percent, 100) + '%';
+    }
+    if (percentDisplay) {
+        percentDisplay.textContent = Math.min(percent, 100) + '%';
+    }
+    if (subtitle && message) {
+        subtitle.textContent = message;
+    }
+}
+
+function hideLoadingScreen() {
+    const screen = document.getElementById('loadingScreen');
+    const appWrapper = document.getElementById('appWrapper');
+    
+    if (screen) {
+        screen.classList.add('hidden');
+        setTimeout(() => {
+            screen.style.display = 'none';
+        }, 600);
+    }
+    if (appWrapper) {
+        appWrapper.style.display = 'flex';
+    }
 }
 
 // ================================================================
@@ -1110,21 +1046,6 @@ const Data = {
         return null;
     },
 
-    getAppointmentsInDateRange: function(startDate, endDate) {
-        const result = [];
-        const startStr = Utils.formatDateForCompare(startDate);
-        const endStr = Utils.formatDateForCompare(endDate);
-
-        for (let date in AppState.appointments) {
-            if (date >= startStr && date <= endStr) {
-                if (AppState.appointments[date].reports) {
-                    result.push(...AppState.appointments[date].reports);
-                }
-            }
-        }
-        return result;
-    },
-
     addTask: function(description, dueDate, priority = 'medium', appointmentId = null) {
         if (!AppState.currentUser) return;
         const task = {
@@ -1611,9 +1532,9 @@ const Scripts = {
         this.renderSidebar();
         this.updateKeyHints();
         
-        // Update Script Coach
-        if (typeof ScriptCoach !== 'undefined' && ScriptCoach.onScriptLoaded) {
-            ScriptCoach.onScriptLoaded(id, script.content);
+        // Notify Script Coach
+        if (window.ScriptCoach && typeof window.ScriptCoach.onScriptLoaded === 'function') {
+            window.ScriptCoach.onScriptLoaded(id, script.content);
         }
     },
 
@@ -1837,2078 +1758,7 @@ const Scripts = {
 };
 
 // ================================================================
-// ENHANCED SMART IMPORT FUNCTIONS
-// ================================================================
-
-function parseAppointmentTextEnhanced(text, defaultDate = null) {
-    const result = {};
-    const confidence = {};
-    const context = {
-        hasKeyValue: false,
-        hasBulletPoints: false,
-        hasNaturalLanguage: false,
-        detectedFormat: 'unknown',
-        synonyms: {
-            date: [],
-            time: [],
-            status: [],
-            assigned: []
-        }
-    };
-    
-    const cleanText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const lines = cleanText.split('\n').filter(line => line.trim());
-    const fullText = lines.join(' ');
-    
-    context.hasKeyValue = lines.some(line => line.includes(':') || line.includes('=') || line.includes('->'));
-    context.hasBulletPoints = lines.some(line => /^[\s]*[•\-*]\s/.test(line));
-    context.hasNaturalLanguage = !context.hasKeyValue && !context.hasBulletPoints;
-    
-    if (context.hasKeyValue) context.detectedFormat = 'key_value';
-    else if (context.hasBulletPoints) context.detectedFormat = 'bullet_points';
-    else if (context.hasNaturalLanguage) context.detectedFormat = 'natural_language';
-    
-    if (context.detectedFormat === 'key_value') {
-        parseKeyValueFormatEnhanced(lines, result, confidence, context);
-    } else if (context.detectedFormat === 'bullet_points') {
-        parseBulletPointFormat(lines, result, confidence);
-    } else {
-        parseNaturalLanguageFormat(fullText, lines, result, confidence);
-    }
-    
-    // Ensure date uses the default date if provided and no date found
-    if (!result.date && defaultDate) {
-        result.date = defaultDate;
-        confidence.date = 1.0;
-        context.synonyms.date.push('user selected');
-    }
-    
-    enhanceParsedDataEnhanced(result, confidence, fullText, context, defaultDate);
-    
-    return { result, confidence, context };
-}
-
-function parseKeyValueFormatEnhanced(lines, result, confidence, context) {
-    const separators = [':', '=', '->', '=>'];
-    
-    const synonymMap = {
-        'best time': 'time',
-        'callback time': 'time',
-        'callback date': 'date',
-        'scheduled date': 'date',
-        'appointment date': 'date',
-        'meeting date': 'date',
-        'call date': 'date',
-        'scheduled time': 'time',
-        'meeting time': 'time',
-        'appointment time': 'time',
-        'call time': 'time',
-        'lead status': 'status',
-        'call status': 'status',
-        'appointment status': 'status',
-        'assigned agent': 'assigned',
-        'assigned to': 'assigned',
-        'team member': 'assigned',
-        'handler': 'assigned',
-        'contact number': 'phone',
-        'mobile number': 'phone',
-        'cell phone': 'phone',
-        'business name': 'business',
-        'company name': 'business',
-        'organization name': 'business',
-        'full name': 'name',
-        'contact name': 'name',
-        'client name': 'name',
-        'customer name': 'name',
-        'person name': 'name'
-    };
-    
-    lines.forEach(line => {
-        let separatorIndex = -1;
-        let separatorUsed = '';
-        
-        for (const sep of separators) {
-            const idx = line.indexOf(sep);
-            if (idx !== -1 && (separatorIndex === -1 || idx < separatorIndex)) {
-                separatorIndex = idx;
-                separatorUsed = sep;
-            }
-        }
-        
-        if (separatorIndex !== -1) {
-            let key = line.substring(0, separatorIndex).trim().toLowerCase();
-            const value = line.substring(separatorIndex + separatorUsed.length).trim();
-            
-            if (value) {
-                let matchedField = null;
-                
-                if (synonymMap[key]) {
-                    matchedField = synonymMap[key];
-                    context.synonyms[matchedField] = context.synonyms[matchedField] || [];
-                    context.synonyms[matchedField].push(key);
-                }
-                
-                if (!matchedField) {
-                    matchedField = matchFieldName(key);
-                }
-                
-                if (key.includes('best time') || key.includes('callback') && key.includes('time')) {
-                    const dateMatch = value.match(/(\w+\s+\d{1,2},?\s+\d{4})/i);
-                    const timeMatch = value.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
-                    const relativeDateMatch = value.match(/\b(today|tomorrow|yesterday|next week|this week)\b/i);
-                    
-                    if (dateMatch) {
-                        result['date'] = dateMatch[1];
-                        confidence['date'] = 0.9;
-                        context.synonyms.date.push('best time');
-                    }
-                    if (timeMatch) {
-                        result['time'] = timeMatch[1];
-                        confidence['time'] = 0.9;
-                        context.synonyms.time.push('best time');
-                    }
-                    if (relativeDateMatch) {
-                        const relativeDate = parseRelativeDate(relativeDateMatch[1]);
-                        if (relativeDate) {
-                            result['date'] = relativeDate;
-                            confidence['date'] = 0.85;
-                            context.synonyms.date.push(relativeDateMatch[1]);
-                        }
-                    }
-                    if (!result['notes']) {
-                        result['notes'] = '';
-                    }
-                    result['notes'] += (result['notes'] ? '\n' : '') + `Best time: ${value}`;
-                    confidence['notes'] = 0.6;
-                } else if (matchedField) {
-                    result[matchedField] = value;
-                    confidence[matchedField] = 0.9;
-                    if (matchedField === 'date') {
-                        const parsedDate = parseDateStringEnhanced(value);
-                        if (parsedDate) {
-                            result['date'] = parsedDate;
-                            confidence['date'] = 0.95;
-                        }
-                    }
-                } else {
-                    if (!result['notes']) {
-                        result['notes'] = '';
-                    }
-                    result['notes'] += (result['notes'] ? '\n' : '') + `${key}: ${value}`;
-                    confidence['notes'] = 0.5;
-                }
-            }
-        } else if (line.trim()) {
-            if (!result['notes']) {
-                result['notes'] = '';
-            }
-            result['notes'] += (result['notes'] ? '\n' : '') + line.trim();
-            confidence['notes'] = 0.4;
-        }
-    });
-}
-
-function parseBulletPointFormat(lines, result, confidence) {
-    const bulletPattern = /^[\s]*[•\-*]\s*(.*)$/;
-    let currentSection = 'notes';
-    
-    lines.forEach(line => {
-        const match = line.match(bulletPattern);
-        if (match) {
-            const content = match[1].trim();
-            
-            const fieldMatch = content.match(/^([^:]+):\s*(.*)$/);
-            if (fieldMatch) {
-                const key = fieldMatch[1].trim().toLowerCase();
-                const value = fieldMatch[2].trim();
-                const matchedField = matchFieldName(key);
-                if (matchedField) {
-                    result[matchedField] = value;
-                    confidence[matchedField] = 0.85;
-                    currentSection = matchedField;
-                } else {
-                    if (!result.notes) result.notes = '';
-                    result.notes += (result.notes ? '\n' : '') + content;
-                    confidence.notes = 0.4;
-                }
-            } else {
-                if (result[currentSection] && currentSection !== 'notes') {
-                    result[currentSection] += ' ' + content;
-                } else {
-                    if (!result.notes) result.notes = '';
-                    result.notes += (result.notes ? '\n' : '') + content;
-                    confidence.notes = 0.4;
-                }
-            }
-        }
-    });
-}
-
-function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
-    const namePatterns = [
-        /(?:name|contact|client|customer|person|full name)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
-        /(?:from|with|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
-        /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:from|at|with|said|wants|would like)/i,
-        /contact:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i
-    ];
-    
-    for (const pattern of namePatterns) {
-        const match = fullText.match(pattern);
-        if (match && match[1]) {
-            result.name = match[1].trim();
-            confidence.name = 0.7;
-            break;
-        }
-    }
-    
-    const businessPatterns = [
-        /(?:business|company|organization|org|firm|brand|store)[:\s]+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i,
-        /(?:from|at|with)\s+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i,
-        /(?:company|business)[:\s]*([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i
-    ];
-    
-    for (const pattern of businessPatterns) {
-        const match = fullText.match(pattern);
-        if (match && match[1]) {
-            result.business = match[1].trim();
-            confidence.business = 0.7;
-            break;
-        }
-    }
-    
-    const phonePatterns = [
-        /(?:phone|mobile|cell|telephone|number|call)[:\s]+([+\d\s\-\(\)]{7,20})/i,
-        /([+\d\s\-\(\)]{10,20})(?:\s*(?:is|was|will be|the|their|his|her))/i,
-        /(?:call|reach|contact)\s+(?:at|on|via)\s+([+\d\s\-\(\)]{10,20})/i,
-        /(\d{3}[-.]?\d{3}[-.]?\d{4})/,
-        /\(\d{3}\)\s*\d{3}[-.]?\d{4}/
-    ];
-    
-    for (const pattern of phonePatterns) {
-        const match = fullText.match(pattern);
-        if (match && match[1]) {
-            result.phone = match[1].trim();
-            confidence.phone = 0.85;
-            break;
-        }
-    }
-    
-    const emailPatterns = [
-        /(?:email|e-mail|mail)[:\s]+([^\s@]+@[^\s@]+\.[^\s@]+)/i,
-        /([^\s@]+@[^\s@]+\.[^\s@]+)/
-    ];
-    
-    for (const pattern of emailPatterns) {
-        const match = fullText.match(pattern);
-        if (match && match[1]) {
-            result.email = match[1].trim().toLowerCase();
-            confidence.email = 0.9;
-            break;
-        }
-    }
-    
-    const datePatterns = [
-        /(?:date|appointment|scheduled|meeting|call|day)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,
-        /(?:best time|callback)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,
-        /(\d{1,2}\/\d{1,2}\/\d{4})/,
-        /(\d{4}-\d{2}-\d{2})/,
-        /([A-Za-z]+\s+\d{1,2},?\s+\d{4})/
-    ];
-    
-    for (const pattern of datePatterns) {
-        const match = fullText.match(pattern);
-        if (match && match[1]) {
-            result.date = match[1].trim();
-            confidence.date = 0.8;
-            break;
-        }
-    }
-    
-    const timePatterns = [
-        /(?:time|at|scheduled|appointment|meeting|call)[:\s]+(\d{1,2}:\d{2}\s*(?:AM|PM))/i,
-        /(\d{1,2}:\d{2}\s*(?:AM|PM))/i,
-        /(\d{1,2}\s*(?:AM|PM|am|pm))/i
-    ];
-    
-    for (const pattern of timePatterns) {
-        const match = fullText.match(pattern);
-        if (match && match[1]) {
-            const time = match[1].trim();
-            if (!time.includes(':')) {
-                const parts = time.match(/(\d+)\s*(AM|PM)/i);
-                if (parts) {
-                    result.time = `${parts[1]}:00 ${parts[2].toUpperCase()}`;
-                    confidence.time = 0.8;
-                }
-            } else {
-                result.time = time;
-                confidence.time = 0.85;
-            }
-            break;
-        }
-    }
-    
-    const statusValues = SMART_IMPORT_CONFIG.VALIDATION.status.allowed;
-    for (const status of statusValues) {
-        if (fullText.toLowerCase().includes(status.toLowerCase())) {
-            result.status = status;
-            confidence.status = 0.7;
-            break;
-        }
-    }
-    
-    const assignedPatterns = [
-        /(?:assigned to|owner|agent|representative|rep|handler|manager)[:\s]+([A-Z][a-z]+)/i,
-        /(?:with|by|to)\s+([A-Z][a-z]+)(?:\s+(?:from|at|is|will))/i
-    ];
-    
-    for (const pattern of assignedPatterns) {
-        const match = fullText.match(pattern);
-        if (match && match[1]) {
-            result.assigned = match[1].trim();
-            confidence.assigned = 0.65;
-            break;
-        }
-    }
-    
-    if (Object.keys(result).length === 0) {
-        result.notes = fullText;
-        confidence.notes = 0.3;
-    }
-}
-
-function matchFieldName(key) {
-    const normalizedKey = key.toLowerCase().trim();
-    
-    for (const [field, aliases] of Object.entries(SMART_IMPORT_CONFIG.FIELD_ALIASES)) {
-        if (aliases.some(alias => 
-            normalizedKey === alias || 
-            normalizedKey.includes(alias) || 
-            alias.includes(normalizedKey) ||
-            normalizedKey.split(' ').some(word => word === alias.split(' ')[0])
-        )) {
-            return field;
-        }
-    }
-    return null;
-}
-
-function parseRelativeDate(expression) {
-    const today = new Date();
-    const expr = expression.toLowerCase().trim();
-    
-    if (expr === 'today') {
-        return Utils.formatDateForCompare(today);
-    }
-    if (expr === 'tomorrow') {
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        return Utils.formatDateForCompare(tomorrow);
-    }
-    if (expr === 'yesterday') {
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        return Utils.formatDateForCompare(yesterday);
-    }
-    if (expr === 'next week' || expr === 'next week') {
-        const nextWeek = new Date(today);
-        nextWeek.setDate(nextWeek.getDate() + 7);
-        return Utils.formatDateForCompare(nextWeek);
-    }
-    if (expr === 'this week') {
-        const thisWeek = new Date(today);
-        thisWeek.setDate(thisWeek.getDate() + (7 - thisWeek.getDay()));
-        return Utils.formatDateForCompare(thisWeek);
-    }
-    
-    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const dayIndex = dayNames.indexOf(expr);
-    if (dayIndex !== -1) {
-        const currentDay = today.getDay();
-        let daysUntil = dayIndex - currentDay;
-        if (daysUntil <= 0) daysUntil += 7;
-        const targetDate = new Date(today);
-        targetDate.setDate(targetDate.getDate() + daysUntil);
-        return Utils.formatDateForCompare(targetDate);
-    }
-    
-    return null;
-}
-
-function enhanceParsedDataEnhanced(result, confidence, fullText, context, defaultDate) {
-    if (result.phone) {
-        result.phone = normalizePhoneNumber(result.phone);
-    }
-    
-    if (result.email) {
-        result.email = result.email.toLowerCase().trim();
-    }
-    
-    if (result.date) {
-        const parsedDate = parseDateStringEnhanced(result.date);
-        if (parsedDate) {
-            result.date = parsedDate;
-            confidence.date = Math.max(confidence.date || 0, 0.9);
-        }
-    } else if (defaultDate) {
-        result.date = defaultDate;
-        confidence.date = 1.0;
-        context.synonyms.date = context.synonyms.date || [];
-        context.synonyms.date.push('user selected');
-    }
-    
-    if (result.time) {
-        const normalizedTime = normalizeTimeEnhanced(result.time);
-        if (normalizedTime) {
-            result.time = normalizedTime;
-            confidence.time = Math.max(confidence.time || 0, 0.9);
-        }
-    }
-    
-    if (!result.role && result.notes) {
-        const roleMatch = result.notes.match(/(?:role|title|position|job title)[:\s]+([A-Za-z\s]+?)(?:[,.\n]|$)/i);
-        if (roleMatch && roleMatch[1]) {
-            result.role = roleMatch[1].trim();
-            confidence.role = 0.6;
-        }
-    }
-    
-    if (result.notes) {
-        const sentimentIndicators = {
-            high_interest: /(?:high interest|very interested|excited|enthusiastic|positive|great|excellent|wants|would like|looking forward)/i,
-            medium_interest: /(?:interested|considering|thinking about|maybe|possibly|curious|willing to discuss)/i,
-            low_interest: /(?:not interested|no interest|uninterested|not sure|hesitant|maybe later|not now)/i,
-            cooperative: /(?:cooperative|helpful|easy to talk to|friendly|polite|professional|warm|great conversation)/i,
-            difficult: /(?:difficult|challenging|uncooperative|rude|unpleasant|hostile|argumentative)/i,
-            urgent: /(?:urgent|asap|immediately|quickly|as soon as possible|emergency|time sensitive)/i,
-            decision_maker: /(?:owner|ceo|president|founder|director|vp|vice president|head of|lead|manager|decision maker)/i,
-            no_website: /(?:no website|doesn't have a website|needs website|wants website|website redesign|new website)/i,
-            callback_requested: /(?:callback|call back|return call|follow up|follow-up|next steps|schedule call)/i,
-            referred: /(?:referred|reference|referral|recommended|suggested|from|sent by)/i
-        };
-        
-        const tags = result.tags || [];
-        for (const [key, pattern] of Object.entries(sentimentIndicators)) {
-            if (pattern.test(result.notes)) {
-                if (!tags.includes(key)) {
-                    tags.push(key);
-                }
-                confidence.tags = 0.6;
-                context.synonyms[key] = context.synonyms[key] || [];
-                context.synonyms[key].push(key);
-            }
-        }
-        result.tags = tags;
-    }
-}
-
-function normalizeTimeEnhanced(timeStr) {
-    if (!timeStr) return null;
-    
-    let cleaned = timeStr.trim();
-    
-    const timezoneMatch = cleaned.match(/\b(EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC|ET|CT|MT|PT)\b/i);
-    let timezone = null;
-    if (timezoneMatch) {
-        timezone = timezoneMatch[1].toUpperCase();
-        cleaned = cleaned.replace(/\b(EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC|ET|CT|MT|PT)\b/i, '').trim();
-    }
-    
-    let hour, minute, period;
-    let match = cleaned.match(/^(\d{1,2}):?(\d{2})?\s*(AM|PM)?$/i);
-    
-    if (!match) {
-        match = cleaned.match(/at\s+(\d{1,2}):?(\d{2})?\s*(AM|PM)?/i);
-        if (!match) {
-            match = cleaned.match(/^(\d{1,2})\s*(AM|PM)$/i);
-            if (match) {
-                hour = parseInt(match[1]);
-                period = match[2].toUpperCase();
-                minute = 0;
-            } else {
-                return null;
-            }
-        } else {
-            hour = parseInt(match[1]);
-            minute = parseInt(match[2] || '0');
-            period = match[3] ? match[3].toUpperCase() : null;
-        }
-    } else {
-        hour = parseInt(match[1]);
-        minute = parseInt(match[2] || '0');
-        period = match[3] ? match[3].toUpperCase() : null;
-    }
-    
-    if (hour < 1 || hour > 12) {
-        return null;
-    }
-    
-    if (minute < 0 || minute > 59) {
-        return null;
-    }
-    
-    if (!period) {
-        if (hour >= 6 && hour <= 11) {
-            period = 'AM';
-        } else if (hour === 12) {
-            period = 'PM';
-        } else if (hour >= 1 && hour <= 5) {
-            period = 'PM';
-        } else {
-            period = 'AM';
-        }
-    }
-    
-    let formatted = `${hour}:${String(minute).padStart(2, '0')} ${period}`;
-    if (timezone) {
-        formatted += ` ${timezone}`;
-    }
-    
-    return formatted;
-}
-
-function normalizePhoneNumber(phone) {
-    let cleaned = phone.replace(/[^\d+]/g, '');
-    
-    if (cleaned.length === 11 && cleaned.startsWith('1')) {
-        cleaned = cleaned.substring(1);
-    }
-    
-    if (cleaned.length === 10 && /^\d{10}$/.test(cleaned)) {
-        return `(${cleaned.substring(0, 3)}) ${cleaned.substring(3, 6)}-${cleaned.substring(6)}`;
-    }
-    
-    return cleaned;
-}
-
-function parseDateStringEnhanced(dateStr) {
-    if (!dateStr) return null;
-    
-    const trimmed = dateStr.trim();
-    
-    const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (isoMatch) {
-        const year = parseInt(isoMatch[1]);
-        const month = parseInt(isoMatch[2]) - 1;
-        const day = parseInt(isoMatch[3]);
-        const date = new Date(year, month, day);
-        if (!isNaN(date.getTime())) {
-            return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        }
-    }
-    
-    const usMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (usMatch) {
-        const month = parseInt(usMatch[1]) - 1;
-        const day = parseInt(usMatch[2]);
-        const year = parseInt(usMatch[3]);
-        const date = new Date(year, month, day);
-        if (!isNaN(date.getTime())) {
-            return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        }
-    }
-    
-    const naturalMatch = trimmed.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/i);
-    if (naturalMatch) {
-        const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-        const monthName = naturalMatch[1].toLowerCase();
-        const monthIndex = months.indexOf(monthName);
-        if (monthIndex !== -1) {
-            const day = parseInt(naturalMatch[2]);
-            const year = parseInt(naturalMatch[3]);
-            const date = new Date(year, monthIndex, day);
-            if (!isNaN(date.getTime())) {
-                return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            }
-        }
-    }
-    
-    const reverseMatch = trimmed.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
-    if (reverseMatch) {
-        const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-        const monthName = reverseMatch[2].toLowerCase();
-        const monthIndex = months.indexOf(monthName);
-        if (monthIndex !== -1) {
-            const day = parseInt(reverseMatch[1]);
-            const year = parseInt(reverseMatch[3]);
-            const date = new Date(year, monthIndex, day);
-            if (!isNaN(date.getTime())) {
-                return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            }
-        }
-    }
-    
-    if (/today/i.test(trimmed)) {
-        return Utils.getTodayStr();
-    }
-    if (/tomorrow/i.test(trimmed)) {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        return Utils.formatDateForCompare(tomorrow);
-    }
-    if (/yesterday/i.test(trimmed)) {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        return Utils.formatDateForCompare(yesterday);
-    }
-    
-    return null;
-}
-
-function validateAppointmentData(data) {
-    const errors = [];
-    const warnings = [];
-    const validated = {};
-    
-    if (!data.name || data.name.trim().length < 2) {
-        errors.push({ field: 'name', message: 'Contact name is required (minimum 2 characters)' });
-    } else {
-        validated.name = data.name.trim();
-    }
-    
-    if (!data.business || data.business.trim().length < 2) {
-        errors.push({ field: 'business', message: 'Business name is required (minimum 2 characters)' });
-    } else {
-        validated.business = data.business.trim();
-    }
-    
-    if (data.phone) {
-        const cleanPhone = data.phone.replace(/[^\d+]/g, '');
-        if (cleanPhone.length < 7 || cleanPhone.length > 15) {
-            warnings.push({ field: 'phone', message: 'Phone number seems invalid. Expected 7-15 digits.' });
-        }
-        validated.phone = cleanPhone;
-    }
-    
-    if (data.email) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(data.email)) {
-            warnings.push({ field: 'email', message: 'Email format seems invalid.' });
-        }
-        validated.email = data.email.toLowerCase().trim();
-    }
-    
-    if (data.date) {
-        const parsedDate = parseDateStringEnhanced(data.date);
-        if (parsedDate) {
-            validated.date = parsedDate;
-        } else {
-            warnings.push({ field: 'date', message: 'Date format not recognized. Using today\'s date.' });
-            validated.date = Utils.getTodayStr();
-        }
-    } else {
-        validated.date = Utils.getTodayStr();
-    }
-    
-    if (data.time) {
-        let timeStr = data.time.trim();
-        if (!timeStr.includes('AM') && !timeStr.includes('PM')) {
-            const hourMatch = timeStr.match(/^(\d{1,2}):?(\d{2})?$/);
-            if (hourMatch) {
-                const hour = parseInt(hourMatch[1]);
-                const minute = hourMatch[2] || '00';
-                if (hour >= 1 && hour <= 12) {
-                    timeStr = `${hour}:${minute} ${hour >= 6 && hour <= 11 ? 'AM' : 'PM'}`;
-                } else if (hour >= 13 && hour <= 23) {
-                    const adjustedHour = hour - 12;
-                    timeStr = `${adjustedHour}:${minute} PM`;
-                }
-            }
-        }
-        validated.time = timeStr;
-    }
-    
-    if (data.status) {
-        const statusOptions = SMART_IMPORT_CONFIG.VALIDATION.status.allowed;
-        const matchedStatus = statusOptions.find(s => 
-            s.toLowerCase() === data.status.toLowerCase() ||
-            s.toLowerCase().includes(data.status.toLowerCase()) ||
-            data.status.toLowerCase().includes(s.toLowerCase())
-        );
-        if (matchedStatus) {
-            validated.status = matchedStatus;
-        } else {
-            warnings.push({ field: 'status', message: `Status "${data.status}" not recognized. Using "Pending".` });
-            validated.status = 'Pending';
-        }
-    } else {
-        validated.status = 'Pending';
-    }
-    
-    ['assigned', 'role', 'notes', 'tags', 'email'].forEach(field => {
-        if (data[field]) {
-            validated[field] = data[field];
-        }
-    });
-    
-    return {
-        validated,
-        errors,
-        warnings,
-        isValid: errors.length === 0
-    };
-}
-
-function detectDuplicatesEnhanced(newData, existingAppointments) {
-    const duplicates = [];
-    const allAppointments = Data.getAllAppointments();
-    
-    if (allAppointments.length === 0) return duplicates;
-    
-    const newName = (newData.name || '').toLowerCase().trim();
-    const newBusiness = (newData.business || '').toLowerCase().trim();
-    const newPhone = (newData.phone || '').replace(/[^\d+]/g, '');
-    const newEmail = (newData.email || '').toLowerCase().trim();
-    
-    for (const existing of allAppointments) {
-        let score = 0;
-        let matchedFields = [];
-        let totalFields = 0;
-        
-        if (newName && existing.contactName) {
-            const existingName = existing.contactName.toLowerCase().trim();
-            totalFields++;
-            if (newName === existingName) {
-                score += 0.6;
-                matchedFields.push('name');
-            } else if (newName.includes(existingName) || existingName.includes(newName)) {
-                score += 0.3;
-                matchedFields.push('name_partial');
-            }
-        }
-        
-        if (newBusiness && existing.business) {
-            const existingBusiness = existing.business.toLowerCase().trim();
-            totalFields++;
-            if (newBusiness === existingBusiness) {
-                score += 0.5;
-                matchedFields.push('business');
-            } else if (newBusiness.includes(existingBusiness) || existingBusiness.includes(newBusiness)) {
-                score += 0.25;
-                matchedFields.push('business_partial');
-            }
-        }
-        
-        if (newPhone && existing.phone) {
-            const existingPhone = existing.phone.replace(/[^\d+]/g, '');
-            totalFields++;
-            if (newPhone === existingPhone) {
-                score += 0.7;
-                matchedFields.push('phone');
-            } else if (newPhone.includes(existingPhone) || existingPhone.includes(newPhone)) {
-                score += 0.3;
-                matchedFields.push('phone_partial');
-            }
-        }
-        
-        if (newEmail && existing.email) {
-            const existingEmail = existing.email.toLowerCase().trim();
-            totalFields++;
-            if (newEmail === existingEmail) {
-                score += 0.8;
-                matchedFields.push('email');
-            }
-        }
-        
-        const confidence = totalFields > 0 ? Math.min(score + (totalFields - 1) * 0.1, 1) : 0;
-        
-        if (confidence >= 0.5) {
-            duplicates.push({
-                existing: existing,
-                confidence: Math.round(confidence * 100),
-                matchedFields: matchedFields,
-                score: score
-            });
-        }
-    }
-    
-    duplicates.sort((a, b) => b.confidence - a.confidence);
-    return duplicates;
-}
-
-function splitAppointments(text) {
-    const appointments = [];
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-    let currentAppointment = [];
-    let inAppointment = false;
-    
-    for (const line of lines) {
-        const isNewAppointment = 
-            line.match(/^[A-Z][a-zA-Z]+\s+(?:Company|Corp|Inc|LLC|Ltd|Agency|Studio|Designs|Solutions|Services|Consulting|Group|Partners|&|Associates)/) ||
-            line.match(/^---+\s*$/) ||
-            line.match(/^={3,}\s*$/) ||
-            line.match(/^Appointment\s+#\d+/) ||
-            line.match(/^\d+\.\s*[A-Z]/);
-        
-        if (isNewAppointment && currentAppointment.length > 0) {
-            appointments.push(currentAppointment.join('\n'));
-            currentAppointment = [];
-            inAppointment = false;
-        }
-        
-        if (line.includes(':') && line.split(':')[0].trim().length > 0 && line.split(':')[0].trim().length < 30) {
-            const key = line.split(':')[0].trim().toLowerCase();
-            const isField = SMART_IMPORT_CONFIG.FIELD_ALIASES[key] || 
-                           Object.keys(SMART_IMPORT_CONFIG.FIELD_ALIASES).some(f => 
-                               SMART_IMPORT_CONFIG.FIELD_ALIASES[f].includes(key)
-                           );
-            if (isField && currentAppointment.length === 0 && !inAppointment) {
-                inAppointment = true;
-            }
-        }
-        
-        currentAppointment.push(line);
-    }
-    
-    if (currentAppointment.length > 0) {
-        appointments.push(currentAppointment.join('\n'));
-    }
-    
-    if (appointments.length === 0 && text.trim()) {
-        appointments.push(text.trim());
-    }
-    
-    return appointments;
-}
-
-function updateImportProgress(percent, message) {
-    const progressBar = DOM.get('importProgressBar');
-    const progressStatus = DOM.get('importProgressStatus');
-    
-    if (progressBar) {
-        progressBar.style.width = Math.min(percent, 100) + '%';
-    }
-    if (progressStatus && message) {
-        progressStatus.textContent = message;
-    }
-}
-
-function renderImportResultsEnhanced(records) {
-    const preview = DOM.get('importPreview');
-    const resultsContainer = DOM.get('importResultsContainer');
-    const saveBtn = DOM.get('saveImportBtn');
-    const progressContainer = DOM.get('importProgressContainer');
-    const summary = DOM.get('importSummary');
-    const recordCount = DOM.get('importRecordCount');
-    
-    if (!preview || !resultsContainer) return;
-    
-    preview.style.display = 'block';
-    
-    if (progressContainer) progressContainer.style.display = 'block';
-    
-    if (recordCount) {
-        recordCount.textContent = records.length;
-    }
-    
-    if (summary) {
-        const total = records.length;
-        const valid = records.filter(r => r.isValid).length;
-        const invalid = records.filter(r => !r.isValid).length;
-        const duplicates = records.filter(r => r.hasDuplicate).length;
-        
-        summary.style.display = 'block';
-        summary.innerHTML = `
-            <div class="import-summary-grid">
-                <div class="import-stat ${valid > 0 ? 'success' : ''}">
-                    <span class="stat-number">${valid}</span>
-                    <span class="stat-label">Valid Records</span>
-                </div>
-                <div class="import-stat ${invalid > 0 ? 'warning' : ''}">
-                    <span class="stat-number">${invalid}</span>
-                    <span class="stat-label">Needs Review</span>
-                </div>
-                <div class="import-stat ${duplicates > 0 ? 'warning' : ''}">
-                    <span class="stat-number">${duplicates}</span>
-                    <span class="stat-label">Potential Duplicates</span>
-                </div>
-                <div class="import-stat">
-                    <span class="stat-number">${total}</span>
-                    <span class="stat-label">Total Processed</span>
-                </div>
-            </div>
-        `;
-    }
-    
-    let resultsHtml = '';
-    
-    records.forEach((record, idx) => {
-        const statusClass = record.isValid ? 'valid' : 'invalid';
-        const hasDuplicate = record.hasDuplicate;
-        const hasWarnings = record.warnings && record.warnings.length > 0;
-        
-        const avgConfidence = getAverageConfidence(record.confidence);
-        const confColor = avgConfidence >= 0.7 ? 'high' : avgConfidence >= 0.4 ? 'medium' : 'low';
-        
-        const synonyms = record.context?.synonyms || {};
-        const hasSynonyms = Object.values(synonyms).some(arr => arr && arr.length > 0);
-        
-        resultsHtml += `
-            <div class="import-record ${statusClass} ${hasDuplicate ? 'duplicate' : ''}">
-                <div class="record-header" onclick="toggleImportRecord(this)">
-                    <div class="record-status">
-                        <span class="status-icon ${statusClass}">${record.isValid ? '✅' : '⚠️'}</span>
-                        <span class="record-index">#${record.index}</span>
-                    </div>
-                    <div class="record-summary">
-                        <span class="record-name">${Utils.escapeHtml(record.validated.name || record.parsed.name || 'Unknown')}</span>
-                        <span class="record-business">${Utils.escapeHtml(record.validated.business || record.parsed.business || 'Unknown Business')}</span>
-                        ${record.parsed.date ? `<span class="record-date">📅 ${Utils.escapeHtml(record.parsed.date)}</span>` : ''}
-                    </div>
-                    <div class="record-badges">
-                        ${hasSynonyms ? `<span class="badge synonym">🔍 Synonyms</span>` : ''}
-                        ${hasDuplicate ? '<span class="badge duplicate">🔄 Duplicate</span>' : ''}
-                        ${hasWarnings ? `<span class="badge warning">⚠️ ${record.warnings.length}</span>` : ''}
-                        ${!record.isValid ? `<span class="badge error">❌ ${record.errors.length}</span>` : ''}
-                        <span class="badge confidence ${confColor}">${Math.round(avgConfidence * 100)}%</span>
-                    </div>
-                    <span class="record-toggle">▼</span>
-                </div>
-                <div class="record-body" style="display:none;">
-                    <div class="record-fields">
-                        ${renderRecordFieldsEnhanced(record)}
-                    </div>
-                    
-                    ${hasSynonyms ? `
-                        <div class="record-synonyms">
-                            <strong>🔍 Detected Synonyms:</strong>
-                            <ul>${Object.entries(synonyms).filter(([key, arr]) => arr && arr.length > 0).map(([key, arr]) => 
-                                `<li><strong>${key}:</strong> ${arr.join(', ')}</li>`
-                            ).join('')}</ul>
-                        </div>
-                    ` : ''}
-                    
-                    ${record.warnings && record.warnings.length > 0 ? `
-                        <div class="record-warnings">
-                            <strong>⚠️ Warnings:</strong>
-                            <ul>${record.warnings.map(w => `<li>${w.field}: ${w.message}</li>`).join('')}</ul>
-                        </div>
-                    ` : ''}
-                    
-                    ${!record.isValid ? `
-                        <div class="record-errors">
-                            <strong>❌ Errors:</strong>
-                            <ul>${record.errors.map(e => `<li>${e.field}: ${e.message}</li>`).join('')}</ul>
-                        </div>
-                    ` : ''}
-                    
-                    ${record.hasDuplicate ? `
-                        <div class="record-duplicates">
-                            <strong>🔄 Potential Duplicates:</strong>
-                            <ul>${record.duplicates.filter(d => d.confidence >= 60).map(d => 
-                                `<li>${Utils.escapeHtml(d.existing.business)} - ${Utils.escapeHtml(d.existing.contactName)} (${d.confidence}% match)</li>`
-                            ).join('')}</ul>
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-        `;
-    });
-    
-    resultsContainer.innerHTML = resultsHtml;
-    
-    const validRecords = records.filter(r => r.isValid);
-    if (saveBtn && validRecords.length > 0) {
-        saveBtn.style.display = 'inline-flex';
-        saveBtn.textContent = `Save ${validRecords.length} Record(s)`;
-        saveBtn.onclick = () => saveAllImportedAppointments();
-    } else if (saveBtn) {
-        saveBtn.style.display = 'none';
-    }
-}
-
-function renderRecordFieldsEnhanced(record) {
-    const fields = record.validated || record.parsed || {};
-    const confidence = record.confidence || {};
-    
-    const fieldLabels = {
-        name: '👤 Name',
-        business: '🏢 Business',
-        phone: '📞 Phone',
-        email: '✉️ Email',
-        date: '📅 Date',
-        time: '🕐 Time',
-        status: '📊 Status',
-        assigned: '👤 Assigned',
-        role: '💼 Role',
-        notes: '📝 Notes'
-    };
-    
-    const fieldOrder = ['name', 'business', 'phone', 'email', 'date', 'time', 'status', 'assigned', 'role', 'notes'];
-    
-    let html = '';
-    for (const field of fieldOrder) {
-        if (fields[field]) {
-            const conf = confidence[field] || 0.5;
-            const confClass = conf >= 0.7 ? 'high' : (conf >= 0.4 ? 'medium' : 'low');
-            const isDate = field === 'date';
-            const valueDisplay = isDate ? Utils.formatDate(fields[field]) : Utils.escapeHtml(fields[field]);
-            html += `
-                <div class="field-row ${isDate ? 'date-field' : ''}">
-                    <span class="field-label">${fieldLabels[field] || field}</span>
-                    <span class="field-value">${valueDisplay}</span>
-                    <span class="field-confidence ${confClass}">${Math.round(conf * 100)}%</span>
-                </div>
-            `;
-        }
-    }
-    
-    return html;
-}
-
-function getAverageConfidence(confidence) {
-    const values = Object.values(confidence || {});
-    if (values.length === 0) return 0;
-    return values.reduce((a, b) => a + b, 0) / values.length;
-}
-
-function toggleImportRecord(header) {
-    const body = header.nextElementSibling;
-    if (body) {
-        const isVisible = body.style.display !== 'none';
-        body.style.display = isVisible ? 'none' : 'block';
-        const toggle = header.querySelector('.record-toggle');
-        if (toggle) {
-            toggle.textContent = isVisible ? '▶' : '▼';
-        }
-    }
-}
-
-function saveAllImportedAppointments() {
-    const validRecords = ImportState.parsedRecords.filter(r => r.isValid);
-    
-    if (validRecords.length === 0) {
-        showToast('No valid records to save', 'warning');
-        return;
-    }
-    
-    if (!AppState.currentUser) {
-        showToast('Please sign in first', 'error');
-        return;
-    }
-    
-    const duplicateCount = validRecords.filter(r => r.hasDuplicate).length;
-    let confirmMsg = `Save ${validRecords.length} appointment(s)?`;
-    if (duplicateCount > 0) {
-        confirmMsg += `\n\n⚠️ ${duplicateCount} of these appear to be duplicates.`;
-    }
-    
-    if (!confirm(confirmMsg)) return;
-    
-    let savedCount = 0;
-    
-    validRecords.forEach(record => {
-        const data = record.validated || record.parsed;
-        
-        // Use the date from the parsed data, which should already be in YYYY-MM-DD format
-        const dateStr = data.date || Utils.getTodayStr();
-        
-        const result = Data.addAppointment(
-            dateStr,
-            data.business,
-            data.name,
-            data.role || 'Owner',
-            data.phone || '',
-            data.time || '',
-            data.notes || '',
-            data.assigned || 'Daniel',
-            null,
-            data.status || 'Pending',
-            '',
-            data.tags || []
-        );
-        
-        if (result) {
-            savedCount++;
-        }
-    });
-    
-    showToast(`Saved ${savedCount} appointment(s)!`, 'success');
-    
-    closeSmartImportEnhanced();
-    FeaturePanel.refreshCurrentView();
-    Stats.updateAll();
-}
-
-// ================================================================
-// IMPORT STATE
-// ================================================================
-
-const ImportState = {
-    parsedRecords: [],
-    validatedRecords: [],
-    duplicates: [],
-    errors: [],
-    warnings: [],
-    totalProcessed: 0,
-    totalValid: 0,
-    totalInvalid: 0,
-    totalDuplicates: 0,
-    processingStatus: 'idle',
-    progress: 0
-};
-
-// ================================================================
-// SMART IMPORT UI FUNCTIONS
-// ================================================================
-
-function openSmartImportEnhanced() {
-    const modal = DOM.get('smartImportModal');
-    if (!modal) return;
-    
-    modal.style.display = 'flex';
-    
-    ImportState.parsedRecords = [];
-    ImportState.validatedRecords = [];
-    ImportState.duplicates = [];
-    ImportState.errors = [];
-    ImportState.warnings = [];
-    ImportState.totalProcessed = 0;
-    ImportState.totalValid = 0;
-    ImportState.totalInvalid = 0;
-    ImportState.totalDuplicates = 0;
-    ImportState.processingStatus = 'idle';
-    ImportState.progress = 0;
-    
-    const dateInput = DOM.get('importDefaultDate');
-    if (dateInput) {
-        dateInput.value = Utils.getTodayStr();
-    }
-    
-    const textArea = DOM.get('importTextArea');
-    if (textArea) {
-        textArea.value = '';
-        textArea.placeholder = `Paste appointment details here. The system will intelligently parse:
-        
-Example:
-Business Name/Company : Correa and Son's Landscaping LLC
-Name : Kelvin
-Role : Owner
-Phone Number: +12678808990
-Best Time for Warm Callback: Tomorrow at 1pm EDT
-Notes: Custom website preview offered + no website currently + high interest, positive and booked a manager callback to review the website.`;
-    }
-    
-    const preview = DOM.get('importPreview');
-    if (preview) preview.style.display = 'none';
-    
-    const saveBtn = DOM.get('saveImportBtn');
-    if (saveBtn) saveBtn.style.display = 'none';
-    
-    const resultsContainer = DOM.get('importResultsContainer');
-    if (resultsContainer) resultsContainer.innerHTML = '';
-    
-    const progressContainer = DOM.get('importProgressContainer');
-    if (progressContainer) progressContainer.style.display = 'none';
-    
-    const summary = DOM.get('importSummary');
-    if (summary) summary.style.display = 'none';
-    
-    AppState.parsedImportData = {};
-    AppState.importConfidence = {};
-}
-
-function closeSmartImportEnhanced() {
-    const modal = DOM.get('smartImportModal');
-    if (modal) modal.style.display = 'none';
-    AppState.parsedImportData = {};
-    AppState.importConfidence = {};
-    ImportState.processingStatus = 'idle';
-}
-
-function parseAndPreviewImportEnhanced() {
-    const textArea = DOM.get('importTextArea');
-    if (!textArea) return;
-    
-    const text = textArea.value;
-    if (!text.trim()) {
-        showToast('Please paste some text to parse', 'warning');
-        return;
-    }
-    
-    const dateInput = DOM.get('importDefaultDate');
-    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
-    
-    ImportState.processingStatus = 'parsing';
-    updateImportProgress(10, 'Parsing input text...');
-    
-    const appointments = splitAppointments(text);
-    const total = appointments.length;
-    ImportState.totalProcessed = total;
-    
-    if (total === 0) {
-        showToast('No appointments detected in the text', 'warning');
-        ImportState.processingStatus = 'idle';
-        return;
-    }
-    
-    const parsedResults = [];
-    const allDuplicates = [];
-    const allErrors = [];
-    const allWarnings = [];
-    let validCount = 0;
-    let invalidCount = 0;
-    let duplicateCount = 0;
-    
-    appointments.forEach((apptText, index) => {
-        updateImportProgress(10 + (index / total) * 50, `Parsing appointment ${index + 1} of ${total}...`);
-        
-        const { result, confidence, context } = parseAppointmentTextEnhanced(apptText, defaultDate);
-        const validationResult = validateAppointmentData(result);
-        const duplicates = detectDuplicatesEnhanced(result, AppState.appointments);
-        const hasSignificantDuplicate = duplicates.some(d => d.confidence >= 70);
-        
-        if (validationResult.isValid) {
-            validCount++;
-        } else {
-            invalidCount++;
-            allErrors.push({
-                index: index + 1,
-                errors: validationResult.errors
-            });
-        }
-        
-        if (hasSignificantDuplicate) {
-            duplicateCount++;
-            allDuplicates.push({
-                index: index + 1,
-                duplicates: duplicates.filter(d => d.confidence >= 70)
-            });
-        }
-        
-        if (validationResult.warnings.length > 0) {
-            allWarnings.push({
-                index: index + 1,
-                warnings: validationResult.warnings
-            });
-        }
-        
-        parsedResults.push({
-            index: index + 1,
-            raw: apptText,
-            parsed: result,
-            confidence: confidence,
-            context: context,
-            validated: validationResult.validated,
-            isValid: validationResult.isValid,
-            errors: validationResult.errors,
-            warnings: validationResult.warnings,
-            hasDuplicate: hasSignificantDuplicate,
-            duplicates: duplicates
-        });
-    });
-    
-    ImportState.parsedRecords = parsedResults;
-    ImportState.validatedRecords = parsedResults.filter(r => r.isValid);
-    ImportState.duplicates = allDuplicates;
-    ImportState.errors = allErrors;
-    ImportState.warnings = allWarnings;
-    ImportState.totalValid = validCount;
-    ImportState.totalInvalid = invalidCount;
-    ImportState.totalDuplicates = duplicateCount;
-    ImportState.processingStatus = 'complete';
-    
-    updateImportProgress(100, 'Parsing complete!');
-    
-    renderImportResultsEnhanced(parsedResults);
-}
-
-function generateImportTemplate() {
-    const dateInput = DOM.get('importDefaultDate');
-    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
-    const formattedDate = defaultDate ? Utils.formatDate(defaultDate) : 'Today';
-    
-    const template = `Business Name/Company : [Enter Business Name]
-Name : [Enter Contact Name]
-Role : [Owner/Manager/Decision Maker]
-Phone Number: [Enter Phone Number]
-Best Time for Warm Callback: ${formattedDate} at [Time] [Timezone]
-
-Notes: [Enter notes about the conversation, interest level, and next steps]`;
-    
-    const textArea = DOM.get('importTextArea');
-    if (textArea) {
-        if (textArea.value) {
-            if (!confirm('This will replace your current text. Continue?')) return;
-        }
-        textArea.value = template;
-        showToast('Template inserted! Fill in the details and click Parse.', 'success');
-    }
-}
-
-async function quickImportFromClipboard() {
-    try {
-        const text = await navigator.clipboard.readText();
-        if (text) {
-            const dateInput = DOM.get('importDefaultDate');
-            const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
-            
-            const hasBusiness = /business|company|organization/i.test(text);
-            const hasName = /name|contact|client/i.test(text);
-            const hasPhone = /phone|mobile|call|number/i.test(text);
-            
-            if (hasBusiness && hasName && hasPhone) {
-                openSmartImportEnhanced();
-                const textArea = DOM.get('importTextArea');
-                if (textArea) {
-                    textArea.value = text;
-                    if (dateInput) {
-                        dateInput.value = defaultDate;
-                    }
-                    setTimeout(() => {
-                        parseAndPreviewImportEnhanced();
-                    }, 300);
-                }
-            } else {
-                showToast('Clipboard content doesn\'t match appointment format. Please paste manually.', 'warning');
-            }
-        } else {
-            showToast('Clipboard is empty', 'warning');
-        }
-    } catch (error) {
-        showToast('Unable to read clipboard. Please paste manually.', 'error');
-    }
-}
-
-function expandAllRecords() {
-    document.querySelectorAll('.import-record .record-body').forEach(body => {
-        body.style.display = 'block';
-    });
-    document.querySelectorAll('.import-record .record-toggle').forEach(toggle => {
-        toggle.textContent = '▼';
-    });
-}
-
-function collapseAllRecords() {
-    document.querySelectorAll('.import-record .record-body').forEach(body => {
-        body.style.display = 'none';
-    });
-    document.querySelectorAll('.import-record .record-toggle').forEach(toggle => {
-        toggle.textContent = '▶';
-    });
-}
-
-// ================================================================
-// APPOINTMENT DETAIL MODAL
-// ================================================================
-
-function showAppointmentDetail(appointmentId) {
-    const appt = Data.getAppointmentById(appointmentId);
-    if (!appt) { showToast('Appointment not found', 'error'); return; }
-    AppState.currentAppointmentId = appointmentId;
-
-    const modal = DOM.get('appointmentDetailModal');
-    if (!modal) return;
-
-    const status = Utils.getStatus(appt);
-    const primaryStatus = Utils.getPrimaryStatus(status);
-    const isSecondary = CONFIG.SECONDARY_STATUSES.includes(status);
-    const score = Utils.calculateLeadScore(appt);
-
-    const titleEl = DOM.get('appointmentDetailTitle');
-    if (titleEl) titleEl.textContent = `📋 ${appt.business} - ${appt.contactName}`;
-
-    const contentEl = DOM.get('appointmentDetailContent');
-    if (contentEl) {
-        contentEl.innerHTML = `
-            <div style="display:flex; flex-direction:column; gap:12px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding-bottom:12px; border-bottom:2px solid var(--border-color);">
-                    <div>
-                        <div style="font-size:1.1rem; font-weight:700;">${Utils.escapeHtml(appt.business)}</div>
-                        <div style="font-size:0.9rem; color:var(--text-secondary);">${Utils.escapeHtml(appt.contactName)}</div>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
-                        ${isSecondary ? `<span style="font-size:0.7rem; color:var(--text-muted);">→ ${primaryStatus}</span>` : ''}
-                        <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
-                    </div>
-                </div>
-
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
-                        <div style="font-size:0.7rem; color:var(--text-muted);">📞 Phone</div>
-                        <div style="font-weight:500;">${Utils.escapeHtml(appt.phone || 'N/A')}</div>
-                    </div>
-                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
-                        <div style="font-size:0.7rem; color:var(--text-muted);">✉️ Email</div>
-                        <div style="font-weight:500;">${Utils.escapeHtml(appt.email || 'N/A')}</div>
-                    </div>
-                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
-                        <div style="font-size:0.7rem; color:var(--text-muted);">📅 Date</div>
-                        <div style="font-weight:500;">${Utils.formatDate(appt.date)}</div>
-                    </div>
-                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
-                        <div style="font-size:0.7rem; color:var(--text-muted);">🕐 Time</div>
-                        <div style="font-weight:500;">${Utils.escapeHtml(appt.time || 'N/A')}</div>
-                    </div>
-                </div>
-
-                <div style="display:flex; gap:16px; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--border-color);">
-                    <div><span style="color:var(--text-muted);">👤 Assigned:</span> <strong>${Utils.escapeHtml(appt.assigned || 'Daniel')}</strong></div>
-                    <div><span style="color:var(--text-muted);">💼 Role:</span> <strong>${Utils.escapeHtml(appt.role || 'Owner')}</strong></div>
-                    ${appt.tags && appt.tags.length > 0 ? `
-                        <div><span style="color:var(--text-muted);">🏷️ Tags:</span> ${appt.tags.map(t => `<span class="status-tag" style="background:var(--bg-primary);">#${t}</span>`).join(' ')}</div>
-                    ` : ''}
-                </div>
-
-                ${appt.notes ? `
-                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px; margin-top:4px;">
-                        <div style="font-size:0.7rem; color:var(--text-muted);">📝 Notes</div>
-                        <div style="white-space:pre-wrap; margin-top:4px;">${Utils.escapeHtml(appt.notes)}</div>
-                    </div>
-                ` : ''}
-
-                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; padding-top:12px; border-top:2px solid var(--border-color);">
-                    <button class="btn-icon" onclick="window.editAppointment('${appt.id}')" style="background:var(--warning); color:#1e293b;">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="btn-icon" onclick="window.rescheduleAppointment('${appt.id}')" style="background:var(--secondary); color:white;">
-                        <i class="fas fa-calendar-alt"></i> Reschedule
-                    </button>
-                    <button class="btn-icon" onclick="window.completeAppointment('${appt.id}')" style="background:var(--success); color:white;">
-                        <i class="fas fa-check"></i> Complete
-                    </button>
-                    <button class="btn-icon" onclick="window.cancelAppointment('${appt.id}')" style="background:var(--danger); color:white;">
-                        <i class="fas fa-times"></i> Cancel
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-
-    modal.style.display = 'flex';
-}
-
-function closeAppointmentDetail() {
-    const modal = DOM.get('appointmentDetailModal');
-    if (modal) modal.style.display = 'none';
-    AppState.currentAppointmentId = null;
-}
-
-function editAppointment(appointmentId) {
-    const appt = Data.getAppointmentById(appointmentId);
-    if (!appt) { showToast('Appointment not found', 'error'); return; }
-    
-    closeAppointmentDetail();
-    FeaturePanel.openQuickAdd(appt.date);
-    setTimeout(() => {
-        const businessInput = DOM.get('newApptBusiness');
-        const contactInput = DOM.get('newApptContact');
-        const phoneInput = DOM.get('newApptPhone');
-        const timeInput = DOM.get('newApptTime');
-        const statusSelect = DOM.get('newApptStatus');
-        const notesInput = DOM.get('newApptNotes');
-        const assignedSelect = DOM.get('newApptAssigned');
-        
-        if (businessInput) businessInput.value = appt.business;
-        if (contactInput) contactInput.value = appt.contactName;
-        if (phoneInput) phoneInput.value = appt.phone || '';
-        if (timeInput) timeInput.value = appt.time || '';
-        if (statusSelect) statusSelect.value = Utils.getStatus(appt);
-        if (notesInput) notesInput.value = appt.notes || '';
-        if (assignedSelect) {
-            const member = AppState.teamMembers.find(m => m.name === appt.assigned);
-            if (member) assignedSelect.value = member.id;
-        }
-        Data.deleteAppointment(appt.date, appt.id);
-    }, 100);
-}
-
-function rescheduleAppointment(appointmentId) {
-    const appt = Data.getAppointmentById(appointmentId);
-    if (!appt) { showToast('Appointment not found', 'error'); return; }
-    
-    const newDate = prompt('Enter new date (YYYY-MM-DD):', appt.date);
-    if (newDate && newDate.trim()) {
-        const newTime = prompt('Enter new time (e.g., 2:30 PM):', appt.time || '');
-        Data.updateAppointment(appt.date, appt.id, { 
-            date: newDate.trim(),
-            time: newTime || appt.time,
-            status: 'Rescheduled'
-        });
-        closeAppointmentDetail();
-        showToast(`Appointment rescheduled to ${Utils.formatDate(newDate)}`, 'success');
-    }
-}
-
-function completeAppointment(appointmentId) {
-    const appt = Data.getAppointmentById(appointmentId);
-    if (!appt) { showToast('Appointment not found', 'error'); return; }
-    
-    if (confirm(`Mark "${appt.business}" as Completed?`)) {
-        Data.updateAppointment(appt.date, appt.id, { status: 'Completed' });
-        closeAppointmentDetail();
-        showToast('Appointment marked as Completed! 🎉', 'success');
-    }
-}
-
-function cancelAppointment(appointmentId) {
-    const appt = Data.getAppointmentById(appointmentId);
-    if (!appt) { showToast('Appointment not found', 'error'); return; }
-    
-    if (confirm(`Cancel appointment with ${appt.business}?`)) {
-        Data.updateAppointment(appt.date, appt.id, { status: 'Canceled' });
-        closeAppointmentDetail();
-        showToast('Appointment canceled', 'info');
-    }
-}
-
-// ================================================================
-// CALENDAR VIEW
-// ================================================================
-
-const CalendarView = {
-    render: function(container) {
-        if (!container) return;
-        
-        const mode = AppState.calendarViewMode || 'month';
-        
-        const headerHtml = this.buildHeader();
-        
-        let bodyHtml = '';
-        switch(mode) {
-            case 'month':
-                bodyHtml = this.renderMonthView();
-                break;
-            case 'week':
-                bodyHtml = this.renderWeekView();
-                break;
-            case 'day':
-                bodyHtml = this.renderDayView();
-                break;
-            case 'list':
-                bodyHtml = this.renderListView();
-                break;
-            default:
-                bodyHtml = this.renderMonthView();
-        }
-        
-        container.innerHTML = `
-            <div class="calendar-full-container fade-in">
-                ${headerHtml}
-                <div class="calendar-filter-chips">
-                    <button class="filter-chip ${AppState.calendarFilters.meetings ? 'active' : ''}" data-filter="meetings">
-                        <span class="filter-dot" style="background:#3b82f6;"></span> Meetings
-                    </button>
-                    <button class="filter-chip ${AppState.calendarFilters.callbacks ? 'active' : ''}" data-filter="callbacks">
-                        <span class="filter-dot" style="background:#f59e0b;"></span> Callbacks
-                    </button>
-                    <button class="filter-chip ${AppState.calendarFilters.followups ? 'active' : ''}" data-filter="followups">
-                        <span class="filter-dot" style="background:#10b981;"></span> Follow-ups
-                    </button>
-                </div>
-                <div class="calendar-body">
-                    ${bodyHtml}
-                </div>
-            </div>
-        `;
-        
-        this.attachEvents(container);
-    },
-    
-    buildHeader: function() {
-        const currentDate = AppState.calendarCurrentDate || new Date();
-        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-        const monthYear = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
-        
-        return `
-            <div class="calendar-toolbar">
-                <div class="calendar-toolbar-left">
-                    <div class="view-selector">
-                        <button class="view-btn ${AppState.calendarViewMode === 'month' ? 'active' : ''}" data-view="month">Month</button>
-                        <button class="view-btn ${AppState.calendarViewMode === 'week' ? 'active' : ''}" data-view="week">Week</button>
-                        <button class="view-btn ${AppState.calendarViewMode === 'day' ? 'active' : ''}" data-view="day">Day</button>
-                        <button class="view-btn ${AppState.calendarViewMode === 'list' ? 'active' : ''}" data-view="list">List</button>
-                    </div>
-                    <div class="calendar-nav-group">
-                        <button class="btn-icon" id="calPrevBtn"><i class="fas fa-chevron-left"></i></button>
-                        <button class="btn-icon" id="calTodayBtn">Today</button>
-                        <button class="btn-icon" id="calNextBtn"><i class="fas fa-chevron-right"></i></button>
-                    </div>
-                    <span class="calendar-current-month">${monthYear}</span>
-                </div>
-                <div class="calendar-toolbar-right">
-                    <div class="search-wrapper">
-                        <i class="fas fa-search"></i>
-                        <input type="text" id="calendarSearchInput" placeholder="Search contact..." value="${AppState.calendarSearchTerm || ''}" />
-                    </div>
-                    <select id="calendarTimezoneSelect" class="timezone-select">
-                        <option value="Central CDT" ${AppState.calendarTimezone === 'Central CDT' ? 'selected' : ''}>Central (CDT)</option>
-                        <option value="Eastern EDT" ${AppState.calendarTimezone === 'Eastern EDT' ? 'selected' : ''}>Eastern (EDT)</option>
-                        <option value="Mountain MDT" ${AppState.calendarTimezone === 'Mountain MDT' ? 'selected' : ''}>Mountain (MDT)</option>
-                        <option value="Pacific PDT" ${AppState.calendarTimezone === 'Pacific PDT' ? 'selected' : ''}>Pacific (PDT)</option>
-                        <option value="UTC" ${AppState.calendarTimezone === 'UTC' ? 'selected' : ''}>UTC</option>
-                    </select>
-                    <button class="btn-icon" id="calendarAddEventBtn"><i class="fas fa-plus"></i> Add</button>
-                </div>
-            </div>
-        `;
-    },
-    
-    renderMonthView: function() {
-        const currentDate = AppState.calendarCurrentDate || new Date();
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
-        const today = new Date();
-        const todayStr = Utils.getTodayStr();
-        
-        const firstDay = new Date(year, month, 1).getDay();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const daysInPrevMonth = new Date(year, month, 0).getDate();
-        
-        const monthAppointments = this.getAppointmentsForMonth(year, month);
-        const filteredAppointments = this.filterAppointments(monthAppointments);
-        
-        const appointmentsByDate = {};
-        filteredAppointments.forEach(appt => {
-            if (!appointmentsByDate[appt.date]) {
-                appointmentsByDate[appt.date] = [];
-            }
-            appointmentsByDate[appt.date].push(appt);
-        });
-        
-        let html = '<div class="calendar-month-grid">';
-        
-        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        dayNames.forEach(name => {
-            html += `<div class="calendar-day-header">${name}</div>`;
-        });
-        
-        const startDay = firstDay;
-        for (let i = startDay - 1; i >= 0; i--) {
-            const day = daysInPrevMonth - i;
-            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const isToday = dateStr === todayStr;
-            const hasEvents = appointmentsByDate[dateStr] && appointmentsByDate[dateStr].length > 0;
-            html += `
-                <div class="calendar-day other-month ${isToday ? 'today' : ''}" data-date="${dateStr}">
-                    <span class="day-number">${day}</span>
-                    ${hasEvents ? `<span class="day-event-indicator">${appointmentsByDate[dateStr].length}</span>` : ''}
-                </div>
-            `;
-        }
-        
-        for (let d = 1; d <= daysInMonth; d++) {
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const isToday = dateStr === todayStr;
-            const hasEvents = appointmentsByDate[dateStr] && appointmentsByDate[dateStr].length > 0;
-            const events = appointmentsByDate[dateStr] || [];
-            
-            let eventsHtml = '';
-            if (hasEvents) {
-                eventsHtml = `
-                    <div class="day-events">
-                        ${events.slice(0, 3).map(event => {
-                            const status = Utils.getStatus(event);
-                            const color = this.getEventColor(event);
-                            return `
-                                <div class="day-event" style="border-left-color: ${color};" data-id="${event.id}" onclick="window.showAppointmentDetail('${event.id}')">
-                                    <span class="event-time">${event.time || 'No time'}</span>
-                                    <span class="event-title">${Utils.escapeHtml(event.business)}</span>
-                                </div>
-                            `;
-                        }).join('')}
-                        ${events.length > 3 ? `<div class="day-event-more">+${events.length - 3} more</div>` : ''}
-                    </div>
-                `;
-            }
-            
-            html += `
-                <div class="calendar-day ${isToday ? 'today' : ''} ${hasEvents ? 'has-events' : ''}" data-date="${dateStr}">
-                    <span class="day-number">${d}</span>
-                    ${eventsHtml}
-                </div>
-            `;
-        }
-        
-        const totalDays = startDay + daysInMonth;
-        const remainingDays = (7 - (totalDays % 7)) % 7;
-        for (let d = 1; d <= remainingDays; d++) {
-            const dateStr = `${year}-${String(month + 2).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            html += `
-                <div class="calendar-day other-month" data-date="${dateStr}">
-                    <span class="day-number">${d}</span>
-                </div>
-            `;
-        }
-        
-        html += '</div>';
-        return html;
-    },
-    
-    renderWeekView: function() {
-        const currentDate = AppState.calendarCurrentDate || new Date();
-        const startOfWeek = new Date(currentDate);
-        startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
-        
-        const today = new Date();
-        const todayStr = Utils.getTodayStr();
-        
-        let html = `
-            <div class="calendar-week-view">
-                <div class="week-time-column">
-                    <div class="time-slot-header"></div>
-        `;
-        
-        for (let hour = 6; hour <= 22; hour++) {
-            const timeStr = hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`;
-            html += `<div class="time-slot-label">${timeStr}</div>`;
-        }
-        html += '</div>';
-        
-        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        for (let i = 0; i < 7; i++) {
-            const dayDate = new Date(startOfWeek);
-            dayDate.setDate(startOfWeek.getDate() + i);
-            const dateStr = Utils.formatDateForCompare(dayDate);
-            const isToday = dateStr === todayStr;
-            const isWeekend = i === 0 || i === 6;
-            
-            html += `
-                <div class="week-day-column ${isToday ? 'today' : ''} ${isWeekend ? 'weekend' : ''}" data-date="${dateStr}">
-                    <div class="week-day-header">
-                        <span class="week-day-name">${dayNames[i]}</span>
-                        <span class="week-day-number ${isToday ? 'today-number' : ''}">${dayDate.getDate()}</span>
-                    </div>
-                    <div class="week-day-body">
-            `;
-            
-            const dayAppointments = this.getAppointmentsForDate(dateStr);
-            const filtered = this.filterAppointments(dayAppointments);
-            
-            for (let hour = 6; hour <= 22; hour++) {
-                const hasAppointment = filtered.some(appt => {
-                    if (!appt.time) return false;
-                    const apptHour = parseInt(appt.time.split(':')[0]);
-                    const apptPeriod = appt.time.includes('PM') ? 12 : 0;
-                    const adjustedHour = apptHour + (apptPeriod === 12 && apptHour !== 12 ? 12 : 0);
-                    return adjustedHour === hour;
-                });
-                
-                if (hasAppointment) {
-                    const appts = filtered.filter(appt => {
-                        if (!appt.time) return false;
-                        const apptHour = parseInt(appt.time.split(':')[0]);
-                        const apptPeriod = appt.time.includes('PM') ? 12 : 0;
-                        const adjustedHour = apptHour + (apptPeriod === 12 && apptHour !== 12 ? 12 : 0);
-                        return adjustedHour === hour;
-                    });
-                    
-                    html += `
-                        <div class="week-time-slot has-event">
-                            ${appts.map(appt => {
-                                const color = this.getEventColor(appt);
-                                const status = Utils.getStatus(appt);
-                                return `
-                                    <div class="week-event" style="border-left-color: ${color};" data-id="${appt.id}" onclick="window.showAppointmentDetail('${appt.id}')">
-                                        <span class="event-time">${appt.time || ''}</span>
-                                        <span class="event-title">${Utils.escapeHtml(appt.business)}</span>
-                                        <span class="event-status ${Utils.getStatusClass(status)}">${status}</span>
-                                    </div>
-                                `;
-                            }).join('')}
-                        </div>
-                    `;
-                } else {
-                    html += `<div class="week-time-slot"></div>`;
-                }
-            }
-            
-            html += `
-                    </div>
-                </div>
-            `;
-        }
-        
-        html += '</div>';
-        return html;
-    },
-    
-    renderDayView: function() {
-        const currentDate = AppState.calendarCurrentDate || new Date();
-        const dateStr = Utils.formatDateForCompare(currentDate);
-        const todayStr = Utils.getTodayStr();
-        const isToday = dateStr === todayStr;
-        
-        const dayAppointments = this.getAppointmentsForDate(dateStr);
-        const filtered = this.filterAppointments(dayAppointments);
-        
-        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        
-        let html = `
-            <div class="calendar-day-view">
-                <div class="day-view-header">
-                    <h3>${dayNames[currentDate.getDay()]}, ${currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} ${isToday ? '<span class="today-badge">Today</span>' : ''}</h3>
-                    <span class="day-event-count">${filtered.length} events</span>
-                </div>
-                <div class="day-view-body">
-        `;
-        
-        const sortedAppointments = filtered.sort((a, b) => {
-            if (!a.time) return 1;
-            if (!b.time) return -1;
-            return a.time.localeCompare(b.time);
-        });
-        
-        if (sortedAppointments.length === 0) {
-            html += `<div class="empty-state"><i class="fas fa-calendar-day"></i><p>No appointments for this day</p></div>`;
-        } else {
-            sortedAppointments.forEach(appt => {
-                const color = this.getEventColor(appt);
-                const status = Utils.getStatus(appt);
-                html += `
-                    <div class="day-event-card" style="border-left: 4px solid ${color};" onclick="window.showAppointmentDetail('${appt.id}')">
-                        <div class="day-event-time">
-                            <i class="fas fa-clock"></i> ${appt.time || 'No time set'}
-                        </div>
-                        <div class="day-event-content">
-                            <div class="day-event-business">${Utils.escapeHtml(appt.business)}</div>
-                            <div class="day-event-contact">${Utils.escapeHtml(appt.contactName)}</div>
-                            <div class="day-event-meta">
-                                <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
-                                <span class="day-event-assigned">👤 ${Utils.escapeHtml(appt.assigned || 'Unassigned')}</span>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-        }
-        
-        html += `
-                </div>
-            </div>
-        `;
-        
-        return html;
-    },
-    
-    renderListView: function() {
-        const allAppointments = Data.getAllAppointments();
-        const filtered = this.filterAppointments(allAppointments);
-        
-        const searchTerm = AppState.calendarSearchTerm || '';
-        const searched = searchTerm ? filtered.filter(appt => {
-            const searchable = `${appt.business} ${appt.contactName} ${appt.phone || ''} ${appt.email || ''}`.toLowerCase();
-            return searchable.includes(searchTerm.toLowerCase());
-        }) : filtered;
-        
-        const grouped = {};
-        searched.forEach(appt => {
-            if (!grouped[appt.date]) {
-                grouped[appt.date] = [];
-            }
-            grouped[appt.date].push(appt);
-        });
-        
-        const sortedDates = Object.keys(grouped).sort();
-        
-        let html = `
-            <div class="calendar-list-view">
-                <div class="list-view-stats">
-                    <span>${searched.length} appointments found</span>
-                    ${searchTerm ? `<span class="search-term">Search: "${searchTerm}"</span>` : ''}
-                </div>
-                <div class="list-view-items">
-        `;
-        
-        if (sortedDates.length === 0) {
-            html += `<div class="empty-state"><i class="fas fa-list"></i><p>No appointments found</p></div>`;
-        } else {
-            sortedDates.forEach(date => {
-                const dateObj = new Date(date);
-                const isToday = date === Utils.getTodayStr();
-                const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
-                const monthDay = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                
-                html += `
-                    <div class="list-date-group">
-                        <div class="list-date-header ${isToday ? 'today' : ''}">
-                            <span class="list-date-label">${dayName} ${monthDay}</span>
-                            <span class="list-date-count">${grouped[date].length} events</span>
-                        </div>
-                        <div class="list-date-events">
-                `;
-                
-                grouped[date].sort((a, b) => {
-                    if (!a.time) return 1;
-                    if (!b.time) return -1;
-                    return a.time.localeCompare(b.time);
-                }).forEach(appt => {
-                    const color = this.getEventColor(appt);
-                    const status = Utils.getStatus(appt);
-                    html += `
-                        <div class="list-event-item" style="border-left-color: ${color};" onclick="window.showAppointmentDetail('${appt.id}')">
-                            <span class="list-event-time">${appt.time || 'No time'}</span>
-                            <span class="list-event-business">${Utils.escapeHtml(appt.business)}</span>
-                            <span class="list-event-contact">${Utils.escapeHtml(appt.contactName)}</span>
-                            <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
-                            <span class="list-event-actions">
-                                <button class="btn-icon-sm" onclick="event.stopPropagation(); window.showAppointmentDetail('${appt.id}')"><i class="fas fa-eye"></i></button>
-                            </span>
-                        </div>
-                    `;
-                });
-                
-                html += `
-                        </div>
-                    </div>
-                `;
-            });
-        }
-        
-        html += `
-                </div>
-            </div>
-        `;
-        
-        return html;
-    },
-    
-    getAppointmentsForMonth: function(year, month) {
-        const result = [];
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        for (let d = 1; d <= daysInMonth; d++) {
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            if (AppState.appointments[dateStr]?.reports) {
-                result.push(...AppState.appointments[dateStr].reports);
-            }
-        }
-        return result;
-    },
-    
-    getAppointmentsForDate: function(dateStr) {
-        return AppState.appointments[dateStr]?.reports || [];
-    },
-    
-    filterAppointments: function(appointments) {
-        const filters = AppState.calendarFilters;
-        return appointments.filter(appt => {
-            const status = Utils.getStatus(appt);
-            const isMeeting = ['Hot Transfer', 'Meeting Booked', 'Held'].includes(status);
-            const isCallback = status === 'Warm Callback';
-            const isFollowup = ['Pending', 'Rescheduled'].includes(status);
-            
-            const showMeeting = filters.meetings && isMeeting;
-            const showCallback = filters.callbacks && isCallback;
-            const showFollowup = filters.followups && isFollowup;
-            
-            if (!filters.meetings && !filters.callbacks && !filters.followups) return true;
-            
-            return showMeeting || showCallback || showFollowup;
-        });
-    },
-    
-    getEventColor: function(appt) {
-        const status = Utils.getStatus(appt);
-        const colorMap = {
-            'Hot Transfer': '#dc2626',
-            'Meeting Booked': '#3b82f6',
-            'Held': '#06b6d4',
-            'Warm Callback': '#f59e0b',
-            'Pending': '#94a3b8',
-            'Rescheduled': '#f97316',
-            'Completed': '#10b981',
-            'Canceled': '#ef4444'
-        };
-        return colorMap[status] || '#94a3b8';
-    },
-    
-    attachEvents: function(container) {
-        container.querySelectorAll('.view-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const view = btn.getAttribute('data-view');
-                AppState.calendarViewMode = view;
-                this.render(container);
-            });
-        });
-        
-        const prevBtn = container.querySelector('#calPrevBtn');
-        const nextBtn = container.querySelector('#calNextBtn');
-        const todayBtn = container.querySelector('#calTodayBtn');
-        
-        if (prevBtn) {
-            prevBtn.addEventListener('click', () => {
-                const current = AppState.calendarCurrentDate || new Date();
-                if (AppState.calendarViewMode === 'month') {
-                    current.setMonth(current.getMonth() - 1);
-                } else if (AppState.calendarViewMode === 'week') {
-                    current.setDate(current.getDate() - 7);
-                } else if (AppState.calendarViewMode === 'day') {
-                    current.setDate(current.getDate() - 1);
-                }
-                AppState.calendarCurrentDate = current;
-                this.render(container);
-            });
-        }
-        
-        if (nextBtn) {
-            nextBtn.addEventListener('click', () => {
-                const current = AppState.calendarCurrentDate || new Date();
-                if (AppState.calendarViewMode === 'month') {
-                    current.setMonth(current.getMonth() + 1);
-                } else if (AppState.calendarViewMode === 'week') {
-                    current.setDate(current.getDate() + 7);
-                } else if (AppState.calendarViewMode === 'day') {
-                    current.setDate(current.getDate() + 1);
-                }
-                AppState.calendarCurrentDate = current;
-                this.render(container);
-            });
-        }
-        
-        if (todayBtn) {
-            todayBtn.addEventListener('click', () => {
-                AppState.calendarCurrentDate = new Date();
-                this.render(container);
-            });
-        }
-        
-        container.querySelectorAll('.filter-chip').forEach(chip => {
-            chip.addEventListener('click', () => {
-                const filter = chip.getAttribute('data-filter');
-                AppState.calendarFilters[filter] = !AppState.calendarFilters[filter];
-                this.render(container);
-            });
-        });
-        
-        const searchInput = container.querySelector('#calendarSearchInput');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                AppState.calendarSearchTerm = e.target.value;
-                if (AppState.calendarViewMode === 'list') {
-                    this.render(container);
-                }
-            });
-        }
-        
-        const timezoneSelect = container.querySelector('#calendarTimezoneSelect');
-        if (timezoneSelect) {
-            timezoneSelect.addEventListener('change', (e) => {
-                AppState.calendarTimezone = e.target.value;
-                showToast(`Timezone changed to ${e.target.value}`, 'info');
-            });
-        }
-        
-        const addBtn = container.querySelector('#calendarAddEventBtn');
-        if (addBtn) {
-            addBtn.addEventListener('click', () => {
-                FeaturePanel.openQuickAdd(Utils.getTodayStr());
-            });
-        }
-        
-        container.querySelectorAll('.calendar-day').forEach(day => {
-            day.addEventListener('dblclick', () => {
-                const date = day.getAttribute('data-date');
-                if (date) {
-                    FeaturePanel.openQuickAdd(date);
-                }
-            });
-        });
-    }
-};
-
-// ================================================================
-// FEATURE PANEL
+// FEATURE PANEL (Abbreviated - includes Calendar, Tasks, Analytics, Shortcuts)
 // ================================================================
 
 const FeaturePanel = {
@@ -3958,24 +1808,26 @@ const FeaturePanel = {
                 `;
             }
             container.innerHTML = html;
-            this.attachViewToggleEvents(featureType);
         }
 
         scriptPanel.style.display = 'none';
         featurePanel.style.display = 'block';
 
         if (featureBody) {
-            if (featureType === 'calendar') {
-                CalendarView.render(featureBody);
-            } else if (featureType === 'tasks') {
+            if (featureType === 'tasks') {
                 this.renderTasks(featureBody);
-            } else if (featureType === 'analytics') {
-                this.renderAnalytics(featureBody);
             } else if (featureType === 'shortcuts') {
                 this.renderShortcuts(featureBody);
-            } else if (featureType === 'notepad') {
-                showToast('📝 Notes feature coming soon!', 'info');
-                this.hide();
+            } else if (featureType === 'calendar') {
+                // Calendar rendering is handled by CalendarView module
+                if (window.CalendarView) {
+                    window.CalendarView.render(featureBody);
+                } else {
+                    featureBody.innerHTML = '<p>Loading calendar...</p>';
+                }
+            } else if (featureType === 'analytics') {
+                // Analytics rendering is handled by Analytics module
+                featureBody.innerHTML = '<p>Loading analytics...</p>';
             }
         }
     },
@@ -3990,74 +1842,12 @@ const FeaturePanel = {
     refreshCurrentView: function() {
         const body = DOM.get('featurePanelBody');
         if (!body) return;
-        if (AppState.currentView === 'calendar') {
-            CalendarView.render(body);
-        } else if (AppState.currentView === 'tasks') {
+        if (AppState.currentView === 'tasks') {
             this.renderTasks(body);
-        } else if (AppState.currentView === 'analytics') {
-            this.renderAnalytics(body);
         } else if (AppState.currentView === 'shortcuts') {
             this.renderShortcuts(body);
-        }
-    },
-
-    attachViewToggleEvents: function(featureType) {
-        if (featureType === 'calendar') {
-            const calendarBtn = DOM.get('calendarViewBtn');
-            const listBtn = DOM.get('listViewBtn');
-            if (calendarBtn) calendarBtn.addEventListener('click', () => {
-                AppState.calendarView = 'calendar';
-                calendarBtn.classList.add('active');
-                if (listBtn) listBtn.classList.remove('active');
-                this.refreshCurrentView();
-            });
-            if (listBtn) listBtn.addEventListener('click', () => {
-                AppState.calendarView = 'list';
-                listBtn.classList.add('active');
-                if (calendarBtn) calendarBtn.classList.remove('active');
-                this.refreshCurrentView();
-            });
-        } else if (featureType === 'analytics') {
-            const insightsBtn = DOM.get('insightsTabBtn');
-            const reportsBtn = DOM.get('reportsTabBtn');
-            if (insightsBtn) insightsBtn.addEventListener('click', () => {
-                AppState.analyticsTab = 'insights';
-                insightsBtn.classList.add('active');
-                if (reportsBtn) reportsBtn.classList.remove('active');
-                this.refreshCurrentView();
-            });
-            if (reportsBtn) reportsBtn.addEventListener('click', () => {
-                AppState.analyticsTab = 'reports';
-                reportsBtn.classList.add('active');
-                if (insightsBtn) insightsBtn.classList.remove('active');
-                this.refreshCurrentView();
-            });
-        } else if (featureType === 'tasks') {
-            const allBtn = DOM.get('taskListViewBtn');
-            const pendingBtn = DOM.get('taskPendingBtn');
-            const todayBtn = DOM.get('taskTodayBtn');
-
-            if (allBtn) allBtn.addEventListener('click', () => {
-                AppState.taskFilter = 'all';
-                allBtn.classList.add('active');
-                if (pendingBtn) pendingBtn.classList.remove('active');
-                if (todayBtn) todayBtn.classList.remove('active');
-                this.refreshCurrentView();
-            });
-            if (pendingBtn) pendingBtn.addEventListener('click', () => {
-                AppState.taskFilter = 'pending';
-                pendingBtn.classList.add('active');
-                if (allBtn) allBtn.classList.remove('active');
-                if (todayBtn) todayBtn.classList.remove('active');
-                this.refreshCurrentView();
-            });
-            if (todayBtn) todayBtn.addEventListener('click', () => {
-                AppState.taskFilter = 'today';
-                todayBtn.classList.add('active');
-                if (allBtn) allBtn.classList.remove('active');
-                if (pendingBtn) pendingBtn.classList.remove('active');
-                this.refreshCurrentView();
-            });
+        } else if (AppState.currentView === 'calendar' && window.CalendarView) {
+            window.CalendarView.render(body);
         }
     },
 
@@ -4123,249 +1913,6 @@ const FeaturePanel = {
                 }
             });
         });
-    },
-
-    renderAnalytics: function(container) {
-        if (!container) return;
-        if (AppState.analyticsTab === 'insights') this.renderAnalyticsInsights(container);
-        else if (AppState.analyticsTab === 'reports') this.renderAnalyticsReports(container);
-    },
-
-    renderAnalyticsInsights: function(container) {
-        let total = 0, hTransfers = 0, wCallbacks = 0, completedCount = 0, pendingCount = 0, canceledCount = 0;
-        let statusCounts = {};
-        let dailyData = {};
-
-        for (let date in AppState.appointments) {
-            if (AppState.appointments[date].reports) {
-                AppState.appointments[date].reports.forEach(a => {
-                    total++;
-                    const status = Utils.getStatus(a);
-                    const primaryStatus = Utils.getPrimaryStatus(status);
-                    statusCounts[primaryStatus] = (statusCounts[primaryStatus] || 0) + 1;
-                    if (primaryStatus === 'Hot Transfer') hTransfers++;
-                    else if (primaryStatus === 'Warm Callback') wCallbacks++;
-                    else if (primaryStatus === 'Completed') completedCount++;
-                    else if (primaryStatus === 'Pending') pendingCount++;
-                    else if (primaryStatus === 'Canceled') canceledCount++;
-                    dailyData[a.date] = (dailyData[a.date] || 0) + 1;
-                });
-            }
-        }
-
-        const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
-        const hotTransferRate = total > 0 ? Math.round((hTransfers / total) * 100) : 0;
-        const warmCallbackRate = total > 0 ? Math.round((wCallbacks / total) * 100) : 0;
-
-        container.innerHTML = `
-            <div class="analytics-container fade-in">
-                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
-                    <h3><i class="fas fa-chart-pie"></i> Pipeline Insights Dashboard</h3>
-                    <span class="version-chip"><i class="fas fa-sync-alt"></i> Live Data</span>
-                </div>
-
-                <div class="report-metrics scale-in">
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">Total Pipeline</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--text-muted);">${pendingCount}</div><div class="metric-label">⏳ Pending</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--danger);">${canceledCount}</div><div class="metric-label">❌ Canceled</div></div>
-                </div>
-
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-                    <div class="feature-card slide-up">
-                        <h4>📊 Conversion Rates</h4>
-                        <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
-                            <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Completed Rate</span><span>${conversionRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--success); width:${conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
-                            <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Hot Transfer Rate</span><span>${hotTransferRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:#dc2626; width:${hotTransferRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
-                            <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Warm Callback Rate</span><span>${warmCallbackRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--warning); width:${warmCallbackRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
-                        </div>
-                    </div>
-
-                    <div class="feature-card slide-up">
-                        <h4>📈 Status Distribution</h4>
-                        <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px; max-height:200px; overflow-y:auto;">
-                            ${Object.entries(statusCounts).map(([status, count]) => `
-                                <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px; transition:all 0.3s ease;">
-                                    <span>${status}</span>
-                                    <span style="font-weight:600;">${count} (${Math.round((count/total)*100)}%)</span>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                </div>
-
-                <div class="feature-card scale-in" style="margin-top:8px;">
-                    <h4>📈 Appointment Trend</h4>
-                    <div class="chart-container" style="height:200px;">
-                        <canvas id="trendChart"></canvas>
-                    </div>
-                </div>
-
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;">
-                    <div class="feature-card scale-in">
-                        <h4>🍩 Status Distribution</h4>
-                        <div class="chart-container-sm" style="height:180px;">
-                            <canvas id="donutChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="feature-card scale-in">
-                        <h4>📊 Weekly Performance</h4>
-                        <div class="chart-container-sm" style="height:180px;">
-                            <canvas id="barChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        setTimeout(() => {
-            this.initAnalyticsCharts(dailyData, statusCounts);
-        }, 200);
-    },
-
-    renderAnalyticsReports: function(container) {
-        let total = 0, completedCount = 0, hTransfers = 0, wCallbacks = 0;
-        let dailyData = {};
-        let assignedStats = {};
-
-        for (let date in AppState.appointments) {
-            if (AppState.appointments[date].reports) {
-                AppState.appointments[date].reports.forEach(a => {
-                    total++;
-                    const status = Utils.getStatus(a);
-                    const primaryStatus = Utils.getPrimaryStatus(status);
-                    if (primaryStatus === 'Completed') completedCount++;
-                    if (primaryStatus === 'Hot Transfer') hTransfers++;
-                    if (primaryStatus === 'Warm Callback') wCallbacks++;
-                    dailyData[a.date] = (dailyData[a.date] || 0) + 1;
-
-                    const assigned = a.assigned || 'Unassigned';
-                    assignedStats[assigned] = (assignedStats[assigned] || 0) + 1;
-                });
-            }
-        }
-
-        const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
-        const avgScore = Stats.getAverageScore();
-
-        container.innerHTML = `
-            <div class="analytics-container fade-in">
-                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
-                    <h3><i class="fas fa-chart-line"></i> Advanced Reports</h3>
-                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                        <button id="reportsExportCSV" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-file-csv"></i> Export CSV</button>
-                    </div>
-                </div>
-
-                <div class="report-metrics scale-in">
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">Total Appointments</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--primary);">${conversionRate}%</div><div class="metric-label">Conversion Rate</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--secondary);">${avgScore}</div><div class="metric-label">Avg Lead Score</div></div>
-                </div>
-
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-                    <div class="feature-card slide-up">
-                        <h4>📈 Daily Trend</h4>
-                        <div class="chart-container" style="height:180px;">
-                            <canvas id="reportsTrendChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="feature-card slide-up">
-                        <h4>👤 Assigned Distribution</h4>
-                        <div class="chart-container" style="height:180px;">
-                            <canvas id="reportsAssignedChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        setTimeout(() => {
-            const trendCtx = DOM.get('reportsTrendChart')?.getContext('2d');
-            if (trendCtx) {
-                const dates = Object.keys(dailyData).sort().slice(-7);
-                const values = dates.map(d => dailyData[d]);
-                new Chart(trendCtx, {
-                    type: 'line',
-                    data: {
-                        labels: dates.map(d => Utils.formatDate(d)),
-                        datasets: [{ label: 'Appointments', data: values, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-                });
-            }
-
-            const assignedCtx = DOM.get('reportsAssignedChart')?.getContext('2d');
-            if (assignedCtx) {
-                const labels = Object.keys(assignedStats);
-                const data = Object.values(assignedStats);
-                const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#f97316'];
-                new Chart(assignedCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{ label: 'Appointments', data: data, backgroundColor: colors.slice(0, labels.length), borderRadius: 4 }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-                });
-            }
-        }, 200);
-
-        const exportCSV = DOM.get('reportsExportCSV');
-        if (exportCSV) exportCSV.addEventListener('click', () => Data.exportToCSV());
-    },
-
-    initAnalyticsCharts: function(dailyData, statusCounts) {
-        Object.values(AppState.chartInstances).forEach(chart => { if (chart) chart.destroy(); });
-        AppState.chartInstances = {};
-        const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#f97316', '#06b6d4', '#ec4899'];
-
-        const trendCtx = DOM.get('trendChart')?.getContext('2d');
-        if (trendCtx) {
-            const dates = Object.keys(dailyData).sort();
-            const values = dates.map(d => dailyData[d]);
-            AppState.chartInstances.trend = new Chart(trendCtx, {
-                type: 'line',
-                data: { labels: dates.map(d => Utils.formatDate(d)), datasets: [{ label: 'Appointments', data: values, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-            });
-        }
-
-        const donutCtx = DOM.get('donutChart')?.getContext('2d');
-        if (donutCtx) {
-            const labels = Object.keys(statusCounts);
-            const data = Object.values(statusCounts);
-            const backgroundColors = labels.map((_, i) => colors[i % colors.length]);
-            AppState.chartInstances.donut = new Chart(donutCtx, {
-                type: 'doughnut',
-                data: { labels, datasets: [{ data, backgroundColor: backgroundColors, borderWidth: 2, borderColor: 'var(--bg-secondary)' }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 10 } } } }, cutout: '60%' }
-            });
-        }
-
-        const barCtx = DOM.get('barChart')?.getContext('2d');
-        if (barCtx) {
-            const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-            const weekData = weekDays.map(() => 0);
-            const now = new Date();
-            const startOfWeek = new Date(now);
-            startOfWeek.setDate(now.getDate() - now.getDay() + 1);
-            for (let date in dailyData) {
-                const d = new Date(date);
-                const dayIndex = (d.getDay() + 6) % 7;
-                if (d >= startOfWeek && d <= now) weekData[dayIndex] += dailyData[date];
-            }
-            AppState.chartInstances.bar = new Chart(barCtx, {
-                type: 'bar',
-                data: { labels: weekDays, datasets: [{ label: 'This Week', data: weekData, backgroundColor: 'rgba(59,130,246,0.7)', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-            });
-        }
     },
 
     renderShortcuts: function(container) {
@@ -4716,12 +2263,12 @@ function openShortcutEdit(action) {
 
 function handleShortcutAction(action) {
     switch (action) {
-        case 'Smart Import': openSmartImportEnhanced(); break;
+        case 'Smart Import': showToast('📥 Smart Import opened', 'info'); break;
         case 'Appointment Calendar': FeaturePanel.show('calendar', '📅 Appointment & Handoff Calendar'); break;
         case 'Call Scripts': FeaturePanel.hide(); Scripts.loadScript('opening'); break;
         case 'Global Search': openGlobalSearch(); break;
         case 'Quick Add Appointment': FeaturePanel.openQuickAdd(Utils.getTodayStr()); break;
-        case 'Analytics Hub': AppState.analyticsTab = 'insights'; FeaturePanel.show('analytics', '📊 Analytics Hub'); break;
+        case 'Analytics Hub': FeaturePanel.show('analytics', '📊 Analytics Hub'); break;
         case 'Keyboard Shortcuts': FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts'); break;
         case 'Export to CSV': Data.exportToCSV(); break;
         case 'Toggle Theme': document.body.classList.toggle('light'); showToast('Theme toggled', 'info'); break;
@@ -4733,37 +2280,164 @@ function handleShortcutAction(action) {
 }
 
 // ================================================================
-// LOADING SCREEN
+// APPOINTMENT DETAIL MODAL
 // ================================================================
 
-function updateLoadingProgress(percent, message = '') {
-    const bar = document.getElementById('loadingProgress');
-    const percentDisplay = document.getElementById('loadingPercent');
-    const subtitle = document.querySelector('.loading-subtitle');
+function showAppointmentDetail(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    AppState.currentAppointmentId = appointmentId;
+
+    const modal = DOM.get('appointmentDetailModal');
+    if (!modal) return;
+
+    const status = Utils.getStatus(appt);
+    const score = Utils.calculateLeadScore(appt);
+
+    const titleEl = DOM.get('appointmentDetailTitle');
+    if (titleEl) titleEl.textContent = `📋 ${appt.business} - ${appt.contactName}`;
+
+    const contentEl = DOM.get('appointmentDetailContent');
+    if (contentEl) {
+        contentEl.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding-bottom:12px; border-bottom:2px solid var(--border-color);">
+                    <div>
+                        <div style="font-size:1.1rem; font-weight:700;">${Utils.escapeHtml(appt.business)}</div>
+                        <div style="font-size:0.9rem; color:var(--text-secondary);">${Utils.escapeHtml(appt.contactName)}</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
+                        <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">📞 Phone</div>
+                        <div style="font-weight:500;">${Utils.escapeHtml(appt.phone || 'N/A')}</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">✉️ Email</div>
+                        <div style="font-weight:500;">${Utils.escapeHtml(appt.email || 'N/A')}</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">📅 Date</div>
+                        <div style="font-weight:500;">${Utils.formatDate(appt.date)}</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">🕐 Time</div>
+                        <div style="font-weight:500;">${Utils.escapeHtml(appt.time || 'N/A')}</div>
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:16px; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--border-color);">
+                    <div><span style="color:var(--text-muted);">👤 Assigned:</span> <strong>${Utils.escapeHtml(appt.assigned || 'Daniel')}</strong></div>
+                    <div><span style="color:var(--text-muted);">💼 Role:</span> <strong>${Utils.escapeHtml(appt.role || 'Owner')}</strong></div>
+                    ${appt.tags && appt.tags.length > 0 ? `
+                        <div><span style="color:var(--text-muted);">🏷️ Tags:</span> ${appt.tags.map(t => `<span class="status-tag" style="background:var(--bg-primary);">#${t}</span>`).join(' ')}</div>
+                    ` : ''}
+                </div>
+
+                ${appt.notes ? `
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px; margin-top:4px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">📝 Notes</div>
+                        <div style="white-space:pre-wrap; margin-top:4px;">${Utils.escapeHtml(appt.notes)}</div>
+                    </div>
+                ` : ''}
+
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; padding-top:12px; border-top:2px solid var(--border-color);">
+                    <button class="btn-icon" onclick="window.editAppointment('${appt.id}')" style="background:var(--warning); color:#1e293b;">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn-icon" onclick="window.rescheduleAppointment('${appt.id}')" style="background:var(--secondary); color:white;">
+                        <i class="fas fa-calendar-alt"></i> Reschedule
+                    </button>
+                    <button class="btn-icon" onclick="window.completeAppointment('${appt.id}')" style="background:var(--success); color:white;">
+                        <i class="fas fa-check"></i> Complete
+                    </button>
+                    <button class="btn-icon" onclick="window.cancelAppointment('${appt.id}')" style="background:var(--danger); color:white;">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    modal.style.display = 'flex';
+}
+
+function closeAppointmentDetail() {
+    const modal = DOM.get('appointmentDetailModal');
+    if (modal) modal.style.display = 'none';
+    AppState.currentAppointmentId = null;
+}
+
+function editAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
     
-    if (bar) {
-        bar.style.width = Math.min(percent, 100) + '%';
-    }
-    if (percentDisplay) {
-        percentDisplay.textContent = Math.min(percent, 100) + '%';
-    }
-    if (subtitle && message) {
-        subtitle.textContent = message;
+    closeAppointmentDetail();
+    FeaturePanel.openQuickAdd(appt.date);
+    setTimeout(() => {
+        const businessInput = DOM.get('newApptBusiness');
+        const contactInput = DOM.get('newApptContact');
+        const phoneInput = DOM.get('newApptPhone');
+        const timeInput = DOM.get('newApptTime');
+        const statusSelect = DOM.get('newApptStatus');
+        const notesInput = DOM.get('newApptNotes');
+        const assignedSelect = DOM.get('newApptAssigned');
+        
+        if (businessInput) businessInput.value = appt.business;
+        if (contactInput) contactInput.value = appt.contactName;
+        if (phoneInput) phoneInput.value = appt.phone || '';
+        if (timeInput) timeInput.value = appt.time || '';
+        if (statusSelect) statusSelect.value = Utils.getStatus(appt);
+        if (notesInput) notesInput.value = appt.notes || '';
+        if (assignedSelect) {
+            const member = AppState.teamMembers.find(m => m.name === appt.assigned);
+            if (member) assignedSelect.value = member.id;
+        }
+        Data.deleteAppointment(appt.date, appt.id);
+    }, 100);
+}
+
+function rescheduleAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    
+    const newDate = prompt('Enter new date (YYYY-MM-DD):', appt.date);
+    if (newDate && newDate.trim()) {
+        const newTime = prompt('Enter new time (e.g., 2:30 PM):', appt.time || '');
+        Data.updateAppointment(appt.date, appt.id, { 
+            date: newDate.trim(),
+            time: newTime || appt.time,
+            status: 'Rescheduled'
+        });
+        closeAppointmentDetail();
+        showToast(`Appointment rescheduled to ${Utils.formatDate(newDate)}`, 'success');
     }
 }
 
-function hideLoadingScreen() {
-    const screen = document.getElementById('loadingScreen');
-    const appWrapper = document.getElementById('appWrapper');
+function completeAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
     
-    if (screen) {
-        screen.classList.add('hidden');
-        setTimeout(() => {
-            screen.style.display = 'none';
-        }, 600);
+    if (confirm(`Mark "${appt.business}" as Completed?`)) {
+        Data.updateAppointment(appt.date, appt.id, { status: 'Completed' });
+        closeAppointmentDetail();
+        showToast('Appointment marked as Completed! 🎉', 'success');
     }
-    if (appWrapper) {
-        appWrapper.style.display = 'flex';
+}
+
+function cancelAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    
+    if (confirm(`Cancel appointment with ${appt.business}?`)) {
+        Data.updateAppointment(appt.date, appt.id, { status: 'Canceled' });
+        closeAppointmentDetail();
+        showToast('Appointment canceled', 'info');
     }
 }
 
@@ -4774,15 +2448,6 @@ function hideLoadingScreen() {
 function initApp() {
     console.log('🚀 Starting ScriptFlow Pro...');
     updateLoadingProgress(10, 'Initializing application...');
-
-    const originalWarn = console.warn;
-    console.warn = function(...args) {
-        if (args[0] && typeof args[0] === 'string' && 
-            args[0].includes('enableMultiTabIndexedDbPersistence() will be deprecated')) {
-            return;
-        }
-        originalWarn.apply(console, args);
-    };
 
     try {
         AppState.isFirebaseReady = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
@@ -4799,11 +2464,6 @@ function initApp() {
     AppState.customShortcuts = JSON.parse(localStorage.getItem('customShortcuts') || '{}');
     AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS, ...AppState.customShortcuts };
     AppState.scriptFavorites = JSON.parse(localStorage.getItem('scriptFavorites') || '[]');
-
-    if (!AppState.scripts || Object.keys(AppState.scripts).length === 0) {
-        AppState.scripts = {};
-        AppState.scriptOrder = [];
-    }
 
     const toolsHeader = DOM.get('toolsHeader');
     const toolsMenu = DOM.get('toolsMenu');
@@ -4869,90 +2529,6 @@ function initApp() {
         FeaturePanel.hide();
         Scripts.loadScript('opening');
     });
-
-    // Enhanced Smart Import Event Listeners
-    const quickReportBtn = DOM.get('quickReportBtn');
-    const parseBtn = DOM.get('parseImportBtn');
-    const saveImportBtn = DOM.get('saveImportBtn');
-    const closeImportBtn = DOM.get('closeImportBtn');
-
-    if (quickReportBtn) quickReportBtn.addEventListener('click', openSmartImportEnhanced);
-    if (parseBtn) parseBtn.addEventListener('click', parseAndPreviewImportEnhanced);
-    if (saveImportBtn) saveImportBtn.addEventListener('click', saveAllImportedAppointments);
-    if (closeImportBtn) closeImportBtn.addEventListener('click', closeSmartImportEnhanced);
-
-    // Template and Clipboard buttons
-    const templateBtn = DOM.get('quickTemplateBtn');
-    if (templateBtn) {
-        templateBtn.addEventListener('click', generateImportTemplate);
-    }
-
-    const clipboardBtn = DOM.get('clipboardImportBtn');
-    if (clipboardBtn) {
-        clipboardBtn.addEventListener('click', quickImportFromClipboard);
-    }
-
-    // Set default date on modal open
-    const importModal = DOM.get('smartImportModal');
-    if (importModal) {
-        const observer = new MutationObserver(() => {
-            if (importModal.style.display === 'flex') {
-                const dateInput = DOM.get('importDefaultDate');
-                if (dateInput && !dateInput.value) {
-                    dateInput.value = Utils.getTodayStr();
-                }
-            }
-        });
-        observer.observe(importModal, { attributes: true, attributeFilter: ['style'] });
-    }
-
-    // Expand/Collapse all records
-    window.expandAllRecords = expandAllRecords;
-    window.collapseAllRecords = collapseAllRecords;
-
-    const copyBtn = DOM.get('apptCopyBtn');
-    const editBtn = DOM.get('apptEditBtn');
-    const deleteBtn = DOM.get('apptDeleteBtn');
-    const closeDetailBtn = DOM.get('apptCloseBtn');
-
-    if (copyBtn) copyBtn.addEventListener('click', () => {
-        const appt = Data.getAppointmentById(AppState.currentAppointmentId);
-        if (appt) copyToClipboard(`Business: ${appt.business}\nContact: ${appt.contactName}\nPhone: ${appt.phone || 'N/A'}\nStatus: ${Utils.getStatus(appt)}\nDate: ${Utils.formatDate(appt.date)}${appt.time ? `\nTime: ${appt.time}` : ''}${appt.notes ? `\nNotes: ${appt.notes}` : ''}`);
-    });
-
-    if (editBtn) editBtn.addEventListener('click', () => {
-        const appt = Data.getAppointmentById(AppState.currentAppointmentId);
-        if (appt) {
-            closeAppointmentDetail();
-            FeaturePanel.openQuickAdd(appt.date);
-            setTimeout(() => {
-                const businessInput = DOM.get('newApptBusiness');
-                const contactInput = DOM.get('newApptContact');
-                const phoneInput = DOM.get('newApptPhone');
-                const timeInput = DOM.get('newApptTime');
-                const statusSelect = DOM.get('newApptStatus');
-                const notesInput = DOM.get('newApptNotes');
-                if (businessInput) businessInput.value = appt.business;
-                if (contactInput) contactInput.value = appt.contactName;
-                if (phoneInput) phoneInput.value = appt.phone || '';
-                if (timeInput) timeInput.value = appt.time || '';
-                if (statusSelect) statusSelect.value = Utils.getStatus(appt);
-                if (notesInput) notesInput.value = appt.notes || '';
-                Data.deleteAppointment(appt.date, appt.id);
-            }, 100);
-        }
-    });
-
-    if (deleteBtn) deleteBtn.addEventListener('click', () => {
-        const appt = Data.getAppointmentById(AppState.currentAppointmentId);
-        if (appt && confirm('Delete this appointment permanently?')) {
-            Data.deleteAppointment(appt.date, appt.id);
-            closeAppointmentDetail();
-            showToast('Appointment deleted', 'info');
-        }
-    });
-
-    if (closeDetailBtn) closeDetailBtn.addEventListener('click', closeAppointmentDetail);
 
     // Script editing buttons
     const editScriptBtn = DOM.get('editScriptBtn');
@@ -5085,15 +2661,6 @@ function initApp() {
         e.target.value = '';
     });
 
-    const historyBtn = DOM.get('historyBtn');
-    if (historyBtn) historyBtn.addEventListener('click', () => showToast('Version history coming soon!', 'info'));
-
-    const shortcutsCloseBtn = DOM.get('shortcutsCloseBtn');
-    if (shortcutsCloseBtn) shortcutsCloseBtn.addEventListener('click', () => {
-        const modal = DOM.get('shortcutsModal');
-        if (modal) modal.style.display = 'none';
-    });
-
     document.addEventListener('keydown', (e) => {
         if (!AppState.shortcutsEnabled || AppState.isEditing) {
             if (e.key === 'Escape') {
@@ -5199,13 +2766,7 @@ function initApp() {
     }, 1000);
 
     console.log('🚀 ScriptFlow Pro initialized successfully!');
-    console.log('📊 Status Hierarchy: Hot Transfer → Completed → Warm Callback → Pending → Canceled');
-    console.log('📅 Secondary Statuses (count as Completed): Meeting Booked, Rescheduled, Overdue, Held');
-    console.log('🎯 Drag & drop enabled for scripts and appointments');
     console.log(`🔌 Firebase status: ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
-    console.log('✨ Enhanced Smart Import loaded with intelligent parsing');
-    console.log('📜 Script management: Create, Edit Title, Delete, Favorite');
-    console.log('🎤 Script Coach: AI-powered script analysis and playback');
 }
 
 // ================================================================
@@ -5226,18 +2787,9 @@ window.FeaturePanel = FeaturePanel;
 window.Data = Data;
 window.Stats = Stats;
 window.Scripts = Scripts;
-window.openSmartImport = openSmartImportEnhanced;
-window.parseAndPreviewImportEnhanced = parseAndPreviewImportEnhanced;
-window.toggleImportRecord = toggleImportRecord;
-window.saveAllImportedAppointments = saveAllImportedAppointments;
-window.ImportState = ImportState;
-window.SMART_IMPORT_CONFIG = SMART_IMPORT_CONFIG;
-window.generateImportTemplate = generateImportTemplate;
-window.quickImportFromClipboard = quickImportFromClipboard;
-window.expandAllRecords = expandAllRecords;
-window.collapseAllRecords = collapseAllRecords;
 window.Auth = Auth;
 window.CONFIG = CONFIG;
+window.AppState = AppState;
 
 // Start the app
 document.addEventListener('DOMContentLoaded', initApp);
