@@ -3562,80 +3562,170 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
 
 /* ============================================================
-   OBJECTION HANDLER BANNER - SENIOR SETTER/BOOKER
+   OBJECTION HANDLER - SIDE BANNER
    ============================================================ */
 
-.objection-banner {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 16px;
-    margin: 12px 0 20px 0;
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
-    transition: var(--transition);
-    animation: fadeIn 0.4s ease;
-}
-
-.objection-banner:hover {
-    border-color: var(--primary);
-    box-shadow: var(--shadow-md);
-}
-
-.objection-banner-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 20px;
+/* ============================================================
+   TRIGGER BUTTON (Floating)
+   ============================================================ */
+.objection-trigger-btn {
+    position: fixed;
+    bottom: 100px;
+    right: 24px;
+    z-index: 9999;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent-gradient);
+    color: white;
+    font-size: 1.5rem;
     cursor: pointer;
-    background: var(--bg-card);
-    border-bottom: 1px solid var(--border-color);
-    transition: var(--transition);
-    user-select: none;
+    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     position: relative;
 }
 
-.objection-banner-header:hover {
-    background: var(--bg-primary);
+.objection-trigger-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 8px 30px rgba(59, 130, 246, 0.5);
 }
 
-.objection-banner-title {
+.objection-trigger-btn:active {
+    transform: scale(0.95);
+}
+
+.objection-trigger-btn.active {
+    background: var(--danger);
+    box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
+}
+
+.objection-trigger-btn .objection-trigger-icon {
+    font-size: 1.4rem;
+    line-height: 1;
+}
+
+.objection-trigger-btn .objection-trigger-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--danger);
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 700;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--bg-secondary);
+    transition: all 0.3s ease;
+}
+
+.objection-trigger-btn.open .objection-trigger-badge {
+    background: var(--success);
+    transform: scale(0.8);
+}
+
+.objection-trigger-btn .objection-trigger-tooltip {
+    position: absolute;
+    right: 66px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    border: 1px solid var(--border-color);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow-md);
+}
+
+.objection-trigger-btn:hover .objection-trigger-tooltip {
+    opacity: 1;
+}
+
+/* ============================================================
+   SIDE BANNER
+   ============================================================ */
+.objection-side-banner {
+    position: fixed;
+    top: 0;
+    right: -420px;
+    width: 400px;
+    max-width: 92vw;
+    height: 100vh;
+    background: var(--bg-secondary);
+    border-left: 1px solid var(--border-color);
+    box-shadow: var(--shadow-lg);
+    z-index: 9998;
+    transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.objection-side-banner.open {
+    right: 0;
+}
+
+.objection-side-banner::before {
+    content: '';
+    position: absolute;
+    left: -4px;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--accent-gradient);
+    opacity: 0.5;
+}
+
+/* ============================================================
+   BANNER HEADER
+   ============================================================ */
+.objection-side-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.objection-side-title {
     display: flex;
     align-items: center;
     gap: 12px;
-    flex-wrap: wrap;
 }
 
-.objection-banner-icon {
-    font-size: 1.3rem;
+.objection-side-icon {
+    font-size: 1.5rem;
     display: flex;
     align-items: center;
 }
 
-.objection-banner-text {
-    font-weight: 600;
-    font-size: 0.95rem;
+.objection-side-title h3 {
+    font-size: 1rem;
+    font-weight: 700;
     color: var(--text-primary);
+    margin: 0;
+    line-height: 1.2;
 }
 
-.objection-banner-badge {
-    background: var(--primary);
-    color: white;
-    padding: 2px 12px;
-    border-radius: 20px;
+.objection-side-title p {
     font-size: 0.7rem;
-    font-weight: 600;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+    color: var(--text-muted);
+    margin: 0;
 }
 
-.objection-banner-controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.objection-banner-toggle-btn {
+.objection-side-close-btn {
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
     border-radius: 50%;
@@ -3647,106 +3737,118 @@ body {
     cursor: pointer;
     color: var(--text-secondary);
     transition: var(--transition);
+    flex-shrink: 0;
 }
 
-.objection-banner-toggle-btn:hover {
-    background: var(--primary);
+.objection-side-close-btn:hover {
+    background: var(--danger);
     color: white;
-    border-color: var(--primary);
+    border-color: var(--danger);
 }
 
-.objection-banner-body {
-    background: var(--bg-primary);
-    padding: 16px 20px 20px;
-    animation: fadeIn 0.3s ease;
-}
-
-.objection-banner-content {
+/* ============================================================
+   BANNER BODY
+   ============================================================ */
+.objection-side-body {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    overflow: hidden;
+    background: var(--bg-primary);
 }
 
-/* Category Navigation */
-.objection-category-nav {
+/* Navigation */
+.objection-side-nav {
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    padding-bottom: 12px;
+    gap: 4px;
+    padding: 12px 16px 8px;
+    overflow-x: auto;
+    flex-shrink: 0;
+    background: var(--bg-primary);
     border-bottom: 1px solid var(--border-color);
 }
 
-.objection-category-btn {
+.objection-side-nav::-webkit-scrollbar {
+    height: 2px;
+}
+
+.objection-side-nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.objection-side-nav::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 4px;
+}
+
+.objection-nav-btn {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    border-radius: 30px;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
     border: 2px solid transparent;
     background: var(--bg-card);
     color: var(--text-secondary);
     cursor: pointer;
-    transition: var(--transition);
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     font-weight: 500;
-    position: relative;
+    transition: var(--transition);
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
-.objection-category-btn:hover {
+.objection-nav-btn:hover {
     background: var(--bg-secondary);
     color: var(--text-primary);
-    transform: translateY(-2px);
 }
 
-.objection-category-btn.active {
+.objection-nav-btn.active {
     background: var(--bg-card);
     border-color: var(--primary);
     color: var(--text-primary);
-    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.15);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
 }
 
-.objection-category-btn .category-icon {
-    font-size: 0.9rem;
+.objection-nav-btn .nav-icon {
+    font-size: 0.8rem;
 }
 
-.objection-category-btn .category-label {
-    font-size: 0.75rem;
+.objection-nav-btn .nav-label {
+    font-size: 0.7rem;
 }
 
-.objection-category-btn .category-count {
+.objection-nav-btn .nav-count {
     background: var(--bg-primary);
     color: var(--text-muted);
-    padding: 0 8px;
-    border-radius: 12px;
-    font-size: 0.6rem;
+    padding: 0 6px;
+    border-radius: 10px;
+    font-size: 0.55rem;
     font-weight: 600;
-    line-height: 1.6;
+    line-height: 1.5;
 }
 
-.objection-category-btn.active .category-count {
+.objection-nav-btn.active .nav-count {
     background: var(--primary);
     color: white;
 }
 
 /* Cards Container */
-.objection-cards-container {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 500px;
+.objection-side-cards {
+    flex: 1;
     overflow-y: auto;
-    padding-right: 4px;
+    padding: 12px 16px 16px;
 }
 
-.objection-cards-container::-webkit-scrollbar {
+.objection-side-cards::-webkit-scrollbar {
     width: 4px;
 }
 
-.objection-cards-container::-webkit-scrollbar-track {
+.objection-side-cards::-webkit-scrollbar-track {
     background: transparent;
 }
 
-.objection-cards-container::-webkit-scrollbar-thumb {
+.objection-side-cards::-webkit-scrollbar-thumb {
     background: var(--primary);
     border-radius: 4px;
 }
@@ -3756,6 +3858,7 @@ body {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: 12px;
+    margin-bottom: 8px;
     overflow: hidden;
     transition: var(--transition);
     animation: slideIn 0.3s ease;
@@ -3767,14 +3870,14 @@ body {
 
 .objection-card.expanded {
     border-color: var(--primary);
-    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.1);
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.08);
 }
 
 .objection-card-header {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
+    gap: 10px;
+    padding: 10px 14px;
     cursor: pointer;
     transition: var(--transition);
     user-select: none;
@@ -3785,20 +3888,21 @@ body {
 }
 
 .objection-card-icon {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     flex-shrink: 0;
 }
 
 .objection-card-objection {
     flex: 1;
     font-weight: 500;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: var(--text-primary);
+    line-height: 1.3;
 }
 
 .objection-card-toggle {
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: 0.6rem;
     transition: var(--transition);
     flex-shrink: 0;
 }
@@ -3809,44 +3913,44 @@ body {
 
 /* Card Body */
 .objection-card-body {
-    padding: 0 16px 16px;
+    padding: 0 14px 14px;
     border-top: 1px solid var(--border-color);
     animation: fadeIn 0.3s ease;
 }
 
 .objection-response {
-    padding: 12px 14px;
+    padding: 10px 12px;
     background: var(--bg-primary);
     border-radius: 8px;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     border-left: 3px solid var(--success);
 }
 
 .objection-response-label {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     font-weight: 600;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 .objection-response-text {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: var(--text-primary);
-    line-height: 1.6;
+    line-height: 1.5;
 }
 
 .objection-tip {
-    padding: 10px 14px;
-    background: rgba(245, 158, 11, 0.08);
+    padding: 8px 12px;
+    background: rgba(245, 158, 11, 0.06);
     border-radius: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     border-left: 3px solid var(--warning);
 }
 
 .objection-tip-label {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     font-weight: 600;
     color: var(--warning);
     text-transform: uppercase;
@@ -3855,37 +3959,35 @@ body {
 }
 
 .objection-tip-text {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--text-secondary);
-    line-height: 1.5;
+    line-height: 1.4;
 }
 
 .objection-card-actions {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
     padding-top: 8px;
     border-top: 1px solid var(--border-color);
 }
 
-.objection-card-actions .btn-icon,
 .objection-copy-btn,
 .objection-practice-btn {
-    padding: 6px 14px;
-    border-radius: 20px;
+    padding: 4px 12px;
+    border-radius: 16px;
     border: 1px solid var(--border-color);
     background: var(--bg-primary);
     color: var(--text-secondary);
     cursor: pointer;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 500;
     transition: var(--transition);
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
 }
 
-.objection-card-actions .btn-icon:hover,
 .objection-copy-btn:hover {
     background: var(--primary);
     color: white;
@@ -3898,45 +4000,52 @@ body {
     border-color: var(--secondary);
 }
 
-/* Footer */
-.objection-banner-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    padding-top: 12px;
+/* Empty State */
+.objection-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+}
+
+/* ============================================================
+   BANNER FOOTER
+   ============================================================ */
+.objection-side-footer {
+    padding: 10px 16px;
+    background: var(--bg-card);
     border-top: 1px solid var(--border-color);
+    flex-shrink: 0;
 }
 
 .objection-footer-tip {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 0.75rem;
+    gap: 6px;
+    font-size: 0.65rem;
     color: var(--text-muted);
-    flex: 1;
+    margin-bottom: 8px;
 }
 
 .objection-footer-tip i {
     color: var(--warning);
-    font-size: 0.9rem;
+    font-size: 0.8rem;
+    flex-shrink: 0;
 }
 
 .objection-footer-actions {
     display: flex;
-    gap: 8px;
+    gap: 6px;
 }
 
 .objection-expand-all-btn,
 .objection-collapse-all-btn {
-    padding: 4px 12px;
-    border-radius: 16px;
+    padding: 3px 12px;
+    border-radius: 14px;
     border: 1px solid var(--border-color);
-    background: var(--bg-card);
+    background: var(--bg-primary);
     color: var(--text-secondary);
     cursor: pointer;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     transition: var(--transition);
 }
 
@@ -3952,7 +4061,9 @@ body {
     border-color: var(--danger);
 }
 
-/* Practice Modal */
+/* ============================================================
+   PRACTICE MODAL
+   ============================================================ */
 .objection-practice-modal {
     position: fixed;
     inset: 0;
@@ -3973,8 +4084,8 @@ body {
 
 .objection-practice-content {
     background: var(--bg-secondary);
-    border-radius: 24px;
-    max-width: 600px;
+    border-radius: 20px;
+    max-width: 520px;
     width: 100%;
     max-height: 85vh;
     overflow-y: auto;
@@ -3992,25 +4103,26 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 20px;
+    padding: 14px 18px;
     border-bottom: 1px solid var(--border-color);
     background: var(--bg-card);
-    border-radius: 24px 24px 0 0;
+    border-radius: 20px 20px 0 0;
 }
 
 .objection-practice-header h3 {
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 600;
     display: flex;
     align-items: center;
     gap: 8px;
+    margin: 0;
 }
 
 .objection-practice-close {
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     cursor: pointer;
     padding: 4px 8px;
     border-radius: 8px;
@@ -4023,30 +4135,30 @@ body {
 }
 
 .objection-practice-body {
-    padding: 20px;
+    padding: 16px 18px 18px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
 }
 
 .objection-practice-label {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 600;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 .objection-practice-scenario {
     background: var(--bg-primary);
-    padding: 14px 16px;
-    border-radius: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
     border-left: 4px solid var(--danger);
 }
 
 .objection-practice-objection {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     color: var(--text-primary);
     font-weight: 500;
 }
@@ -4054,17 +4166,17 @@ body {
 .objection-practice-response-area {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
 }
 
 .objection-practice-input {
     width: 100%;
-    padding: 12px 16px;
-    border-radius: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
     border: 1px solid var(--border-color);
     background: var(--bg-card);
     color: var(--text-primary);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     resize: vertical;
     transition: var(--transition);
 }
@@ -4072,34 +4184,34 @@ body {
 .objection-practice-input:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .objection-practice-recommended {
     background: var(--bg-card);
-    padding: 14px 16px;
-    border-radius: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
     border: 1px solid var(--border-color);
 }
 
 .objection-practice-recommended-text {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: var(--text-secondary);
-    line-height: 1.6;
+    line-height: 1.5;
     display: none;
-    padding: 8px 0;
+    padding: 6px 0;
 }
 
 .objection-practice-reveal-btn {
-    padding: 6px 16px;
-    border-radius: 20px;
+    padding: 4px 14px;
+    border-radius: 16px;
     border: 1px solid var(--border-color);
     background: var(--bg-primary);
     color: var(--text-secondary);
     cursor: pointer;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     transition: var(--transition);
-    margin-top: 6px;
+    margin-top: 4px;
 }
 
 .objection-practice-reveal-btn:hover {
@@ -4110,24 +4222,24 @@ body {
 
 .objection-practice-actions {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
-    padding-top: 12px;
+    padding-top: 10px;
     border-top: 1px solid var(--border-color);
 }
 
 .objection-practice-copy-btn {
-    padding: 8px 18px;
-    border-radius: 20px;
+    padding: 6px 16px;
+    border-radius: 16px;
     border: 1px solid var(--border-color);
     background: var(--bg-card);
     color: var(--text-secondary);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     transition: var(--transition);
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .objection-practice-copy-btn:hover {
@@ -4136,54 +4248,81 @@ body {
     border-color: var(--success);
 }
 
-/* Responsive for Objection Handler */
+/* ============================================================
+   BODY OVERLAY
+   ============================================================ */
+body.objection-banner-open::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 9997;
+    animation: fadeIn 0.3s ease;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
 @media (max-width: 768px) {
-    .objection-banner-header {
-        padding: 10px 14px;
-        flex-wrap: wrap;
+    .objection-side-banner {
+        width: 100%;
+        max-width: 100%;
+        right: -100%;
     }
     
-    .objection-banner-title {
-        gap: 8px;
+    .objection-side-banner.open {
+        right: 0;
     }
     
-    .objection-banner-text {
-        font-size: 0.8rem;
+    .objection-trigger-btn {
+        bottom: 80px;
+        right: 16px;
+        width: 48px;
+        height: 48px;
+        font-size: 1.2rem;
     }
     
-    .objection-banner-body {
-        padding: 12px 14px 16px;
+    .objection-trigger-btn .objection-trigger-badge {
+        min-width: 18px;
+        height: 18px;
+        font-size: 0.55rem;
+        top: -3px;
+        right: -3px;
     }
     
-    .objection-category-nav {
-        gap: 6px;
-        overflow-x: auto;
-        flex-wrap: nowrap;
-        padding-bottom: 8px;
+    .objection-side-header {
+        padding: 12px 16px;
     }
     
-    .objection-category-btn {
-        padding: 6px 12px;
-        font-size: 0.7rem;
-        flex-shrink: 0;
+    .objection-side-title h3 {
+        font-size: 0.9rem;
     }
     
-    .objection-category-btn .category-label {
+    .objection-side-nav {
+        padding: 8px 12px 6px;
+        gap: 3px;
+    }
+    
+    .objection-nav-btn {
+        padding: 4px 10px;
         font-size: 0.65rem;
     }
     
-    .objection-category-btn .category-count {
-        font-size: 0.5rem;
-        padding: 0 6px;
+    .objection-nav-btn .nav-label {
+        font-size: 0.6rem;
+    }
+    
+    .objection-side-cards {
+        padding: 8px 12px 12px;
     }
     
     .objection-card-header {
-        padding: 10px 12px;
+        padding: 8px 12px;
         gap: 8px;
     }
     
     .objection-card-objection {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
     }
     
     .objection-card-body {
@@ -4191,25 +4330,19 @@ body {
     }
     
     .objection-response-text {
-        font-size: 0.8rem;
-    }
-    
-    .objection-tip-text {
         font-size: 0.75rem;
     }
     
-    .objection-banner-footer {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 8px;
-    }
-    
-    .objection-footer-tip {
+    .objection-tip-text {
         font-size: 0.7rem;
     }
     
-    .objection-footer-actions {
-        justify-content: flex-start;
+    .objection-side-footer {
+        padding: 8px 12px;
+    }
+    
+    .objection-footer-tip {
+        font-size: 0.6rem;
     }
     
     .objection-practice-content {
@@ -4228,25 +4361,35 @@ body {
     
     .objection-practice-input {
         font-size: 0.8rem;
-        padding: 10px 12px;
+        padding: 8px 12px;
     }
 }
 
 @media (max-width: 480px) {
-    .objection-banner-badge {
-        font-size: 0.6rem;
-        padding: 1px 8px;
+    .objection-trigger-btn {
+        bottom: 70px;
+        right: 12px;
+        width: 42px;
+        height: 42px;
+        font-size: 1rem;
     }
     
-    .objection-cards-container {
-        max-height: 350px;
+    .objection-trigger-btn .objection-trigger-badge {
+        min-width: 16px;
+        height: 16px;
+        font-size: 0.5rem;
+        top: -2px;
+        right: -2px;
+    }
+    
+    .objection-side-cards {
+        max-height: calc(100vh - 180px);
     }
     
     .objection-card-actions {
         flex-direction: column;
     }
     
-    .objection-card-actions .btn-icon,
     .objection-copy-btn,
     .objection-practice-btn {
         width: 100%;
@@ -4254,24 +4397,26 @@ body {
     }
 }
 
-/* Dark/Light Theme Support for Objection Handler */
-body.light .objection-banner {
+/* ============================================================
+   DARK/LIGHT THEME SUPPORT
+   ============================================================ */
+body.light .objection-side-banner {
     background: var(--bg-secondary);
 }
 
-body.light .objection-banner-header {
+body.light .objection-side-header {
     background: var(--bg-card);
 }
 
-body.light .objection-banner-body {
+body.light .objection-side-body {
     background: var(--bg-primary);
 }
 
-body.light .objection-category-btn {
+body.light .objection-nav-btn {
     background: var(--bg-card);
 }
 
-body.light .objection-category-btn.active {
+body.light .objection-nav-btn.active {
     background: var(--bg-card);
 }
 
@@ -4301,4 +4446,8 @@ body.light .objection-practice-input {
 
 body.light .objection-practice-recommended {
     background: var(--bg-card);
+}
+
+body.light .objection-trigger-btn {
+    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.3);
 }

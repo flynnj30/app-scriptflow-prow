@@ -59,7 +59,7 @@ const CONFIG = {
         'Refresh Data': { keys: ['Ctrl', 'Shift', 'R'], description: 'Refresh data from server' },
         'Bulk Actions': { keys: ['Ctrl', 'Shift', 'B'], description: 'Open Bulk Actions' },
         'Close Panel': { keys: ['Escape'], description: 'Close current panel and return to scripts' },
-        'Objection Handler': { keys: ['Ctrl', 'Shift', 'O'], description: 'Toggle Objection Handler Banner' }
+        'Objection Handler': { keys: ['Ctrl', 'Shift', 'O'], description: 'Toggle Objection Handler Side Banner' }
     }
 };
 
@@ -5675,7 +5675,7 @@ function initApp() {
     console.log('📜 Script management: Create, Edit Title, Delete, Favorite');
     console.log('🎯 Script Coach: AI-powered script analysis and playback');
     console.log(`📅 Active Date: ${Utils.getActiveDate()}`);
-    console.log('🛡️ Objection Handler: Press Ctrl+Shift+O to toggle');
+    console.log('🛡️ Objection Handler: Press Ctrl+Shift+O to toggle side banner');
 }
 
 // ================================================================
