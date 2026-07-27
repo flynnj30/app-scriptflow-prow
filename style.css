@@ -137,12 +137,18 @@ body {
     50% { box-shadow: 0 0 40px rgba(250, 204, 21, 0.5); }
 }
 
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .fade-in { animation: fadeIn 0.4s ease forwards; }
 .fade-in-up { animation: fadeInUp 0.5s ease forwards; }
 .scale-in { animation: scaleIn 0.4s ease forwards; }
 .slide-in { animation: slideIn 0.3s ease forwards; }
 .slide-in-right { animation: slideInRight 0.3s ease forwards; }
 .pulse { animation: pulse 2s ease-in-out infinite; }
+.slide-down { animation: slideDown 0.25s ease forwards; }
 
 .stagger-1 { animation-delay: 0.05s; }
 .stagger-2 { animation-delay: 0.10s; }
@@ -3565,68 +3571,80 @@ body {
    OBJECTION HANDLING SIDE PANEL - Senior Setter/Booker Tool
    ============================================================ */
 
-/* Toggle Button */
+/* Toggle Button - Top Right Icon */
 .objection-toggle-btn {
     position: fixed;
+    top: 80px;
     right: 20px;
-    bottom: 100px;
     z-index: 900;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 20px;
+    justify-content: center;
+    gap: 0;
+    width: 42px;
+    height: 42px;
+    padding: 0;
     background: var(--accent-gradient);
-    border: none;
-    border-radius: 60px;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 50%;
     color: white;
-    font-weight: 600;
-    font-size: 0.85rem;
     cursor: pointer;
-    box-shadow: 0 8px 30px rgba(59, 130, 246, 0.4);
+    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     font-family: 'Inter', sans-serif;
 }
 
 .objection-toggle-btn:hover {
-    transform: translateY(-3px) scale(1.03);
-    box-shadow: 0 12px 40px rgba(59, 130, 246, 0.5);
+    transform: scale(1.1) translateY(-2px);
+    box-shadow: 0 6px 30px rgba(59, 130, 246, 0.5);
+    border-color: rgba(255, 255, 255, 0.3);
 }
 
 .objection-toggle-btn:active {
-    transform: scale(0.95);
+    transform: scale(0.9);
 }
 
 .objection-toggle-btn i {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
+    line-height: 1;
 }
 
-.objection-toggle-label {
-    font-size: 0.8rem;
-    letter-spacing: 0.3px;
-}
-
-.objection-toggle-badge {
-    background: rgba(255, 255, 255, 0.25);
-    padding: 2px 10px;
-    border-radius: 30px;
-    font-size: 0.7rem;
+.objection-toggle-btn .objection-toggle-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--danger);
+    color: white;
+    font-size: 0.55rem;
     font-weight: 700;
-    margin-left: 4px;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--bg-secondary);
+    padding: 0 4px;
+    transition: all 0.3s ease;
 }
 
 .objection-toggle-btn.panel-open {
-    right: 380px;
-    bottom: 100px;
     background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
+    border-color: var(--border-color);
     color: var(--text-primary);
     box-shadow: var(--shadow-md);
+    right: 380px;
 }
 
 .objection-toggle-btn.panel-open:hover {
     background: var(--bg-card);
     border-color: var(--danger);
     color: var(--danger);
+}
+
+.objection-toggle-btn.panel-open .objection-toggle-badge {
+    background: var(--text-muted);
+    border-color: var(--bg-secondary);
 }
 
 /* Panel Container */
@@ -3655,7 +3673,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px 24px;
+    padding: 16px 24px;
     background: var(--bg-card);
     border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
@@ -3665,19 +3683,19 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 700;
 }
 
 .objection-panel-title i {
     color: var(--primary);
-    font-size: 1.3rem;
+    font-size: 1.2rem;
 }
 
 .objection-role-badge {
-    font-size: 0.6rem;
+    font-size: 0.55rem;
     font-weight: 600;
-    padding: 2px 12px;
+    padding: 2px 10px;
     border-radius: 30px;
     background: var(--success);
     color: white;
@@ -3691,10 +3709,10 @@ body {
     border: none;
     color: var(--text-muted);
     cursor: pointer;
-    padding: 6px 10px;
+    padding: 4px 8px;
     border-radius: 8px;
     transition: all 0.2s ease;
-    font-size: 1.1rem;
+    font-size: 1rem;
 }
 
 .objection-close-btn:hover {
@@ -3709,7 +3727,7 @@ body {
     padding: 16px 20px 20px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
 }
 
 .objection-panel-body::-webkit-scrollbar {
@@ -3728,12 +3746,12 @@ body {
 /* Search */
 .objection-search input {
     width: 100%;
-    padding: 10px 16px;
-    border-radius: 12px;
+    padding: 8px 14px;
+    border-radius: 10px;
     border: 1px solid var(--border-color);
     background: var(--bg-primary);
     color: var(--text-primary);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     outline: none;
     transition: all 0.3s ease;
 }
@@ -3756,12 +3774,12 @@ body {
 }
 
 .objection-tab {
-    padding: 6px 14px;
+    padding: 4px 12px;
     border-radius: 30px;
     border: 1px solid var(--border-color);
     background: var(--bg-card);
     color: var(--text-secondary);
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.25s ease;
@@ -3783,10 +3801,10 @@ body {
 
 .objection-tab .tab-count {
     background: rgba(255, 255, 255, 0.2);
-    padding: 0 6px;
+    padding: 0 5px;
     border-radius: 10px;
-    font-size: 0.6rem;
-    margin-left: 4px;
+    font-size: 0.55rem;
+    margin-left: 3px;
 }
 
 .objection-tab.active .tab-count {
@@ -3797,7 +3815,7 @@ body {
 .objection-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
     flex: 1;
     overflow-y: auto;
     padding-right: 4px;
@@ -3819,9 +3837,9 @@ body {
 /* Objection Item */
 .objection-item {
     background: var(--bg-card);
-    border-radius: 12px;
+    border-radius: 10px;
     border: 1px solid var(--border-color);
-    padding: 12px 16px;
+    padding: 10px 14px;
     transition: all 0.25s ease;
     cursor: pointer;
 }
@@ -3840,42 +3858,42 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 12px;
+    gap: 10px;
 }
 
 .objection-item-category {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.6rem;
+    gap: 4px;
+    font-size: 0.55rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--text-muted);
-    padding: 2px 10px;
+    padding: 1px 8px;
     border-radius: 20px;
     background: var(--bg-primary);
     flex-shrink: 0;
 }
 
 .objection-item-category .cat-icon {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
 }
 
 .objection-item-question {
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: var(--text-primary);
     flex: 1;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 .objection-item-response {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--text-secondary);
     line-height: 1.5;
-    margin-top: 6px;
-    padding-top: 8px;
+    margin-top: 4px;
+    padding-top: 6px;
     border-top: 1px solid var(--border-color);
     display: none;
 }
@@ -3885,7 +3903,7 @@ body {
 }
 
 .objection-item .expand-icon {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: var(--text-muted);
     transition: transform 0.3s ease;
     flex-shrink: 0;
@@ -3898,14 +3916,14 @@ body {
 
 .objection-item .objection-tags {
     display: flex;
-    gap: 4px;
+    gap: 3px;
     flex-wrap: wrap;
-    margin-top: 6px;
+    margin-top: 4px;
 }
 
 .objection-item .objection-tag {
-    font-size: 0.55rem;
-    padding: 1px 8px;
+    font-size: 0.5rem;
+    padding: 1px 6px;
     border-radius: 20px;
     background: var(--bg-primary);
     color: var(--text-muted);
@@ -3917,11 +3935,11 @@ body {
     border: none;
     color: var(--text-muted);
     cursor: pointer;
-    padding: 2px 8px;
-    border-radius: 6px;
-    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.6rem;
     transition: all 0.2s ease;
-    margin-top: 4px;
+    margin-top: 2px;
 }
 
 .objection-item .copy-response-btn:hover {
@@ -3932,20 +3950,20 @@ body {
 /* Quick Tips */
 .objection-tips {
     background: var(--bg-card);
-    border-radius: 12px;
+    border-radius: 10px;
     border: 1px solid var(--border-color);
-    padding: 12px 16px;
+    padding: 10px 14px;
     flex-shrink: 0;
 }
 
 .objection-tips-header {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     font-weight: 600;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--text-secondary);
-    margin-bottom: 6px;
+    margin-bottom: 4px;
 }
 
 .objection-tips-header i {
@@ -3959,9 +3977,9 @@ body {
 }
 
 .objection-tips ul li {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: var(--text-muted);
-    padding: 2px 0;
+    padding: 1px 0;
     line-height: 1.4;
 }
 
@@ -3969,6 +3987,28 @@ body {
 body:not(.senior-setter) .objection-toggle-btn,
 body:not(.senior-setter) .objection-panel {
     display: none !important;
+}
+
+/* Keyboard shortcut hint tooltip */
+.objection-toggle-btn .shortcut-hint {
+    display: none;
+    position: absolute;
+    bottom: -28px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.5rem;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.objection-toggle-btn:hover .shortcut-hint {
+    opacity: 1;
 }
 
 /* ============================================================ */
@@ -3982,49 +4022,56 @@ body:not(.senior-setter) .objection-panel {
     }
     
     .objection-toggle-btn {
+        top: 72px;
         right: 12px;
-        bottom: 80px;
-        padding: 10px 14px;
-        font-size: 0.75rem;
+        width: 36px;
+        height: 36px;
     }
     
-    .objection-toggle-btn .objection-toggle-label {
-        display: none;
+    .objection-toggle-btn i {
+        font-size: 0.95rem;
+    }
+    
+    .objection-toggle-btn .objection-toggle-badge {
+        min-width: 16px;
+        height: 16px;
+        font-size: 0.5rem;
+        top: -3px;
+        right: -3px;
     }
     
     .objection-toggle-btn.panel-open {
         right: 360px;
-        bottom: 80px;
     }
     
     .objection-panel-header {
-        padding: 16px 20px;
+        padding: 12px 16px;
     }
     
     .objection-panel-title {
-        font-size: 0.95rem;
+        font-size: 0.9rem;
     }
     
     .objection-panel-body {
-        padding: 12px 16px 16px;
-        gap: 12px;
+        padding: 10px 14px 14px;
+        gap: 10px;
     }
     
     .objection-tab {
-        font-size: 0.65rem;
-        padding: 4px 10px;
+        font-size: 0.6rem;
+        padding: 3px 8px;
     }
     
     .objection-item {
-        padding: 10px 12px;
+        padding: 8px 10px;
     }
     
     .objection-item-question {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
     }
     
     .objection-item-response {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
     }
 }
 
@@ -4034,13 +4081,46 @@ body:not(.senior-setter) .objection-panel {
         right: -100%;
     }
     
+    .objection-toggle-btn {
+        top: 68px;
+        right: 10px;
+        width: 32px;
+        height: 32px;
+    }
+    
+    .objection-toggle-btn i {
+        font-size: 0.85rem;
+    }
+    
+    .objection-toggle-btn .objection-toggle-badge {
+        min-width: 14px;
+        height: 14px;
+        font-size: 0.45rem;
+        top: -2px;
+        right: -2px;
+    }
+    
     .objection-toggle-btn.panel-open {
         right: 12px;
-        bottom: 70px;
+        top: 68px;
     }
     
     .objection-panel.open {
         right: 0;
+    }
+    
+    .objection-panel-header {
+        padding: 10px 14px;
+    }
+    
+    .objection-panel-title {
+        font-size: 0.8rem;
+        gap: 6px;
+    }
+    
+    .objection-role-badge {
+        font-size: 0.45rem;
+        padding: 1px 6px;
     }
     
     .objection-tabs {
@@ -4048,8 +4128,24 @@ body:not(.senior-setter) .objection-panel {
     }
     
     .objection-tab {
+        font-size: 0.55rem;
+        padding: 2px 6px;
+    }
+    
+    .objection-item {
+        padding: 6px 8px;
+    }
+    
+    .objection-item-question {
+        font-size: 0.7rem;
+    }
+    
+    .objection-item-response {
+        font-size: 0.65rem;
+    }
+    
+    .objection-tips ul li {
         font-size: 0.6rem;
-        padding: 3px 8px;
     }
 }
 

@@ -5227,9 +5227,11 @@ function setupObjectionEventListeners() {
             
             // Update button icon
             if (objectionPanelOpen) {
-                toggleBtn.innerHTML = '<i class="fas fa-times"></i> <span class="objection-toggle-label">Close</span>';
+                toggleBtn.innerHTML = '<i class="fas fa-times"></i>';
+                toggleBtn.title = 'Close Objection Handling (Ctrl+Shift+O)';
             } else {
-                toggleBtn.innerHTML = '<i class="fas fa-shield-alt"></i> <span class="objection-toggle-label">Objections</span> <span class="objection-toggle-badge">9</span>';
+                toggleBtn.innerHTML = '<i class="fas fa-shield-alt"></i><span class="objection-toggle-badge">9</span>';
+                toggleBtn.title = 'Open Objection Handling (Ctrl+Shift+O)';
             }
             
             // Re-render if opening
@@ -5244,7 +5246,8 @@ function setupObjectionEventListeners() {
             objectionPanelOpen = false;
             panel.classList.remove('open');
             toggleBtn.classList.remove('panel-open');
-            toggleBtn.innerHTML = '<i class="fas fa-shield-alt"></i> <span class="objection-toggle-label">Objections</span> <span class="objection-toggle-badge">9</span>';
+            toggleBtn.innerHTML = '<i class="fas fa-shield-alt"></i><span class="objection-toggle-badge">9</span>';
+            toggleBtn.title = 'Open Objection Handling (Ctrl+Shift+O)';
         });
     }
     
@@ -5281,7 +5284,7 @@ function setupObjectionEventListeners() {
     document.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.shiftKey && e.key === 'O') {
             e.preventDefault();
-            toggleBtn.click();
+            if (toggleBtn) toggleBtn.click();
         }
     });
 }
@@ -5545,6 +5548,11 @@ function handleShortcutAction(action) {
         case 'Refresh Data': { const btn = DOM.get('refreshBtn'); if (btn) btn.click(); break; }
         case 'Bulk Actions': openBulkActions(); break;
         case 'Close Panel': handleEscapeKey(); break;
+        case 'Objection Handling': {
+            const btn = document.getElementById('toggleObjectionPanel');
+            if (btn) btn.click();
+            break;
+        }
         default: showToast(`Action: ${action}`, 'info');
     }
 }

@@ -159,65 +159,64 @@
 
             <div class="footer-note"><i class="fas fa-chart-line"></i> Full-featured CRM · Drag appointments to reschedule · Lead scoring · Follow-up tasks · Bulk actions</div>
         </div>
-    </div>
 
-    <!-- ================================================================ -->
-    <!-- OBJECTION HANDLING SIDE PANEL - Senior Setter/Booker Tool -->
-    <!-- ================================================================ -->
-    <div id="objectionPanel" class="objection-panel">
-        <div class="objection-panel-header">
-            <div class="objection-panel-title">
-                <i class="fas fa-shield-alt"></i>
-                <span>Objection Handling</span>
-                <span class="objection-role-badge">Senior Setter</span>
-            </div>
-            <button id="closeObjectionPanel" class="objection-close-btn" aria-label="Close objection panel">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        
-        <div class="objection-panel-body">
-            <!-- Search -->
-            <div class="objection-search">
-                <input type="text" id="objectionSearch" placeholder="🔍 Search objections..." />
-            </div>
-            
-            <!-- Category Tabs -->
-            <div class="objection-tabs" id="objectionTabs">
-                <button class="objection-tab active" data-category="all">📋 All</button>
-                <button class="objection-tab" data-category="reflex">🔄 Reflex</button>
-                <button class="objection-tab" data-category="no-need">🚫 No Need</button>
-                <button class="objection-tab" data-category="skeptical">🤔 Skeptical</button>
-                <button class="objection-tab" data-category="gatekeeper">🚪 Gatekeeper</button>
-            </div>
-            
-            <!-- Objections List -->
-            <div class="objection-list" id="objectionList">
-                <!-- Will be populated by JavaScript -->
-            </div>
-            
-            <!-- Quick Tips -->
-            <div class="objection-tips">
-                <div class="objection-tips-header">
-                    <i class="fas fa-lightbulb"></i>
-                    <span>Quick Tips</span>
+        <!-- ================================================================ -->
+        <!-- OBJECTION HANDLING SIDE PANEL - Senior Setter/Booker Tool -->
+        <!-- ================================================================ -->
+        <div id="objectionPanel" class="objection-panel">
+            <div class="objection-panel-header">
+                <div class="objection-panel-title">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>Objection Handling</span>
+                    <span class="objection-role-badge">Senior Setter</span>
                 </div>
-                <ul>
-                    <li>🎯 Stay calm & friendly - not salesy</li>
-                    <li>💡 Remind them: it's FREE & already built</li>
-                    <li>🔄 Objections are reflexes, not real no's</li>
-                    <li>📞 Senior setters handle the tough ones</li>
-                </ul>
+                <button id="closeObjectionPanel" class="objection-close-btn" aria-label="Close objection panel">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="objection-panel-body">
+                <!-- Search -->
+                <div class="objection-search">
+                    <input type="text" id="objectionSearch" placeholder="🔍 Search objections..." />
+                </div>
+                
+                <!-- Category Tabs -->
+                <div class="objection-tabs" id="objectionTabs">
+                    <button class="objection-tab active" data-category="all">📋 All</button>
+                    <button class="objection-tab" data-category="reflex">🔄 Reflex</button>
+                    <button class="objection-tab" data-category="no-need">🚫 No Need</button>
+                    <button class="objection-tab" data-category="skeptical">🤔 Skeptical</button>
+                    <button class="objection-tab" data-category="gatekeeper">🚪 Gatekeeper</button>
+                </div>
+                
+                <!-- Objections List -->
+                <div class="objection-list" id="objectionList">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+                
+                <!-- Quick Tips -->
+                <div class="objection-tips">
+                    <div class="objection-tips-header">
+                        <i class="fas fa-lightbulb"></i>
+                        <span>Quick Tips</span>
+                    </div>
+                    <ul>
+                        <li>🎯 Stay calm & friendly - not salesy</li>
+                        <li>💡 Remind them: it's FREE & already built</li>
+                        <li>🔄 Objections are reflexes, not real no's</li>
+                        <li>📞 Senior setters handle the tough ones</li>
+                    </ul>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Toggle Button for Objection Panel -->
-    <button id="toggleObjectionPanel" class="objection-toggle-btn" title="Open Objection Handling">
-        <i class="fas fa-shield-alt"></i>
-        <span class="objection-toggle-label">Objections</span>
-        <span class="objection-toggle-badge">9</span>
-    </button>
+        <!-- Toggle Button for Objection Panel - Top Right Icon -->
+        <button id="toggleObjectionPanel" class="objection-toggle-btn" title="Open Objection Handling (Ctrl+Shift+O)">
+            <i class="fas fa-shield-alt"></i>
+            <span class="objection-toggle-badge">9</span>
+        </button>
+    </div>
 
     <!-- Smart Import Modal -->
     <div id="smartImportModal" class="modal-overlay" style="display:none;">
