@@ -59,7 +59,7 @@ const CONFIG = {
         'Refresh Data': { keys: ['Ctrl', 'Shift', 'R'], description: 'Refresh data from server' },
         'Bulk Actions': { keys: ['Ctrl', 'Shift', 'B'], description: 'Open Bulk Actions' },
         'Close Panel': { keys: ['Escape'], description: 'Close current panel and return to scripts' },
-        'Objection Handler': { keys: ['Ctrl', 'Shift', 'O'], description: 'Toggle Objection Handler Side Banner' }
+        'Objection Handling': { keys: ['Ctrl', 'Shift', 'O'], description: 'Open Objection Handling Panel' }
     }
 };
 
@@ -4938,6 +4938,367 @@ const FeaturePanel = {
 };
 
 // ================================================================
+// OBJECTION HANDLING PANEL - Senior Setter/Booker Tool
+// ================================================================
+
+const OBJECTION_DATA = {
+    reflex: [
+        {
+            question: '"I\'m not interested."',
+            response: '"I totally understand, I\'m not trying to sell you anything. The website is already built and it\'s yours to look at for free."',
+            tags: ['reflex', 'brush-off']
+        },
+        {
+            question: '"I\'m too busy."',
+            response: '"Totally get it, I don\'t want to take up your time right now. I just wanted to show it to you another day, it would only take like 10 minutes."',
+            tags: ['reflex', 'busy']
+        },
+        {
+            question: '"Just send me the info."',
+            response: '"I could send you some info about the offer, but honestly you should take a look for yourself, the website looks great. It only takes 10 minutes."',
+            tags: ['reflex', 'info']
+        },
+        {
+            question: '"Can you just email me the website?"',
+            response: '"I\'d love to, but the website isn\'t online yet, right now it\'s just a file on our end. The only way to actually show it to you is to share my screen, and it only takes 10 minutes."',
+            tags: ['reflex', 'email']
+        },
+        {
+            question: '"Call me back later."',
+            response: '"Sure. Just so I\'m not calling back and forth, can we lock in a specific time that works for you?"',
+            tags: ['reflex', 'callback']
+        }
+    ],
+    'no-need': [
+        {
+            question: '"We already have a website."',
+            response: '"Oh nice, when was it last updated? We actually put together a modern version specifically for your business, might be worth a quick look to compare."',
+            tags: ['website', 'existing']
+        },
+        {
+            question: '"We don\'t need a website."',
+            response: '"Totally fair, but it\'s not really about the website, it\'s about more jobs. A good site gets you found by more people and brings in more work. You\'re not saying no to more customers, right? And it\'s free to take a look."',
+            tags: ['no-need', 'jobs']
+        },
+        {
+            question: '"I\'ll do it myself."',
+            response: '"That\'s great. How long have you been planning to? What if it was basically done for you by the end of this week?"',
+            tags: ['diy', 'self']
+        },
+        {
+            question: '"We already have a web designer."',
+            response: '"Right, isn\'t it better to have options? There\'s a big difference between just getting a website and getting one done well, and the look costs you nothing."',
+            tags: ['designer', 'options']
+        },
+        {
+            question: '"We have someone working on it."',
+            response: '"Awesome, then you should definitely take a look. Worst case, you get some inspiration or get to compare the two. But I bet you\'re going to like ours better, and if you do, we can work together."',
+            tags: ['working', 'compare']
+        },
+        {
+            question: '"Word of mouth is enough."',
+            response: '"Word of mouth is great, it means you do solid work. But it only reaches people who already know you. A website puts you in front of everyone searching for what you do right now, that\'s a whole stream of new jobs you\'re missing. And it\'s free to take a look."',
+            tags: ['word-of-mouth', 'reach']
+        },
+        {
+            question: '"We\'re too small."',
+            response: '"Honestly, smaller businesses are where a website makes the biggest difference. It makes you look just as professional as the big guys."',
+            tags: ['small', 'professional']
+        }
+    ],
+    skeptical: [
+        {
+            question: '"How much is this going to cost?"',
+            response: '"Great question. The walkthrough is completely free, there\'s no cost just to look at the website. The price does vary a little depending on the website, but I promise it\'s very affordable, and my colleague covers all the options on the call."',
+            tags: ['cost', 'pricing']
+        },
+        {
+            question: '"What\'s the catch?"',
+            response: '"No catch. If you love it, you pay us to fully flesh it out and get it online for you. If you don\'t like it, we just leave it at that, no hard feelings."',
+            tags: ['catch', 'hidden']
+        },
+        {
+            question: '"Is this going to help my business?"',
+            response: '"Of course it will. It\'ll make you way easier to find on Google, make you look more trustworthy and professional, and give customers an easy way to reach you and book you. A good website brings in business, that\'s the whole point."',
+            tags: ['help', 'business']
+        },
+        {
+            question: '"How did you get my number?"',
+            response: '"Your business shows up on Google, that\'s where we found you. We noticed you didn\'t have a website linked to your profile."',
+            tags: ['number', 'source']
+        },
+        {
+            question: '"Are you local?"',
+            response: '"We\'re based in Delaware, but we work with businesses like yours all over, and everything we do is focused on helping you show up better in your own area online."',
+            tags: ['local', 'location']
+        }
+    ],
+    gatekeeper: [
+        {
+            question: '"The owner isn\'t in right now."',
+            response: '"Alright, no problem, I can give them a call back. When will they be back in?"',
+            tags: ['owner', 'away']
+        }
+    ]
+};
+
+// Map category names for display
+const CATEGORY_META = {
+    reflex: { label: 'Reflex Brush-offs', icon: '🔄', color: '#f59e0b' },
+    'no-need': { label: 'No Need', icon: '🚫', color: '#ef4444' },
+    skeptical: { label: 'Skeptical', icon: '🤔', color: '#8b5cf6' },
+    gatekeeper: { label: 'Gatekeeper', icon: '🚪', color: '#3b82f6' }
+};
+
+let objectionPanelOpen = false;
+let objectionCurrentFilter = 'all';
+let objectionSearchTerm = '';
+
+function initObjectionPanel() {
+    // Check if user is senior setter/booker
+    const isSeniorSetter = checkIfSeniorSetter();
+    
+    if (isSeniorSetter) {
+        document.body.classList.add('senior-setter');
+        renderObjections('all');
+        setupObjectionEventListeners();
+        console.log('🛡️ Objection Handling Panel activated for Senior Setter');
+    } else {
+        // Hide for non-senior setters
+        const toggleBtn = document.getElementById('toggleObjectionPanel');
+        if (toggleBtn) toggleBtn.style.display = 'none';
+        console.log('🛡️ Objection Handling Panel hidden (user is not a Senior Setter)');
+    }
+}
+
+function checkIfSeniorSetter() {
+    // Check team member role
+    if (AppState.currentUser && AppState.teamMembers) {
+        const currentMember = AppState.teamMembers.find(m => 
+            m.email === AppState.currentUser.email ||
+            m.id === AppState.currentUser.uid
+        );
+        if (currentMember) {
+            const seniorRoles = ['Senior Setter', 'Booker', 'Team Lead', 'Senior Agent', 'Setter'];
+            return seniorRoles.some(role => 
+                currentMember.role && currentMember.role.includes(role)
+            );
+        }
+    }
+    
+    // Check local storage for role preference
+    const role = localStorage.getItem('userRole');
+    if (role) {
+        const seniorRoles = ['senior-setter', 'booker', 'team-lead', 'senior-agent', 'setter'];
+        return seniorRoles.includes(role.toLowerCase());
+    }
+    
+    // For demo purposes - enable for all logged-in users
+    // Remove this in production
+    return AppState.currentUser !== null;
+}
+
+function renderObjections(filter = 'all', search = '') {
+    const container = document.getElementById('objectionList');
+    if (!container) return;
+    
+    let items = [];
+    
+    // Flatten all objections with category info
+    for (const [category, objections] of Object.entries(OBJECTION_DATA)) {
+        objections.forEach(obj => {
+            items.push({
+                ...obj,
+                category: category,
+                categoryLabel: CATEGORY_META[category]?.label || category,
+                categoryIcon: CATEGORY_META[category]?.icon || '📋'
+            });
+        });
+    }
+    
+    // Apply filter
+    if (filter !== 'all') {
+        items = items.filter(item => item.category === filter);
+    }
+    
+    // Apply search
+    if (search && search.trim().length > 0) {
+        const term = search.toLowerCase().trim();
+        items = items.filter(item => 
+            item.question.toLowerCase().includes(term) ||
+            item.response.toLowerCase().includes(term) ||
+            item.tags.some(tag => tag.toLowerCase().includes(term))
+        );
+    }
+    
+    // Update tab counts
+    updateTabCounts();
+    
+    if (items.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state" style="padding:30px 20px;">
+                <i class="fas fa-search" style="font-size:2rem; opacity:0.3; display:block; margin-bottom:12px;"></i>
+                <p style="color:var(--text-muted); font-size:0.9rem;">No objections found</p>
+                <p style="color:var(--text-muted); font-size:0.75rem;">Try adjusting your search or filter</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = items.map((item, index) => `
+        <div class="objection-item" data-category="${item.category}" data-index="${index}">
+            <div class="objection-item-header">
+                <div style="flex:1; min-width:0;">
+                    <div class="objection-item-category">
+                        <span class="cat-icon">${item.categoryIcon}</span>
+                        ${item.categoryLabel}
+                    </div>
+                    <div class="objection-item-question">${item.question}</div>
+                </div>
+                <span class="expand-icon">▼</span>
+            </div>
+            <div class="objection-item-response">
+                ${item.response}
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; flex-wrap:wrap; gap:4px;">
+                    <div class="objection-tags">
+                        ${item.tags.map(tag => `<span class="objection-tag">#${tag}</span>`).join('')}
+                    </div>
+                    <button class="copy-response-btn" data-response="${item.response.replace(/"/g, '&quot;')}">
+                        <i class="fas fa-copy"></i> Copy
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    // Add click handlers for expansion
+    container.querySelectorAll('.objection-item').forEach(el => {
+        el.addEventListener('click', (e) => {
+            // Don't toggle if clicking the copy button
+            if (e.target.closest('.copy-response-btn')) return;
+            el.classList.toggle('expanded');
+        });
+    });
+    
+    // Add copy handlers
+    container.querySelectorAll('.copy-response-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const response = btn.getAttribute('data-response');
+            if (response) {
+                copyToClipboard(response);
+                showToast('Response copied! 📋', 'success');
+            }
+        });
+    });
+}
+
+function updateTabCounts() {
+    const tabs = document.querySelectorAll('.objection-tab');
+    tabs.forEach(tab => {
+        const category = tab.getAttribute('data-category');
+        const count = category === 'all' 
+            ? Object.values(OBJECTION_DATA).reduce((sum, arr) => sum + arr.length, 0)
+            : (OBJECTION_DATA[category]?.length || 0);
+        
+        const existingCount = tab.querySelector('.tab-count');
+        if (existingCount) {
+            existingCount.textContent = count;
+        } else {
+            const countSpan = document.createElement('span');
+            countSpan.className = 'tab-count';
+            countSpan.textContent = count;
+            tab.appendChild(countSpan);
+        }
+    });
+}
+
+function setupObjectionEventListeners() {
+    // Toggle panel
+    const toggleBtn = document.getElementById('toggleObjectionPanel');
+    const panel = document.getElementById('objectionPanel');
+    const closeBtn = document.getElementById('closeObjectionPanel');
+    
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            objectionPanelOpen = !objectionPanelOpen;
+            panel.classList.toggle('open', objectionPanelOpen);
+            toggleBtn.classList.toggle('panel-open', objectionPanelOpen);
+            
+            // Update button icon
+            if (objectionPanelOpen) {
+                toggleBtn.innerHTML = '<i class="fas fa-times"></i> <span class="objection-toggle-label">Close</span>';
+            } else {
+                toggleBtn.innerHTML = '<i class="fas fa-shield-alt"></i> <span class="objection-toggle-label">Objections</span> <span class="objection-toggle-badge">9</span>';
+            }
+            
+            // Re-render if opening
+            if (objectionPanelOpen) {
+                renderObjections(objectionCurrentFilter, objectionSearchTerm);
+            }
+        });
+    }
+    
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            objectionPanelOpen = false;
+            panel.classList.remove('open');
+            toggleBtn.classList.remove('panel-open');
+            toggleBtn.innerHTML = '<i class="fas fa-shield-alt"></i> <span class="objection-toggle-label">Objections</span> <span class="objection-toggle-badge">9</span>';
+        });
+    }
+    
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && objectionPanelOpen) {
+            closeBtn.click();
+        }
+    });
+    
+    // Tab switching
+    const tabs = document.querySelectorAll('.objection-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            objectionCurrentFilter = tab.getAttribute('data-category');
+            const searchInput = document.getElementById('objectionSearch');
+            objectionSearchTerm = searchInput?.value || '';
+            renderObjections(objectionCurrentFilter, objectionSearchTerm);
+        });
+    });
+    
+    // Search
+    const searchInput = document.getElementById('objectionSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            objectionSearchTerm = e.target.value;
+            renderObjections(objectionCurrentFilter, objectionSearchTerm);
+        });
+    }
+    
+    // Keyboard shortcut: Ctrl+Shift+O to toggle
+    document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.shiftKey && e.key === 'O') {
+            e.preventDefault();
+            toggleBtn.click();
+        }
+    });
+}
+
+// ================================================================
+// EXPOSE OBJECTION FUNCTIONS GLOBALLY
+// ================================================================
+
+window.initObjectionPanel = initObjectionPanel;
+window.OBJECTION_DATA = OBJECTION_DATA;
+window.renderObjections = renderObjections;
+window.toggleObjectionPanel = () => {
+    const btn = document.getElementById('toggleObjectionPanel');
+    if (btn) btn.click();
+};
+
+// ================================================================
 // GLOBAL FUNCTIONS
 // ================================================================
 
@@ -5184,12 +5545,6 @@ function handleShortcutAction(action) {
         case 'Refresh Data': { const btn = DOM.get('refreshBtn'); if (btn) btn.click(); break; }
         case 'Bulk Actions': openBulkActions(); break;
         case 'Close Panel': handleEscapeKey(); break;
-        case 'Objection Handler': 
-            if (window.ObjectionHandler) {
-                window.ObjectionHandler.toggleBanner();
-                showToast('🛡️ Objection Handler ' + (window.ObjectionHandler.isOpen ? 'opened' : 'closed'), 'info');
-            }
-            break;
         default: showToast(`Action: ${action}`, 'info');
     }
 }
@@ -5301,6 +5656,7 @@ function initApp() {
     const closeImportBtn = DOM.get('closeImportBtn');
 
     if (quickReportBtn) {
+        // Remove any existing listeners by cloning
         const newBtn = quickReportBtn.cloneNode(true);
         quickReportBtn.parentNode.replaceChild(newBtn, quickReportBtn);
         newBtn.addEventListener('click', openSmartImportEnhanced);
@@ -5568,6 +5924,28 @@ function initApp() {
         }
     });
 
+    // ================================================================
+    // SCRIPT COACH INITIALIZATION
+    // ================================================================
+    setTimeout(() => {
+        if (typeof initScriptCoach === 'function') {
+            initScriptCoach();
+            console.log('🎯 Script Coach initialized successfully');
+        } else {
+            console.log('📝 Script Coach script loading...');
+        }
+    }, 1000);
+
+    // ================================================================
+    // OBJECTION HANDLING PANEL - Senior Setter/Booker Tool
+    // ================================================================
+    setTimeout(() => {
+        if (typeof initObjectionPanel === 'function') {
+            initObjectionPanel();
+            console.log('🛡️ Objection Handling Panel initialized');
+        }
+    }, 1200);
+
     try {
         if (AppState.isFirebaseReady) {
             firebase.auth().onAuthStateChanged(async (user) => {
@@ -5654,18 +6032,6 @@ function initApp() {
         }
     });
 
-    // ================================================================
-    // SCRIPT COACH INITIALIZATION
-    // ================================================================
-    setTimeout(() => {
-        if (typeof initScriptCoach === 'function') {
-            initScriptCoach();
-            console.log('🎯 Script Coach initialized successfully');
-        } else {
-            console.log('📝 Script Coach script loading...');
-        }
-    }, 1000);
-
     console.log('🚀 ScriptFlow Pro initialized successfully!');
     console.log('📊 Status Hierarchy: Hot Transfer → Completed → Warm Callback → Pending → Canceled');
     console.log('📅 Secondary Statuses (count as Completed): Meeting Booked, Rescheduled, Overdue, Held');
@@ -5674,8 +6040,8 @@ function initApp() {
     console.log('✨ Enhanced Smart Import loaded with intelligent parsing');
     console.log('📜 Script management: Create, Edit Title, Delete, Favorite');
     console.log('🎯 Script Coach: AI-powered script analysis and playback');
-    console.log(`📅 Active Date: ${Utils.getActiveDate()}`);
-    console.log('🛡️ Objection Handler: Press Ctrl+Shift+O to toggle side banner');
+    console.log('📅 Active Date: ' + Utils.getActiveDate());
+    console.log('🛡️ Objection Handling Panel: Available for Senior Setters/Bookers (Ctrl+Shift+O)');
 }
 
 // ================================================================
@@ -5714,6 +6080,13 @@ window.quickImportFromClipboard = quickImportFromClipboard;
 window.expandAllRecords = expandAllRecords;
 window.collapseAllRecords = collapseAllRecords;
 window.Utils = Utils;
+window.initObjectionPanel = initObjectionPanel;
+window.OBJECTION_DATA = OBJECTION_DATA;
+window.renderObjections = renderObjections;
+window.toggleObjectionPanel = () => {
+    const btn = document.getElementById('toggleObjectionPanel');
+    if (btn) btn.click();
+};
 
 // Start the app
 document.addEventListener('DOMContentLoaded', initApp);

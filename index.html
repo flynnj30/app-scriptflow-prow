@@ -161,127 +161,63 @@
         </div>
     </div>
 
-<!-- Objection Handler Floating Button -->
-    <button id="objectionToggleBtn" class="objection-toggle-btn" aria-label="Toggle Objection Handler">
-        <i class="fas fa-shield-alt"></i> Objections
-    </button>
-
-    <!-- Objection Handler Banner -->
-    <div id="objectionBanner" class="objection-banner">
-        <div class="objection-header">
-            <h3><i class="fas fa-shield-alt"></i> Objection Handling</h3>
-            <button id="closeObjectionBtn" class="btn-icon-sm" style="font-size: 1.2rem;"><i class="fas fa-times"></i></button>
+    <!-- ================================================================ -->
+    <!-- OBJECTION HANDLING SIDE PANEL - Senior Setter/Booker Tool -->
+    <!-- ================================================================ -->
+    <div id="objectionPanel" class="objection-panel">
+        <div class="objection-panel-header">
+            <div class="objection-panel-title">
+                <i class="fas fa-shield-alt"></i>
+                <span>Objection Handling</span>
+                <span class="objection-role-badge">Senior Setter</span>
+            </div>
+            <button id="closeObjectionPanel" class="objection-close-btn" aria-label="Close objection panel">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
-        <div class="objection-body">
+        
+        <div class="objection-panel-body">
+            <!-- Search -->
+            <div class="objection-search">
+                <input type="text" id="objectionSearch" placeholder="🔍 Search objections..." />
+            </div>
             
-            <div class="obj-intro">
-                <strong>Your job is to stay calm, stay friendly, and steer back to the free preview.</strong> You win by sounding helpful, not salesy. Your single best tool is the offer itself. The website is already built, it's free, and there's no obligation.
+            <!-- Category Tabs -->
+            <div class="objection-tabs" id="objectionTabs">
+                <button class="objection-tab active" data-category="all">📋 All</button>
+                <button class="objection-tab" data-category="reflex">🔄 Reflex</button>
+                <button class="objection-tab" data-category="no-need">🚫 No Need</button>
+                <button class="objection-tab" data-category="skeptical">🤔 Skeptical</button>
+                <button class="objection-tab" data-category="gatekeeper">🚪 Gatekeeper</button>
             </div>
-
-            <!-- Reflex Brush-Offs -->
-            <div class="obj-section-title">The Reflex Brush-Offs</div>
             
-            <div class="obj-card">
-                <div class="obj-trigger">“I'm not interested.”</div>
-                <div class="obj-response">“I totally understand, I'm not trying to sell you anything. The website is already built and it's yours to look at for free.”</div>
+            <!-- Objections List -->
+            <div class="objection-list" id="objectionList">
+                <!-- Will be populated by JavaScript -->
             </div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“I'm too busy.”</div>
-                <div class="obj-response">“Totally get it, I don't want to take up your time right now. I just wanted to show it to you another day, it would only take like 10 minutes.”</div>
+            
+            <!-- Quick Tips -->
+            <div class="objection-tips">
+                <div class="objection-tips-header">
+                    <i class="fas fa-lightbulb"></i>
+                    <span>Quick Tips</span>
+                </div>
+                <ul>
+                    <li>🎯 Stay calm & friendly - not salesy</li>
+                    <li>💡 Remind them: it's FREE & already built</li>
+                    <li>🔄 Objections are reflexes, not real no's</li>
+                    <li>📞 Senior setters handle the tough ones</li>
+                </ul>
             </div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“Just send me the info.”</div>
-                <div class="obj-response">“I could send you some info about the offer, but honestly you should take a look for yourself, the website looks great. It only takes 10 minutes.”</div>
-            </div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“Can you just email me the website?”</div>
-                <div class="obj-response">“I'd love to, but the website isn't online yet, right now it's just a file on our end. The only way to actually show it to you is to share my screen, and it only takes 10 minutes.”</div>
-            </div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“Call me back later.”</div>
-                <div class="obj-response">“Sure. Just so I'm not calling back and forth, can we lock in a specific time that works for you?”</div>
-            </div>
-
-            <!-- "We don't need it" -->
-            <div class="obj-section-title">"We Don't Need It" (Already Sorted)</div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“We already have a website.”</div>
-                <div class="obj-response">“Oh nice, when was it last updated? We actually put together a modern version specifically for your business, might be worth a quick look to compare.”</div>
-            </div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“We don't need a website.”</div>
-                <div class="obj-response">“Totally fair, but it's not really about the website, it's about more jobs. A good site gets you found by more people and brings in more work. You're not saying no to more customers, right? And it's free to take a look.”</div>
-            </div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“I'll do it myself.”</div>
-                <div class="obj-response">“That's great. How long have you been planning to? What if it was basically done for you by the end of this week?”</div>
-            </div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“We already have a web designer.”</div>
-                <div class="obj-response">“Right, isn't it better to have options? There's a big difference between just getting a website and getting one done well, and the look costs you nothing.”</div>
-            </div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“We have someone working on it.”</div>
-                <div class="obj-response">“Awesome, then you should definitely take a look. Worst case, you get some inspiration or get to compare the two. But I bet you're going to like ours better, and if you do, we can work together.”</div>
-            </div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“Word of mouth is enough.”</div>
-                <div class="obj-response">“Word of mouth is great, it means you do solid work. But it only reaches people who already know you. A website puts you in front of everyone searching for what you do right now, that's a whole stream of new jobs you're missing. And it's free to take a look.”</div>
-            </div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“We're too small.”</div>
-                <div class="obj-response">“Honestly, smaller businesses are where a website makes the biggest difference. It makes you look just as professional as the big guys.”</div>
-            </div>
-
-            <!-- Skeptical Questions -->
-            <div class="obj-section-title">The Skeptical Questions</div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“How much is this going to cost?”</div>
-                <div class="obj-response">“Great question. The walkthrough is completely free, there's no cost just to look at the website. The price does vary a little depending on the website, but I promise it's very affordable, and my colleague covers all the options on the call.”</div>
-            </div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“What's the catch?”</div>
-                <div class="obj-response">“No catch. If you love it, you pay us to fully flesh it out and get it online for you. If you don't like it, we just leave it at that, no hard feelings.”</div>
-            </div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“Is this going to help my business?”</div>
-                <div class="obj-response">“Of course it will. It'll make you way easier to find on Google, make you look more trustworthy and professional, and give customers an easy way to reach you and book you. A good website brings in business, that's the whole point.”</div>
-            </div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“How did you get my number?”</div>
-                <div class="obj-response">“Your business shows up on Google, that's where we found you. We noticed you didn't have a website linked to your profile.”</div>
-            </div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“Are you local?”</div>
-                <div class="obj-response">“We're based in Delaware, but we work with businesses like yours all over, and everything we do is focused on helping you show up better in your own area online.”</div>
-            </div>
-
-            <!-- Gatekeepers -->
-            <div class="obj-section-title">Gatekeepers</div>
-
-            <div class="obj-card">
-                <div class="obj-trigger">“The owner isn't in right now.”</div>
-                <div class="obj-response">“Alright, no problem, I can give them a call back. When will they be back in?”</div>
-            </div>
-
         </div>
     </div>
+
+    <!-- Toggle Button for Objection Panel -->
+    <button id="toggleObjectionPanel" class="objection-toggle-btn" title="Open Objection Handling">
+        <i class="fas fa-shield-alt"></i>
+        <span class="objection-toggle-label">Objections</span>
+        <span class="objection-toggle-badge">9</span>
+    </button>
 
     <!-- Smart Import Modal -->
     <div id="smartImportModal" class="modal-overlay" style="display:none;">
@@ -474,7 +410,5 @@
     <script src="js/app.js"></script>
     <!-- Script Coach - AI-Powered Script Analysis & Karaoke Playback -->
     <script src="js/script-coach.js"></script>
-    <!-- Objection Handler - Side Banner -->
-    <script src="js/objection-handler.js"></script>
 </body>
 </html>
