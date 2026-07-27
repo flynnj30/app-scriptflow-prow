@@ -1,5 +1,6 @@
 // ================================================================
 // OBJECTION HANDLER - SENIOR SETTER/BOOKER (SIDE BANNER)
+// ALL OBJECTIONS FROM ORIGINAL REQUIREMENTS
 // ================================================================
 
 const ObjectionHandler = {
@@ -10,7 +11,7 @@ const ObjectionHandler = {
     expandedCards: new Set(),
     isAnimating: false,
     
-    // Data - Complete Objection Library
+    // Data - Complete Objection Library (ALL objections from original requirements)
     categories: {
         reflex: {
             label: '🔄 Reflex Brush-Offs',
@@ -154,6 +155,115 @@ const ObjectionHandler = {
         }
     },
     
+    // ============================================================
+    // NEW: Complete Additional Objection Scripts from Original
+    // ============================================================
+    
+    // These are additional scripts that were requested in the original message
+    // They are organized for quick reference by the senior setter/booker
+    
+    additionalScripts: {
+        // Reflex brush-offs - additional variations
+        reflex_extra: [
+            {
+                id: 'not_interested_v2',
+                objection: '"Not interested."',
+                response: 'No problem at all. We\'ve already built a version of your website, and it\'s yours to see for free. Would you be open to just taking a quick look?',
+                tip: 'Keep it casual and reiterate the "free" aspect.'
+            },
+            {
+                id: 'too_busy_v2',
+                objection: '"I\'m swamped."',
+                response: 'I hear you. I won\'t take up your time now. I\'d love to show you the website another day—it only takes about 10 minutes to walk through.',
+                tip: 'Empathize and minimize the time commitment.'
+            },
+            {
+                id: 'send_info_v2',
+                objection: '"Shoot me an email."',
+                response: 'I\'d be happy to, but honestly, the website is really something you need to see. It only takes 10 minutes to walk through live.',
+                tip: 'Pivot from email to a live walkthrough.'
+            }
+        ],
+        // Existing solutions - additional
+        existing_extra: [
+            {
+                id: 'already_have_website_v2',
+                objection: '"We have a site already."',
+                response: 'That\'s great! When was it last refreshed? We put together a modern version for your business—it might be worth comparing.',
+                tip: 'Focus on "modern" and "compare" to create curiosity.'
+            },
+            {
+                id: 'no_need_website_v2',
+                objection: '"We don\'t need a site."',
+                response: 'Fair enough. But a good site brings in more jobs and gets you found online. You\'re not saying no to more business, right? And it\'s free to preview.',
+                tip: 'Connect the website to more business opportunities.'
+            },
+            {
+                id: 'do_it_myself_v2',
+                objection: '"I can do it myself."',
+                response: 'That\'s awesome. How far along are you? What if it was already done for you by the end of this week?',
+                tip: 'Challenge their timeline gently with a faster alternative.'
+            },
+            {
+                id: 'have_designer_v2',
+                objection: '"We have a designer."',
+                response: 'Options are always good, right? There\'s a difference between a basic site and one done well. And checking ours out is completely free.',
+                tip: 'Position as a free option to evaluate.'
+            },
+            {
+                id: 'someone_working_v2',
+                objection: '"Someone\'s on it."',
+                response: 'Perfect. Then you should definitely see ours—worst case, you get ideas. Best case, you like ours better.',
+                tip: 'Friendly competition to generate interest.'
+            },
+            {
+                id: 'word_of_mouth_v2',
+                objection: '"Word of mouth works for us."',
+                response: 'Word of mouth is powerful! But it only reaches people who already know you. A website reaches everyone searching for what you do right now.',
+                tip: 'Show the gap between word-of-mouth and online visibility.'
+            },
+            {
+                id: 'too_small_v2',
+                objection: '"We\'re just a small business."',
+                response: 'That\'s exactly where a website makes the biggest impact. It levels the playing field with the big guys.',
+                tip: 'Flip "too small" into a strength.'
+            }
+        ],
+        // Skeptical - additional
+        skeptical_extra: [
+            {
+                id: 'how_much_v2',
+                objection: '"What\'s the cost?"',
+                response: 'The walkthrough is 100% free. Pricing varies based on what you need, but it\'s very affordable. My colleague covers all the details on the call.',
+                tip: 'Deflect pricing to the closer while emphasizing free.'
+            },
+            {
+                id: 'whats_catch_v2',
+                objection: '"What\'s the catch?"',
+                response: 'No catch whatsoever. If you love it, you can work with us to launch it. If not, we part ways with no hard feelings.',
+                tip: 'Direct, transparent answer builds trust.'
+            },
+            {
+                id: 'will_help_v2',
+                objection: '"Will this actually help?"',
+                response: 'Absolutely. You\'ll be easier to find on Google, look more professional, and make it easier for customers to reach you. A website drives business.',
+                tip: 'Focus on concrete, measurable benefits.'
+            },
+            {
+                id: 'got_number_v2',
+                objection: '"Where did you get my number?"',
+                response: 'We found your business on Google and noticed you didn\'t have a website linked to your profile.',
+                tip: 'Be specific and honest.'
+            },
+            {
+                id: 'are_you_local_v2',
+                objection: '"Are you local?"',
+                response: 'We\'re based in Delaware but work with businesses like yours nationwide. Our focus is helping you show up better in your local area.',
+                tip: 'Acknowledge location while emphasizing local results.'
+            }
+        ]
+    },
+    
     // Initialize the banner
     init: function() {
         this.createSideBanner();
@@ -237,7 +347,16 @@ const ObjectionHandler = {
         const category = this.categories[categoryKey];
         if (!category) return '<div class="objection-empty">No objections in this category.</div>';
         
-        return category.objections.map(obj => `
+        // Combine main objections with any additional ones for this category
+        let allObjections = [...category.objections];
+        
+        // Add extra scripts if they exist for this category
+        const extraKey = categoryKey + '_extra';
+        if (this.additionalScripts[extraKey]) {
+            allObjections = [...allObjections, ...this.additionalScripts[extraKey]];
+        }
+        
+        return allObjections.map(obj => `
             <div class="objection-card ${this.expandedCards.has(obj.id) ? 'expanded' : ''}" data-id="${obj.id}">
                 <div class="objection-card-header" data-id="${obj.id}">
                     <span class="objection-card-icon">💬</span>
@@ -273,6 +392,10 @@ const ObjectionHandler = {
         let count = 0;
         for (const category of Object.values(this.categories)) {
             count += category.objections.length;
+        }
+        // Add extra scripts
+        for (const key of Object.keys(this.additionalScripts)) {
+            count += this.additionalScripts[key].length;
         }
         return count;
     },
