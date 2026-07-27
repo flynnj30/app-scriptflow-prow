@@ -1,5 +1,6 @@
 // ================================================================
 // OBJECTION HANDLER - SENIOR SETTER/BOOKER (SIDE BANNER)
+// TOP-LEFT TRIGGER BUTTON - ALWAYS VISIBLE
 // ALL OBJECTIONS FROM ORIGINAL REQUIREMENTS
 // ================================================================
 
@@ -155,15 +156,8 @@ const ObjectionHandler = {
         }
     },
     
-    // ============================================================
-    // NEW: Complete Additional Objection Scripts from Original
-    // ============================================================
-    
-    // These are additional scripts that were requested in the original message
-    // They are organized for quick reference by the senior setter/booker
-    
+    // Additional scripts from original requirements
     additionalScripts: {
-        // Reflex brush-offs - additional variations
         reflex_extra: [
             {
                 id: 'not_interested_v2',
@@ -184,7 +178,6 @@ const ObjectionHandler = {
                 tip: 'Pivot from email to a live walkthrough.'
             }
         ],
-        // Existing solutions - additional
         existing_extra: [
             {
                 id: 'already_have_website_v2',
@@ -229,7 +222,6 @@ const ObjectionHandler = {
                 tip: 'Flip "too small" into a strength.'
             }
         ],
-        // Skeptical - additional
         skeptical_extra: [
             {
                 id: 'how_much_v2',
@@ -270,7 +262,7 @@ const ObjectionHandler = {
         this.loadState();
         this.attachEvents();
         this.updateTriggerBadge();
-        console.log('🛡️ Objection Handler side banner initialized - Click 🛡️ to open');
+        console.log('🛡️ Objection Handler side banner initialized - Click 🛡️ in top-left to open');
     },
     
     // Create the side banner HTML
@@ -278,10 +270,10 @@ const ObjectionHandler = {
         const existingBanner = document.getElementById('objectionSideBanner');
         if (existingBanner) existingBanner.remove();
         
-        // Create the trigger button (floating)
+        // Create the trigger button (floating - TOP LEFT)
         const trigger = document.createElement('button');
         trigger.id = 'objectionTriggerBtn';
-        trigger.className = 'objection-trigger-btn';
+        trigger.className = 'objection-trigger-btn objection-trigger-top-left';
         trigger.setAttribute('aria-label', 'Toggle Objection Handler');
         trigger.innerHTML = `
             <span class="objection-trigger-icon">🛡️</span>
@@ -290,10 +282,10 @@ const ObjectionHandler = {
         `;
         document.body.appendChild(trigger);
         
-        // Create the side banner
+        // Create the side banner (opens from LEFT side now)
         const banner = document.createElement('div');
         banner.id = 'objectionSideBanner';
-        banner.className = 'objection-side-banner';
+        banner.className = 'objection-side-banner objection-side-banner-left';
         banner.setAttribute('role', 'complementary');
         banner.setAttribute('aria-label', 'Objection Handling Reference');
         banner.setAttribute('aria-hidden', 'true');

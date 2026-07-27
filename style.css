@@ -3562,24 +3562,24 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
 
 /* ============================================================
-   OBJECTION HANDLER - SIDE BANNER
+   OBJECTION HANDLER - SIDE BANNER (TOP-LEFT TRIGGER)
    ============================================================ */
 
 /* ============================================================
-   TRIGGER BUTTON (Floating)
+   TRIGGER BUTTON - TOP LEFT (ALWAYS VISIBLE)
    ============================================================ */
 .objection-trigger-btn {
     position: fixed;
-    bottom: 100px;
-    right: 24px;
+    top: 20px;
+    left: 20px;
     z-index: 9999;
-    width: 56px;
-    height: 56px;
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
     border: none;
     background: var(--accent-gradient);
     color: white;
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     cursor: pointer;
     box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -3604,7 +3604,7 @@ body {
 }
 
 .objection-trigger-btn .objection-trigger-icon {
-    font-size: 1.4rem;
+    font-size: 1.2rem;
     line-height: 1;
 }
 
@@ -3614,10 +3614,10 @@ body {
     right: -4px;
     background: var(--danger);
     color: white;
-    font-size: 0.6rem;
+    font-size: 0.55rem;
     font-weight: 700;
-    min-width: 20px;
-    height: 20px;
+    min-width: 18px;
+    height: 18px;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -3633,7 +3633,9 @@ body {
 
 .objection-trigger-btn .objection-trigger-tooltip {
     position: absolute;
-    right: 66px;
+    left: 56px;
+    top: 50%;
+    transform: translateY(-50%);
     background: var(--bg-secondary);
     color: var(--text-primary);
     padding: 6px 14px;
@@ -3652,33 +3654,33 @@ body {
 }
 
 /* ============================================================
-   SIDE BANNER
+   SIDE BANNER - OPENS FROM LEFT
    ============================================================ */
 .objection-side-banner {
     position: fixed;
     top: 0;
-    right: -420px;
+    left: -420px;
     width: 400px;
     max-width: 92vw;
     height: 100vh;
     background: var(--bg-secondary);
-    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
     box-shadow: var(--shadow-lg);
     z-index: 9998;
-    transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
 
 .objection-side-banner.open {
-    right: 0;
+    left: 0;
 }
 
 .objection-side-banner::before {
     content: '';
     position: absolute;
-    left: -4px;
+    right: -4px;
     top: 0;
     bottom: 0;
     width: 4px;
@@ -4264,30 +4266,30 @@ body.objection-banner-open::after {
    RESPONSIVE
    ============================================================ */
 @media (max-width: 768px) {
-    .objection-side-banner {
-        width: 100%;
-        max-width: 100%;
-        right: -100%;
-    }
-    
-    .objection-side-banner.open {
-        right: 0;
-    }
-    
     .objection-trigger-btn {
-        bottom: 80px;
-        right: 16px;
-        width: 48px;
-        height: 48px;
-        font-size: 1.2rem;
+        top: 12px;
+        left: 12px;
+        width: 40px;
+        height: 40px;
+        font-size: 1rem;
     }
     
     .objection-trigger-btn .objection-trigger-badge {
-        min-width: 18px;
-        height: 18px;
-        font-size: 0.55rem;
+        min-width: 16px;
+        height: 16px;
+        font-size: 0.5rem;
         top: -3px;
         right: -3px;
+    }
+    
+    .objection-side-banner {
+        width: 100%;
+        max-width: 100%;
+        left: -100%;
+    }
+    
+    .objection-side-banner.open {
+        left: 0;
     }
     
     .objection-side-header {
@@ -4367,17 +4369,17 @@ body.objection-banner-open::after {
 
 @media (max-width: 480px) {
     .objection-trigger-btn {
-        bottom: 70px;
-        right: 12px;
-        width: 42px;
-        height: 42px;
-        font-size: 1rem;
+        top: 10px;
+        left: 10px;
+        width: 36px;
+        height: 36px;
+        font-size: 0.9rem;
     }
     
     .objection-trigger-btn .objection-trigger-badge {
-        min-width: 16px;
-        height: 16px;
-        font-size: 0.5rem;
+        min-width: 14px;
+        height: 14px;
+        font-size: 0.45rem;
         top: -2px;
         right: -2px;
     }
@@ -4394,6 +4396,10 @@ body.objection-banner-open::after {
     .objection-practice-btn {
         width: 100%;
         justify-content: center;
+    }
+    
+    .objection-trigger-btn .objection-trigger-tooltip {
+        display: none;
     }
 }
 
