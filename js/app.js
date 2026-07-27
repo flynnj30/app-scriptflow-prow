@@ -58,7 +58,8 @@ const CONFIG = {
         'Toggle Theme': { keys: ['Ctrl', 'Shift', 'T'], description: 'Toggle Dark/Light Mode' },
         'Refresh Data': { keys: ['Ctrl', 'Shift', 'R'], description: 'Refresh data from server' },
         'Bulk Actions': { keys: ['Ctrl', 'Shift', 'B'], description: 'Open Bulk Actions' },
-        'Close Panel': { keys: ['Escape'], description: 'Close current panel and return to scripts' }
+        'Close Panel': { keys: ['Escape'], description: 'Close current panel and return to scripts' },
+        'Objection Handler': { keys: ['Ctrl', 'Shift', 'O'], description: 'Toggle Objection Handler Banner' }
     }
 };
 
@@ -5183,6 +5184,12 @@ function handleShortcutAction(action) {
         case 'Refresh Data': { const btn = DOM.get('refreshBtn'); if (btn) btn.click(); break; }
         case 'Bulk Actions': openBulkActions(); break;
         case 'Close Panel': handleEscapeKey(); break;
+        case 'Objection Handler': 
+            if (window.ObjectionHandler) {
+                window.ObjectionHandler.toggleBanner();
+                showToast('🛡️ Objection Handler ' + (window.ObjectionHandler.isOpen ? 'opened' : 'closed'), 'info');
+            }
+            break;
         default: showToast(`Action: ${action}`, 'info');
     }
 }
@@ -5294,7 +5301,6 @@ function initApp() {
     const closeImportBtn = DOM.get('closeImportBtn');
 
     if (quickReportBtn) {
-        // Remove any existing listeners by cloning
         const newBtn = quickReportBtn.cloneNode(true);
         quickReportBtn.parentNode.replaceChild(newBtn, quickReportBtn);
         newBtn.addEventListener('click', openSmartImportEnhanced);
@@ -5669,6 +5675,7 @@ function initApp() {
     console.log('📜 Script management: Create, Edit Title, Delete, Favorite');
     console.log('🎯 Script Coach: AI-powered script analysis and playback');
     console.log(`📅 Active Date: ${Utils.getActiveDate()}`);
+    console.log('🛡️ Objection Handler: Press Ctrl+Shift+O to toggle');
 }
 
 // ================================================================
