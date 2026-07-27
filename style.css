@@ -4457,3 +4457,145 @@ body.light .objection-practice-recommended {
 body.light .objection-trigger-btn {
     box-shadow: 0 4px 20px rgba(59, 130, 246, 0.3);
 }
+
+/* ============================================================
+   OBJECTION HANDLER BANNER
+   ============================================================ */
+.objection-toggle-btn {
+    position: fixed;
+    top: 24px;
+    right: 32px;
+    z-index: 1100;
+    background: var(--warning);
+    color: #1e293b;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 40px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: var(--transition);
+}
+
+.objection-toggle-btn:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
+}
+
+.objection-banner {
+    position: fixed;
+    top: 0;
+    right: -420px;
+    width: 400px;
+    height: 100vh;
+    background: var(--bg-secondary);
+    border-left: 1px solid var(--border-color);
+    box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+    z-index: 1200;
+    transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+}
+
+.objection-banner.open {
+    right: 0;
+}
+
+.objection-header {
+    padding: 24px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.objection-header h3 {
+    font-size: 1.2rem;
+    color: var(--warning);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.objection-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+    background: var(--bg-primary);
+}
+
+.objection-body::-webkit-scrollbar { width: 6px; }
+.objection-body::-webkit-scrollbar-track { background: transparent; }
+.objection-body::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 10px; }
+
+.obj-section-title {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin: 28px 0 12px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+}
+
+.obj-section-title:first-child { margin-top: 0; }
+
+.obj-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: var(--transition);
+}
+
+.obj-card:hover {
+    border-color: var(--warning);
+    box-shadow: var(--shadow-sm);
+    transform: translateX(-4px);
+}
+
+.obj-trigger {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.obj-trigger::before {
+    content: '🚨';
+    font-size: 0.9rem;
+}
+
+.obj-response {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    border-left: 3px solid var(--success);
+    padding-left: 12px;
+    background: rgba(16, 185, 129, 0.05);
+    padding-top: 8px;
+    padding-bottom: 8px;
+    border-radius: 0 8px 8px 0;
+}
+
+.obj-intro {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    line-height: 1.5;
+    margin-bottom: 24px;
+    background: rgba(59, 130, 246, 0.1);
+    padding: 16px;
+    border-radius: 12px;
+    border-left: 4px solid var(--primary);
+}

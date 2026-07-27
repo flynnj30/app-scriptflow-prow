@@ -765,5 +765,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 800);
 });
 
+/**
+ * ScriptFlow Pro - Objection Handler Controller
+ * Handles the logic for the slide-out objection side banner.
+ */
+
+document.addEventListener('DOMContentLoaded', () => {
+    const toggleBtn = document.getElementById('objectionToggleBtn');
+    const banner = document.getElementById('objectionBanner');
+    const closeBtn = document.getElementById('closeObjectionBtn');
+
+    if (!toggleBtn || !banner || !closeBtn) {
+        console.warn('Objection Handler elements not found in the DOM.');
+        return;
+    }
+
+    // Open/Close toggle from main floating button
+    toggleBtn.addEventListener('click', () => {
+        banner.classList.toggle('open');
+    });
+
+    // Close from the 'X' button inside the banner
+    closeBtn.addEventListener('click', () => {
+        banner.classList.remove('open');
+    });
+
+    // Optional: Close banner when clicking outside of it
+    document.addEventListener('click', (event) => {
+        const isClickInsideBanner = banner.contains(event.target);
+        const isClickOnToggleBtn = toggleBtn.contains(event.target);
+
+        if (!isClickInsideBanner && !isClickOnToggleBtn && banner.classList.contains('open')) {
+            banner.classList.remove('open');
+        }
+    });
+    
+    // Optional: Allow 'Escape' key to close the banner rapidly
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && banner.classList.contains('open')) {
+            banner.classList.remove('open');
+        }
+    });
+});
+
 // Make globally accessible
 window.ObjectionHandler = ObjectionHandler;
