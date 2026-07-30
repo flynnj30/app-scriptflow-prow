@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION (FIXED)
+// SCRIPTFLOW PRO - COMPLETE APPLICATION (WITH PROSPECT MANAGER)
 // ================================================================
 
 // ================================================================
@@ -59,7 +59,8 @@ const CONFIG = {
         'Refresh Data': { keys: ['Ctrl', 'Shift', 'R'], description: 'Refresh data from server' },
         'Bulk Actions': { keys: ['Ctrl', 'Shift', 'B'], description: 'Open Bulk Actions' },
         'Close Panel': { keys: ['Escape'], description: 'Close current panel and return to scripts' },
-        'Objection Handler': { keys: ['Ctrl', 'Shift', 'O'], description: 'Open Objection Handler panel' }
+        'Objection Handler': { keys: ['Ctrl', 'Shift', 'O'], description: 'Open Objection Handler panel' },
+        'Prospects': { keys: ['Ctrl', 'Shift', 'P'], description: 'Open Prospects Manager' }
     }
 };
 
@@ -159,7 +160,10 @@ const AppState = {
     
     importRecords: [],
     importProcessing: false,
-    importProgress: 0
+    importProgress: 0,
+    
+    // Prospect Manager reference
+    prospectManager: null
 };
 
 // ================================================================
@@ -572,6 +576,11 @@ const Auth = {
                 AppState.teamMembersUnsubscribe = null;
             }
             
+            // Clean up prospect manager
+            if (AppState.prospectManager && AppState.prospectManager.unsubscribe) {
+                AppState.prospectManager.unsubscribe();
+            }
+            
             AppState.currentUser = null;
             AppState.appointments = {};
             AppState.tasks = [];
@@ -581,7 +590,9 @@ const Auth = {
             
             this.updateUI();
             Stats.updateAll();
-            Scripts.renderSidebar();
+            if (typeof Scripts !== 'undefined') {
+                Scripts.renderSidebar();
+            }
             
             if (AppState.isFirebaseReady) {
                 await firebase.auth().signOut();
@@ -762,11 +773,19 @@ const Stats = {
         return count > 0 ? Math.round(total / count) : 0;
     },
 
+    getProspectCount: function() {
+        if (AppState.prospectManager) {
+            return AppState.prospectManager.getAll().length;
+        }
+        return 0;
+    },
+
     updateAll: function() {
         DOM.setText('statToday', this.getTodayCount());
         DOM.setText('statWeek', this.getWeekCount());
         DOM.setText('statMonth', this.getMonthCount());
         DOM.setText('avgScore', this.getAverageScore());
+        DOM.setText('prospectCount', this.getProspectCount());
         this.updateTaskStats();
     },
 
@@ -867,6 +886,16 @@ const Data = {
             } catch (teamError) {
                 console.warn('Could not load team members:', teamError);
                 AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
+            }
+
+            // Initialize Prospect Manager
+            if (typeof ProspectManager !== 'undefined') {
+                AppState.prospectManager = ProspectManager;
+                if (!AppState.prospectManager.isInitialized) {
+                    AppState.prospectManager.init();
+                }
+                // Update prospect count
+                Stats.updateAll();
             }
 
             localStorage.setItem('userData_fallback', JSON.stringify({
@@ -2760,6 +2789,156 @@ async function quickImportFromClipboard() {
 }
 
 // ================================================================
+// PROSPECT MANAGER INTEGRATION
+// ================================================================
+
+function openProspectManager() {
+    const container = DOM.get('featurePanelBody');
+    if (!container) return;
+    
+    if (typeof FeaturePanel === 'undefined') {
+        showToast('Feature panel not available', 'error');
+        return;
+    }
+    
+    FeaturePanel.show('prospects', '👥 Prospect Manager');
+}
+
+function openAddProspect() {
+    const container = DOM.get('prospectFormContainer');
+    if (!container) {
+        showToast('Prospect form container not found', 'error');
+        return;
+    }
+    
+    container.style.display = 'flex';
+    
+    if (typeof ProspectUI !== 'undefined' && ProspectUI.renderForm) {
+        ProspectUI.renderForm(container, null, {
+            title: 'New Prospect',
+            submitLabel: 'Create Prospect',
+            onSave: async (data) => {
+                try {
+                    if (AppState.prospectManager) {
+                        const result = await AppState.prospectManager.create(data);
+                        showToast(`Prospect "${result.business}" created! 🎉`, 'success');
+                        container.style.display = 'none';
+                        Stats.updateAll();
+                        // Refresh prospects view if open
+                        if (AppState.currentView === 'prospects') {
+                            openProspectManager();
+                        }
+                    } else {
+                        showToast('Prospect Manager not initialized', 'error');
+                    }
+                } catch (error) {
+                    showToast(error.message || 'Failed to create prospect', 'error');
+                }
+            },
+            onCancel: () => {
+                container.style.display = 'none';
+            }
+        });
+    } else {
+        showToast('Prospect UI not loaded', 'error');
+        container.style.display = 'none';
+    }
+}
+
+function viewProspect(id) {
+    if (!AppState.prospectManager) {
+        showToast('Prospect Manager not initialized', 'error');
+        return;
+    }
+    
+    const prospect = AppState.prospectManager.get(id);
+    if (!prospect) {
+        showToast('Prospect not found', 'error');
+        return;
+    }
+    
+    const container = DOM.get('prospectDetailContainer');
+    if (!container) return;
+    
+    container.style.display = 'flex';
+    
+    if (typeof ProspectUI !== 'undefined' && ProspectUI.renderDetail) {
+        ProspectUI.renderDetail(container, prospect);
+    } else {
+        showToast('Prospect UI not loaded', 'error');
+        container.style.display = 'none';
+    }
+}
+
+function editProspect(id) {
+    if (!AppState.prospectManager) {
+        showToast('Prospect Manager not initialized', 'error');
+        return;
+    }
+    
+    const prospect = AppState.prospectManager.get(id);
+    if (!prospect) {
+        showToast('Prospect not found', 'error');
+        return;
+    }
+    
+    const container = DOM.get('prospectFormContainer');
+    if (!container) {
+        showToast('Prospect form container not found', 'error');
+        return;
+    }
+    
+    container.style.display = 'flex';
+    
+    if (typeof ProspectUI !== 'undefined' && ProspectUI.renderForm) {
+        ProspectUI.renderForm(container, prospect, {
+            title: 'Edit Prospect',
+            submitLabel: 'Update Prospect',
+            onSave: async (data) => {
+                try {
+                    if (AppState.prospectManager) {
+                        const result = await AppState.prospectManager.update(id, data);
+                        showToast(`Prospect "${result.business}" updated! ✅`, 'success');
+                        container.style.display = 'none';
+                        Stats.updateAll();
+                        if (AppState.currentView === 'prospects') {
+                            openProspectManager();
+                        }
+                    } else {
+                        showToast('Prospect Manager not initialized', 'error');
+                    }
+                } catch (error) {
+                    showToast(error.message || 'Failed to update prospect', 'error');
+                }
+            },
+            onDelete: async () => {
+                if (confirm('Delete this prospect permanently?')) {
+                    try {
+                        if (AppState.prospectManager) {
+                            await AppState.prospectManager.delete(id);
+                            showToast('Prospect deleted', 'info');
+                            container.style.display = 'none';
+                            Stats.updateAll();
+                            if (AppState.currentView === 'prospects') {
+                                openProspectManager();
+                            }
+                        }
+                    } catch (error) {
+                        showToast(error.message || 'Failed to delete prospect', 'error');
+                    }
+                }
+            },
+            onCancel: () => {
+                container.style.display = 'none';
+            }
+        });
+    } else {
+        showToast('Prospect UI not loaded', 'error');
+        container.style.display = 'none';
+    }
+}
+
+// ================================================================
 // GLOBAL FUNCTIONS
 // ================================================================
 
@@ -2784,6 +2963,7 @@ function performGlobalSearch(query) {
     const searchResults = [];
     const q = query.toLowerCase();
 
+    // Search appointments
     for (let date in AppState.appointments) {
         if (AppState.appointments[date].reports) {
             AppState.appointments[date].reports.forEach(appt => {
@@ -2795,16 +2975,26 @@ function performGlobalSearch(query) {
         }
     }
 
+    // Search tasks
     AppState.tasks.forEach(task => {
         if (task.description.toLowerCase().includes(q)) {
             searchResults.push({ type: 'task', data: task });
         }
     });
 
+    // Search scripts
     for (const [id, script] of Object.entries(AppState.scripts)) {
         if (script.name.toLowerCase().includes(q) || script.content.toLowerCase().includes(q)) {
             searchResults.push({ type: 'script', data: { id, ...script } });
         }
+    }
+
+    // Search prospects
+    if (AppState.prospectManager) {
+        const prospects = AppState.prospectManager.search(q);
+        prospects.forEach(prospect => {
+            searchResults.push({ type: 'prospect', data: prospect });
+        });
     }
 
     if (searchResults.length === 0) {
@@ -2841,6 +3031,16 @@ function performGlobalSearch(query) {
                         <span style="font-weight:600;">${Utils.escapeHtml(result.data.name)}</span>
                         <span style="font-size:0.75rem; color:var(--text-muted);">📜 Script</span>
                     </div>
+                </div>
+            `;
+        } else if (result.type === 'prospect') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="window.viewProspect('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${Utils.escapeHtml(result.data.business)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">👤 ${Utils.escapeHtml(result.data.name)}</span>
+                    </div>
+                    <div style="font-size:0.7rem; color:var(--text-muted);">${result.data.status || 'Pending'} · ${result.data.leadScore || 0} Pts</div>
                 </div>
             `;
         }
@@ -3045,6 +3245,9 @@ function handleShortcutAction(action) {
             } else {
                 showToast('Objection Handler loading...', 'info');
             }
+            break;
+        case 'Prospects':
+            openProspectManager();
             break;
         case 'Close Panel': 
             handleEscapeKey(); 
@@ -3793,7 +3996,8 @@ const FeaturePanel = {
                 'calendar': 'fa-calendar-alt', 
                 'tasks': 'fa-tasks', 
                 'analytics': 'fa-chart-pie', 
-                'shortcuts': 'fa-keyboard'
+                'shortcuts': 'fa-keyboard',
+                'prospects': 'fa-users'
             };
             featureTitle.innerHTML = `<i class="fas ${iconMap[featureType] || 'fa-sticky-note'}"></i> ${title}`;
         }
@@ -3823,6 +4027,13 @@ const FeaturePanel = {
                         <button id="taskTodayBtn" class="view-btn">📅 Today</button>
                     </div>
                 `;
+            } else if (featureType === 'prospects') {
+                html = `
+                    <div class="view-toggle" id="prospectsViewToggle">
+                        <button id="prospectsListBtn" class="view-btn active">📋 List</button>
+                        <button id="prospectsStatsBtn" class="view-btn">📊 Stats</button>
+                    </div>
+                `;
             }
             container.innerHTML = html;
             this.attachViewToggleEvents(featureType);
@@ -3840,6 +4051,8 @@ const FeaturePanel = {
                 this.renderAnalytics(featureBody);
             } else if (featureType === 'shortcuts') {
                 this.renderShortcuts(featureBody);
+            } else if (featureType === 'prospects') {
+                this.renderProspects(featureBody);
             }
         }
     },
@@ -3862,6 +4075,8 @@ const FeaturePanel = {
             this.renderAnalytics(body);
         } else if (AppState.currentView === 'shortcuts') {
             this.renderShortcuts(body);
+        } else if (AppState.currentView === 'prospects') {
+            this.renderProspects(body);
         }
     },
 
@@ -3920,6 +4135,19 @@ const FeaturePanel = {
                 todayBtn.classList.add('active');
                 if (allBtn) allBtn.classList.remove('active');
                 if (pendingBtn) pendingBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+        } else if (featureType === 'prospects') {
+            const listBtn = DOM.get('prospectsListBtn');
+            const statsBtn = DOM.get('prospectsStatsBtn');
+            if (listBtn) listBtn.addEventListener('click', () => {
+                listBtn.classList.add('active');
+                if (statsBtn) statsBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+            if (statsBtn) statsBtn.addEventListener('click', () => {
+                statsBtn.classList.add('active');
+                if (listBtn) listBtn.classList.remove('active');
                 this.refreshCurrentView();
             });
         }
@@ -3987,6 +4215,213 @@ const FeaturePanel = {
                 }
             });
         });
+    },
+
+    renderProspects: function(container) {
+        if (!container) return;
+        
+        const isStatsView = document.querySelector('#prospectsStatsBtn')?.classList.contains('active') || false;
+        
+        if (isStatsView) {
+            this.renderProspectStats(container);
+        } else {
+            this.renderProspectList(container);
+        }
+    },
+
+    renderProspectList: function(container) {
+        if (!container) return;
+        
+        const prospects = AppState.prospectManager ? AppState.prospectManager.getAll() : [];
+        
+        container.innerHTML = `
+            <div class="prospects-section fade-in">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
+                    <h3><i class="fas fa-users"></i> Prospects (${prospects.length})</h3>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button class="btn-icon" onclick="window.openAddProspect()" style="background:var(--primary); color:white;">
+                            <i class="fas fa-plus"></i> Add Prospect
+                        </button>
+                        <input type="text" id="prospectSearchInput" placeholder="🔍 Search prospects..." style="padding:8px 14px; border-radius:20px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:0.85rem; min-width:180px;" />
+                    </div>
+                </div>
+                <div id="prospectListContainer">
+                    ${prospects.length === 0 ? `
+                        <div class="empty-state">
+                            <i class="fas fa-users"></i>
+                            <p>No prospects yet</p>
+                            <span style="font-size:0.8rem; color:var(--text-muted);">Add your first prospect using Smart Import or the "Add Prospect" button</span>
+                        </div>
+                    ` : `
+                        <div class="prospect-grid">
+                            ${prospects.map(prospect => {
+                                const score = prospect.leadScore || 0;
+                                const scoreClass = score >= 70 ? 'score-hot' : score >= 40 ? 'score-warm' : 'score-cold';
+                                const statusClass = Utils.getStatusClass(prospect.status) || '';
+                                return `
+                                    <div class="prospect-card" data-id="${prospect.id}" onclick="window.viewProspect('${prospect.id}')">
+                                        <div class="prospect-card-header">
+                                            <div class="prospect-card-title">
+                                                <span class="prospect-business">${Utils.escapeHtml(prospect.business)}</span>
+                                                <span class="prospect-name">${Utils.escapeHtml(prospect.name)}</span>
+                                            </div>
+                                            <div class="prospect-card-badges">
+                                                ${prospect.status ? `<span class="status-tag ${statusClass}">${Utils.escapeHtml(prospect.status)}</span>` : ''}
+                                                <span class="score-badge ${scoreClass}">${score} Pts</span>
+                                            </div>
+                                        </div>
+                                        <div class="prospect-card-body">
+                                            <div class="prospect-details">
+                                                ${prospect.role ? `<span class="prospect-detail"><i class="fas fa-briefcase"></i> ${Utils.escapeHtml(prospect.role)}</span>` : ''}
+                                                ${prospect.phone ? `<span class="prospect-detail"><i class="fas fa-phone"></i> ${Utils.escapeHtml(prospect.phone)}</span>` : ''}
+                                                ${prospect.email ? `<span class="prospect-detail"><i class="fas fa-envelope"></i> ${Utils.escapeHtml(prospect.email)}</span>` : ''}
+                                                ${prospect.date ? `<span class="prospect-detail"><i class="fas fa-calendar"></i> ${Utils.formatDate(prospect.date)}</span>` : ''}
+                                            </div>
+                                            ${prospect.notes ? `<div class="prospect-notes">${Utils.escapeHtml(prospect.notes.substring(0, 100))}${prospect.notes.length > 100 ? '...' : ''}</div>` : ''}
+                                            ${prospect.tags && prospect.tags.length > 0 ? `
+                                                <div class="prospect-tags">
+                                                    ${prospect.tags.map(tag => `<span class="prospect-tag">#${Utils.escapeHtml(tag)}</span>`).join('')}
+                                                </div>
+                                            ` : ''}
+                                            <div class="prospect-meta">
+                                                <span class="prospect-source">${prospect.source || 'Manual'}</span>
+                                                <span class="prospect-date">${prospect.createdAt ? Utils.formatDate(prospect.createdAt) : ''}</span>
+                                            </div>
+                                        </div>
+                                        <div class="prospect-card-actions">
+                                            <button class="btn-icon prospect-edit-btn" onclick="event.stopPropagation(); window.editProspect('${prospect.id}')" title="Edit"><i class="fas fa-edit"></i></button>
+                                            <button class="btn-icon prospect-delete-btn" onclick="event.stopPropagation(); if(confirm('Delete this prospect?')){ window.deleteProspect('${prospect.id}') }" title="Delete" style="color:var(--danger);"><i class="fas fa-trash"></i></button>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+        
+        // Search functionality
+        const searchInput = container.querySelector('#prospectSearchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value;
+                const cards = container.querySelectorAll('.prospect-card');
+                cards.forEach(card => {
+                    const text = card.textContent.toLowerCase();
+                    card.style.display = text.includes(query.toLowerCase()) ? '' : 'none';
+                });
+            });
+        }
+    },
+
+    renderProspectStats: function(container) {
+        if (!container) return;
+        
+        const stats = AppState.prospectManager ? AppState.prospectManager.getStats() : {
+            total: 0,
+            byStatus: {},
+            bySource: {},
+            byAssigned: {},
+            bySentiment: {},
+            avgScore: 0,
+            hotTransferCount: 0,
+            warmCallbackCount: 0,
+            completedCount: 0,
+            pendingCount: 0,
+            canceledCount: 0
+        };
+        
+        container.innerHTML = `
+            <div class="prospects-stats-section fade-in">
+                <h3><i class="fas fa-chart-bar"></i> Prospect Statistics</h3>
+                
+                <div class="prospect-stats-grid">
+                    <div class="prospect-stat-card">
+                        <div class="prospect-stat-value">${stats.total}</div>
+                        <div class="prospect-stat-label">Total Prospects</div>
+                    </div>
+                    <div class="prospect-stat-card">
+                        <div class="prospect-stat-value" style="color:#dc2626;">${stats.hotTransferCount}</div>
+                        <div class="prospect-stat-label">🔥 Hot Transfers</div>
+                    </div>
+                    <div class="prospect-stat-card">
+                        <div class="prospect-stat-value" style="color:var(--warning);">${stats.warmCallbackCount}</div>
+                        <div class="prospect-stat-label">📞 Warm Callbacks</div>
+                    </div>
+                    <div class="prospect-stat-card">
+                        <div class="prospect-stat-value" style="color:var(--success);">${stats.completedCount}</div>
+                        <div class="prospect-stat-label">✅ Completed</div>
+                    </div>
+                    <div class="prospect-stat-card">
+                        <div class="prospect-stat-value" style="color:var(--text-muted);">${stats.pendingCount}</div>
+                        <div class="prospect-stat-label">⏳ Pending</div>
+                    </div>
+                    <div class="prospect-stat-card">
+                        <div class="prospect-stat-value" style="color:var(--danger);">${stats.canceledCount}</div>
+                        <div class="prospect-stat-label">❌ Canceled</div>
+                    </div>
+                    <div class="prospect-stat-card">
+                        <div class="prospect-stat-value" style="color:var(--primary);">${stats.avgScore}</div>
+                        <div class="prospect-stat-label">⭐ Avg Score</div>
+                    </div>
+                </div>
+                
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px;">
+                    <div class="feature-card">
+                        <h4>📊 Status Distribution</h4>
+                        <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">
+                            ${Object.entries(stats.byStatus).map(([status, count]) => `
+                                <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px;">
+                                    <span>${status}</span>
+                                    <span style="font-weight:600;">${count}</span>
+                                </div>
+                            `).join('')}
+                            ${Object.keys(stats.byStatus).length === 0 ? '<div style="color:var(--text-muted); padding:8px;">No data yet</div>' : ''}
+                        </div>
+                    </div>
+                    <div class="feature-card">
+                        <h4>📡 Sources</h4>
+                        <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">
+                            ${Object.entries(stats.bySource).map(([source, count]) => `
+                                <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px;">
+                                    <span>${source}</span>
+                                    <span style="font-weight:600;">${count}</span>
+                                </div>
+                            `).join('')}
+                            ${Object.keys(stats.bySource).length === 0 ? '<div style="color:var(--text-muted); padding:8px;">No data yet</div>' : ''}
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px;">
+                    <div class="feature-card">
+                        <h4>👤 Assigned To</h4>
+                        <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">
+                            ${Object.entries(stats.byAssigned).map(([assigned, count]) => `
+                                <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px;">
+                                    <span>${assigned}</span>
+                                    <span style="font-weight:600;">${count}</span>
+                                </div>
+                            `).join('')}
+                            ${Object.keys(stats.byAssigned).length === 0 ? '<div style="color:var(--text-muted); padding:8px;">No data yet</div>' : ''}
+                        </div>
+                    </div>
+                    <div class="feature-card">
+                        <h4>😊 Sentiment</h4>
+                        <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">
+                            ${Object.entries(stats.bySentiment).map(([sentiment, count]) => `
+                                <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px;">
+                                    <span>${sentiment}</span>
+                                    <span style="font-weight:600;">${count}</span>
+                                </div>
+                            `).join('')}
+                            ${Object.keys(stats.bySentiment).length === 0 ? '<div style="color:var(--text-muted); padding:8px;">No data yet</div>' : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     },
 
     renderAnalytics: function(container) {
@@ -4353,6 +4788,30 @@ const FeaturePanel = {
 };
 
 // ================================================================
+// PROSPECT MANAGER - DELETE FUNCTION
+// ================================================================
+
+async function deleteProspect(id) {
+    if (!AppState.prospectManager) {
+        showToast('Prospect Manager not initialized', 'error');
+        return;
+    }
+    
+    if (!confirm('Delete this prospect permanently?')) return;
+    
+    try {
+        await AppState.prospectManager.delete(id);
+        showToast('Prospect deleted', 'info');
+        Stats.updateAll();
+        if (AppState.currentView === 'prospects') {
+            openProspectManager();
+        }
+    } catch (error) {
+        showToast(error.message || 'Failed to delete prospect', 'error');
+    }
+}
+
+// ================================================================
 // INITIALIZATION
 // ================================================================
 
@@ -4417,7 +4876,9 @@ function initApp() {
                 AppState.analyticsTab = 'insights';
                 FeaturePanel.show('analytics', '📊 Analytics Hub');
             } else if (tool === 'shortcuts') FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts');
-            else if (tool === 'objections') {
+            else if (tool === 'prospects') {
+                openProspectManager();
+            } else if (tool === 'objections') {
                 if (window.ObjectionHandler) {
                     window.ObjectionHandler.toggle();
                 } else {
@@ -4482,6 +4943,10 @@ function initApp() {
     if (closeImportBtn) closeImportBtn.addEventListener('click', closeSmartImportEnhanced);
     if (templateBtn) templateBtn.addEventListener('click', generateImportTemplate);
     if (clipboardBtn) clipboardBtn.addEventListener('click', quickImportFromClipboard);
+
+    // Prospect Add Button
+    const addProspectBtn = DOM.get('addProspectBtn');
+    if (addProspectBtn) addProspectBtn.addEventListener('click', openAddProspect);
 
     const bulkActionsBtn = DOM.get('bulkActionsBtn');
     const closeBulkBtn = DOM.get('closeBulkModalBtn');
@@ -4691,6 +5156,7 @@ function initApp() {
     console.log(`🔌 Firebase status: ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
     console.log('🛡️ Objection Handler available via Ctrl+Shift+O or sidebar menu');
     console.log('📥 Smart Import: Click the "Smart Import" button, paste text, click Parse, review, and Save!');
+    console.log('👥 Prospect Manager: Manage all your prospects with the "Prospects" tool');
 }
 
 // ================================================================
@@ -4725,6 +5191,11 @@ window.saveAllImportedAppointments = saveAllImportedAppointments;
 window.CalendarView = CalendarView;
 window.handleShortcutAction = handleShortcutAction;
 window.Utils = Utils;
+window.openProspectManager = openProspectManager;
+window.openAddProspect = openAddProspect;
+window.viewProspect = viewProspect;
+window.editProspect = editProspect;
+window.deleteProspect = deleteProspect;
 
 // Start the app
 document.addEventListener('DOMContentLoaded', initApp);

@@ -58,6 +58,7 @@
                     <div class="tool-item" data-tool="analytics"><i class="fas fa-chart-pie"></i> <span>Analytics</span></div>
                     <div class="tool-item" data-tool="shortcuts"><i class="fas fa-keyboard"></i> <span>Shortcuts</span></div>
                     <div class="tool-item" data-tool="theme"><i class="fas fa-moon"></i> <span>Light/Dark</span></div>
+                    <div class="tool-item" data-tool="prospects"><i class="fas fa-users"></i> <span>Prospects</span></div>
                     <div class="tool-item" data-tool="objections"><i class="fas fa-shield-alt"></i> <span>Objections</span></div>
                     <div class="tool-item" id="signOutBtn"><i class="fas fa-sign-out-alt"></i> <span>Sign Out</span></div>
                 </div>
@@ -71,9 +72,11 @@
                     <div class="stat"><span class="stat-label">Week</span><span class="stat-number" id="statWeek">0</span></div>
                     <div class="stat"><span class="stat-label">Avg Score</span><span class="stat-number" id="avgScore">0</span></div>
                     <div class="stat"><span class="stat-label">Tasks</span><span class="stat-number" id="pendingTasks">0</span></div>
+                    <div class="stat"><span class="stat-label">Prospects</span><span class="stat-number" id="prospectCount">0</span></div>
                 </div>
                 <div class="action-buttons">
                     <button class="btn-icon" id="quickReportBtn"><i class="fas fa-magic"></i> Smart Import</button>
+                    <button class="btn-icon" id="addProspectBtn"><i class="fas fa-user-plus"></i> Add Prospect</button>
                     <button class="btn-icon" id="searchGlobalBtn"><i class="fas fa-search"></i> Search</button>
                     <button class="btn-icon" id="refreshBtn"><i class="fas fa-sync-alt"></i></button>
                     <span class="badge-auto" id="saveStatus"><i class="fas fa-save"></i> Auto</span>
@@ -183,7 +186,7 @@
     <div id="globalSearchModal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
             <h3><i class="fas fa-search"></i> Global Search</h3>
-            <input type="text" id="globalSearchInput" placeholder="Search appointments, tasks, scripts..." style="width:100%; padding:10px 16px; border-radius:20px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:0.9rem;" />
+            <input type="text" id="globalSearchInput" placeholder="Search appointments, tasks, scripts, prospects..." style="width:100%; padding:10px 16px; border-radius:20px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:0.9rem;" />
             <div id="globalSearchResults" style="margin-top:12px; max-height:400px; overflow-y:auto;"></div>
             <button id="globalSearchCloseBtn" class="btn-icon" style="margin-top:12px;">Close</button>
         </div>
@@ -231,8 +234,15 @@
     <!-- Auth Modal -->
     <div id="authModal" class="modal-overlay" style="display:none;"></div>
 
+    <!-- Prospect Detail Container -->
+    <div id="prospectDetailContainer" class="modal-overlay" style="display:none;"></div>
+
+    <!-- Prospect Form Container -->
+    <div id="prospectFormContainer" class="modal-overlay" style="display:none;"></div>
+
     <script src="js/firebase-config.js"></script>
     <script src="js/app.js"></script>
     <script src="js/objection-handler.js"></script>
+    <script src="js/prospect-manager.js"></script>
 </body>
 </html>
