@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION (WITH PROSPECT MANAGER)
+// SCRIPTFLOW PRO - COMPLETE APPLICATION (FIXED)
 // ================================================================
 
 // ================================================================
@@ -162,8 +162,9 @@ const AppState = {
     importProcessing: false,
     importProgress: 0,
     
-    // Prospect Manager reference
-    prospectManager: null
+    // Prospect Manager - will be initialized when script loads
+    prospectManager: null,
+    prospectManagerReady: false
 };
 
 // ================================================================
@@ -580,6 +581,8 @@ const Auth = {
             if (AppState.prospectManager && AppState.prospectManager.unsubscribe) {
                 AppState.prospectManager.unsubscribe();
             }
+            AppState.prospectManager = null;
+            AppState.prospectManagerReady = false;
             
             AppState.currentUser = null;
             AppState.appointments = {};
@@ -774,8 +777,12 @@ const Stats = {
     },
 
     getProspectCount: function() {
-        if (AppState.prospectManager) {
-            return AppState.prospectManager.getAll().length;
+        try {
+            if (AppState.prospectManagerReady && AppState.prospectManager && typeof AppState.prospectManager.getAll === 'function') {
+                return AppState.prospectManager.getAll().length;
+            }
+        } catch (e) {
+            console.warn('Could not get prospect count:', e);
         }
         return 0;
     },
@@ -817,6 +824,8 @@ const Data = {
                         Scripts.renderSidebar();
                         Scripts.loadScript('opening');
                     }
+                    // Try to initialize Prospect Manager
+                    Data.initProspectManager();
                     return;
                 } catch (e) {
                     console.warn('Failed to load offline data:', e);
@@ -889,14 +898,7 @@ const Data = {
             }
 
             // Initialize Prospect Manager
-            if (typeof ProspectManager !== 'undefined') {
-                AppState.prospectManager = ProspectManager;
-                if (!AppState.prospectManager.isInitialized) {
-                    AppState.prospectManager.init();
-                }
-                // Update prospect count
-                Stats.updateAll();
-            }
+            Data.initProspectManager();
 
             localStorage.setItem('userData_fallback', JSON.stringify({
                 scripts: AppState.scripts,
@@ -916,6 +918,33 @@ const Data = {
         } catch (error) {
             console.error('Data Load Error:', error);
             handleError(error, 'Loading Data');
+        }
+    },
+
+    initProspectManager: function() {
+        try {
+            // Check if ProspectManager is available globally
+            if (typeof ProspectManager !== 'undefined' && ProspectManager) {
+                if (!AppState.prospectManagerReady) {
+                    if (!ProspectManager.isInitialized) {
+                        ProspectManager.init();
+                    }
+                    AppState.prospectManager = ProspectManager;
+                    AppState.prospectManagerReady = true;
+                    console.log('📋 Prospect Manager initialized successfully');
+                    Stats.updateAll();
+                }
+            } else {
+                // ProspectManager not loaded yet, try again later
+                if (!AppState.prospectManagerReady) {
+                    setTimeout(() => {
+                        Data.initProspectManager();
+                    }, 1000);
+                }
+            }
+        } catch (error) {
+            console.warn('Could not initialize Prospect Manager:', error);
+            // Don't throw error, app should still work
         }
     },
 
@@ -2819,12 +2848,11 @@ function openAddProspect() {
             submitLabel: 'Create Prospect',
             onSave: async (data) => {
                 try {
-                    if (AppState.prospectManager) {
+                    if (AppState.prospectManagerReady && AppState.prospectManager) {
                         const result = await AppState.prospectManager.create(data);
                         showToast(`Prospect "${result.business}" created! 🎉`, 'success');
                         container.style.display = 'none';
                         Stats.updateAll();
-                        // Refresh prospects view if open
                         if (AppState.currentView === 'prospects') {
                             openProspectManager();
                         }
@@ -2846,7 +2874,7 @@ function openAddProspect() {
 }
 
 function viewProspect(id) {
-    if (!AppState.prospectManager) {
+    if (!AppState.prospectManagerReady || !AppState.prospectManager) {
         showToast('Prospect Manager not initialized', 'error');
         return;
     }
@@ -2871,7 +2899,7 @@ function viewProspect(id) {
 }
 
 function editProspect(id) {
-    if (!AppState.prospectManager) {
+    if (!AppState.prospectManagerReady || !AppState.prospectManager) {
         showToast('Prospect Manager not initialized', 'error');
         return;
     }
@@ -2896,7 +2924,7 @@ function editProspect(id) {
             submitLabel: 'Update Prospect',
             onSave: async (data) => {
                 try {
-                    if (AppState.prospectManager) {
+                    if (AppState.prospectManagerReady && AppState.prospectManager) {
                         const result = await AppState.prospectManager.update(id, data);
                         showToast(`Prospect "${result.business}" updated! ✅`, 'success');
                         container.style.display = 'none';
@@ -2914,7 +2942,7 @@ function editProspect(id) {
             onDelete: async () => {
                 if (confirm('Delete this prospect permanently?')) {
                     try {
-                        if (AppState.prospectManager) {
+                        if (AppState.prospectManagerReady && AppState.prospectManager) {
                             await AppState.prospectManager.delete(id);
                             showToast('Prospect deleted', 'info');
                             container.style.display = 'none';
@@ -2935,6 +2963,26 @@ function editProspect(id) {
     } else {
         showToast('Prospect UI not loaded', 'error');
         container.style.display = 'none';
+    }
+}
+
+async function deleteProspect(id) {
+    if (!AppState.prospectManagerReady || !AppState.prospectManager) {
+        showToast('Prospect Manager not initialized', 'error');
+        return;
+    }
+    
+    if (!confirm('Delete this prospect permanently?')) return;
+    
+    try {
+        await AppState.prospectManager.delete(id);
+        showToast('Prospect deleted', 'info');
+        Stats.updateAll();
+        if (AppState.currentView === 'prospects') {
+            openProspectManager();
+        }
+    } catch (error) {
+        showToast(error.message || 'Failed to delete prospect', 'error');
     }
 }
 
@@ -2990,11 +3038,15 @@ function performGlobalSearch(query) {
     }
 
     // Search prospects
-    if (AppState.prospectManager) {
-        const prospects = AppState.prospectManager.search(q);
-        prospects.forEach(prospect => {
-            searchResults.push({ type: 'prospect', data: prospect });
-        });
+    if (AppState.prospectManagerReady && AppState.prospectManager) {
+        try {
+            const prospects = AppState.prospectManager.search(q);
+            prospects.forEach(prospect => {
+                searchResults.push({ type: 'prospect', data: prospect });
+            });
+        } catch (e) {
+            console.warn('Error searching prospects:', e);
+        }
     }
 
     if (searchResults.length === 0) {
@@ -4232,7 +4284,14 @@ const FeaturePanel = {
     renderProspectList: function(container) {
         if (!container) return;
         
-        const prospects = AppState.prospectManager ? AppState.prospectManager.getAll() : [];
+        let prospects = [];
+        if (AppState.prospectManagerReady && AppState.prospectManager) {
+            try {
+                prospects = AppState.prospectManager.getAll();
+            } catch (e) {
+                console.warn('Error getting prospects:', e);
+            }
+        }
         
         container.innerHTML = `
             <div class="prospects-section fade-in">
@@ -4318,7 +4377,7 @@ const FeaturePanel = {
     renderProspectStats: function(container) {
         if (!container) return;
         
-        const stats = AppState.prospectManager ? AppState.prospectManager.getStats() : {
+        let stats = {
             total: 0,
             byStatus: {},
             bySource: {},
@@ -4331,6 +4390,14 @@ const FeaturePanel = {
             pendingCount: 0,
             canceledCount: 0
         };
+        
+        if (AppState.prospectManagerReady && AppState.prospectManager) {
+            try {
+                stats = AppState.prospectManager.getStats();
+            } catch (e) {
+                console.warn('Error getting prospect stats:', e);
+            }
+        }
         
         container.innerHTML = `
             <div class="prospects-stats-section fade-in">
@@ -4788,30 +4855,6 @@ const FeaturePanel = {
 };
 
 // ================================================================
-// PROSPECT MANAGER - DELETE FUNCTION
-// ================================================================
-
-async function deleteProspect(id) {
-    if (!AppState.prospectManager) {
-        showToast('Prospect Manager not initialized', 'error');
-        return;
-    }
-    
-    if (!confirm('Delete this prospect permanently?')) return;
-    
-    try {
-        await AppState.prospectManager.delete(id);
-        showToast('Prospect deleted', 'info');
-        Stats.updateAll();
-        if (AppState.currentView === 'prospects') {
-            openProspectManager();
-        }
-    } catch (error) {
-        showToast(error.message || 'Failed to delete prospect', 'error');
-    }
-}
-
-// ================================================================
 // INITIALIZATION
 // ================================================================
 
@@ -5090,6 +5133,9 @@ function initApp() {
             }
         }
     });
+
+    // Try to initialize Prospect Manager
+    Data.initProspectManager();
 
     try {
         if (AppState.isFirebaseReady) {
