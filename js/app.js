@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION (FULLY WORKING)
+// SCRIPTFLOW PRO - COMPLETE APPLICATION (FIXED)
 // ================================================================
 
 // ================================================================
@@ -157,7 +157,6 @@ const AppState = {
     calendarSearchTerm: '',
     calendarCurrentDate: new Date(),
     
-    // Smart Import State
     importRecords: [],
     importProcessing: false,
     importProgress: 0
@@ -715,1129 +714,6 @@ const Auth = {
 };
 
 // ================================================================
-// DATA LAYER (Abbreviated - Keep existing implementation)
-// ================================================================
-
-// [Data functions - keep from previous version]
-
-// ================================================================
-// SCRIPTS MODULE (Abbreviated - Keep existing implementation)
-// ================================================================
-
-// [Scripts functions - keep from previous version]
-
-// ================================================================
-// CALENDAR VIEW (Abbreviated - Keep existing implementation)
-// ================================================================
-
-// [CalendarView functions - keep from previous version]
-
-// ================================================================
-// FEATURE PANEL (Abbreviated - Keep existing implementation)
-// ================================================================
-
-// [FeaturePanel functions - keep from previous version]
-
-// ================================================================
-// SMART IMPORT - FULL IMPLEMENTATION
-// ================================================================
-
-/**
- * Parse appointment text with intelligent field detection
- */
-function parseAppointmentTextEnhanced(text, defaultDate = null) {
-    const result = {};
-    const confidence = {};
-    const context = {
-        hasKeyValue: false,
-        hasBulletPoints: false,
-        hasNaturalLanguage: false,
-        detectedFormat: 'unknown',
-        synonyms: {
-            date: [],
-            time: [],
-            status: [],
-            assigned: []
-        }
-    };
-    
-    const cleanText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const lines = cleanText.split('\n').filter(line => line.trim());
-    const fullText = lines.join(' ');
-    
-    // Detect format
-    context.hasKeyValue = lines.some(line => line.includes(':') || line.includes('=') || line.includes('->'));
-    context.hasBulletPoints = lines.some(line => /^[\s]*[•\-*]\s/.test(line));
-    context.hasNaturalLanguage = !context.hasKeyValue && !context.hasBulletPoints;
-    
-    if (context.hasKeyValue) context.detectedFormat = 'key_value';
-    else if (context.hasBulletPoints) context.detectedFormat = 'bullet_points';
-    else if (context.hasNaturalLanguage) context.detectedFormat = 'natural_language';
-    
-    // Parse based on format
-    if (context.detectedFormat === 'key_value') {
-        parseKeyValueFormat(lines, result, confidence, context);
-    } else if (context.detectedFormat === 'bullet_points') {
-        parseBulletFormat(lines, result, confidence);
-    } else {
-        parseNaturalLanguage(fullText, lines, result, confidence);
-    }
-    
-    // Ensure date uses default if provided
-    if (!result.date && defaultDate) {
-        result.date = defaultDate;
-        confidence.date = 1.0;
-        context.synonyms.date.push('user selected');
-    }
-    
-    // Post-process and enhance
-    enhanceParsedData(result, confidence, fullText, context);
-    
-    return { result, confidence, context };
-}
-
-/**
- * Parse key: value format
- */
-function parseKeyValueFormat(lines, result, confidence, context) {
-    const separators = [':', '=', '->', '=>'];
-    
-    lines.forEach(line => {
-        let separatorIndex = -1;
-        let separatorUsed = '';
-        
-        for (const sep of separators) {
-            const idx = line.indexOf(sep);
-            if (idx !== -1 && (separatorIndex === -1 || idx < separatorIndex)) {
-                separatorIndex = idx;
-                separatorUsed = sep;
-            }
-        }
-        
-        if (separatorIndex !== -1) {
-            let key = line.substring(0, separatorIndex).trim().toLowerCase();
-            const value = line.substring(separatorIndex + separatorUsed.length).trim();
-            
-            if (value) {
-                const matchedField = matchFieldName(key);
-                if (matchedField) {
-                    result[matchedField] = value;
-                    confidence[matchedField] = 0.9;
-                    
-                    if (matchedField === 'date') {
-                        const parsedDate = parseDateStringEnhanced(value);
-                        if (parsedDate) {
-                            result.date = parsedDate;
-                            confidence.date = 0.95;
-                        }
-                    }
-                } else if (key.includes('best time') || key.includes('callback')) {
-                    const dateMatch = value.match(/(\w+\s+\d{1,2},?\s+\d{4})/i);
-                    const timeMatch = value.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
-                    if (dateMatch) {
-                        result.date = dateMatch[1];
-                        confidence.date = 0.8;
-                    }
-                    if (timeMatch) {
-                        result.time = timeMatch[1];
-                        confidence.time = 0.8;
-                    }
-                    if (!result.notes) result.notes = '';
-                    result.notes += (result.notes ? '\n' : '') + `Best time: ${value}`;
-                    confidence.notes = 0.6;
-                } else {
-                    if (!result.notes) result.notes = '';
-                    result.notes += (result.notes ? '\n' : '') + `${key}: ${value}`;
-                    confidence.notes = 0.4;
-                }
-            }
-        }
-    });
-}
-
-/**
- * Parse bullet point format
- */
-function parseBulletFormat(lines, result, confidence) {
-    const bulletPattern = /^[\s]*[•\-*]\s*(.*)$/;
-    let currentSection = 'notes';
-    
-    lines.forEach(line => {
-        const match = line.match(bulletPattern);
-        if (match) {
-            const content = match[1].trim();
-            const fieldMatch = content.match(/^([^:]+):\s*(.*)$/);
-            if (fieldMatch) {
-                const key = fieldMatch[1].trim().toLowerCase();
-                const value = fieldMatch[2].trim();
-                const matchedField = matchFieldName(key);
-                if (matchedField) {
-                    result[matchedField] = value;
-                    confidence[matchedField] = 0.85;
-                    currentSection = matchedField;
-                } else {
-                    if (!result.notes) result.notes = '';
-                    result.notes += (result.notes ? '\n' : '') + content;
-                    confidence.notes = 0.4;
-                }
-            } else {
-                if (!result.notes) result.notes = '';
-                result.notes += (result.notes ? '\n' : '') + content;
-                confidence.notes = 0.4;
-            }
-        }
-    });
-}
-
-/**
- * Parse natural language format
- */
-function parseNaturalLanguage(fullText, lines, result, confidence) {
-    // Extract name
-    const namePatterns = [
-        /(?:name|contact|client|customer|person|full name)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
-        /(?:from|with|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
-        /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:from|at|with|said|wants|would like)/i
-    ];
-    for (const pattern of namePatterns) {
-        const match = fullText.match(pattern);
-        if (match && match[1]) {
-            result.name = match[1].trim();
-            confidence.name = 0.7;
-            break;
-        }
-    }
-    
-    // Extract business
-    const businessPatterns = [
-        /(?:business|company|organization|org|firm|brand|store)[:\s]+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i,
-        /(?:from|at|with)\s+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i
-    ];
-    for (const pattern of businessPatterns) {
-        const match = fullText.match(pattern);
-        if (match && match[1]) {
-            result.business = match[1].trim();
-            confidence.business = 0.7;
-            break;
-        }
-    }
-    
-    // Extract phone
-    const phonePatterns = [
-        /(?:phone|mobile|cell|telephone|number|call)[:\s]+([+\d\s\-\(\)]{7,20})/i,
-        /([+\d\s\-\(\)]{10,20})(?:\s*(?:is|was|will be|the|their|his|her))/i,
-        /(\d{3}[-.]?\d{3}[-.]?\d{4})/,
-        /\(\d{3}\)\s*\d{3}[-.]?\d{4}/
-    ];
-    for (const pattern of phonePatterns) {
-        const match = fullText.match(pattern);
-        if (match && match[1]) {
-            result.phone = match[1].trim();
-            confidence.phone = 0.85;
-            break;
-        }
-    }
-    
-    // Extract email
-    const emailMatch = fullText.match(/([^\s@]+@[^\s@]+\.[^\s@]+)/);
-    if (emailMatch) {
-        result.email = emailMatch[1].trim().toLowerCase();
-        confidence.email = 0.9;
-    }
-    
-    // Extract date
-    const datePatterns = [
-        /(?:date|appointment|scheduled|meeting|call|day)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,
-        /(\d{1,2}\/\d{1,2}\/\d{4})/,
-        /(\d{4}-\d{2}-\d{2})/,
-        /([A-Za-z]+\s+\d{1,2},?\s+\d{4})/
-    ];
-    for (const pattern of datePatterns) {
-        const match = fullText.match(pattern);
-        if (match && match[1]) {
-            result.date = match[1].trim();
-            confidence.date = 0.8;
-            break;
-        }
-    }
-    
-    // Extract time
-    const timeMatch = fullText.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
-    if (timeMatch) {
-        result.time = timeMatch[1].trim();
-        confidence.time = 0.85;
-    }
-    
-    // Extract status
-    const statusValues = SMART_IMPORT_CONFIG.VALIDATION.status.allowed;
-    for (const status of statusValues) {
-        if (fullText.toLowerCase().includes(status.toLowerCase())) {
-            result.status = status;
-            confidence.status = 0.7;
-            break;
-        }
-    }
-    
-    if (Object.keys(result).length === 0) {
-        result.notes = fullText;
-        confidence.notes = 0.3;
-    }
-}
-
-/**
- * Match field name against aliases
- */
-function matchFieldName(key) {
-    const normalizedKey = key.toLowerCase().trim();
-    for (const [field, aliases] of Object.entries(SMART_IMPORT_CONFIG.FIELD_ALIASES)) {
-        if (aliases.some(alias => 
-            normalizedKey === alias || 
-            normalizedKey.includes(alias) || 
-            alias.includes(normalizedKey) ||
-            normalizedKey.split(' ').some(word => word === alias.split(' ')[0])
-        )) {
-            return field;
-        }
-    }
-    return null;
-}
-
-/**
- * Parse date string to YYYY-MM-DD format
- */
-function parseDateStringEnhanced(dateStr) {
-    if (!dateStr) return null;
-    const trimmed = dateStr.trim();
-    
-    // ISO format: YYYY-MM-DD
-    const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (isoMatch) {
-        const year = parseInt(isoMatch[1]);
-        const month = parseInt(isoMatch[2]) - 1;
-        const day = parseInt(isoMatch[3]);
-        const date = new Date(year, month, day);
-        if (!isNaN(date.getTime())) {
-            return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        }
-    }
-    
-    // US format: MM/DD/YYYY
-    const usMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (usMatch) {
-        const month = parseInt(usMatch[1]) - 1;
-        const day = parseInt(usMatch[2]);
-        const year = parseInt(usMatch[3]);
-        const date = new Date(year, month, day);
-        if (!isNaN(date.getTime())) {
-            return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        }
-    }
-    
-    // Natural format: Month Day, Year
-    const naturalMatch = trimmed.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/i);
-    if (naturalMatch) {
-        const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-        const monthName = naturalMatch[1].toLowerCase();
-        const monthIndex = months.indexOf(monthName);
-        if (monthIndex !== -1) {
-            const day = parseInt(naturalMatch[2]);
-            const year = parseInt(naturalMatch[3]);
-            const date = new Date(year, monthIndex, day);
-            if (!isNaN(date.getTime())) {
-                return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            }
-        }
-    }
-    
-    // Today/Tomorrow/Yesterday
-    if (/today/i.test(trimmed)) return Utils.getTodayStr();
-    if (/tomorrow/i.test(trimmed)) {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        return Utils.formatDateForCompare(tomorrow);
-    }
-    if (/yesterday/i.test(trimmed)) {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        return Utils.formatDateForCompare(yesterday);
-    }
-    
-    return null;
-}
-
-/**
- * Enhance parsed data
- */
-function enhanceParsedData(result, confidence, fullText, context) {
-    if (result.phone) {
-        result.phone = result.phone.replace(/[^\d+]/g, '');
-        if (result.phone.length === 10 && /^\d{10}$/.test(result.phone)) {
-            result.phone = `(${result.phone.substring(0, 3)}) ${result.phone.substring(3, 6)}-${result.phone.substring(6)}`;
-        }
-    }
-    
-    if (result.email) {
-        result.email = result.email.toLowerCase().trim();
-    }
-    
-    if (result.date) {
-        const parsedDate = parseDateStringEnhanced(result.date);
-        if (parsedDate) {
-            result.date = parsedDate;
-            confidence.date = Math.max(confidence.date || 0, 0.9);
-        }
-    }
-    
-    if (result.time) {
-        const timeStr = result.time.trim();
-        if (!timeStr.includes('AM') && !timeStr.includes('PM')) {
-            const hourMatch = timeStr.match(/^(\d{1,2}):?(\d{2})?$/);
-            if (hourMatch) {
-                const hour = parseInt(hourMatch[1]);
-                const minute = hourMatch[2] || '00';
-                if (hour >= 1 && hour <= 12) {
-                    result.time = `${hour}:${minute} ${hour >= 6 && hour <= 11 ? 'AM' : 'PM'}`;
-                } else if (hour >= 13 && hour <= 23) {
-                    const adjustedHour = hour - 12;
-                    result.time = `${adjustedHour}:${minute} PM`;
-                }
-            }
-        }
-        confidence.time = Math.max(confidence.time || 0, 0.9);
-    }
-    
-    if (!result.role && result.notes) {
-        const roleMatch = result.notes.match(/(?:role|title|position|job title)[:\s]+([A-Za-z\s]+?)(?:[,.\n]|$)/i);
-        if (roleMatch && roleMatch[1]) {
-            result.role = roleMatch[1].trim();
-            confidence.role = 0.6;
-        }
-    }
-    
-    if (result.notes) {
-        const tags = result.tags || [];
-        const sentimentPatterns = {
-            high_interest: /(?:high interest|very interested|excited|enthusiastic|positive|great|excellent|wants|would like|looking forward)/i,
-            vip: /(?:vip|priority|important|key|major|top)/i,
-            callback_requested: /(?:callback|call back|return call|follow up|follow-up|next steps|schedule call)/i
-        };
-        for (const [key, pattern] of Object.entries(sentimentPatterns)) {
-            if (pattern.test(result.notes) && !tags.includes(key)) {
-                tags.push(key);
-            }
-        }
-        if (tags.length > 0) {
-            result.tags = tags;
-            confidence.tags = 0.6;
-        }
-    }
-}
-
-/**
- * Validate appointment data
- */
-function validateAppointmentData(data) {
-    const errors = [];
-    const warnings = [];
-    const validated = {};
-    
-    if (!data.name || data.name.trim().length < 2) {
-        errors.push({ field: 'name', message: 'Contact name is required (minimum 2 characters)' });
-    } else {
-        validated.name = data.name.trim();
-    }
-    
-    if (!data.business || data.business.trim().length < 2) {
-        errors.push({ field: 'business', message: 'Business name is required (minimum 2 characters)' });
-    } else {
-        validated.business = data.business.trim();
-    }
-    
-    if (data.phone) {
-        const cleanPhone = data.phone.replace(/[^\d+]/g, '');
-        if (cleanPhone.length < 7 || cleanPhone.length > 15) {
-            warnings.push({ field: 'phone', message: 'Phone number seems invalid. Expected 7-15 digits.' });
-        }
-        validated.phone = cleanPhone;
-    }
-    
-    if (data.email) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(data.email)) {
-            warnings.push({ field: 'email', message: 'Email format seems invalid.' });
-        }
-        validated.email = data.email.toLowerCase().trim();
-    }
-    
-    if (data.date) {
-        const parsedDate = parseDateStringEnhanced(data.date);
-        if (parsedDate) {
-            validated.date = parsedDate;
-        } else {
-            warnings.push({ field: 'date', message: 'Date format not recognized. Using today\'s date.' });
-            validated.date = Utils.getTodayStr();
-        }
-    } else {
-        validated.date = Utils.getTodayStr();
-    }
-    
-    if (data.status) {
-        const statusOptions = SMART_IMPORT_CONFIG.VALIDATION.status.allowed;
-        const matchedStatus = statusOptions.find(s => 
-            s.toLowerCase() === data.status.toLowerCase() ||
-            s.toLowerCase().includes(data.status.toLowerCase()) ||
-            data.status.toLowerCase().includes(s.toLowerCase())
-        );
-        if (matchedStatus) {
-            validated.status = matchedStatus;
-        } else {
-            warnings.push({ field: 'status', message: `Status "${data.status}" not recognized. Using "Pending".` });
-            validated.status = 'Pending';
-        }
-    } else {
-        validated.status = 'Pending';
-    }
-    
-    ['assigned', 'role', 'notes', 'tags', 'email', 'time', 'phone'].forEach(field => {
-        if (data[field]) {
-            validated[field] = data[field];
-        }
-    });
-    
-    return {
-        validated,
-        errors,
-        warnings,
-        isValid: errors.length === 0
-    };
-}
-
-/**
- * Check for duplicates
- */
-function checkForDuplicates(newData, existingAppointments) {
-    const duplicates = [];
-    const allAppointments = Data.getAllAppointments();
-    if (allAppointments.length === 0) return duplicates;
-    
-    const newName = (newData.name || '').toLowerCase().trim();
-    const newBusiness = (newData.business || '').toLowerCase().trim();
-    const newPhone = (newData.phone || '').replace(/[^\d+]/g, '');
-    const newEmail = (newData.email || '').toLowerCase().trim();
-    
-    for (const existing of allAppointments) {
-        let score = 0;
-        let matchedFields = [];
-        let totalChecks = 0;
-        
-        if (newName && existing.contactName) {
-            totalChecks++;
-            const existingName = existing.contactName.toLowerCase().trim();
-            if (newName === existingName) {
-                score += 0.6;
-                matchedFields.push('name');
-            } else if (newName.includes(existingName) || existingName.includes(newName)) {
-                score += 0.3;
-                matchedFields.push('name_partial');
-            }
-        }
-        
-        if (newBusiness && existing.business) {
-            totalChecks++;
-            const existingBusiness = existing.business.toLowerCase().trim();
-            if (newBusiness === existingBusiness) {
-                score += 0.5;
-                matchedFields.push('business');
-            } else if (newBusiness.includes(existingBusiness) || existingBusiness.includes(newBusiness)) {
-                score += 0.25;
-                matchedFields.push('business_partial');
-            }
-        }
-        
-        if (newPhone && existing.phone) {
-            totalChecks++;
-            const existingPhone = existing.phone.replace(/[^\d+]/g, '');
-            if (newPhone === existingPhone) {
-                score += 0.7;
-                matchedFields.push('phone');
-            } else if (newPhone.includes(existingPhone) || existingPhone.includes(newPhone)) {
-                score += 0.3;
-                matchedFields.push('phone_partial');
-            }
-        }
-        
-        if (newEmail && existing.email) {
-            totalChecks++;
-            const existingEmail = existing.email.toLowerCase().trim();
-            if (newEmail === existingEmail) {
-                score += 0.8;
-                matchedFields.push('email');
-            }
-        }
-        
-        const confidence = totalChecks > 0 ? Math.min(score + (totalChecks - 1) * 0.1, 1) : 0;
-        if (confidence >= 0.5) {
-            duplicates.push({
-                existing: existing,
-                confidence: Math.round(confidence * 100),
-                matchedFields: matchedFields,
-                score: score
-            });
-        }
-    }
-    
-    duplicates.sort((a, b) => b.confidence - a.confidence);
-    return duplicates;
-}
-
-/**
- * Split text into multiple appointments
- */
-function splitAppointments(text) {
-    const appointments = [];
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-    let currentAppointment = [];
-    let inAppointment = false;
-    
-    for (const line of lines) {
-        const isNewAppointment = 
-            line.match(/^[A-Z][a-zA-Z]+\s+(?:Company|Corp|Inc|LLC|Ltd|Agency|Studio|Designs|Solutions|Services|Consulting|Group|Partners|&|Associates)/) ||
-            line.match(/^---+\s*$/) ||
-            line.match(/^={3,}\s*$/) ||
-            line.match(/^Appointment\s+#\d+/) ||
-            line.match(/^\d+\.\s*[A-Z]/);
-        
-        if (isNewAppointment && currentAppointment.length > 0) {
-            appointments.push(currentAppointment.join('\n'));
-            currentAppointment = [];
-            inAppointment = false;
-        }
-        
-        if (line.includes(':') && line.split(':')[0].trim().length > 0 && line.split(':')[0].trim().length < 30) {
-            const key = line.split(':')[0].trim().toLowerCase();
-            const isField = SMART_IMPORT_CONFIG.FIELD_ALIASES[key] || 
-                           Object.keys(SMART_IMPORT_CONFIG.FIELD_ALIASES).some(f => 
-                               SMART_IMPORT_CONFIG.FIELD_ALIASES[f].includes(key)
-                           );
-            if (isField && currentAppointment.length === 0 && !inAppointment) {
-                inAppointment = true;
-            }
-        }
-        
-        currentAppointment.push(line);
-    }
-    
-    if (currentAppointment.length > 0) {
-        appointments.push(currentAppointment.join('\n'));
-    }
-    
-    if (appointments.length === 0 && text.trim()) {
-        appointments.push(text.trim());
-    }
-    
-    return appointments;
-}
-
-/**
- * Generate template for import
- */
-function generateImportTemplate() {
-    const dateInput = DOM.get('importDefaultDate');
-    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
-    const formattedDate = defaultDate ? Utils.formatDate(defaultDate) : 'Today';
-    
-    const textArea = DOM.get('importTextArea');
-    if (!textArea) return;
-    
-    const template = `Business Name/Company : [Enter Business Name]
-Name : [Enter Contact Name]
-Role : [Owner/Manager/Decision Maker]
-Phone Number: [Enter Phone Number]
-Email: [Enter Email Address]
-Best Time for Warm Callback: ${formattedDate} at [Time] [Timezone]
-
-Notes: [Enter notes about the conversation, interest level, and next steps]`;
-    
-    if (textArea.value) {
-        if (!confirm('This will replace your current text. Continue?')) return;
-    }
-    textArea.value = template;
-    showToast('📋 Template inserted! Fill in the details and click Parse.', 'success');
-}
-
-/**
- * Open Smart Import Modal
- */
-function openSmartImportEnhanced() {
-    const modal = DOM.get('smartImportModal');
-    if (!modal) return;
-    
-    modal.style.display = 'flex';
-    
-    // Reset state
-    AppState.importRecords = [];
-    AppState.importProcessing = false;
-    AppState.importProgress = 0;
-    
-    // Set default date
-    const dateInput = DOM.get('importDefaultDate');
-    if (dateInput) {
-        dateInput.value = Utils.getTodayStr();
-    }
-    
-    // Clear textarea
-    const textArea = DOM.get('importTextArea');
-    if (textArea) {
-        textArea.value = '';
-        textArea.placeholder = `Paste appointment details here. The system will intelligently parse:
-        
-Example:
-Business Name/Company : Correa and Son's Landscaping LLC
-Name : Kelvin
-Role : Owner
-Phone Number: +12678808990
-Best Time for Warm Callback: Tomorrow at 1pm EDT
-Notes: Custom website preview offered + no website currently + high interest, positive and booked a manager callback to review the website.`;
-    }
-    
-    // Hide preview and results
-    const preview = DOM.get('importPreview');
-    if (preview) preview.style.display = 'none';
-    
-    const saveBtn = DOM.get('saveImportBtn');
-    if (saveBtn) saveBtn.style.display = 'none';
-    
-    const resultsContainer = DOM.get('importResultsContainer');
-    if (resultsContainer) resultsContainer.innerHTML = '';
-    
-    const progressContainer = DOM.get('importProgressContainer');
-    if (progressContainer) progressContainer.style.display = 'none';
-    
-    const summary = DOM.get('importSummary');
-    if (summary) summary.style.display = 'none';
-}
-
-/**
- * Close Smart Import Modal
- */
-function closeSmartImportEnhanced() {
-    const modal = DOM.get('smartImportModal');
-    if (modal) modal.style.display = 'none';
-    AppState.importRecords = [];
-    AppState.importProcessing = false;
-}
-
-/**
- * Parse and preview import
- */
-function parseAndPreviewImportEnhanced() {
-    const textArea = DOM.get('importTextArea');
-    if (!textArea) return;
-    
-    const text = textArea.value;
-    if (!text.trim()) {
-        showToast('Please paste some text to parse', 'warning');
-        return;
-    }
-    
-    const dateInput = DOM.get('importDefaultDate');
-    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
-    
-    // Show progress
-    const progressContainer = DOM.get('importProgressContainer');
-    if (progressContainer) progressContainer.style.display = 'block';
-    AppState.importProcessing = true;
-    AppState.importProgress = 0;
-    updateImportProgress(5, 'Splitting appointments...');
-    
-    // Split into individual appointments
-    setTimeout(() => {
-        const appointments = splitAppointments(text);
-        const total = appointments.length;
-        AppState.importProgress = 15;
-        updateImportProgress(15, `Found ${total} appointment(s). Parsing...`);
-        
-        if (total === 0) {
-            showToast('No appointments detected in the text', 'warning');
-            AppState.importProcessing = false;
-            if (progressContainer) progressContainer.style.display = 'none';
-            return;
-        }
-        
-        const parsedResults = [];
-        let validCount = 0;
-        let invalidCount = 0;
-        let duplicateCount = 0;
-        
-        appointments.forEach((apptText, index) => {
-            const progress = 15 + ((index + 1) / total) * 50;
-            updateImportProgress(progress, `Processing appointment ${index + 1} of ${total}...`);
-            
-            // Parse the appointment
-            const { result, confidence, context } = parseAppointmentTextEnhanced(apptText, defaultDate);
-            
-            // Validate
-            const validationResult = validateAppointmentData(result);
-            
-            // Check for duplicates
-            const duplicates = checkForDuplicates(result, AppState.appointments);
-            const hasSignificantDuplicate = duplicates.some(d => d.confidence >= 70);
-            if (hasSignificantDuplicate) duplicateCount++;
-            
-            if (validationResult.isValid) validCount++;
-            else invalidCount++;
-            
-            parsedResults.push({
-                index: index + 1,
-                raw: apptText,
-                parsed: result,
-                confidence: confidence,
-                context: context,
-                validated: validationResult.validated,
-                isValid: validationResult.isValid,
-                errors: validationResult.errors,
-                warnings: validationResult.warnings,
-                hasDuplicate: hasSignificantDuplicate,
-                duplicates: duplicates
-            });
-        });
-        
-        AppState.importRecords = parsedResults;
-        AppState.importProgress = 80;
-        updateImportProgress(80, 'Generating preview...');
-        
-        // Render results
-        setTimeout(() => {
-            renderImportResults(parsedResults);
-            AppState.importProcessing = false;
-            updateImportProgress(100, 'Complete!');
-            
-            // Hide progress after a moment
-            setTimeout(() => {
-                if (progressContainer) progressContainer.style.display = 'none';
-            }, 1500);
-            
-            showToast(`Parsed ${parsedResults.length} appointment(s)! ${validCount} valid, ${invalidCount} need review`, 'info');
-        }, 300);
-    }, 300);
-}
-
-/**
- * Update import progress
- */
-function updateImportProgress(percent, message) {
-    const progressBar = DOM.get('importProgressBar');
-    const progressStatus = DOM.get('importProgressStatus');
-    
-    if (progressBar) {
-        progressBar.style.width = Math.min(percent, 100) + '%';
-    }
-    if (progressStatus && message) {
-        progressStatus.textContent = message;
-    }
-}
-
-/**
- * Render import results
- */
-function renderImportResults(records) {
-    const preview = DOM.get('importPreview');
-    const resultsContainer = DOM.get('importResultsContainer');
-    const saveBtn = DOM.get('saveImportBtn');
-    const summary = DOM.get('importSummary');
-    const recordCount = DOM.get('importRecordCount');
-    
-    if (!preview || !resultsContainer) return;
-    
-    preview.style.display = 'block';
-    
-    if (recordCount) {
-        recordCount.textContent = records.length;
-    }
-    
-    // Summary stats
-    if (summary) {
-        const total = records.length;
-        const valid = records.filter(r => r.isValid).length;
-        const invalid = records.filter(r => !r.isValid).length;
-        const duplicates = records.filter(r => r.hasDuplicate).length;
-        
-        summary.style.display = 'block';
-        summary.innerHTML = `
-            <div class="import-summary-grid">
-                <div class="import-stat ${valid > 0 ? 'success' : ''}">
-                    <span class="stat-number">${valid}</span>
-                    <span class="stat-label">✅ Valid</span>
-                </div>
-                <div class="import-stat ${invalid > 0 ? 'warning' : ''}">
-                    <span class="stat-number">${invalid}</span>
-                    <span class="stat-label">⚠️ Needs Review</span>
-                </div>
-                <div class="import-stat ${duplicates > 0 ? 'warning' : ''}">
-                    <span class="stat-number">${duplicates}</span>
-                    <span class="stat-label">🔄 Potential Duplicates</span>
-                </div>
-                <div class="import-stat">
-                    <span class="stat-number">${total}</span>
-                    <span class="stat-label">📋 Total</span>
-                </div>
-            </div>
-        `;
-    }
-    
-    // Render each record
-    let resultsHtml = '';
-    records.forEach((record, idx) => {
-        const statusClass = record.isValid ? 'valid' : 'invalid';
-        const hasDuplicate = record.hasDuplicate;
-        const hasWarnings = record.warnings && record.warnings.length > 0;
-        
-        const confValues = Object.values(record.confidence || {});
-        const avgConf = confValues.length > 0 ? confValues.reduce((a, b) => a + b, 0) / confValues.length : 0;
-        const confColor = avgConf >= 0.7 ? 'high' : avgConf >= 0.4 ? 'medium' : 'low';
-        
-        resultsHtml += `
-            <div class="import-record ${statusClass} ${hasDuplicate ? 'duplicate' : ''}">
-                <div class="record-header" onclick="toggleImportRecord(this)">
-                    <div class="record-status">
-                        <span class="status-icon">${record.isValid ? '✅' : '⚠️'}</span>
-                        <span class="record-index">#${record.index}</span>
-                    </div>
-                    <div class="record-summary">
-                        <span class="record-name">${Utils.escapeHtml(record.validated.name || record.parsed.name || 'Unknown')}</span>
-                        <span class="record-business">${Utils.escapeHtml(record.validated.business || record.parsed.business || 'Unknown Business')}</span>
-                        ${record.parsed.date ? `<span class="record-date">📅 ${Utils.escapeHtml(record.parsed.date)}</span>` : ''}
-                    </div>
-                    <div class="record-badges">
-                        ${hasDuplicate ? '<span class="badge duplicate">🔄 Duplicate</span>' : ''}
-                        ${hasWarnings ? `<span class="badge warning">⚠️ ${record.warnings.length}</span>` : ''}
-                        ${!record.isValid ? `<span class="badge error">❌ ${record.errors.length}</span>` : ''}
-                        <span class="badge confidence ${confColor}">${Math.round(avgConf * 100)}%</span>
-                    </div>
-                    <span class="record-toggle">▼</span>
-                </div>
-                <div class="record-body" style="display:none;">
-                    <div class="record-fields">
-                        ${renderRecordFields(record)}
-                    </div>
-                    
-                    ${record.warnings && record.warnings.length > 0 ? `
-                        <div class="record-warnings">
-                            <strong>⚠️ Warnings:</strong>
-                            <ul>${record.warnings.map(w => `<li>${w.field}: ${w.message}</li>`).join('')}</ul>
-                        </div>
-                    ` : ''}
-                    
-                    ${!record.isValid ? `
-                        <div class="record-errors">
-                            <strong>❌ Errors:</strong>
-                            <ul>${record.errors.map(e => `<li>${e.field}: ${e.message}</li>`).join('')}</ul>
-                        </div>
-                    ` : ''}
-                    
-                    ${record.hasDuplicate && record.duplicates.length > 0 ? `
-                        <div class="record-duplicates">
-                            <strong>🔄 Potential Duplicates:</strong>
-                            <ul>${record.duplicates.filter(d => d.confidence >= 60).map(d => 
-                                `<li>${Utils.escapeHtml(d.existing.business)} - ${Utils.escapeHtml(d.existing.contactName)} (${d.confidence}% match)</li>`
-                            ).join('')}</ul>
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-        `;
-    });
-    
-    resultsContainer.innerHTML = resultsHtml;
-    
-    // Show save button if there are valid records
-    const validRecords = records.filter(r => r.isValid);
-    if (saveBtn && validRecords.length > 0) {
-        saveBtn.style.display = 'inline-flex';
-        saveBtn.textContent = `💾 Save ${validRecords.length} Record(s)`;
-        saveBtn.onclick = () => saveAllImportedAppointments();
-    } else if (saveBtn) {
-        saveBtn.style.display = 'none';
-    }
-}
-
-/**
- * Render record fields
- */
-function renderRecordFields(record) {
-    const fields = record.validated || record.parsed || {};
-    const confidence = record.confidence || {};
-    
-    const fieldLabels = {
-        name: '👤 Name',
-        business: '🏢 Business',
-        phone: '📞 Phone',
-        email: '✉️ Email',
-        date: '📅 Date',
-        time: '🕐 Time',
-        status: '📊 Status',
-        assigned: '👤 Assigned',
-        role: '💼 Role',
-        notes: '📝 Notes'
-    };
-    
-    const fieldOrder = ['name', 'business', 'phone', 'email', 'date', 'time', 'status', 'assigned', 'role', 'notes'];
-    
-    let html = '';
-    for (const field of fieldOrder) {
-        if (fields[field]) {
-            const conf = confidence[field] || 0.5;
-            const confClass = conf >= 0.7 ? 'high' : (conf >= 0.4 ? 'medium' : 'low');
-            const isDate = field === 'date';
-            const valueDisplay = isDate ? Utils.formatDate(fields[field]) : Utils.escapeHtml(fields[field]);
-            html += `
-                <div class="field-row ${isDate ? 'date-field' : ''}">
-                    <span class="field-label">${fieldLabels[field] || field}</span>
-                    <span class="field-value">${valueDisplay}</span>
-                    <span class="field-confidence ${confClass}">${Math.round(conf * 100)}%</span>
-                </div>
-            `;
-        }
-    }
-    
-    return html;
-}
-
-/**
- * Toggle import record expansion
- */
-function toggleImportRecord(header) {
-    const body = header.nextElementSibling;
-    if (body) {
-        const isVisible = body.style.display !== 'none';
-        body.style.display = isVisible ? 'none' : 'block';
-        const toggle = header.querySelector('.record-toggle');
-        if (toggle) {
-            toggle.textContent = isVisible ? '▶' : '▼';
-        }
-    }
-}
-
-/**
- * Save all imported appointments
- */
-function saveAllImportedAppointments() {
-    const validRecords = AppState.importRecords.filter(r => r.isValid);
-    
-    if (validRecords.length === 0) {
-        showToast('No valid records to save', 'warning');
-        return;
-    }
-    
-    if (!AppState.currentUser) {
-        showToast('Please sign in first', 'error');
-        return;
-    }
-    
-    // Check for duplicates with high confidence
-    const highConfidenceDuplicates = validRecords.filter(r => 
-        r.duplicates && r.duplicates.some(d => d.confidence >= 80)
-    );
-    
-    let confirmMsg = `Save ${validRecords.length} appointment(s)?`;
-    if (highConfidenceDuplicates.length > 0) {
-        confirmMsg += `\n\n⚠️ ${highConfidenceDuplicates.length} of these appear to be high-confidence duplicates.`;
-    }
-    
-    if (!confirm(confirmMsg)) return;
-    
-    let savedCount = 0;
-    let skippedCount = 0;
-    
-    validRecords.forEach(record => {
-        const data = record.validated || record.parsed;
-        
-        // Check if we should skip high-confidence duplicates
-        const hasHighDuplicate = record.duplicates && record.duplicates.some(d => d.confidence >= 85);
-        if (hasHighDuplicate) {
-            const duplicate = record.duplicates.find(d => d.confidence >= 85);
-            if (duplicate && !confirm(`"${data.business}" appears to be a duplicate (${duplicate.confidence}% match with ${duplicate.existing.business}). Save anyway?`)) {
-                skippedCount++;
-                return;
-            }
-        }
-        
-        const result = Data.addAppointment(
-            data.date || Utils.getTodayStr(),
-            data.business,
-            data.name,
-            data.role || 'Owner',
-            data.phone || '',
-            data.time || '',
-            data.notes || '',
-            data.assigned || 'Daniel',
-            null,
-            data.status || 'Pending',
-            '',
-            data.tags || []
-        );
-        
-        if (result) {
-            savedCount++;
-        }
-    });
-    
-    showToast(`✅ Saved ${savedCount} appointment(s)! ${skippedCount > 0 ? `⏭️ Skipped ${skippedCount} duplicates.` : ''}`, 'success');
-    
-    closeSmartImportEnhanced();
-    FeaturePanel.refreshCurrentView();
-    Stats.updateAll();
-}
-
-/**
- * Expand all records
- */
-function expandAllRecords() {
-    document.querySelectorAll('.import-record .record-body').forEach(body => {
-        body.style.display = 'block';
-    });
-    document.querySelectorAll('.import-record .record-toggle').forEach(toggle => {
-        toggle.textContent = '▼';
-    });
-}
-
-/**
- * Collapse all records
- */
-function collapseAllRecords() {
-    document.querySelectorAll('.import-record .record-body').forEach(body => {
-        body.style.display = 'none';
-    });
-    document.querySelectorAll('.import-record .record-toggle').forEach(toggle => {
-        toggle.textContent = '▶';
-    });
-}
-
-/**
- * Quick import from clipboard
- */
-async function quickImportFromClipboard() {
-    try {
-        const text = await navigator.clipboard.readText();
-        if (text) {
-            openSmartImportEnhanced();
-            const textArea = DOM.get('importTextArea');
-            if (textArea) {
-                textArea.value = text;
-            }
-            // Parse automatically
-            setTimeout(() => {
-                parseAndPreviewImportEnhanced();
-            }, 500);
-        } else {
-            showToast('Clipboard is empty', 'warning');
-        }
-    } catch (error) {
-        showToast('Unable to read clipboard. Please paste manually.', 'error');
-    }
-}
-
-// ================================================================
 // STATISTICS
 // ================================================================
 
@@ -1901,7 +777,7 @@ const Stats = {
 };
 
 // ================================================================
-// DATA LAYER (Complete)
+// DATA LAYER
 // ================================================================
 
 const Data = {
@@ -1918,8 +794,10 @@ const Data = {
                     AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
                     showToast('Loaded offline data', 'info');
                     Stats.updateAll();
-                    Scripts.renderSidebar();
-                    Scripts.loadScript('opening');
+                    if (typeof Scripts !== 'undefined') {
+                        Scripts.renderSidebar();
+                        Scripts.loadScript('opening');
+                    }
                     return;
                 } catch (e) {
                     console.warn('Failed to load offline data:', e);
@@ -1978,12 +856,17 @@ const Data = {
                 return this.loadUserData();
             }
 
-            const teamSnapshot = await userRef.collection('teamMembers').get();
-            if (!teamSnapshot.empty) {
-                AppState.teamMembers = [];
-                teamSnapshot.forEach(doc => {
-                    AppState.teamMembers.push({ ...doc.data(), id: doc.id });
-                });
+            try {
+                const teamSnapshot = await userRef.collection('teamMembers').get();
+                if (!teamSnapshot.empty) {
+                    AppState.teamMembers = [];
+                    teamSnapshot.forEach(doc => {
+                        AppState.teamMembers.push({ ...doc.data(), id: doc.id });
+                    });
+                }
+            } catch (teamError) {
+                console.warn('Could not load team members:', teamError);
+                AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
             }
 
             localStorage.setItem('userData_fallback', JSON.stringify({
@@ -1995,8 +878,10 @@ const Data = {
             }));
 
             Stats.updateAll();
-            Scripts.renderSidebar();
-            Scripts.loadScript('opening');
+            if (typeof Scripts !== 'undefined') {
+                Scripts.renderSidebar();
+                Scripts.loadScript('opening');
+            }
             Auth.closeModal();
             if (statusEl) statusEl.innerHTML = '<i class="fas fa-check"></i> Synced';
         } catch (error) {
@@ -2026,7 +911,9 @@ const Data = {
                     AppState.appointments[appt.date].count = AppState.appointments[appt.date].reports.length;
                 });
                 Stats.updateAll();
-                FeaturePanel.refreshCurrentView();
+                if (typeof FeaturePanel !== 'undefined') {
+                    FeaturePanel.refreshCurrentView();
+                }
                 localStorage.setItem('appointments_fallback', JSON.stringify(AppState.appointments));
             }, error => {
                 console.warn('Appointments subscription error:', error);
@@ -2036,7 +923,9 @@ const Data = {
                 AppState.tasks = [];
                 snap.forEach(doc => AppState.tasks.push({ ...doc.data(), id: doc.id }));
                 Stats.updateTaskStats();
-                FeaturePanel.refreshCurrentView();
+                if (typeof FeaturePanel !== 'undefined') {
+                    FeaturePanel.refreshCurrentView();
+                }
                 localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
             }, error => {
                 console.warn('Tasks subscription error:', error);
@@ -2068,14 +957,18 @@ const Data = {
                 try {
                     AppState.appointments = JSON.parse(appointmentsLocal);
                     Stats.updateAll();
-                    FeaturePanel.refreshCurrentView();
+                    if (typeof FeaturePanel !== 'undefined') {
+                        FeaturePanel.refreshCurrentView();
+                    }
                 } catch (e) {}
             }
             if (tasksLocal) {
                 try {
                     AppState.tasks = JSON.parse(tasksLocal);
                     Stats.updateTaskStats();
-                    FeaturePanel.refreshCurrentView();
+                    if (typeof FeaturePanel !== 'undefined') {
+                        FeaturePanel.refreshCurrentView();
+                    }
                 } catch (e) {}
             }
             if (teamLocal) {
@@ -2184,7 +1077,9 @@ const Data = {
             }
             this.saveAppointmentsToLocal();
             Stats.updateAll();
-            FeaturePanel.refreshCurrentView();
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.refreshCurrentView();
+            }
             return true;
         }
         return false;
@@ -2196,7 +1091,9 @@ const Data = {
         Object.assign(appt, updates);
         this.syncAppointment(appt);
         Stats.updateAll();
-        FeaturePanel.refreshCurrentView();
+        if (typeof FeaturePanel !== 'undefined') {
+            FeaturePanel.refreshCurrentView();
+        }
         return true;
     },
 
@@ -2227,7 +1124,9 @@ const Data = {
         AppState.tasks.push(task);
         localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
         Stats.updateTaskStats();
-        FeaturePanel.refreshCurrentView();
+        if (typeof FeaturePanel !== 'undefined') {
+            FeaturePanel.refreshCurrentView();
+        }
     },
 
     toggleTaskComplete: function(id) {
@@ -2239,7 +1138,9 @@ const Data = {
             }
             localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
             Stats.updateTaskStats();
-            FeaturePanel.refreshCurrentView();
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.refreshCurrentView();
+            }
         }
     },
 
@@ -2250,7 +1151,9 @@ const Data = {
         }
         localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
         Stats.updateTaskStats();
-        FeaturePanel.refreshCurrentView();
+        if (typeof FeaturePanel !== 'undefined') {
+            FeaturePanel.refreshCurrentView();
+        }
     },
 
     exportToCSV: function(selectedIds = null) {
@@ -2369,6 +1272,1492 @@ const Data = {
         showToast(`Team member ${member.name} deleted`, 'info');
     }
 };
+
+// ================================================================
+// SCRIPTS MODULE
+// ================================================================
+
+const Scripts = {
+    renderSidebar: function() {
+        const container = DOM.get('scriptListContainer');
+        if (!container) return;
+
+        const scripts = AppState.scripts || {};
+        const scriptOrder = AppState.scriptOrder || [];
+        
+        const visible = Utils.getOrderedVisible(scripts, scriptOrder);
+        const sorted = [...visible].sort((a, b) => {
+            const aFav = AppState.scriptFavorites.includes(a);
+            const bFav = AppState.scriptFavorites.includes(b);
+            if (aFav && !bFav) return -1;
+            if (!aFav && bFav) return 1;
+            return visible.indexOf(a) - visible.indexOf(b);
+        });
+
+        let html = '';
+        if (sorted.length === 0) {
+            html = `<div class="empty-scripts-msg" style="padding:20px; text-align:center; color:var(--text-muted); font-size:0.85rem;">
+                <i class="fas fa-scroll" style="font-size:2rem; display:block; margin-bottom:8px; opacity:0.3;"></i>
+                No scripts yet. Click "New Script" to create one.
+            </div>`;
+        } else {
+            sorted.forEach((id, idx) => {
+                const s = scripts[id];
+                if (!s) return;
+                const active = AppState.currentScriptId === id;
+                const isFavorite = AppState.scriptFavorites.includes(id);
+                html += `
+                    <div class="script-item ${active ? 'active' : ''}" data-id="${id}">
+                        <i class="fas fa-grip-vertical drag-handle"></i>
+                        <span class="script-name">${Utils.escapeHtml(s.name)}</span>
+                        <i class="fas fa-star favorite-star ${isFavorite ? 'active' : ''}" data-id="${id}"></i>
+                        <span class="key-hint">${idx < 9 ? idx + 1 : ''}</span>
+                        <i class="fas fa-edit script-edit-btn" data-id="${id}" title="Edit script name"></i>
+                        <i class="fas fa-trash script-delete-btn" data-id="${id}" title="Delete script"></i>
+                    </div>
+                `;
+            });
+        }
+        container.innerHTML = html;
+
+        if (window.sortableInstance) {
+            window.sortableInstance.destroy();
+            window.sortableInstance = null;
+        }
+
+        if (sorted.length > 0) {
+            window.sortableInstance = new Sortable(container, {
+                handle: '.drag-handle',
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                chosenClass: 'sortable-chosen',
+                dragClass: 'sortable-drag',
+                onEnd: async function() {
+                    const newOrder = [];
+                    container.querySelectorAll('.script-item').forEach(item => {
+                        const id = item.getAttribute('data-id');
+                        if (id) newOrder.push(id);
+                    });
+                    AppState.scriptOrder = newOrder;
+                    await Data.saveScriptOrder();
+                    Scripts.renderSidebar();
+                    Scripts.updateKeyHints();
+                }
+            });
+        }
+
+        container.querySelectorAll('.script-item').forEach(el => {
+            el.addEventListener('click', (e) => {
+                if (e.target.closest('.drag-handle')) return;
+                if (e.target.closest('.favorite-star')) return;
+                if (e.target.closest('.script-edit-btn')) return;
+                if (e.target.closest('.script-delete-btn')) return;
+                Scripts.loadScript(el.getAttribute('data-id'));
+            });
+        });
+
+        container.querySelectorAll('.favorite-star').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                Scripts.toggleFavorite(el.getAttribute('data-id'));
+            });
+        });
+
+        container.querySelectorAll('.script-edit-btn').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = el.getAttribute('data-id');
+                Scripts.editScriptTitle(id);
+            });
+        });
+
+        container.querySelectorAll('.script-delete-btn').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = el.getAttribute('data-id');
+                Scripts.deleteScript(id);
+            });
+        });
+
+        this.updateKeyHints();
+    },
+
+    editScriptTitle: function(id) {
+        const script = AppState.scripts[id];
+        if (!script) {
+            showToast('Script not found', 'error');
+            return;
+        }
+
+        const newName = prompt('Edit script name:', script.name);
+        if (newName && newName.trim() && newName.trim() !== script.name) {
+            const updatedName = newName.trim();
+            
+            AppState.scripts[id] = { ...script, name: updatedName };
+            
+            if (AppState.isFirebaseReady && AppState.currentUser) {
+                firebase.firestore()
+                    .collection('users')
+                    .doc(AppState.currentUser.uid)
+                    .collection('scripts')
+                    .doc(id)
+                    .update({ name: updatedName })
+                    .then(() => {
+                        showToast('Script name updated!', 'success');
+                        Scripts.renderSidebar();
+                        if (AppState.currentScriptId === id) {
+                            DOM.setText('currentScriptName', updatedName);
+                        }
+                    })
+                    .catch(err => {
+                        handleError(err, 'Updating script name');
+                        AppState.scripts[id] = script;
+                        Scripts.renderSidebar();
+                    });
+            } else {
+                const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
+                if (fallback[id]) {
+                    fallback[id].name = updatedName;
+                    localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+                }
+                showToast('Script name updated!', 'success');
+                Scripts.renderSidebar();
+                if (AppState.currentScriptId === id) {
+                    DOM.setText('currentScriptName', updatedName);
+                }
+            }
+        }
+    },
+
+    deleteScript: function(id) {
+        const script = AppState.scripts[id];
+        if (!script) {
+            showToast('Script not found', 'error');
+            return;
+        }
+
+        const scriptCount = Object.keys(AppState.scripts).length;
+        if (scriptCount <= 1) {
+            showToast('Cannot delete the last script. Create a new one first.', 'warning');
+            return;
+        }
+
+        if (!confirm(`Delete script "${script.name}"? This cannot be undone.`)) {
+            return;
+        }
+
+        delete AppState.scripts[id];
+        AppState.scriptOrder = AppState.scriptOrder.filter(scriptId => scriptId !== id);
+        AppState.scriptFavorites = AppState.scriptFavorites.filter(scriptId => scriptId !== id);
+
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            firebase.firestore()
+                .collection('users')
+                .doc(AppState.currentUser.uid)
+                .collection('scripts')
+                .doc(id)
+                .delete()
+                .then(() => {
+                    showToast(`Script "${script.name}" deleted`, 'info');
+                    if (AppState.currentScriptId === id) {
+                        const remainingIds = Object.keys(AppState.scripts);
+                        if (remainingIds.length > 0) {
+                            Scripts.loadScript(remainingIds[0]);
+                        }
+                    }
+                    Scripts.renderSidebar();
+                    Scripts.saveScriptOrder();
+                })
+                .catch(err => {
+                    handleError(err, 'Deleting script');
+                    AppState.scripts[id] = script;
+                    AppState.scriptOrder.push(id);
+                    Scripts.renderSidebar();
+                });
+        } else {
+            const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
+            delete fallback[id];
+            localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+            
+            showToast(`Script "${script.name}" deleted`, 'info');
+            if (AppState.currentScriptId === id) {
+                const remainingIds = Object.keys(AppState.scripts);
+                if (remainingIds.length > 0) {
+                    Scripts.loadScript(remainingIds[0]);
+                }
+            }
+            Scripts.renderSidebar();
+            Scripts.saveScriptOrder();
+        }
+    },
+
+    updateKeyHints: function() {
+        const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
+        const items = document.querySelectorAll('.script-item');
+        items.forEach((item, idx) => {
+            const hint = item.querySelector('.key-hint');
+            if (hint && idx < 9) {
+                hint.textContent = idx + 1;
+            } else if (hint) {
+                hint.textContent = '';
+            }
+        });
+
+        const activeHint = DOM.get('activeShortcutHint');
+        if (activeHint) {
+            const idx = visible.indexOf(AppState.currentScriptId);
+            activeHint.textContent = (idx >= 0 && idx < 9) ? (idx + 1) : '—';
+        }
+    },
+
+    loadScript: function(id) {
+        if (!AppState.scripts[id]) {
+            const ids = Object.keys(AppState.scripts);
+            if (ids.length > 0) {
+                id = ids[0];
+            } else {
+                showToast('No scripts available. Create a new script.', 'warning');
+                return;
+            }
+        }
+        if (AppState.isEditing) {
+            if (!confirm('You have unsaved changes. Discard them?')) return;
+            this.cancelEdit();
+        }
+        AppState.currentScriptId = id;
+        const script = AppState.scripts[id];
+        DOM.setText('currentScriptName', script.name);
+        DOM.setHTML('scriptContent', `<div class="script-display">${Utils.escapeHtml(script.content).replace(/\n/g, '<br>')}</div>`);
+        DOM.setText('versionNumber', script.version || 1);
+        this.updateFavoriteStar();
+        this.renderSidebar();
+        this.updateKeyHints();
+        
+        // Notify Objection Handler
+        if (window.ObjectionHandler && typeof window.ObjectionHandler.onScriptLoaded === 'function') {
+            window.ObjectionHandler.onScriptLoaded();
+        }
+    },
+
+    toggleFavorite: function(id) {
+        const index = AppState.scriptFavorites.indexOf(id);
+        if (index > -1) {
+            AppState.scriptFavorites.splice(index, 1);
+        } else {
+            AppState.scriptFavorites.push(id);
+        }
+        localStorage.setItem('scriptFavorites', JSON.stringify(AppState.scriptFavorites));
+        this.renderSidebar();
+        this.updateFavoriteStar();
+        showToast(index > -1 ? 'Removed from favorites' : 'Added to favorites', 'info');
+    },
+
+    updateFavoriteStar: function() {
+        const star = DOM.get('favoriteScriptBtn');
+        if (star) {
+            const isFavorite = AppState.scriptFavorites.includes(AppState.currentScriptId);
+            star.innerHTML = `<i class="fas fa-star" style="color:${isFavorite ? 'var(--favorite-color)' : 'var(--text-muted)'}"></i>`;
+            star.title = isFavorite ? 'Remove from favorites' : 'Add to favorites';
+        }
+    },
+
+    startEdit: function() {
+        if (!AppState.scripts[AppState.currentScriptId]) return;
+        AppState.isEditing = true;
+        AppState.shortcutsEnabled = false;
+        const script = AppState.scripts[AppState.currentScriptId];
+        AppState.currentEditContent = script.content;
+
+        DOM.hide('editScriptBtn');
+        DOM.show('saveScriptBtn');
+        DOM.show('cancelEditBtn');
+        DOM.show('editStatusBadge');
+
+        const contentDiv = DOM.get('scriptContent');
+        if (contentDiv) {
+            contentDiv.innerHTML = `
+                <textarea class="edit-textarea" id="editTextarea">${Utils.escapeHtml(script.content)}</textarea>
+                <div class="auto-save-indicator">Auto-saving...</div>
+            `;
+        }
+
+        const textarea = DOM.get('editTextarea');
+        if (textarea) {
+            textarea.focus();
+
+            const saveContent = Utils.debounce((content) => {
+                this.saveScriptContent(content);
+                const indicator = document.querySelector('.auto-save-indicator');
+                if (indicator) {
+                    indicator.textContent = '✓ Auto-saved';
+                    indicator.style.color = 'var(--success)';
+                }
+            }, 1000);
+
+            textarea.addEventListener('input', () => {
+                AppState.currentEditContent = textarea.value;
+                const indicator = document.querySelector('.auto-save-indicator');
+                if (indicator) {
+                    indicator.textContent = 'Saving...';
+                    indicator.style.color = 'var(--warning)';
+                }
+                if (window.autoSaveTimer) clearTimeout(window.autoSaveTimer);
+                window.autoSaveTimer = setTimeout(() => saveContent(textarea.value), 1000);
+            });
+
+            textarea.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') this.cancelEdit();
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    this.saveScriptContent(textarea.value);
+                    this.finishEdit();
+                }
+            });
+        }
+    },
+
+    saveScriptContent: function(content) {
+        if (!AppState.currentUser || !AppState.currentScriptId) return;
+        const script = AppState.scripts[AppState.currentScriptId];
+        if (!script) return;
+
+        const updatedScript = {
+            ...script,
+            content: content,
+            version: (script.version || 1) + 1
+        };
+
+        if (AppState.isFirebaseReady) {
+            firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts').doc(AppState.currentScriptId).set(updatedScript, { merge: true })
+                .then(() => {
+                    AppState.scripts[AppState.currentScriptId] = updatedScript;
+                })
+                .catch(err => handleError(err, 'Saving script'));
+        } else {
+            AppState.scripts[AppState.currentScriptId] = updatedScript;
+            localStorage.setItem('scripts_fallback', JSON.stringify(AppState.scripts));
+        }
+    },
+
+    finishEdit: function() {
+        AppState.isEditing = false;
+        AppState.shortcutsEnabled = true;
+        DOM.show('editScriptBtn');
+        DOM.hide('saveScriptBtn');
+        DOM.hide('cancelEditBtn');
+        DOM.hide('editStatusBadge');
+        this.loadScript(AppState.currentScriptId);
+        showToast('Changes saved', 'success');
+    },
+
+    cancelEdit: function() {
+        if (!confirm('Discard your changes?')) return;
+        AppState.isEditing = false;
+        AppState.shortcutsEnabled = true;
+        DOM.show('editScriptBtn');
+        DOM.hide('saveScriptBtn');
+        DOM.hide('cancelEditBtn');
+        DOM.hide('editStatusBadge');
+        this.loadScript(AppState.currentScriptId);
+    },
+
+    resetScript: function() {
+        if (!confirm('Reset this script to its original content?')) return;
+        if (AppState.currentUser && AppState.currentScriptId) {
+            const script = AppState.scripts[AppState.currentScriptId];
+            if (AppState.isFirebaseReady) {
+                firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts').doc(AppState.currentScriptId).set({
+                    name: script.name,
+                    content: script.content,
+                    version: 1
+                }, { merge: true }).then(() => {
+                    showToast('Script reset', 'info');
+                    Data.loadUserData(true);
+                }).catch(err => handleError(err, 'Resetting script'));
+            } else {
+                script.version = 1;
+                localStorage.setItem('scripts_fallback', JSON.stringify(AppState.scripts));
+                showToast('Script reset locally', 'info');
+                this.loadScript(AppState.currentScriptId);
+            }
+        }
+    },
+
+    createScript: function() {
+        if (!AppState.currentUser) { 
+            showToast('Please sign in first', 'error'); 
+            return; 
+        }
+        
+        const name = prompt('Enter new script name:');
+        if (!name || !name.trim()) return;
+        
+        const scriptName = name.trim();
+        const id = 'script_' + Utils.generateId();
+        const newScript = {
+            name: scriptName,
+            content: 'New script content...\n\nStart writing your script here.',
+            version: 1
+        };
+
+        AppState.scripts[id] = newScript;
+        AppState.scriptOrder.push(id);
+
+        if (AppState.isFirebaseReady) {
+            firebase.firestore()
+                .collection('users')
+                .doc(AppState.currentUser.uid)
+                .collection('scripts')
+                .doc(id)
+                .set({
+                    name: scriptName,
+                    content: newScript.content,
+                    version: 1,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                })
+                .then(() => {
+                    showToast(`Script "${scriptName}" created! 🎉`, 'success');
+                    Scripts.renderSidebar();
+                    Scripts.loadScript(id);
+                    Data.saveScriptOrder();
+                })
+                .catch(err => {
+                    handleError(err, 'Creating script');
+                    delete AppState.scripts[id];
+                    AppState.scriptOrder = AppState.scriptOrder.filter(sid => sid !== id);
+                    Scripts.renderSidebar();
+                });
+        } else {
+            const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
+            fallback[id] = newScript;
+            localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+            
+            showToast(`Script "${scriptName}" created! 🎉`, 'success');
+            Scripts.renderSidebar();
+            Scripts.loadScript(id);
+            Scripts.saveScriptOrder();
+        }
+    },
+
+    saveScriptOrder: function() {
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            firebase.firestore()
+                .collection('users')
+                .doc(AppState.currentUser.uid)
+                .update({ scriptOrder: AppState.scriptOrder })
+                .catch(err => console.warn('Error saving script order:', err));
+        } else {
+            const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
+            fallback.scriptOrder = AppState.scriptOrder;
+            localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+        }
+    },
+
+    isEditing: function() {
+        return AppState.isEditing;
+    }
+};
+
+// ================================================================
+// SMART IMPORT FUNCTIONS
+// ================================================================
+
+function parseAppointmentTextEnhanced(text, defaultDate = null) {
+    const result = {};
+    const confidence = {};
+    const context = {
+        hasKeyValue: false,
+        hasBulletPoints: false,
+        hasNaturalLanguage: false,
+        detectedFormat: 'unknown',
+        synonyms: {
+            date: [],
+            time: [],
+            status: [],
+            assigned: []
+        }
+    };
+    
+    const cleanText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = cleanText.split('\n').filter(line => line.trim());
+    const fullText = lines.join(' ');
+    
+    context.hasKeyValue = lines.some(line => line.includes(':') || line.includes('=') || line.includes('->'));
+    context.hasBulletPoints = lines.some(line => /^[\s]*[•\-*]\s/.test(line));
+    context.hasNaturalLanguage = !context.hasKeyValue && !context.hasBulletPoints;
+    
+    if (context.hasKeyValue) context.detectedFormat = 'key_value';
+    else if (context.hasBulletPoints) context.detectedFormat = 'bullet_points';
+    else if (context.hasNaturalLanguage) context.detectedFormat = 'natural_language';
+    
+    if (context.detectedFormat === 'key_value') {
+        parseKeyValueFormat(lines, result, confidence, context);
+    } else if (context.detectedFormat === 'bullet_points') {
+        parseBulletFormat(lines, result, confidence);
+    } else {
+        parseNaturalLanguage(fullText, lines, result, confidence);
+    }
+    
+    if (!result.date && defaultDate) {
+        result.date = defaultDate;
+        confidence.date = 1.0;
+        context.synonyms.date.push('user selected');
+    }
+    
+    enhanceParsedData(result, confidence, fullText, context);
+    
+    return { result, confidence, context };
+}
+
+function parseKeyValueFormat(lines, result, confidence, context) {
+    const separators = [':', '=', '->', '=>'];
+    
+    lines.forEach(line => {
+        let separatorIndex = -1;
+        let separatorUsed = '';
+        
+        for (const sep of separators) {
+            const idx = line.indexOf(sep);
+            if (idx !== -1 && (separatorIndex === -1 || idx < separatorIndex)) {
+                separatorIndex = idx;
+                separatorUsed = sep;
+            }
+        }
+        
+        if (separatorIndex !== -1) {
+            let key = line.substring(0, separatorIndex).trim().toLowerCase();
+            const value = line.substring(separatorIndex + separatorUsed.length).trim();
+            
+            if (value) {
+                const matchedField = matchFieldName(key);
+                if (matchedField) {
+                    result[matchedField] = value;
+                    confidence[matchedField] = 0.9;
+                    
+                    if (matchedField === 'date') {
+                        const parsedDate = parseDateStringEnhanced(value);
+                        if (parsedDate) {
+                            result.date = parsedDate;
+                            confidence.date = 0.95;
+                        }
+                    }
+                } else if (key.includes('best time') || key.includes('callback')) {
+                    const dateMatch = value.match(/(\w+\s+\d{1,2},?\s+\d{4})/i);
+                    const timeMatch = value.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
+                    if (dateMatch) {
+                        result.date = dateMatch[1];
+                        confidence.date = 0.8;
+                    }
+                    if (timeMatch) {
+                        result.time = timeMatch[1];
+                        confidence.time = 0.8;
+                    }
+                    if (!result.notes) result.notes = '';
+                    result.notes += (result.notes ? '\n' : '') + `Best time: ${value}`;
+                    confidence.notes = 0.6;
+                } else {
+                    if (!result.notes) result.notes = '';
+                    result.notes += (result.notes ? '\n' : '') + `${key}: ${value}`;
+                    confidence.notes = 0.4;
+                }
+            }
+        }
+    });
+}
+
+function parseBulletFormat(lines, result, confidence) {
+    const bulletPattern = /^[\s]*[•\-*]\s*(.*)$/;
+    let currentSection = 'notes';
+    
+    lines.forEach(line => {
+        const match = line.match(bulletPattern);
+        if (match) {
+            const content = match[1].trim();
+            const fieldMatch = content.match(/^([^:]+):\s*(.*)$/);
+            if (fieldMatch) {
+                const key = fieldMatch[1].trim().toLowerCase();
+                const value = fieldMatch[2].trim();
+                const matchedField = matchFieldName(key);
+                if (matchedField) {
+                    result[matchedField] = value;
+                    confidence[matchedField] = 0.85;
+                    currentSection = matchedField;
+                } else {
+                    if (!result.notes) result.notes = '';
+                    result.notes += (result.notes ? '\n' : '') + content;
+                    confidence.notes = 0.4;
+                }
+            } else {
+                if (!result.notes) result.notes = '';
+                result.notes += (result.notes ? '\n' : '') + content;
+                confidence.notes = 0.4;
+            }
+        }
+    });
+}
+
+function parseNaturalLanguage(fullText, lines, result, confidence) {
+    const namePatterns = [
+        /(?:name|contact|client|customer|person|full name)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+        /(?:from|with|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+        /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:from|at|with|said|wants|would like)/i
+    ];
+    for (const pattern of namePatterns) {
+        const match = fullText.match(pattern);
+        if (match && match[1]) {
+            result.name = match[1].trim();
+            confidence.name = 0.7;
+            break;
+        }
+    }
+    
+    const businessPatterns = [
+        /(?:business|company|organization|org|firm|brand|store)[:\s]+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i,
+        /(?:from|at|with)\s+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i
+    ];
+    for (const pattern of businessPatterns) {
+        const match = fullText.match(pattern);
+        if (match && match[1]) {
+            result.business = match[1].trim();
+            confidence.business = 0.7;
+            break;
+        }
+    }
+    
+    const phonePatterns = [
+        /(?:phone|mobile|cell|telephone|number|call)[:\s]+([+\d\s\-\(\)]{7,20})/i,
+        /([+\d\s\-\(\)]{10,20})(?:\s*(?:is|was|will be|the|their|his|her))/i,
+        /(\d{3}[-.]?\d{3}[-.]?\d{4})/,
+        /\(\d{3}\)\s*\d{3}[-.]?\d{4}/
+    ];
+    for (const pattern of phonePatterns) {
+        const match = fullText.match(pattern);
+        if (match && match[1]) {
+            result.phone = match[1].trim();
+            confidence.phone = 0.85;
+            break;
+        }
+    }
+    
+    const emailMatch = fullText.match(/([^\s@]+@[^\s@]+\.[^\s@]+)/);
+    if (emailMatch) {
+        result.email = emailMatch[1].trim().toLowerCase();
+        confidence.email = 0.9;
+    }
+    
+    const datePatterns = [
+        /(?:date|appointment|scheduled|meeting|call|day)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,
+        /(\d{1,2}\/\d{1,2}\/\d{4})/,
+        /(\d{4}-\d{2}-\d{2})/,
+        /([A-Za-z]+\s+\d{1,2},?\s+\d{4})/
+    ];
+    for (const pattern of datePatterns) {
+        const match = fullText.match(pattern);
+        if (match && match[1]) {
+            result.date = match[1].trim();
+            confidence.date = 0.8;
+            break;
+        }
+    }
+    
+    const timeMatch = fullText.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
+    if (timeMatch) {
+        result.time = timeMatch[1].trim();
+        confidence.time = 0.85;
+    }
+    
+    const statusValues = SMART_IMPORT_CONFIG.VALIDATION.status.allowed;
+    for (const status of statusValues) {
+        if (fullText.toLowerCase().includes(status.toLowerCase())) {
+            result.status = status;
+            confidence.status = 0.7;
+            break;
+        }
+    }
+    
+    if (Object.keys(result).length === 0) {
+        result.notes = fullText;
+        confidence.notes = 0.3;
+    }
+}
+
+function matchFieldName(key) {
+    const normalizedKey = key.toLowerCase().trim();
+    for (const [field, aliases] of Object.entries(SMART_IMPORT_CONFIG.FIELD_ALIASES)) {
+        if (aliases.some(alias => 
+            normalizedKey === alias || 
+            normalizedKey.includes(alias) || 
+            alias.includes(normalizedKey) ||
+            normalizedKey.split(' ').some(word => word === alias.split(' ')[0])
+        )) {
+            return field;
+        }
+    }
+    return null;
+}
+
+function parseDateStringEnhanced(dateStr) {
+    if (!dateStr) return null;
+    const trimmed = dateStr.trim();
+    
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoMatch) {
+        const year = parseInt(isoMatch[1]);
+        const month = parseInt(isoMatch[2]) - 1;
+        const day = parseInt(isoMatch[3]);
+        const date = new Date(year, month, day);
+        if (!isNaN(date.getTime())) {
+            return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+    }
+    
+    const usMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (usMatch) {
+        const month = parseInt(usMatch[1]) - 1;
+        const day = parseInt(usMatch[2]);
+        const year = parseInt(usMatch[3]);
+        const date = new Date(year, month, day);
+        if (!isNaN(date.getTime())) {
+            return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+    }
+    
+    const naturalMatch = trimmed.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/i);
+    if (naturalMatch) {
+        const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+        const monthName = naturalMatch[1].toLowerCase();
+        const monthIndex = months.indexOf(monthName);
+        if (monthIndex !== -1) {
+            const day = parseInt(naturalMatch[2]);
+            const year = parseInt(naturalMatch[3]);
+            const date = new Date(year, monthIndex, day);
+            if (!isNaN(date.getTime())) {
+                return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            }
+        }
+    }
+    
+    if (/today/i.test(trimmed)) return Utils.getTodayStr();
+    if (/tomorrow/i.test(trimmed)) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        return Utils.formatDateForCompare(tomorrow);
+    }
+    if (/yesterday/i.test(trimmed)) {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        return Utils.formatDateForCompare(yesterday);
+    }
+    
+    return null;
+}
+
+function enhanceParsedData(result, confidence, fullText, context) {
+    if (result.phone) {
+        result.phone = result.phone.replace(/[^\d+]/g, '');
+        if (result.phone.length === 10 && /^\d{10}$/.test(result.phone)) {
+            result.phone = `(${result.phone.substring(0, 3)}) ${result.phone.substring(3, 6)}-${result.phone.substring(6)}`;
+        }
+    }
+    
+    if (result.email) {
+        result.email = result.email.toLowerCase().trim();
+    }
+    
+    if (result.date) {
+        const parsedDate = parseDateStringEnhanced(result.date);
+        if (parsedDate) {
+            result.date = parsedDate;
+            confidence.date = Math.max(confidence.date || 0, 0.9);
+        }
+    }
+    
+    if (result.time) {
+        const timeStr = result.time.trim();
+        if (!timeStr.includes('AM') && !timeStr.includes('PM')) {
+            const hourMatch = timeStr.match(/^(\d{1,2}):?(\d{2})?$/);
+            if (hourMatch) {
+                const hour = parseInt(hourMatch[1]);
+                const minute = hourMatch[2] || '00';
+                if (hour >= 1 && hour <= 12) {
+                    result.time = `${hour}:${minute} ${hour >= 6 && hour <= 11 ? 'AM' : 'PM'}`;
+                } else if (hour >= 13 && hour <= 23) {
+                    const adjustedHour = hour - 12;
+                    result.time = `${adjustedHour}:${minute} PM`;
+                }
+            }
+        }
+        confidence.time = Math.max(confidence.time || 0, 0.9);
+    }
+    
+    if (!result.role && result.notes) {
+        const roleMatch = result.notes.match(/(?:role|title|position|job title)[:\s]+([A-Za-z\s]+?)(?:[,.\n]|$)/i);
+        if (roleMatch && roleMatch[1]) {
+            result.role = roleMatch[1].trim();
+            confidence.role = 0.6;
+        }
+    }
+    
+    if (result.notes) {
+        const tags = result.tags || [];
+        const sentimentPatterns = {
+            high_interest: /(?:high interest|very interested|excited|enthusiastic|positive|great|excellent|wants|would like|looking forward)/i,
+            vip: /(?:vip|priority|important|key|major|top)/i,
+            callback_requested: /(?:callback|call back|return call|follow up|follow-up|next steps|schedule call)/i
+        };
+        for (const [key, pattern] of Object.entries(sentimentPatterns)) {
+            if (pattern.test(result.notes) && !tags.includes(key)) {
+                tags.push(key);
+            }
+        }
+        if (tags.length > 0) {
+            result.tags = tags;
+            confidence.tags = 0.6;
+        }
+    }
+}
+
+function validateAppointmentData(data) {
+    const errors = [];
+    const warnings = [];
+    const validated = {};
+    
+    if (!data.name || data.name.trim().length < 2) {
+        errors.push({ field: 'name', message: 'Contact name is required (minimum 2 characters)' });
+    } else {
+        validated.name = data.name.trim();
+    }
+    
+    if (!data.business || data.business.trim().length < 2) {
+        errors.push({ field: 'business', message: 'Business name is required (minimum 2 characters)' });
+    } else {
+        validated.business = data.business.trim();
+    }
+    
+    if (data.phone) {
+        const cleanPhone = data.phone.replace(/[^\d+]/g, '');
+        if (cleanPhone.length < 7 || cleanPhone.length > 15) {
+            warnings.push({ field: 'phone', message: 'Phone number seems invalid. Expected 7-15 digits.' });
+        }
+        validated.phone = cleanPhone;
+    }
+    
+    if (data.email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(data.email)) {
+            warnings.push({ field: 'email', message: 'Email format seems invalid.' });
+        }
+        validated.email = data.email.toLowerCase().trim();
+    }
+    
+    if (data.date) {
+        const parsedDate = parseDateStringEnhanced(data.date);
+        if (parsedDate) {
+            validated.date = parsedDate;
+        } else {
+            warnings.push({ field: 'date', message: 'Date format not recognized. Using today\'s date.' });
+            validated.date = Utils.getTodayStr();
+        }
+    } else {
+        validated.date = Utils.getTodayStr();
+    }
+    
+    if (data.status) {
+        const statusOptions = SMART_IMPORT_CONFIG.VALIDATION.status.allowed;
+        const matchedStatus = statusOptions.find(s => 
+            s.toLowerCase() === data.status.toLowerCase() ||
+            s.toLowerCase().includes(data.status.toLowerCase()) ||
+            data.status.toLowerCase().includes(s.toLowerCase())
+        );
+        if (matchedStatus) {
+            validated.status = matchedStatus;
+        } else {
+            warnings.push({ field: 'status', message: `Status "${data.status}" not recognized. Using "Pending".` });
+            validated.status = 'Pending';
+        }
+    } else {
+        validated.status = 'Pending';
+    }
+    
+    ['assigned', 'role', 'notes', 'tags', 'email', 'time', 'phone'].forEach(field => {
+        if (data[field]) {
+            validated[field] = data[field];
+        }
+    });
+    
+    return {
+        validated,
+        errors,
+        warnings,
+        isValid: errors.length === 0
+    };
+}
+
+function checkForDuplicates(newData, existingAppointments) {
+    const duplicates = [];
+    const allAppointments = Data.getAllAppointments();
+    if (allAppointments.length === 0) return duplicates;
+    
+    const newName = (newData.name || '').toLowerCase().trim();
+    const newBusiness = (newData.business || '').toLowerCase().trim();
+    const newPhone = (newData.phone || '').replace(/[^\d+]/g, '');
+    const newEmail = (newData.email || '').toLowerCase().trim();
+    
+    for (const existing of allAppointments) {
+        let score = 0;
+        let matchedFields = [];
+        let totalChecks = 0;
+        
+        if (newName && existing.contactName) {
+            totalChecks++;
+            const existingName = existing.contactName.toLowerCase().trim();
+            if (newName === existingName) {
+                score += 0.6;
+                matchedFields.push('name');
+            } else if (newName.includes(existingName) || existingName.includes(newName)) {
+                score += 0.3;
+                matchedFields.push('name_partial');
+            }
+        }
+        
+        if (newBusiness && existing.business) {
+            totalChecks++;
+            const existingBusiness = existing.business.toLowerCase().trim();
+            if (newBusiness === existingBusiness) {
+                score += 0.5;
+                matchedFields.push('business');
+            } else if (newBusiness.includes(existingBusiness) || existingBusiness.includes(newBusiness)) {
+                score += 0.25;
+                matchedFields.push('business_partial');
+            }
+        }
+        
+        if (newPhone && existing.phone) {
+            totalChecks++;
+            const existingPhone = existing.phone.replace(/[^\d+]/g, '');
+            if (newPhone === existingPhone) {
+                score += 0.7;
+                matchedFields.push('phone');
+            } else if (newPhone.includes(existingPhone) || existingPhone.includes(newPhone)) {
+                score += 0.3;
+                matchedFields.push('phone_partial');
+            }
+        }
+        
+        if (newEmail && existing.email) {
+            totalChecks++;
+            const existingEmail = existing.email.toLowerCase().trim();
+            if (newEmail === existingEmail) {
+                score += 0.8;
+                matchedFields.push('email');
+            }
+        }
+        
+        const confidence = totalChecks > 0 ? Math.min(score + (totalChecks - 1) * 0.1, 1) : 0;
+        if (confidence >= 0.5) {
+            duplicates.push({
+                existing: existing,
+                confidence: Math.round(confidence * 100),
+                matchedFields: matchedFields,
+                score: score
+            });
+        }
+    }
+    
+    duplicates.sort((a, b) => b.confidence - a.confidence);
+    return duplicates;
+}
+
+function splitAppointments(text) {
+    const appointments = [];
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+    let currentAppointment = [];
+    let inAppointment = false;
+    
+    for (const line of lines) {
+        const isNewAppointment = 
+            line.match(/^[A-Z][a-zA-Z]+\s+(?:Company|Corp|Inc|LLC|Ltd|Agency|Studio|Designs|Solutions|Services|Consulting|Group|Partners|&|Associates)/) ||
+            line.match(/^---+\s*$/) ||
+            line.match(/^={3,}\s*$/) ||
+            line.match(/^Appointment\s+#\d+/) ||
+            line.match(/^\d+\.\s*[A-Z]/);
+        
+        if (isNewAppointment && currentAppointment.length > 0) {
+            appointments.push(currentAppointment.join('\n'));
+            currentAppointment = [];
+            inAppointment = false;
+        }
+        
+        if (line.includes(':') && line.split(':')[0].trim().length > 0 && line.split(':')[0].trim().length < 30) {
+            const key = line.split(':')[0].trim().toLowerCase();
+            const isField = SMART_IMPORT_CONFIG.FIELD_ALIASES[key] || 
+                           Object.keys(SMART_IMPORT_CONFIG.FIELD_ALIASES).some(f => 
+                               SMART_IMPORT_CONFIG.FIELD_ALIASES[f].includes(key)
+                           );
+            if (isField && currentAppointment.length === 0 && !inAppointment) {
+                inAppointment = true;
+            }
+        }
+        
+        currentAppointment.push(line);
+    }
+    
+    if (currentAppointment.length > 0) {
+        appointments.push(currentAppointment.join('\n'));
+    }
+    
+    if (appointments.length === 0 && text.trim()) {
+        appointments.push(text.trim());
+    }
+    
+    return appointments;
+}
+
+function generateImportTemplate() {
+    const dateInput = DOM.get('importDefaultDate');
+    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
+    const formattedDate = defaultDate ? Utils.formatDate(defaultDate) : 'Today';
+    
+    const textArea = DOM.get('importTextArea');
+    if (!textArea) return;
+    
+    const template = `Business Name/Company : [Enter Business Name]
+Name : [Enter Contact Name]
+Role : [Owner/Manager/Decision Maker]
+Phone Number: [Enter Phone Number]
+Email: [Enter Email Address]
+Best Time for Warm Callback: ${formattedDate} at [Time] [Timezone]
+
+Notes: [Enter notes about the conversation, interest level, and next steps]`;
+    
+    if (textArea.value) {
+        if (!confirm('This will replace your current text. Continue?')) return;
+    }
+    textArea.value = template;
+    showToast('📋 Template inserted! Fill in the details and click Parse.', 'success');
+}
+
+function openSmartImportEnhanced() {
+    const modal = DOM.get('smartImportModal');
+    if (!modal) return;
+    
+    modal.style.display = 'flex';
+    
+    AppState.importRecords = [];
+    AppState.importProcessing = false;
+    AppState.importProgress = 0;
+    
+    const dateInput = DOM.get('importDefaultDate');
+    if (dateInput) {
+        dateInput.value = Utils.getTodayStr();
+    }
+    
+    const textArea = DOM.get('importTextArea');
+    if (textArea) {
+        textArea.value = '';
+        textArea.placeholder = `Paste appointment details here. The system will intelligently parse:
+        
+Example:
+Business Name/Company : Correa and Son's Landscaping LLC
+Name : Kelvin
+Role : Owner
+Phone Number: +12678808990
+Best Time for Warm Callback: Tomorrow at 1pm EDT
+Notes: Custom website preview offered + no website currently + high interest, positive and booked a manager callback to review the website.`;
+    }
+    
+    const preview = DOM.get('importPreview');
+    if (preview) preview.style.display = 'none';
+    
+    const saveBtn = DOM.get('saveImportBtn');
+    if (saveBtn) saveBtn.style.display = 'none';
+    
+    const resultsContainer = DOM.get('importResultsContainer');
+    if (resultsContainer) resultsContainer.innerHTML = '';
+    
+    const progressContainer = DOM.get('importProgressContainer');
+    if (progressContainer) progressContainer.style.display = 'none';
+    
+    const summary = DOM.get('importSummary');
+    if (summary) summary.style.display = 'none';
+}
+
+function closeSmartImportEnhanced() {
+    const modal = DOM.get('smartImportModal');
+    if (modal) modal.style.display = 'none';
+    AppState.importRecords = [];
+    AppState.importProcessing = false;
+}
+
+function parseAndPreviewImportEnhanced() {
+    const textArea = DOM.get('importTextArea');
+    if (!textArea) return;
+    
+    const text = textArea.value;
+    if (!text.trim()) {
+        showToast('Please paste some text to parse', 'warning');
+        return;
+    }
+    
+    const dateInput = DOM.get('importDefaultDate');
+    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
+    
+    const progressContainer = DOM.get('importProgressContainer');
+    if (progressContainer) progressContainer.style.display = 'block';
+    AppState.importProcessing = true;
+    AppState.importProgress = 0;
+    updateImportProgress(5, 'Splitting appointments...');
+    
+    setTimeout(() => {
+        const appointments = splitAppointments(text);
+        const total = appointments.length;
+        AppState.importProgress = 15;
+        updateImportProgress(15, `Found ${total} appointment(s). Parsing...`);
+        
+        if (total === 0) {
+            showToast('No appointments detected in the text', 'warning');
+            AppState.importProcessing = false;
+            if (progressContainer) progressContainer.style.display = 'none';
+            return;
+        }
+        
+        const parsedResults = [];
+        let validCount = 0;
+        let invalidCount = 0;
+        let duplicateCount = 0;
+        
+        appointments.forEach((apptText, index) => {
+            const progress = 15 + ((index + 1) / total) * 50;
+            updateImportProgress(progress, `Processing appointment ${index + 1} of ${total}...`);
+            
+            const { result, confidence, context } = parseAppointmentTextEnhanced(apptText, defaultDate);
+            const validationResult = validateAppointmentData(result);
+            const duplicates = checkForDuplicates(result, AppState.appointments);
+            const hasSignificantDuplicate = duplicates.some(d => d.confidence >= 70);
+            if (hasSignificantDuplicate) duplicateCount++;
+            
+            if (validationResult.isValid) validCount++;
+            else invalidCount++;
+            
+            parsedResults.push({
+                index: index + 1,
+                raw: apptText,
+                parsed: result,
+                confidence: confidence,
+                context: context,
+                validated: validationResult.validated,
+                isValid: validationResult.isValid,
+                errors: validationResult.errors,
+                warnings: validationResult.warnings,
+                hasDuplicate: hasSignificantDuplicate,
+                duplicates: duplicates
+            });
+        });
+        
+        AppState.importRecords = parsedResults;
+        AppState.importProgress = 80;
+        updateImportProgress(80, 'Generating preview...');
+        
+        setTimeout(() => {
+            renderImportResults(parsedResults);
+            AppState.importProcessing = false;
+            updateImportProgress(100, 'Complete!');
+            
+            setTimeout(() => {
+                if (progressContainer) progressContainer.style.display = 'none';
+            }, 1500);
+            
+            showToast(`Parsed ${parsedResults.length} appointment(s)! ${validCount} valid, ${invalidCount} need review`, 'info');
+        }, 300);
+    }, 300);
+}
+
+function updateImportProgress(percent, message) {
+    const progressBar = DOM.get('importProgressBar');
+    const progressStatus = DOM.get('importProgressStatus');
+    
+    if (progressBar) {
+        progressBar.style.width = Math.min(percent, 100) + '%';
+    }
+    if (progressStatus && message) {
+        progressStatus.textContent = message;
+    }
+}
+
+function renderImportResults(records) {
+    const preview = DOM.get('importPreview');
+    const resultsContainer = DOM.get('importResultsContainer');
+    const saveBtn = DOM.get('saveImportBtn');
+    const summary = DOM.get('importSummary');
+    const recordCount = DOM.get('importRecordCount');
+    
+    if (!preview || !resultsContainer) return;
+    
+    preview.style.display = 'block';
+    
+    if (recordCount) {
+        recordCount.textContent = records.length;
+    }
+    
+    if (summary) {
+        const total = records.length;
+        const valid = records.filter(r => r.isValid).length;
+        const invalid = records.filter(r => !r.isValid).length;
+        const duplicates = records.filter(r => r.hasDuplicate).length;
+        
+        summary.style.display = 'block';
+        summary.innerHTML = `
+            <div class="import-summary-grid">
+                <div class="import-stat ${valid > 0 ? 'success' : ''}">
+                    <span class="stat-number">${valid}</span>
+                    <span class="stat-label">✅ Valid</span>
+                </div>
+                <div class="import-stat ${invalid > 0 ? 'warning' : ''}">
+                    <span class="stat-number">${invalid}</span>
+                    <span class="stat-label">⚠️ Needs Review</span>
+                </div>
+                <div class="import-stat ${duplicates > 0 ? 'warning' : ''}">
+                    <span class="stat-number">${duplicates}</span>
+                    <span class="stat-label">🔄 Potential Duplicates</span>
+                </div>
+                <div class="import-stat">
+                    <span class="stat-number">${total}</span>
+                    <span class="stat-label">📋 Total</span>
+                </div>
+            </div>
+        `;
+    }
+    
+    let resultsHtml = '';
+    records.forEach((record, idx) => {
+        const statusClass = record.isValid ? 'valid' : 'invalid';
+        const hasDuplicate = record.hasDuplicate;
+        const hasWarnings = record.warnings && record.warnings.length > 0;
+        
+        const confValues = Object.values(record.confidence || {});
+        const avgConf = confValues.length > 0 ? confValues.reduce((a, b) => a + b, 0) / confValues.length : 0;
+        const confColor = avgConf >= 0.7 ? 'high' : avgConf >= 0.4 ? 'medium' : 'low';
+        
+        resultsHtml += `
+            <div class="import-record ${statusClass} ${hasDuplicate ? 'duplicate' : ''}">
+                <div class="record-header" onclick="toggleImportRecord(this)">
+                    <div class="record-status">
+                        <span class="status-icon">${record.isValid ? '✅' : '⚠️'}</span>
+                        <span class="record-index">#${record.index}</span>
+                    </div>
+                    <div class="record-summary">
+                        <span class="record-name">${Utils.escapeHtml(record.validated.name || record.parsed.name || 'Unknown')}</span>
+                        <span class="record-business">${Utils.escapeHtml(record.validated.business || record.parsed.business || 'Unknown Business')}</span>
+                        ${record.parsed.date ? `<span class="record-date">📅 ${Utils.escapeHtml(record.parsed.date)}</span>` : ''}
+                    </div>
+                    <div class="record-badges">
+                        ${hasDuplicate ? '<span class="badge duplicate">🔄 Duplicate</span>' : ''}
+                        ${hasWarnings ? `<span class="badge warning">⚠️ ${record.warnings.length}</span>` : ''}
+                        ${!record.isValid ? `<span class="badge error">❌ ${record.errors.length}</span>` : ''}
+                        <span class="badge confidence ${confColor}">${Math.round(avgConf * 100)}%</span>
+                    </div>
+                    <span class="record-toggle">▼</span>
+                </div>
+                <div class="record-body" style="display:none;">
+                    <div class="record-fields">
+                        ${renderRecordFields(record)}
+                    </div>
+                    
+                    ${record.warnings && record.warnings.length > 0 ? `
+                        <div class="record-warnings">
+                            <strong>⚠️ Warnings:</strong>
+                            <ul>${record.warnings.map(w => `<li>${w.field}: ${w.message}</li>`).join('')}</ul>
+                        </div>
+                    ` : ''}
+                    
+                    ${!record.isValid ? `
+                        <div class="record-errors">
+                            <strong>❌ Errors:</strong>
+                            <ul>${record.errors.map(e => `<li>${e.field}: ${e.message}</li>`).join('')}</ul>
+                        </div>
+                    ` : ''}
+                    
+                    ${record.hasDuplicate && record.duplicates.length > 0 ? `
+                        <div class="record-duplicates">
+                            <strong>🔄 Potential Duplicates:</strong>
+                            <ul>${record.duplicates.filter(d => d.confidence >= 60).map(d => 
+                                `<li>${Utils.escapeHtml(d.existing.business)} - ${Utils.escapeHtml(d.existing.contactName)} (${d.confidence}% match)</li>`
+                            ).join('')}</ul>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    });
+    
+    resultsContainer.innerHTML = resultsHtml;
+    
+    const validRecords = records.filter(r => r.isValid);
+    if (saveBtn && validRecords.length > 0) {
+        saveBtn.style.display = 'inline-flex';
+        saveBtn.textContent = `💾 Save ${validRecords.length} Record(s)`;
+        saveBtn.onclick = () => saveAllImportedAppointments();
+    } else if (saveBtn) {
+        saveBtn.style.display = 'none';
+    }
+}
+
+function renderRecordFields(record) {
+    const fields = record.validated || record.parsed || {};
+    const confidence = record.confidence || {};
+    
+    const fieldLabels = {
+        name: '👤 Name',
+        business: '🏢 Business',
+        phone: '📞 Phone',
+        email: '✉️ Email',
+        date: '📅 Date',
+        time: '🕐 Time',
+        status: '📊 Status',
+        assigned: '👤 Assigned',
+        role: '💼 Role',
+        notes: '📝 Notes'
+    };
+    
+    const fieldOrder = ['name', 'business', 'phone', 'email', 'date', 'time', 'status', 'assigned', 'role', 'notes'];
+    
+    let html = '';
+    for (const field of fieldOrder) {
+        if (fields[field]) {
+            const conf = confidence[field] || 0.5;
+            const confClass = conf >= 0.7 ? 'high' : (conf >= 0.4 ? 'medium' : 'low');
+            const isDate = field === 'date';
+            const valueDisplay = isDate ? Utils.formatDate(fields[field]) : Utils.escapeHtml(fields[field]);
+            html += `
+                <div class="field-row ${isDate ? 'date-field' : ''}">
+                    <span class="field-label">${fieldLabels[field] || field}</span>
+                    <span class="field-value">${valueDisplay}</span>
+                    <span class="field-confidence ${confClass}">${Math.round(conf * 100)}%</span>
+                </div>
+            `;
+        }
+    }
+    
+    return html;
+}
+
+function toggleImportRecord(header) {
+    const body = header.nextElementSibling;
+    if (body) {
+        const isVisible = body.style.display !== 'none';
+        body.style.display = isVisible ? 'none' : 'block';
+        const toggle = header.querySelector('.record-toggle');
+        if (toggle) {
+            toggle.textContent = isVisible ? '▶' : '▼';
+        }
+    }
+}
+
+function saveAllImportedAppointments() {
+    const validRecords = AppState.importRecords.filter(r => r.isValid);
+    
+    if (validRecords.length === 0) {
+        showToast('No valid records to save', 'warning');
+        return;
+    }
+    
+    if (!AppState.currentUser) {
+        showToast('Please sign in first', 'error');
+        return;
+    }
+    
+    const highConfidenceDuplicates = validRecords.filter(r => 
+        r.duplicates && r.duplicates.some(d => d.confidence >= 80)
+    );
+    
+    let confirmMsg = `Save ${validRecords.length} appointment(s)?`;
+    if (highConfidenceDuplicates.length > 0) {
+        confirmMsg += `\n\n⚠️ ${highConfidenceDuplicates.length} of these appear to be high-confidence duplicates.`;
+    }
+    
+    if (!confirm(confirmMsg)) return;
+    
+    let savedCount = 0;
+    let skippedCount = 0;
+    
+    validRecords.forEach(record => {
+        const data = record.validated || record.parsed;
+        
+        const hasHighDuplicate = record.duplicates && record.duplicates.some(d => d.confidence >= 85);
+        if (hasHighDuplicate) {
+            const duplicate = record.duplicates.find(d => d.confidence >= 85);
+            if (duplicate && !confirm(`"${data.business}" appears to be a duplicate (${duplicate.confidence}% match with ${duplicate.existing.business}). Save anyway?`)) {
+                skippedCount++;
+                return;
+            }
+        }
+        
+        const result = Data.addAppointment(
+            data.date || Utils.getTodayStr(),
+            data.business,
+            data.name,
+            data.role || 'Owner',
+            data.phone || '',
+            data.time || '',
+            data.notes || '',
+            data.assigned || 'Daniel',
+            null,
+            data.status || 'Pending',
+            '',
+            data.tags || []
+        );
+        
+        if (result) {
+            savedCount++;
+        }
+    });
+    
+    showToast(`✅ Saved ${savedCount} appointment(s)! ${skippedCount > 0 ? `⏭️ Skipped ${skippedCount} duplicates.` : ''}`, 'success');
+    
+    closeSmartImportEnhanced();
+    if (typeof FeaturePanel !== 'undefined') {
+        FeaturePanel.refreshCurrentView();
+    }
+    Stats.updateAll();
+}
+
+function expandAllRecords() {
+    document.querySelectorAll('.import-record .record-body').forEach(body => {
+        body.style.display = 'block';
+    });
+    document.querySelectorAll('.import-record .record-toggle').forEach(toggle => {
+        toggle.textContent = '▼';
+    });
+}
+
+function collapseAllRecords() {
+    document.querySelectorAll('.import-record .record-body').forEach(body => {
+        body.style.display = 'none';
+    });
+    document.querySelectorAll('.import-record .record-toggle').forEach(toggle => {
+        toggle.textContent = '▶';
+    });
+}
+
+async function quickImportFromClipboard() {
+    try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+            openSmartImportEnhanced();
+            const textArea = DOM.get('importTextArea');
+            if (textArea) {
+                textArea.value = text;
+            }
+            setTimeout(() => {
+                parseAndPreviewImportEnhanced();
+            }, 500);
+        } else {
+            showToast('Clipboard is empty', 'warning');
+        }
+    } catch (error) {
+        showToast('Unable to read clipboard. Please paste manually.', 'error');
+    }
+}
 
 // ================================================================
 // GLOBAL FUNCTIONS
@@ -2541,7 +2930,9 @@ function executeBulkAction() {
 
     const modal = DOM.get('bulkActionsModal');
     if (modal) modal.style.display = 'none';
-    FeaturePanel.refreshCurrentView();
+    if (typeof FeaturePanel !== 'undefined') {
+        FeaturePanel.refreshCurrentView();
+    }
 }
 
 function handleEscapeKey() {
@@ -2552,7 +2943,9 @@ function handleEscapeKey() {
 
     const featurePanel = DOM.get('featurePanel');
     if (featurePanel && featurePanel.style.display !== 'none') {
-        FeaturePanel.hide();
+        if (typeof FeaturePanel !== 'undefined') {
+            FeaturePanel.hide();
+        }
         Scripts.loadScript('opening');
         showToast('Returned to Opening Script', 'info');
         return true;
@@ -2588,7 +2981,7 @@ function openShortcutEdit(action) {
             showToast(`Shortcut updated for ${action}`, 'success');
 
             const body = DOM.get('featurePanelBody');
-            if (body && AppState.currentView === 'shortcuts') {
+            if (body && AppState.currentView === 'shortcuts' && typeof FeaturePanel !== 'undefined') {
                 FeaturePanel.renderShortcuts(body);
             }
             return true;
@@ -2603,24 +2996,34 @@ function handleShortcutAction(action) {
             openSmartImportEnhanced();
             break;
         case 'Appointment Calendar': 
-            FeaturePanel.show('calendar', '📅 Appointment & Handoff Calendar'); 
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.show('calendar', '📅 Appointment & Handoff Calendar');
+            }
             break;
         case 'Call Scripts': 
-            FeaturePanel.hide(); 
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.hide();
+            }
             Scripts.loadScript('opening'); 
             break;
         case 'Global Search': 
             openGlobalSearch(); 
             break;
         case 'Quick Add Appointment': 
-            FeaturePanel.openQuickAdd(Utils.getTodayStr()); 
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.openQuickAdd(Utils.getTodayStr());
+            }
             break;
         case 'Analytics Hub': 
             AppState.analyticsTab = 'insights';
-            FeaturePanel.show('analytics', '📊 Analytics Hub'); 
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.show('analytics', '📊 Analytics Hub');
+            }
             break;
         case 'Keyboard Shortcuts': 
-            FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts'); 
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts');
+            }
             break;
         case 'Export to CSV': 
             Data.exportToCSV(); 
@@ -2750,7 +3153,9 @@ function editAppointment(appointmentId) {
     if (!appt) { showToast('Appointment not found', 'error'); return; }
     
     closeAppointmentDetail();
-    FeaturePanel.openQuickAdd(appt.date);
+    if (typeof FeaturePanel !== 'undefined') {
+        FeaturePanel.openQuickAdd(appt.date);
+    }
     setTimeout(() => {
         const businessInput = DOM.get('newApptBusiness');
         const contactInput = DOM.get('newApptContact');
@@ -3352,14 +3757,16 @@ const CalendarView = {
         const addBtn = container.querySelector('#calendarAddEventBtn');
         if (addBtn) {
             addBtn.addEventListener('click', () => {
-                FeaturePanel.openQuickAdd(Utils.getTodayStr());
+                if (typeof FeaturePanel !== 'undefined') {
+                    FeaturePanel.openQuickAdd(Utils.getTodayStr());
+                }
             });
         }
         
         container.querySelectorAll('.calendar-day').forEach(day => {
             day.addEventListener('dblclick', () => {
                 const date = day.getAttribute('data-date');
-                if (date) {
+                if (date && typeof FeaturePanel !== 'undefined') {
                     FeaturePanel.openQuickAdd(date);
                 }
             });
@@ -3946,12 +4353,6 @@ const FeaturePanel = {
 };
 
 // ================================================================
-// SCRIPTS MODULE (Complete)
-// ================================================================
-
-// Note: Scripts functions are already defined above. Keeping them intact.
-
-// ================================================================
 // INITIALIZATION
 // ================================================================
 
@@ -4296,7 +4697,6 @@ function initApp() {
 // GLOBAL EXPOSURE
 // ================================================================
 
-// Make all functions globally accessible
 window.showAppointmentDetail = showAppointmentDetail;
 window.closeAppointmentDetail = closeAppointmentDetail;
 window.loadScript = Scripts.loadScript;
@@ -4325,7 +4725,6 @@ window.saveAllImportedAppointments = saveAllImportedAppointments;
 window.CalendarView = CalendarView;
 window.handleShortcutAction = handleShortcutAction;
 window.Utils = Utils;
-window.toggleImportRecord = toggleImportRecord;
 
 // Start the app
 document.addEventListener('DOMContentLoaded', initApp);
