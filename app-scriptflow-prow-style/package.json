@@ -1,0 +1,16 @@
+{
+  "name": "scriptflow-pro",
+  "version": "2.0.0",
+  "description": "ScriptFlow Pro - Smart CRM with Objection Handling",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve . -p $PORT",
+    "dev": "npx serve . -p 3000"
+  },
+  "dependencies": {
+    "serve": "^14.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

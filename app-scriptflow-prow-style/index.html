@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>ScriptFlow Pro · Smart CRM</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%233b82f6'/%3E%3Ctext x='50' y='68' font-size='48' text-anchor='middle' fill='white' font-family='Arial'%3E🎯%3C/text%3E%3C/svg%3E" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body class="dark">
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-icon">🎯</div>
+            <div class="loading-title">ScriptFlow Pro</div>
+            <div class="loading-subtitle">Initializing...</div>
+            <div class="loading-bar-track"><div id="loadingProgress" class="loading-bar"></div></div>
+            <div id="loadingPercent" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 5px;">0%</div>
+        </div>
+    </div>
+
+    <div class="app-wrapper" id="appWrapper" style="display:none;">
+        <button class="menu-toggle" id="menuToggleBtn" aria-label="Toggle Sidebar"><i class="fas fa-bars"></i></button>
+
+        <aside class="sidebar" id="mainSidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon"><i class="fas fa-microphone-alt"></i></div>
+                    <div class="logo-text"><h2>ScriptFlow Pro</h2><p>Smart Call Scripts</p></div>
+                </div>
+                <div id="userInfo" class="user-info" style="display:none;"><i class="fas fa-user-circle"></i> <span id="userEmail"></span></div>
+            </div>
+
+            <div class="scripts-list-section">
+                <div class="search-area"><input type="text" id="scriptSearch" class="search-box" placeholder="🔍 Search scripts..." /></div>
+                <div class="scripts-container">
+                    <div class="section-title"><i class="fas fa-scroll"></i> CALL SCRIPTS</div>
+                    <div id="scriptListContainer"></div>
+                    <button id="addScriptBtnSide" class="add-script-btn"><i class="fas fa-plus"></i> New Script</button>
+                </div>
+            </div>
+
+            <div class="tools-section">
+                <div class="tools-header" id="toolsHeader">
+                    <div class="section-title"><i class="fas fa-tools"></i> TOOLS & SETTINGS</div>
+                    <i class="fas fa-chevron-right tools-chevron" id="toolsChevron"></i>
+                </div>
+                <div class="tools-menu" id="toolsMenu">
+                    <div class="tool-item" data-tool="calendar"><i class="fas fa-calendar-alt"></i> <span>Calendar</span></div>
+                    <div class="tool-item" data-tool="tasks"><i class="fas fa-tasks"></i> <span>Follow-ups</span></div>
+                    <div class="tool-item" data-tool="analytics"><i class="fas fa-chart-pie"></i> <span>Analytics</span></div>
+                    <div class="tool-item" data-tool="shortcuts"><i class="fas fa-keyboard"></i> <span>Shortcuts</span></div>
+                    <div class="tool-item" data-tool="theme"><i class="fas fa-moon"></i> <span>Light/Dark</span></div>
+                    <div class="tool-item" data-tool="objections"><i class="fas fa-shield-alt"></i> <span>Objections</span></div>
+                    <div class="tool-item" id="signOutBtn"><i class="fas fa-sign-out-alt"></i> <span>Sign Out</span></div>
+                </div>
+            </div>
+        </aside>
+
+        <div class="main-content" id="mainContent">
+            <div class="top-bar">
+                <div class="stats-row">
+                    <div class="stat"><span class="stat-label">Today</span><span class="stat-number" id="statToday">0</span></div>
+                    <div class="stat"><span class="stat-label">Week</span><span class="stat-number" id="statWeek">0</span></div>
+                    <div class="stat"><span class="stat-label">Avg Score</span><span class="stat-number" id="avgScore">0</span></div>
+                    <div class="stat"><span class="stat-label">Tasks</span><span class="stat-number" id="pendingTasks">0</span></div>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn-icon" id="quickReportBtn"><i class="fas fa-magic"></i> Smart Import</button>
+                    <button class="btn-icon" id="searchGlobalBtn"><i class="fas fa-search"></i> Search</button>
+                    <button class="btn-icon" id="refreshBtn"><i class="fas fa-sync-alt"></i></button>
+                    <span class="badge-auto" id="saveStatus"><i class="fas fa-save"></i> Auto</span>
+                </div>
+            </div>
+
+            <div id="rightPanel">
+                <div id="scriptPanel" class="script-card">
+                    <div class="script-header-bar">
+                        <div class="script-title-area">
+                            <h2 id="currentScriptName">Opening Script</h2>
+                            <span class="version-chip">v<span id="versionNumber">1</span></span>
+                            <span class="version-chip" id="editStatusBadge" style="display:none; background:var(--warning);">Editing</span>
+                        </div>
+                        <div class="script-actions">
+                            <button class="btn-icon" id="editScriptBtn"><i class="fas fa-pen"></i> Edit</button>
+                            <button class="btn-icon" id="saveScriptBtn" style="display:none; background:var(--success);"><i class="fas fa-save"></i> Save</button>
+                            <button class="btn-icon" id="cancelEditBtn" style="display:none;"><i class="fas fa-times"></i></button>
+                            <button class="btn-icon" id="favoriteScriptBtn"><i class="fas fa-star"></i></button>
+                            <button class="btn-icon" id="copyScriptBtn"><i class="fas fa-copy"></i></button>
+                            <button class="btn-icon" id="resetScriptBtn" style="color:var(--danger);"><i class="fas fa-undo"></i></button>
+                        </div>
+                    </div>
+                    <div class="script-body" id="scriptBody"><div id="scriptContent"></div></div>
+                </div>
+
+                <div id="featurePanel" class="feature-panel" style="display:none;">
+                    <div class="feature-panel-header">
+                        <h2 id="featurePanelTitle">Feature</h2>
+                        <div id="viewToggleContainer"></div>
+                        <button id="closeFeaturePanelBtn" class="btn-icon"><i class="fas fa-times"></i> Close</button>
+                    </div>
+                    <div class="feature-panel-body" id="featurePanelBody"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Smart Import Modal -->
+    <div id="smartImportModal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <h3><i class="fas fa-magic"></i> Smart Import</h3>
+            <div class="import-date-selector">
+                <label>Target Appointment Date:</label>
+                <input type="date" id="importDefaultDate" />
+                <button id="quickTemplateBtn" class="btn-icon">Template</button>
+                <button id="clipboardImportBtn" class="btn-icon"><i class="fas fa-paste"></i> Paste</button>
+            </div>
+            <div class="form-group">
+                <textarea id="importTextArea" rows="8" placeholder="Paste appointment text here..."></textarea>
+            </div>
+            <div id="importProgressContainer" style="display:none;">
+                <div class="progress-bar-track"><div id="importProgressBar" class="progress-bar-fill"></div></div>
+                <div id="importProgressStatus" style="font-size:0.7rem; color:var(--text-muted);">Parsing...</div>
+            </div>
+            <div id="importSummary"></div>
+            <div id="importPreview" style="display:none;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+                    <span><i class="fas fa-list"></i> <span id="importRecordCount">0</span> records</span>
+                    <div style="display:flex; gap:6px;">
+                        <button class="btn-icon" onclick="window.expandAllRecords && window.expandAllRecords()" style="font-size:0.7rem; padding:4px 10px;">Expand All</button>
+                        <button class="btn-icon" onclick="window.collapseAllRecords && window.collapseAllRecords()" style="font-size:0.7rem; padding:4px 10px;">Collapse All</button>
+                    </div>
+                </div>
+                <div id="importResultsContainer"></div>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:15px; flex-wrap:wrap;">
+                <button id="parseImportBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-brain"></i> Parse</button>
+                <button id="saveImportBtn" class="btn-icon" style="background:var(--success); color:white; display:none;">Save All</button>
+                <button id="closeImportBtn" class="btn-icon">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Appointment Detail Modal -->
+    <div id="appointmentDetailModal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <h3 id="appointmentDetailTitle">Details</h3>
+            <div id="appointmentDetailContent"></div>
+            <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                <button id="apptCopyBtn" class="btn-icon"><i class="fas fa-copy"></i> Copy</button>
+                <button id="apptEditBtn" class="btn-icon" style="background:var(--warning); color:#1e293b;"><i class="fas fa-edit"></i> Edit</button>
+                <button id="apptDeleteBtn" class="btn-icon" style="background:var(--danger); color:white;"><i class="fas fa-trash"></i> Delete</button>
+                <button id="apptCloseBtn" class="btn-icon">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Add Modal -->
+    <div id="quickAddModal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <h3>Add Appointment</h3>
+            <div class="form-group"><label>Date</label><input type="date" id="newApptDate" /></div>
+            <div class="form-group"><label>Business *</label><input type="text" id="newApptBusiness" /></div>
+            <div class="form-group"><label>Contact *</label><input type="text" id="newApptContact" /></div>
+            <div class="form-group"><label>Phone</label><input type="text" id="newApptPhone" /></div>
+            <div class="form-group"><label>Email</label><input type="email" id="newApptEmail" /></div>
+            <div class="form-group"><label>Time</label><input type="text" id="newApptTime" placeholder="e.g. 2:00 PM" /></div>
+            <div class="form-group"><label>Status</label><select id="newApptStatus"></select></div>
+            <div class="form-group"><label>Assigned To</label><select id="newApptAssigned"></select></div>
+            <div class="form-group"><label>Notes</label><textarea id="newApptNotes"></textarea></div>
+            <div style="display:flex; gap:8px; justify-content:flex-end;"><button id="saveQuickApptBtn" class="btn-icon" style="background:var(--success); color:white;">Save</button><button id="cancelQuickApptBtn" class="btn-icon">Cancel</button></div>
+        </div>
+    </div>
+
+    <!-- Global Search Modal -->
+    <div id="globalSearchModal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <h3><i class="fas fa-search"></i> Global Search</h3>
+            <input type="text" id="globalSearchInput" placeholder="Search appointments, tasks, scripts..." style="width:100%; padding:10px 16px; border-radius:20px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:0.9rem;" />
+            <div id="globalSearchResults" style="margin-top:12px; max-height:400px; overflow-y:auto;"></div>
+            <button id="globalSearchCloseBtn" class="btn-icon" style="margin-top:12px;">Close</button>
+        </div>
+    </div>
+
+    <!-- Bulk Actions Modal -->
+    <div id="bulkActionsModal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <h3><i class="fas fa-layer-group"></i> Bulk Actions</h3>
+            <div id="bulkSelectionContainer" style="max-height:300px; overflow-y:auto;"></div>
+            <div style="margin-top:12px;">
+                <select id="bulkActionSelect" style="padding:8px 12px; border-radius:12px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary);">
+                    <option value="status">Change Status</option>
+                    <option value="tag">Add Tag</option>
+                    <option value="delete">Delete</option>
+                    <option value="export">Export</option>
+                </select>
+                <div id="bulkActionOptions" style="margin-top:8px; display:none;">
+                    <div id="bulkStatusGroup">
+                        <select id="bulkStatusSelect" style="padding:8px 12px; border-radius:12px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary);">
+                            <option value="Hot Transfer">Hot Transfer</option>
+                            <option value="Warm Callback">Warm Callback</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Canceled">Canceled</option>
+                        </select>
+                    </div>
+                    <div id="bulkTagGroup" style="display:none;">
+                        <select id="bulkTagSelect" style="padding:8px 12px; border-radius:12px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary);">
+                            <option value="vip">VIP</option>
+                            <option value="qualified_warm_call">Qualified Warm Call</option>
+                            <option value="unqualified_warm_callback">Unqualified Warm Callback</option>
+                            <option value="negligent_warm_callback">Negligent Warm Callback</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+                <button id="executeBulkActionBtn" class="btn-icon" style="background:var(--primary); color:white;">Execute</button>
+                <button id="closeBulkModalBtn" class="btn-icon">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Modal -->
+    <div id="authModal" class="modal-overlay" style="display:none;"></div>
+
+    <script src="js/firebase-config.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/objection-handler.js"></script>
+</body>
+</html>
