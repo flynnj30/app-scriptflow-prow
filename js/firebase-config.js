@@ -2,7 +2,6 @@
 // FIREBASE CONFIGURATION
 // ================================================================
 
-// Replace with your Firebase project configuration
 const firebaseConfig = {
     apiKey: "AIzaSyD_Ry0pM7EKSDJeTegt0rY5muiw-xCgrhw",
     authDomain: "scriptflow-pro-2cf4c.firebaseapp.com",
@@ -12,7 +11,6 @@ const firebaseConfig = {
     appId: "1:250157640936:web:cd6218470c302b305aed5d"
 };
 
-// Initialize Firebase with error handling
 try {
     if (typeof firebase !== 'undefined') {
         if (!firebase.apps.length) {
@@ -20,7 +18,6 @@ try {
             console.log('✅ Firebase initialized successfully');
         }
         
-        // Enable offline persistence for better performance
         firebase.firestore().enablePersistence({ synchronizeTabs: true })
             .then(() => console.log('✅ Firebase persistence enabled'))
             .catch(err => {
