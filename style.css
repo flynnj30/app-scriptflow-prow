@@ -92,11 +92,6 @@ body {
     to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes fadeInDown {
-    from { opacity: 0; transform: translateY(-20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
 @keyframes scaleIn {
     from { opacity: 0; transform: scale(0.95); }
     to { opacity: 1; transform: scale(1); }
@@ -112,11 +107,6 @@ body {
     to { opacity: 1; transform: translateX(0); }
 }
 
-@keyframes slideUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
 @keyframes pulse {
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.05); }
@@ -127,33 +117,11 @@ body {
     100% { transform: rotate(360deg); }
 }
 
-@keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-}
-
-@keyframes glow {
-    0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.1); }
-    50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.3); }
-}
-
 .fade-in { animation: fadeIn 0.4s ease forwards; }
-.fade-in-up { animation: fadeInUp 0.5s ease forwards; }
-.fade-in-down { animation: fadeInDown 0.4s ease forwards; }
 .scale-in { animation: scaleIn 0.4s ease forwards; }
 .slide-in { animation: slideIn 0.3s ease forwards; }
 .slide-in-right { animation: slideInRight 0.3s ease forwards; }
-.slide-up { animation: slideUp 0.4s ease forwards; }
 .pulse { animation: pulse 2s ease-in-out infinite; }
-.glow { animation: glow 3s ease-in-out infinite; }
-
-/* Staggered animations */
-.stagger-1 { animation-delay: 0.05s; }
-.stagger-2 { animation-delay: 0.10s; }
-.stagger-3 { animation-delay: 0.15s; }
-.stagger-4 { animation-delay: 0.20s; }
-.stagger-5 { animation-delay: 0.25s; }
-.stagger-6 { animation-delay: 0.30s; }
 
 /* ============================================================
    LOADING SCREEN
@@ -181,20 +149,9 @@ body {
     gap: 16px;
 }
 
-.loading-icon {
-    font-size: 3rem;
-    animation: pulse 1.5s ease-in-out infinite;
-}
-
-.loading-title {
-    font-size: 1.2rem;
-    font-weight: 600;
-}
-
-.loading-subtitle {
-    font-size: 0.9rem;
-    color: var(--text-muted);
-}
+.loading-icon { font-size: 3rem; animation: pulse 1.5s ease-in-out infinite; }
+.loading-title { font-size: 1.2rem; font-weight: 600; }
+.loading-subtitle { font-size: 0.9rem; color: var(--text-muted); }
 
 .loading-bar-track {
     width: 200px;
@@ -275,11 +232,6 @@ body {
     justify-content: center;
     font-size: 1.3rem;
     box-shadow: 0 8px 16px -4px rgba(59,130,246,0.3);
-    transition: var(--transition);
-}
-
-.logo-icon:hover {
-    transform: rotate(-5deg) scale(1.05);
 }
 
 .logo-text h2 { font-size: 1.2rem; font-weight: 700; color: white; }
@@ -314,11 +266,7 @@ body {
     font-size: 1.2rem;
 }
 
-.menu-toggle:hover {
-    background: var(--primary);
-    color: white;
-    transform: scale(1.05);
-}
+.menu-toggle:hover { background: var(--primary); color: white; transform: scale(1.05); }
 
 /* ============================================================
    SIDEBAR SCRIPTS
@@ -337,12 +285,7 @@ body {
     transition: var(--transition);
 }
 
-.search-box:focus {
-    border-color: var(--primary);
-    background: rgba(255,255,255,0.06);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-}
-
+.search-box:focus { border-color: var(--primary); background: rgba(255,255,255,0.06); }
 .search-box::placeholder { color: var(--sidebar-text-secondary); }
 
 .scripts-list-section { flex: 1; overflow-y: auto; }
@@ -372,14 +315,8 @@ body {
     position: relative;
 }
 
-.script-item:hover {
-    background: var(--sidebar-hover);
-    transform: translateX(4px);
-}
-
-.script-item.active {
-    background: var(--sidebar-active);
-}
+.script-item:hover { background: var(--sidebar-hover); transform: translateX(4px); }
+.script-item.active { background: var(--sidebar-active); }
 
 .script-item .drag-handle {
     cursor: grab;
@@ -421,10 +358,6 @@ body {
 
 .script-item .favorite-star.active { opacity: 1; }
 
-.script-item .favorite-star:hover {
-    transform: scale(1.2);
-}
-
 .script-item .script-edit-btn,
 .script-item .script-delete-btn {
     font-size: 0.7rem;
@@ -438,9 +371,7 @@ body {
 }
 
 .script-item:hover .script-edit-btn,
-.script-item:hover .script-delete-btn {
-    opacity: 0.7;
-}
+.script-item:hover .script-delete-btn { opacity: 0.7; }
 
 .script-item .script-edit-btn:hover {
     color: var(--primary);
@@ -474,10 +405,7 @@ body {
     transition: var(--transition);
 }
 
-.add-script-btn:hover {
-    opacity: 0.9;
-    transform: translateY(-2px);
-}
+.add-script-btn:hover { opacity: 0.9; transform: translateY(-2px); }
 
 /* ============================================================
    TOOLS
@@ -528,11 +456,7 @@ body {
     transition: var(--transition);
 }
 
-.tool-item:hover {
-    background: var(--sidebar-hover);
-    transform: translateX(4px);
-}
-
+.tool-item:hover { background: var(--sidebar-hover); transform: translateX(4px); }
 .tool-item i { width: 24px; color: var(--sidebar-text-secondary); }
 
 /* ============================================================
@@ -574,11 +498,6 @@ body {
     font-size: 1.2rem;
     font-weight: 800;
     color: var(--primary);
-    transition: var(--transition);
-}
-
-.stat-number:hover {
-    transform: scale(1.1);
 }
 
 .action-buttons {
@@ -679,17 +598,6 @@ body {
     position: relative;
 }
 
-.script-body::-webkit-scrollbar {
-    width: 4px;
-}
-.script-body::-webkit-scrollbar-track {
-    background: transparent;
-}
-.script-body::-webkit-scrollbar-thumb {
-    background: var(--primary);
-    border-radius: 4px;
-}
-
 .script-display {
     font-family: 'Inter', monospace;
     font-size: 0.95rem;
@@ -725,8 +633,6 @@ body {
 /* ============================================================
    OBJECTION HANDLER STYLES
    ============================================================ */
-
-/* Objection Toggle Button - Icon only in script header */
 .objection-toggle-wrapper {
     position: relative;
     display: inline-flex;
@@ -789,7 +695,6 @@ body {
     display: block;
 }
 
-/* Objection Panel - Integrated */
 .objection-panel-integrated {
     position: absolute;
     top: calc(100% + 8px);
@@ -836,10 +741,6 @@ body {
     align-items: center;
     gap: 8px;
     margin: 0;
-}
-
-.objection-panel-header h4 .header-icon {
-    font-size: 1rem;
 }
 
 .objection-panel-header .header-sub {
@@ -934,10 +835,6 @@ body {
     background: var(--primary);
     color: white;
     border-color: var(--primary);
-}
-
-.objection-cat-btn-int .cat-icon {
-    margin-right: 3px;
 }
 
 .objection-cat-btn-int .cat-count-int {
@@ -1099,7 +996,6 @@ body {
     font-family: 'Inter', monospace;
 }
 
-/* Copy Toast */
 .copy-toast-int {
     position: fixed;
     bottom: 30px;
@@ -1157,17 +1053,6 @@ body {
     padding: 28px;
     max-height: 700px;
     overflow-y: auto;
-}
-
-.feature-panel-body::-webkit-scrollbar {
-    width: 4px;
-}
-.feature-panel-body::-webkit-scrollbar-track {
-    background: transparent;
-}
-.feature-panel-body::-webkit-scrollbar-thumb {
-    background: var(--primary);
-    border-radius: 4px;
 }
 
 /* ============================================================
@@ -1353,7 +1238,6 @@ body {
 .calendar-day:hover {
     background: var(--bg-primary);
     border-color: var(--primary);
-    transform: translateY(-2px);
 }
 
 .calendar-day.today {
@@ -1399,13 +1283,9 @@ body {
     cursor: pointer;
     overflow: hidden;
     white-space: nowrap;
-    transition: var(--transition);
 }
 
-.day-event:hover {
-    opacity: 0.8;
-    transform: translateX(2px);
-}
+.day-event:hover { opacity: 0.8; }
 
 .day-event .event-time {
     color: var(--text-muted);
@@ -1516,13 +1396,9 @@ body {
     overflow: hidden;
     white-space: nowrap;
     height: 100%;
-    transition: var(--transition);
 }
 
-.week-event:hover {
-    opacity: 0.8;
-    transform: translateX(2px);
-}
+.week-event:hover { opacity: 0.8; }
 
 .week-event .event-time {
     color: var(--text-muted);
@@ -1586,17 +1462,6 @@ body {
     overflow-y: auto;
 }
 
-.day-view-body::-webkit-scrollbar {
-    width: 4px;
-}
-.day-view-body::-webkit-scrollbar-track {
-    background: transparent;
-}
-.day-view-body::-webkit-scrollbar-thumb {
-    background: var(--primary);
-    border-radius: 4px;
-}
-
 .day-event-card {
     display: flex;
     gap: 12px;
@@ -1611,7 +1476,6 @@ body {
 .day-event-card:hover {
     border-color: var(--primary);
     box-shadow: var(--shadow-md);
-    transform: translateX(4px);
 }
 
 .day-event-time {
@@ -1682,17 +1546,6 @@ body {
     overflow-y: auto;
 }
 
-.list-view-items::-webkit-scrollbar {
-    width: 4px;
-}
-.list-view-items::-webkit-scrollbar-track {
-    background: transparent;
-}
-.list-view-items::-webkit-scrollbar-thumb {
-    background: var(--primary);
-    border-radius: 4px;
-}
-
 .list-date-group {
     display: flex;
     flex-direction: column;
@@ -1742,7 +1595,6 @@ body {
 .list-event-item:hover {
     border-color: var(--primary);
     box-shadow: var(--shadow-sm);
-    transform: translateX(4px);
 }
 
 .list-event-time {
@@ -1839,17 +1691,6 @@ body {
     padding-right: 4px;
 }
 
-.appointments-list::-webkit-scrollbar {
-    width: 4px;
-}
-.appointments-list::-webkit-scrollbar-track {
-    background: transparent;
-}
-.appointments-list::-webkit-scrollbar-thumb {
-    background: var(--primary);
-    border-radius: 4px;
-}
-
 .appointment-card {
     background: var(--bg-card);
     border-radius: var(--radius-sm);
@@ -1866,7 +1707,6 @@ body {
 .appointment-card:hover {
     border-color: var(--primary);
     box-shadow: var(--shadow-md);
-    transform: translateX(4px);
 }
 
 .appointment-card .drag-handle {
@@ -2152,11 +1992,6 @@ body {
     border: 1px solid var(--border-color);
     padding: 16px;
     border-radius: 12px;
-    transition: var(--transition);
-}
-
-.feature-card:hover {
-    box-shadow: var(--shadow-sm);
 }
 
 .feature-card h4 {
@@ -2220,17 +2055,6 @@ body {
     border: 1px solid var(--border-color);
     box-shadow: var(--shadow-lg);
     animation: scaleIn 0.3s ease;
-}
-
-.modal-card::-webkit-scrollbar {
-    width: 4px;
-}
-.modal-card::-webkit-scrollbar-track {
-    background: transparent;
-}
-.modal-card::-webkit-scrollbar-thumb {
-    background: var(--primary);
-    border-radius: 4px;
 }
 
 .modal-card .form-group { margin-bottom: 20px; }
@@ -2698,7 +2522,6 @@ body {
     }
     .list-event-item .list-event-contact { display: none; }
 
-    /* Objection Handler Responsive */
     .objection-panel-integrated {
         width: 480px;
         right: -10px;
@@ -2802,7 +2625,6 @@ body {
         grid-template-columns: 1fr;
     }
 
-    /* Objection Handler Responsive */
     .objection-panel-integrated {
         width: calc(100vw - 30px);
         right: -10px;
@@ -2950,7 +2772,6 @@ body {
         grid-template-columns: 1fr;
     }
 
-    /* Objection Handler Responsive */
     .objection-panel-integrated {
         width: calc(100vw - 20px);
         right: -5px;
