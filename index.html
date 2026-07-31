@@ -240,9 +240,54 @@
     <!-- Prospect Form Container -->
     <div id="prospectFormContainer" class="modal-overlay" style="display:none;"></div>
 
+    <!-- ICS Import Modal -->
+    <div id="icsImportModal" class="modal-overlay" style="display:none;">
+        <div class="modal-card">
+            <h3><i class="fas fa-calendar-plus"></i> Import External Calendar</h3>
+            <div class="ics-import-section">
+                <h4>📥 Import from ICS URL</h4>
+                <div class="ics-url-input-group">
+                    <input type="text" id="icsUrlInput" placeholder="Enter ICS calendar URL..." value="https://sales.regen-digital.com/api/calendar/meetings/S0b_axw5QQBkv5kvRVNdvbYIi6_zJ4q2Yo9CPuvj10Y.ics" />
+                    <button id="icsFetchBtn" class="btn-icon" style="background:var(--primary); color:white;">
+                        <i class="fas fa-download"></i> Fetch & Import
+                    </button>
+                </div>
+                <div style="margin-top:8px; display:flex; gap:16px; flex-wrap:wrap;">
+                    <label style="display:flex; align-items:center; gap:6px; font-size:0.8rem; cursor:pointer;">
+                        <input type="checkbox" id="icsCreateProspect" checked />
+                        Create prospects for contacts
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; font-size:0.8rem; cursor:pointer;">
+                        <input type="checkbox" id="icsUpdateExisting" />
+                        Update existing appointments
+                    </label>
+                </div>
+                <div style="margin-top:8px; font-size:0.75rem; color:var(--text-muted);">
+                    <i class="fas fa-info-circle"></i> 
+                    <span id="icsStatusText">Enter an ICS URL and click "Fetch & Import"</span>
+                </div>
+            </div>
+            <div id="icsImportProgress" style="display:none;">
+                <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:4px;">
+                    <span id="icsProgressStatus">Fetching calendar...</span>
+                    <span id="icsProgressPercent">0%</span>
+                </div>
+                <div class="progress-bar-track"><div id="icsProgressBar" class="progress-bar-fill" style="width:0%;"></div></div>
+            </div>
+            <div id="icsImportResults" style="display:none; margin-top:12px;">
+                <div id="icsImportStats" class="ics-import-stats"></div>
+                <div id="icsImportedEvents" class="ics-imported-events"></div>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:15px; flex-wrap:wrap;">
+                <button id="icsCloseBtn" class="btn-icon">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/firebase-config.js"></script>
     <script src="js/app.js"></script>
     <script src="js/objection-handler.js"></script>
     <script src="js/prospect-manager.js"></script>
+    <script src="js/calendar-ics-integration.js"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION (FIXED)
+// SCRIPTFLOW PRO - COMPLETE APPLICATION
 // ================================================================
 
 // ================================================================
@@ -162,9 +162,12 @@ const AppState = {
     importProcessing: false,
     importProgress: 0,
     
-    // Prospect Manager - will be initialized when script loads
+    // Prospect Manager
     prospectManager: null,
-    prospectManagerReady: false
+    prospectManagerReady: false,
+    
+    // ICS Integration
+    icsIntegrationReady: false
 };
 
 // ================================================================
@@ -824,7 +827,6 @@ const Data = {
                         Scripts.renderSidebar();
                         Scripts.loadScript('opening');
                     }
-                    // Try to initialize Prospect Manager
                     Data.initProspectManager();
                     return;
                 } catch (e) {
@@ -923,7 +925,6 @@ const Data = {
 
     initProspectManager: function() {
         try {
-            // Check if ProspectManager is available globally
             if (typeof ProspectManager !== 'undefined' && ProspectManager) {
                 if (!AppState.prospectManagerReady) {
                     if (!ProspectManager.isInitialized) {
@@ -935,7 +936,6 @@ const Data = {
                     Stats.updateAll();
                 }
             } else {
-                // ProspectManager not loaded yet, try again later
                 if (!AppState.prospectManagerReady) {
                     setTimeout(() => {
                         Data.initProspectManager();
@@ -944,7 +944,36 @@ const Data = {
             }
         } catch (error) {
             console.warn('Could not initialize Prospect Manager:', error);
-            // Don't throw error, app should still work
+        }
+    },
+
+    initICSIntegration: function() {
+        try {
+            if (typeof CalendarICSIntegration !== 'undefined') {
+                if (!AppState.icsIntegrationReady) {
+                    CalendarICSIntegration.init({
+                        timezone: 'America/Chicago',
+                        autoSync: false
+                    });
+                    AppState.icsIntegrationReady = true;
+                    console.log('📅 Calendar ICS Integration initialized successfully');
+                    
+                    // Register default calendar
+                    CalendarICSIntegration.registerCalendar(
+                        'Regen Digital Calendar',
+                        'https://sales.regen-digital.com/api/calendar/meetings/S0b_axw5QQBkv5kvRVNdvbYIi6_zJ4q2Yo9CPuvj10Y.ics',
+                        { createProspect: true, defaultStatus: 'Meeting Booked' }
+                    );
+                }
+            } else {
+                if (!AppState.icsIntegrationReady) {
+                    setTimeout(() => {
+                        Data.initICSIntegration();
+                    }, 1500);
+                }
+            }
+        } catch (error) {
+            console.warn('Could not initialize ICS Integration:', error);
         }
     },
 
@@ -1591,7 +1620,6 @@ const Scripts = {
         this.renderSidebar();
         this.updateKeyHints();
         
-        // Notify Objection Handler
         if (window.ObjectionHandler && typeof window.ObjectionHandler.onScriptLoaded === 'function') {
             window.ObjectionHandler.onScriptLoaded();
         }
@@ -4991,6 +5019,9 @@ function initApp() {
     const addProspectBtn = DOM.get('addProspectBtn');
     if (addProspectBtn) addProspectBtn.addEventListener('click', openAddProspect);
 
+    // ICS Import Button - Add to top bar
+    addICSImportButton();
+
     const bulkActionsBtn = DOM.get('bulkActionsBtn');
     const closeBulkBtn = DOM.get('closeBulkModalBtn');
     const executeBulkBtn = DOM.get('executeBulkActionBtn');
@@ -5134,8 +5165,9 @@ function initApp() {
         }
     });
 
-    // Try to initialize Prospect Manager
+    // Initialize Prospect Manager and ICS Integration
     Data.initProspectManager();
+    Data.initICSIntegration();
 
     try {
         if (AppState.isFirebaseReady) {
@@ -5203,6 +5235,30 @@ function initApp() {
     console.log('🛡️ Objection Handler available via Ctrl+Shift+O or sidebar menu');
     console.log('📥 Smart Import: Click the "Smart Import" button, paste text, click Parse, review, and Save!');
     console.log('👥 Prospect Manager: Manage all your prospects with the "Prospects" tool');
+    console.log('📅 Calendar ICS Integration: Import external calendars with the "Import Calendar" button');
+}
+
+/**
+ * Add ICS Import Button to the top bar
+ */
+function addICSImportButton() {
+    const actionButtons = document.querySelector('.action-buttons');
+    if (!actionButtons) return;
+    
+    if (document.getElementById('icsImportBtn')) return;
+    
+    const icsBtn = document.createElement('button');
+    icsBtn.className = 'btn-icon';
+    icsBtn.id = 'icsImportBtn';
+    icsBtn.innerHTML = '<i class="fas fa-calendar-plus"></i> Import Calendar';
+    icsBtn.title = 'Import external calendar (ICS)';
+    
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+        actionButtons.insertBefore(icsBtn, refreshBtn);
+    } else {
+        actionButtons.appendChild(icsBtn);
+    }
 }
 
 // ================================================================
