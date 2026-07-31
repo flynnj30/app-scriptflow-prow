@@ -240,16 +240,23 @@
     <!-- Prospect Form Container -->
     <div id="prospectFormContainer" class="modal-overlay" style="display:none;"></div>
 
-    <!-- Script Loading Order - IMPORTANT: Load in correct order -->
-    <!-- 1. Firebase Config -->
+    <!-- Drilldown Modal (used by Meeting Performance Dashboard) -->
+    <div id="drilldownModal" class="modal-overlay" style="display:none;">
+        <div class="modal-card" style="max-width:800px;">
+            <h3 id="drilldownTitle">📋 Records</h3>
+            <div id="drilldownContent" style="max-height:500px; overflow-y:auto; margin-top:12px;"></div>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+                <button id="drilldownExportBtn" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-file-csv"></i> Export</button>
+                <button id="drilldownCloseBtn" class="btn-icon">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Loading Order -->
     <script src="js/firebase-config.js"></script>
-    <!-- 2. Core App -->
     <script src="js/app.js"></script>
-    <!-- 3. Smart Import Module (Centralized) -->
     <script src="js/smart-import.js"></script>
-    <!-- 4. Objection Handler -->
     <script src="js/objection-handler.js"></script>
-    <!-- 5. Prospect Manager -->
     <script src="js/prospect-manager.js"></script>
 </body>
 </html>
