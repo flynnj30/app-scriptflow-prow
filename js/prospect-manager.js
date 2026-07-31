@@ -205,6 +205,7 @@ class ProspectManager {
         this.unsubscribe = null;
         this.retryCount = 0;
         this.maxRetries = 3;
+        this._initAttempted = false;
     }
 
     // ================================================================
@@ -213,6 +214,9 @@ class ProspectManager {
 
     init() {
         if (this.isInitialized) return this;
+        if (this._initAttempted) return this;
+        
+        this._initAttempted = true;
         console.log('📋 Initializing Prospect Manager...');
         this.isInitialized = true;
         this.loadFromCache();
@@ -223,7 +227,7 @@ class ProspectManager {
     setupListeners() {
         // Check if Firebase is available
         if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0) {
-            if (AppState && AppState.currentUser) {
+            if (window.AppState && window.AppState.currentUser) {
                 this.subscribeToFirebase();
             }
         }
@@ -237,7 +241,7 @@ class ProspectManager {
 
         try {
             const db = firebase.firestore();
-            const userRef = db.collection('users').doc(AppState.currentUser.uid);
+            const userRef = db.collection('users').doc(window.AppState.currentUser.uid);
             
             this.unsubscribe = userRef.collection('prospects')
                 .orderBy('createdAt', 'desc')
@@ -441,12 +445,12 @@ class ProspectManager {
         this.cache.delete(id);
         this.saveToCache();
 
-        if (AppState && AppState.isFirebaseReady && AppState.currentUser) {
+        if (window.AppState && window.AppState.isFirebaseReady && window.AppState.currentUser) {
             try {
                 this.syncInProgress = true;
                 await firebase.firestore()
                     .collection('users')
-                    .doc(AppState.currentUser.uid)
+                    .doc(window.AppState.currentUser.uid)
                     .collection('prospects')
                     .doc(id)
                     .delete();
@@ -502,12 +506,12 @@ class ProspectManager {
     // ================================================================
 
     async syncToFirebase(prospect, isUpdate = false) {
-        if (AppState && AppState.isFirebaseReady && AppState.currentUser) {
+        if (window.AppState && window.AppState.isFirebaseReady && window.AppState.currentUser) {
             try {
                 this.syncInProgress = true;
                 const docRef = firebase.firestore()
                     .collection('users')
-                    .doc(AppState.currentUser.uid)
+                    .doc(window.AppState.currentUser.uid)
                     .collection('prospects')
                     .doc(prospect.id);
                 
@@ -671,8 +675,8 @@ class ProspectManager {
         
         // Normalize status
         if (normalized.status && typeof normalized.status === 'string') {
-            const validStatuses = CONFIG && CONFIG.STATUS_OPTIONS ? 
-                CONFIG.STATUS_OPTIONS : 
+            const validStatuses = (window.CONFIG && window.CONFIG.STATUS_OPTIONS) ? 
+                window.CONFIG.STATUS_OPTIONS : 
                 ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'];
             
             const matched = validStatuses.find(s => 
@@ -962,8 +966,8 @@ class ProspectManager {
         }
         
         // Extract status
-        const statusValues = CONFIG && CONFIG.STATUS_OPTIONS ? 
-            CONFIG.STATUS_OPTIONS : 
+        const statusValues = (window.CONFIG && window.CONFIG.STATUS_OPTIONS) ? 
+            window.CONFIG.STATUS_OPTIONS : 
             ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'];
         
         for (const status of statusValues) {
@@ -1297,38 +1301,38 @@ const ProspectUI = {
         prospects.forEach(prospect => {
             const score = prospect.leadScore || 0;
             const scoreClass = score >= 70 ? 'score-hot' : score >= 40 ? 'score-warm' : 'score-cold';
-            const statusClass = Utils.getStatusClass(prospect.status) || '';
+            const statusClass = (window.Utils && window.Utils.getStatusClass) ? window.Utils.getStatusClass(prospect.status) : '';
             
             html += `
                 <div class="prospect-card" data-id="${prospect.id}">
                     <div class="prospect-card-header">
                         <div class="prospect-card-title">
-                            <span class="prospect-business">${Utils.escapeHtml(prospect.business)}</span>
-                            <span class="prospect-name">${Utils.escapeHtml(prospect.name)}</span>
+                            <span class="prospect-business">${this._escapeHtml(prospect.business)}</span>
+                            <span class="prospect-name">${this._escapeHtml(prospect.name)}</span>
                         </div>
                         <div class="prospect-card-badges">
-                            ${prospect.status ? `<span class="status-tag ${statusClass}">${Utils.escapeHtml(prospect.status)}</span>` : ''}
+                            ${prospect.status ? `<span class="status-tag ${statusClass}">${this._escapeHtml(prospect.status)}</span>` : ''}
                             <span class="score-badge ${scoreClass}">${score} Pts</span>
                         </div>
                     </div>
                     
                     <div class="prospect-card-body">
                         <div class="prospect-details">
-                            ${prospect.role ? `<span class="prospect-detail"><i class="fas fa-briefcase"></i> ${Utils.escapeHtml(prospect.role)}</span>` : ''}
-                            ${prospect.phone ? `<span class="prospect-detail"><i class="fas fa-phone"></i> ${Utils.escapeHtml(prospect.phone)}</span>` : ''}
-                            ${prospect.email ? `<span class="prospect-detail"><i class="fas fa-envelope"></i> ${Utils.escapeHtml(prospect.email)}</span>` : ''}
-                            ${prospect.date ? `<span class="prospect-detail"><i class="fas fa-calendar"></i> ${Utils.formatDate(prospect.date)}</span>` : ''}
-                            ${prospect.time ? `<span class="prospect-detail"><i class="fas fa-clock"></i> ${Utils.escapeHtml(prospect.time)}</span>` : ''}
+                            ${prospect.role ? `<span class="prospect-detail"><i class="fas fa-briefcase"></i> ${this._escapeHtml(prospect.role)}</span>` : ''}
+                            ${prospect.phone ? `<span class="prospect-detail"><i class="fas fa-phone"></i> ${this._escapeHtml(prospect.phone)}</span>` : ''}
+                            ${prospect.email ? `<span class="prospect-detail"><i class="fas fa-envelope"></i> ${this._escapeHtml(prospect.email)}</span>` : ''}
+                            ${prospect.date ? `<span class="prospect-detail"><i class="fas fa-calendar"></i> ${this._formatDate(prospect.date)}</span>` : ''}
+                            ${prospect.time ? `<span class="prospect-detail"><i class="fas fa-clock"></i> ${this._escapeHtml(prospect.time)}</span>` : ''}
                         </div>
-                        ${prospect.notes ? `<div class="prospect-notes">${Utils.escapeHtml(prospect.notes.substring(0, 100))}${prospect.notes.length > 100 ? '...' : ''}</div>` : ''}
+                        ${prospect.notes ? `<div class="prospect-notes">${this._escapeHtml(prospect.notes.substring(0, 100))}${prospect.notes.length > 100 ? '...' : ''}</div>` : ''}
                         ${prospect.tags && prospect.tags.length > 0 ? `
                             <div class="prospect-tags">
-                                ${prospect.tags.map(tag => `<span class="prospect-tag">#${Utils.escapeHtml(tag)}</span>`).join('')}
+                                ${prospect.tags.map(tag => `<span class="prospect-tag">#${this._escapeHtml(tag)}</span>`).join('')}
                             </div>
                         ` : ''}
                         <div class="prospect-meta">
                             <span class="prospect-source">${prospect.source || 'Manual'}</span>
-                            <span class="prospect-date">${prospect.createdAt ? Utils.formatDate(prospect.createdAt) : ''}</span>
+                            <span class="prospect-date">${prospect.createdAt ? this._formatDate(prospect.createdAt) : ''}</span>
                         </div>
                     </div>
                     
@@ -1443,7 +1447,7 @@ const ProspectUI = {
                     `;
                 } else if (schema.type === 'textarea' || schema.type === 'text') {
                     inputHtml = `
-                        <textarea id="prospect_${key}" class="form-input" rows="${key === 'notes' ? 4 : 2}" placeholder="${schema.placeholder || ''}" ${isRequired} ${isDisabled}>${Utils.escapeHtml(value)}</textarea>
+                        <textarea id="prospect_${key}" class="form-input" rows="${key === 'notes' ? 4 : 2}" placeholder="${schema.placeholder || ''}" ${isRequired} ${isDisabled}>${this._escapeHtml(value)}</textarea>
                     `;
                 } else if (schema.type === 'date') {
                     inputHtml = `
@@ -1456,11 +1460,11 @@ const ProspectUI = {
                 } else if (schema.type === 'array') {
                     const tagsValue = Array.isArray(value) ? value.join(', ') : value;
                     inputHtml = `
-                        <input type="text" id="prospect_${key}" class="form-input" value="${Utils.escapeHtml(tagsValue)}" placeholder="${schema.placeholder || 'Separate with commas'}" ${isRequired} ${isDisabled} />
+                        <input type="text" id="prospect_${key}" class="form-input" value="${this._escapeHtml(tagsValue)}" placeholder="${schema.placeholder || 'Separate with commas'}" ${isRequired} ${isDisabled} />
                     `;
                 } else {
                     inputHtml = `
-                        <input type="${schema.type === 'email' ? 'email' : 'text'}" id="prospect_${key}" class="form-input" value="${Utils.escapeHtml(value)}" placeholder="${schema.placeholder || ''}" ${isRequired} ${isDisabled} />
+                        <input type="${schema.type === 'email' ? 'email' : 'text'}" id="prospect_${key}" class="form-input" value="${this._escapeHtml(value)}" placeholder="${schema.placeholder || ''}" ${isRequired} ${isDisabled} />
                     `;
                 }
 
@@ -1582,7 +1586,7 @@ const ProspectUI = {
 
         const score = prospect.leadScore || 0;
         const scoreClass = score >= 70 ? 'score-hot' : score >= 40 ? 'score-warm' : 'score-cold';
-        const statusClass = Utils.getStatusClass(prospect.status) || '';
+        const statusClass = (window.Utils && window.Utils.getStatusClass) ? window.Utils.getStatusClass(prospect.status) : '';
 
         container.innerHTML = `
             <div class="prospect-detail-modal">
@@ -1594,11 +1598,11 @@ const ProspectUI = {
                     <div class="prospect-detail-content">
                         <div class="prospect-detail-header">
                             <div class="prospect-detail-title">
-                                <h2>${Utils.escapeHtml(prospect.business)}</h2>
-                                <p>${Utils.escapeHtml(prospect.name)}</p>
+                                <h2>${this._escapeHtml(prospect.business)}</h2>
+                                <p>${this._escapeHtml(prospect.name)}</p>
                             </div>
                             <div class="prospect-detail-badges">
-                                ${prospect.status ? `<span class="status-tag ${statusClass}">${Utils.escapeHtml(prospect.status)}</span>` : ''}
+                                ${prospect.status ? `<span class="status-tag ${statusClass}">${this._escapeHtml(prospect.status)}</span>` : ''}
                                 <span class="score-badge ${scoreClass}">${score} Pts</span>
                             </div>
                         </div>
@@ -1607,67 +1611,67 @@ const ProspectUI = {
                             ${prospect.role ? `
                                 <div class="detail-item">
                                     <span class="detail-label"><i class="fas fa-briefcase"></i> Role</span>
-                                    <span class="detail-value">${Utils.escapeHtml(prospect.role)}</span>
+                                    <span class="detail-value">${this._escapeHtml(prospect.role)}</span>
                                 </div>
                             ` : ''}
                             ${prospect.phone ? `
                                 <div class="detail-item">
                                     <span class="detail-label"><i class="fas fa-phone"></i> Phone</span>
-                                    <span class="detail-value">${Utils.escapeHtml(prospect.phone)}</span>
+                                    <span class="detail-value">${this._escapeHtml(prospect.phone)}</span>
                                 </div>
                             ` : ''}
                             ${prospect.email ? `
                                 <div class="detail-item">
                                     <span class="detail-label"><i class="fas fa-envelope"></i> Email</span>
-                                    <span class="detail-value">${Utils.escapeHtml(prospect.email)}</span>
+                                    <span class="detail-value">${this._escapeHtml(prospect.email)}</span>
                                 </div>
                             ` : ''}
                             ${prospect.date ? `
                                 <div class="detail-item">
                                     <span class="detail-label"><i class="fas fa-calendar"></i> Date</span>
-                                    <span class="detail-value">${Utils.formatDate(prospect.date)}</span>
+                                    <span class="detail-value">${this._formatDate(prospect.date)}</span>
                                 </div>
                             ` : ''}
                             ${prospect.time ? `
                                 <div class="detail-item">
                                     <span class="detail-label"><i class="fas fa-clock"></i> Time</span>
-                                    <span class="detail-value">${Utils.escapeHtml(prospect.time)}</span>
+                                    <span class="detail-value">${this._escapeHtml(prospect.time)}</span>
                                 </div>
                             ` : ''}
                             ${prospect.assigned ? `
                                 <div class="detail-item">
                                     <span class="detail-label"><i class="fas fa-user"></i> Assigned To</span>
-                                    <span class="detail-value">${Utils.escapeHtml(prospect.assigned)}</span>
+                                    <span class="detail-value">${this._escapeHtml(prospect.assigned)}</span>
                                 </div>
                             ` : ''}
                             ${prospect.source ? `
                                 <div class="detail-item">
                                     <span class="detail-label"><i class="fas fa-source"></i> Source</span>
-                                    <span class="detail-value">${Utils.escapeHtml(prospect.source)}</span>
+                                    <span class="detail-value">${this._escapeHtml(prospect.source)}</span>
                                 </div>
                             ` : ''}
                             ${prospect.sentiment ? `
                                 <div class="detail-item">
                                     <span class="detail-label"><i class="fas fa-smile"></i> Sentiment</span>
-                                    <span class="detail-value">${Utils.escapeHtml(prospect.sentiment)}</span>
+                                    <span class="detail-value">${this._escapeHtml(prospect.sentiment)}</span>
                                 </div>
                             ` : ''}
                             ${prospect.industry ? `
                                 <div class="detail-item">
                                     <span class="detail-label"><i class="fas fa-industry"></i> Industry</span>
-                                    <span class="detail-value">${Utils.escapeHtml(prospect.industry)}</span>
+                                    <span class="detail-value">${this._escapeHtml(prospect.industry)}</span>
                                 </div>
                             ` : ''}
                             ${prospect.website ? `
                                 <div class="detail-item">
                                     <span class="detail-label"><i class="fas fa-globe"></i> Website</span>
-                                    <span class="detail-value"><a href="${Utils.escapeHtml(prospect.website)}" target="_blank">${Utils.escapeHtml(prospect.website)}</a></span>
+                                    <span class="detail-value"><a href="${this._escapeHtml(prospect.website)}" target="_blank">${this._escapeHtml(prospect.website)}</a></span>
                                 </div>
                             ` : ''}
                             ${prospect.address ? `
                                 <div class="detail-item">
                                     <span class="detail-label"><i class="fas fa-location-dot"></i> Address</span>
-                                    <span class="detail-value">${Utils.escapeHtml(prospect.address)}</span>
+                                    <span class="detail-value">${this._escapeHtml(prospect.address)}</span>
                                 </div>
                             ` : ''}
                         </div>
@@ -1675,7 +1679,7 @@ const ProspectUI = {
                         ${prospect.notes ? `
                             <div class="prospect-detail-notes">
                                 <h4><i class="fas fa-notes"></i> Notes</h4>
-                                <p>${Utils.escapeHtml(prospect.notes)}</p>
+                                <p>${this._escapeHtml(prospect.notes)}</p>
                             </div>
                         ` : ''}
                         
@@ -1683,14 +1687,14 @@ const ProspectUI = {
                             <div class="prospect-detail-tags">
                                 <h4><i class="fas fa-tags"></i> Tags</h4>
                                 <div class="prospect-tags">
-                                    ${prospect.tags.map(tag => `<span class="prospect-tag">#${Utils.escapeHtml(tag)}</span>`).join('')}
+                                    ${prospect.tags.map(tag => `<span class="prospect-tag">#${this._escapeHtml(tag)}</span>`).join('')}
                                 </div>
                             </div>
                         ` : ''}
                         
                         <div class="prospect-detail-meta">
-                            ${prospect.createdAt ? `<span>Created: ${Utils.formatDate(prospect.createdAt)}</span>` : ''}
-                            ${prospect.updatedAt && prospect.updatedAt !== prospect.createdAt ? `<span>Updated: ${Utils.formatDate(prospect.updatedAt)}</span>` : ''}
+                            ${prospect.createdAt ? `<span>Created: ${this._formatDate(prospect.createdAt)}</span>` : ''}
+                            ${prospect.updatedAt && prospect.updatedAt !== prospect.createdAt ? `<span>Updated: ${this._formatDate(prospect.updatedAt)}</span>` : ''}
                             ${prospect.id ? `<span>ID: ${prospect.id.substring(0, 8)}...</span>` : ''}
                         </div>
                     </div>
@@ -1756,6 +1760,26 @@ const ProspectUI = {
                 </div>
             </div>
         `;
+    },
+
+    // ================================================================
+    // PRIVATE HELPERS
+    // ================================================================
+
+    _escapeHtml(s) {
+        if (!s) return '';
+        return String(s).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+    },
+
+    _formatDate(dateStr) {
+        if (!dateStr) return 'No date';
+        try {
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return 'No date';
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch (e) {
+            return 'No date';
+        }
     }
 };
 
@@ -2340,18 +2364,23 @@ document.addEventListener('DOMContentLoaded', function() {
     document.head.appendChild(styleEl);
 });
 
-// Initialize Prospect Manager
+// Create singleton instance
 const ProspectManagerInstance = new ProspectManager();
 
-// Auto-initialize when AppState is ready
+// ================================================================
+// AUTO-INITIALIZATION (FIXED - No property descriptor override)
+// ================================================================
+
+// Function to initialize prospect manager when ready
 function initProspectManagerWhenReady() {
-    if (typeof AppState !== 'undefined' && AppState.currentUser) {
+    // Check if we can initialize
+    if (typeof window.AppState !== 'undefined' && window.AppState && window.AppState.currentUser) {
         if (!ProspectManagerInstance.isInitialized) {
             ProspectManagerInstance.init();
         }
         window.ProspectManager = ProspectManagerInstance;
-        AppState.prospectManager = ProspectManagerInstance;
-        AppState.prospectManagerReady = true;
+        window.AppState.prospectManager = ProspectManagerInstance;
+        window.AppState.prospectManagerReady = true;
         console.log('📋 Prospect Manager initialized successfully');
         return true;
     }
@@ -2359,36 +2388,48 @@ function initProspectManagerWhenReady() {
 }
 
 // Try to initialize immediately
-if (typeof AppState !== 'undefined' && AppState.currentUser) {
-    initProspectManagerWhenReady();
-}
-
-// If not ready, wait for AppState
-if (typeof AppState !== 'undefined') {
-    // Watch for user changes
-    const originalSetUser = Object.getOwnPropertyDescriptor(AppState, 'currentUser');
-    if (originalSetUser) {
-        Object.defineProperty(AppState, 'currentUser', {
-            get: originalSetUser.get,
-            set: function(value) {
-                originalSetUser.set.call(this, value);
-                if (value) {
-                    setTimeout(initProspectManagerWhenReady, 500);
-                }
-            }
-        });
-    }
+if (typeof window.AppState !== 'undefined' && window.AppState && window.AppState.currentUser) {
+    setTimeout(initProspectManagerWhenReady, 100);
 }
 
 // Also try after DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(initProspectManagerWhenReady, 1000);
+    setTimeout(initProspectManagerWhenReady, 500);
 });
+
+// Listen for user changes using a simple interval check
+// This is safer than overriding property descriptors
+let userCheckInterval = null;
+
+function startUserCheck() {
+    if (userCheckInterval) return;
+    userCheckInterval = setInterval(function() {
+        if (typeof window.AppState !== 'undefined' && window.AppState && window.AppState.currentUser) {
+            if (!ProspectManagerInstance.isInitialized) {
+                ProspectManagerInstance.init();
+                window.ProspectManager = ProspectManagerInstance;
+                window.AppState.prospectManager = ProspectManagerInstance;
+                window.AppState.prospectManagerReady = true;
+                console.log('📋 Prospect Manager initialized via interval check');
+                clearInterval(userCheckInterval);
+                userCheckInterval = null;
+            }
+        }
+    }, 2000);
+}
+
+// Start checking after a delay
+setTimeout(startUserCheck, 1000);
+
+// Also expose a manual init function
+window.initProspectManager = function() {
+    return initProspectManagerWhenReady();
+};
 
 // Expose globally
 window.ProspectManager = ProspectManagerInstance;
 window.ProspectUI = ProspectUI;
 window.PROSPECT_SCHEMA = PROSPECT_SCHEMA;
-window.initProspectManagerWhenReady = initProspectManagerWhenReady;
 
 console.log('📋 Prospect Manager module loaded');
+console.log('📋 Use window.initProspectManager() to manually initialize');
