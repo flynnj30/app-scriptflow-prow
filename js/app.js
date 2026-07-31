@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION
+// SCRIPTFLOW PRO - COMPLETE APPLICATION (WITH PROSPECT MANAGER)
 // ================================================================
 
 // ================================================================
@@ -162,12 +162,8 @@ const AppState = {
     importProcessing: false,
     importProgress: 0,
     
-    // Prospect Manager
-    prospectManager: null,
-    prospectManagerReady: false,
-    
-    // ICS Integration
-    icsIntegrationReady: false
+    // Prospect Manager reference
+    prospectManager: null
 };
 
 // ================================================================
@@ -584,8 +580,6 @@ const Auth = {
             if (AppState.prospectManager && AppState.prospectManager.unsubscribe) {
                 AppState.prospectManager.unsubscribe();
             }
-            AppState.prospectManager = null;
-            AppState.prospectManagerReady = false;
             
             AppState.currentUser = null;
             AppState.appointments = {};
@@ -780,12 +774,8 @@ const Stats = {
     },
 
     getProspectCount: function() {
-        try {
-            if (AppState.prospectManagerReady && AppState.prospectManager && typeof AppState.prospectManager.getAll === 'function') {
-                return AppState.prospectManager.getAll().length;
-            }
-        } catch (e) {
-            console.warn('Could not get prospect count:', e);
+        if (AppState.prospectManager) {
+            return AppState.prospectManager.getAll().length;
         }
         return 0;
     },
@@ -827,7 +817,6 @@ const Data = {
                         Scripts.renderSidebar();
                         Scripts.loadScript('opening');
                     }
-                    Data.initProspectManager();
                     return;
                 } catch (e) {
                     console.warn('Failed to load offline data:', e);
@@ -900,7 +889,14 @@ const Data = {
             }
 
             // Initialize Prospect Manager
-            Data.initProspectManager();
+            if (typeof ProspectManager !== 'undefined') {
+                AppState.prospectManager = ProspectManager;
+                if (!AppState.prospectManager.isInitialized) {
+                    AppState.prospectManager.init();
+                }
+                // Update prospect count
+                Stats.updateAll();
+            }
 
             localStorage.setItem('userData_fallback', JSON.stringify({
                 scripts: AppState.scripts,
@@ -920,60 +916,6 @@ const Data = {
         } catch (error) {
             console.error('Data Load Error:', error);
             handleError(error, 'Loading Data');
-        }
-    },
-
-    initProspectManager: function() {
-        try {
-            if (typeof ProspectManager !== 'undefined' && ProspectManager) {
-                if (!AppState.prospectManagerReady) {
-                    if (!ProspectManager.isInitialized) {
-                        ProspectManager.init();
-                    }
-                    AppState.prospectManager = ProspectManager;
-                    AppState.prospectManagerReady = true;
-                    console.log('📋 Prospect Manager initialized successfully');
-                    Stats.updateAll();
-                }
-            } else {
-                if (!AppState.prospectManagerReady) {
-                    setTimeout(() => {
-                        Data.initProspectManager();
-                    }, 1000);
-                }
-            }
-        } catch (error) {
-            console.warn('Could not initialize Prospect Manager:', error);
-        }
-    },
-
-    initICSIntegration: function() {
-        try {
-            if (typeof CalendarICSIntegration !== 'undefined') {
-                if (!AppState.icsIntegrationReady) {
-                    CalendarICSIntegration.init({
-                        timezone: 'America/Chicago',
-                        autoSync: false
-                    });
-                    AppState.icsIntegrationReady = true;
-                    console.log('📅 Calendar ICS Integration initialized successfully');
-                    
-                    // Register default calendar
-                    CalendarICSIntegration.registerCalendar(
-                        'Regen Digital Calendar',
-                        'https://sales.regen-digital.com/api/calendar/meetings/S0b_axw5QQBkv5kvRVNdvbYIi6_zJ4q2Yo9CPuvj10Y.ics',
-                        { createProspect: true, defaultStatus: 'Meeting Booked' }
-                    );
-                }
-            } else {
-                if (!AppState.icsIntegrationReady) {
-                    setTimeout(() => {
-                        Data.initICSIntegration();
-                    }, 1500);
-                }
-            }
-        } catch (error) {
-            console.warn('Could not initialize ICS Integration:', error);
         }
     },
 
@@ -1620,6 +1562,7 @@ const Scripts = {
         this.renderSidebar();
         this.updateKeyHints();
         
+        // Notify Objection Handler
         if (window.ObjectionHandler && typeof window.ObjectionHandler.onScriptLoaded === 'function') {
             window.ObjectionHandler.onScriptLoaded();
         }
@@ -2876,11 +2819,12 @@ function openAddProspect() {
             submitLabel: 'Create Prospect',
             onSave: async (data) => {
                 try {
-                    if (AppState.prospectManagerReady && AppState.prospectManager) {
+                    if (AppState.prospectManager) {
                         const result = await AppState.prospectManager.create(data);
                         showToast(`Prospect "${result.business}" created! 🎉`, 'success');
                         container.style.display = 'none';
                         Stats.updateAll();
+                        // Refresh prospects view if open
                         if (AppState.currentView === 'prospects') {
                             openProspectManager();
                         }
@@ -2902,7 +2846,7 @@ function openAddProspect() {
 }
 
 function viewProspect(id) {
-    if (!AppState.prospectManagerReady || !AppState.prospectManager) {
+    if (!AppState.prospectManager) {
         showToast('Prospect Manager not initialized', 'error');
         return;
     }
@@ -2927,7 +2871,7 @@ function viewProspect(id) {
 }
 
 function editProspect(id) {
-    if (!AppState.prospectManagerReady || !AppState.prospectManager) {
+    if (!AppState.prospectManager) {
         showToast('Prospect Manager not initialized', 'error');
         return;
     }
@@ -2952,7 +2896,7 @@ function editProspect(id) {
             submitLabel: 'Update Prospect',
             onSave: async (data) => {
                 try {
-                    if (AppState.prospectManagerReady && AppState.prospectManager) {
+                    if (AppState.prospectManager) {
                         const result = await AppState.prospectManager.update(id, data);
                         showToast(`Prospect "${result.business}" updated! ✅`, 'success');
                         container.style.display = 'none';
@@ -2970,7 +2914,7 @@ function editProspect(id) {
             onDelete: async () => {
                 if (confirm('Delete this prospect permanently?')) {
                     try {
-                        if (AppState.prospectManagerReady && AppState.prospectManager) {
+                        if (AppState.prospectManager) {
                             await AppState.prospectManager.delete(id);
                             showToast('Prospect deleted', 'info');
                             container.style.display = 'none';
@@ -2991,26 +2935,6 @@ function editProspect(id) {
     } else {
         showToast('Prospect UI not loaded', 'error');
         container.style.display = 'none';
-    }
-}
-
-async function deleteProspect(id) {
-    if (!AppState.prospectManagerReady || !AppState.prospectManager) {
-        showToast('Prospect Manager not initialized', 'error');
-        return;
-    }
-    
-    if (!confirm('Delete this prospect permanently?')) return;
-    
-    try {
-        await AppState.prospectManager.delete(id);
-        showToast('Prospect deleted', 'info');
-        Stats.updateAll();
-        if (AppState.currentView === 'prospects') {
-            openProspectManager();
-        }
-    } catch (error) {
-        showToast(error.message || 'Failed to delete prospect', 'error');
     }
 }
 
@@ -3066,15 +2990,11 @@ function performGlobalSearch(query) {
     }
 
     // Search prospects
-    if (AppState.prospectManagerReady && AppState.prospectManager) {
-        try {
-            const prospects = AppState.prospectManager.search(q);
-            prospects.forEach(prospect => {
-                searchResults.push({ type: 'prospect', data: prospect });
-            });
-        } catch (e) {
-            console.warn('Error searching prospects:', e);
-        }
+    if (AppState.prospectManager) {
+        const prospects = AppState.prospectManager.search(q);
+        prospects.forEach(prospect => {
+            searchResults.push({ type: 'prospect', data: prospect });
+        });
     }
 
     if (searchResults.length === 0) {
@@ -4312,14 +4232,7 @@ const FeaturePanel = {
     renderProspectList: function(container) {
         if (!container) return;
         
-        let prospects = [];
-        if (AppState.prospectManagerReady && AppState.prospectManager) {
-            try {
-                prospects = AppState.prospectManager.getAll();
-            } catch (e) {
-                console.warn('Error getting prospects:', e);
-            }
-        }
+        const prospects = AppState.prospectManager ? AppState.prospectManager.getAll() : [];
         
         container.innerHTML = `
             <div class="prospects-section fade-in">
@@ -4405,7 +4318,7 @@ const FeaturePanel = {
     renderProspectStats: function(container) {
         if (!container) return;
         
-        let stats = {
+        const stats = AppState.prospectManager ? AppState.prospectManager.getStats() : {
             total: 0,
             byStatus: {},
             bySource: {},
@@ -4418,14 +4331,6 @@ const FeaturePanel = {
             pendingCount: 0,
             canceledCount: 0
         };
-        
-        if (AppState.prospectManagerReady && AppState.prospectManager) {
-            try {
-                stats = AppState.prospectManager.getStats();
-            } catch (e) {
-                console.warn('Error getting prospect stats:', e);
-            }
-        }
         
         container.innerHTML = `
             <div class="prospects-stats-section fade-in">
@@ -4883,6 +4788,30 @@ const FeaturePanel = {
 };
 
 // ================================================================
+// PROSPECT MANAGER - DELETE FUNCTION
+// ================================================================
+
+async function deleteProspect(id) {
+    if (!AppState.prospectManager) {
+        showToast('Prospect Manager not initialized', 'error');
+        return;
+    }
+    
+    if (!confirm('Delete this prospect permanently?')) return;
+    
+    try {
+        await AppState.prospectManager.delete(id);
+        showToast('Prospect deleted', 'info');
+        Stats.updateAll();
+        if (AppState.currentView === 'prospects') {
+            openProspectManager();
+        }
+    } catch (error) {
+        showToast(error.message || 'Failed to delete prospect', 'error');
+    }
+}
+
+// ================================================================
 // INITIALIZATION
 // ================================================================
 
@@ -5018,9 +4947,6 @@ function initApp() {
     // Prospect Add Button
     const addProspectBtn = DOM.get('addProspectBtn');
     if (addProspectBtn) addProspectBtn.addEventListener('click', openAddProspect);
-
-    // ICS Import Button - Add to top bar
-    addICSImportButton();
 
     const bulkActionsBtn = DOM.get('bulkActionsBtn');
     const closeBulkBtn = DOM.get('closeBulkModalBtn');
@@ -5165,10 +5091,6 @@ function initApp() {
         }
     });
 
-    // Initialize Prospect Manager and ICS Integration
-    Data.initProspectManager();
-    Data.initICSIntegration();
-
     try {
         if (AppState.isFirebaseReady) {
             firebase.auth().onAuthStateChanged(async (user) => {
@@ -5235,30 +5157,6 @@ function initApp() {
     console.log('🛡️ Objection Handler available via Ctrl+Shift+O or sidebar menu');
     console.log('📥 Smart Import: Click the "Smart Import" button, paste text, click Parse, review, and Save!');
     console.log('👥 Prospect Manager: Manage all your prospects with the "Prospects" tool');
-    console.log('📅 Calendar ICS Integration: Import external calendars with the "Import Calendar" button');
-}
-
-/**
- * Add ICS Import Button to the top bar
- */
-function addICSImportButton() {
-    const actionButtons = document.querySelector('.action-buttons');
-    if (!actionButtons) return;
-    
-    if (document.getElementById('icsImportBtn')) return;
-    
-    const icsBtn = document.createElement('button');
-    icsBtn.className = 'btn-icon';
-    icsBtn.id = 'icsImportBtn';
-    icsBtn.innerHTML = '<i class="fas fa-calendar-plus"></i> Import Calendar';
-    icsBtn.title = 'Import external calendar (ICS)';
-    
-    const refreshBtn = document.getElementById('refreshBtn');
-    if (refreshBtn) {
-        actionButtons.insertBefore(icsBtn, refreshBtn);
-    } else {
-        actionButtons.appendChild(icsBtn);
-    }
 }
 
 // ================================================================

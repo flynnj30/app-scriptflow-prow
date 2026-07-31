@@ -203,6 +203,8 @@ class ProspectManager {
         this.syncInProgress = false;
         this.lastSyncTime = null;
         this.unsubscribe = null;
+        this.retryCount = 0;
+        this.maxRetries = 3;
     }
 
     // ================================================================
@@ -210,9 +212,9 @@ class ProspectManager {
     // ================================================================
 
     init() {
-        if (this.isInitialized) return;
+        if (this.isInitialized) return this;
+        console.log('📋 Initializing Prospect Manager...');
         this.isInitialized = true;
-        console.log('📋 Prospect Manager initialized');
         this.loadFromCache();
         this.setupListeners();
         return this;
@@ -256,13 +258,26 @@ class ProspectManager {
                     this.saveToCache();
                     this.notifyListeners();
                     this.lastSyncTime = new Date();
+                    this.retryCount = 0;
                 }, error => {
                     console.warn('Prospect subscription error:', error);
                     this.loadFromCache();
+                    this.retryConnection();
                 });
         } catch (error) {
             console.warn('Prospect subscription setup error:', error);
             this.loadFromCache();
+            this.retryConnection();
+        }
+    }
+
+    retryConnection() {
+        if (this.retryCount < this.maxRetries) {
+            this.retryCount++;
+            setTimeout(() => {
+                console.log(`📋 Retrying Firebase connection (${this.retryCount}/${this.maxRetries})...`);
+                this.subscribeToFirebase();
+            }, 2000 * this.retryCount);
         }
     }
 
@@ -276,6 +291,7 @@ class ProspectManager {
             if (data) {
                 const parsed = JSON.parse(data);
                 this.cache = new Map(Object.entries(parsed));
+                console.log(`📋 Loaded ${this.cache.size} prospects from cache`);
             }
         } catch (e) {
             console.warn('Failed to load prospects from cache:', e);
@@ -336,6 +352,8 @@ class ProspectManager {
      */
     getAll(filters = {}) {
         let prospects = Array.from(this.cache.values());
+        
+        if (prospects.length === 0) return prospects;
         
         // Apply filters
         if (filters.status) {
@@ -629,7 +647,6 @@ class ProspectManager {
         
         // Normalize phone
         if (normalized.phone) {
-            // Remove non-digit characters except +
             normalized.phone = normalized.phone.replace(/[^\d+]/g, '');
             if (normalized.phone.length === 10 && /^\d{10}$/.test(normalized.phone)) {
                 normalized.phone = `(${normalized.phone.substring(0, 3)}) ${normalized.phone.substring(3, 6)}-${normalized.phone.substring(6)}`;
@@ -822,7 +839,6 @@ class ProspectManager {
                         result[matchedField] = value;
                         confidence[matchedField] = 0.9;
                         
-                        // Special handling for date
                         if (matchedField === 'date') {
                             const parsedDate = this.parseDateString(value);
                             if (parsedDate) {
@@ -831,7 +847,6 @@ class ProspectManager {
                             }
                         }
                     } else {
-                        // Store unknown fields as notes
                         if (!result.notes) result.notes = '';
                         result.notes += (result.notes ? '\n' : '') + `${key}: ${value}`;
                         confidence.notes = 0.4;
@@ -1497,14 +1512,11 @@ const ProspectUI = {
         // Handle array fields (tags)
         const tagsInput = container.querySelector('#prospect_tags');
         if (tagsInput) {
-            // Convert comma-separated string to array on submit
             const form = container.querySelector('#prospectForm');
-            const originalSubmit = form ? form.onsubmit : null;
             if (form) {
                 form.addEventListener('submit', (e) => {
                     if (tagsInput.value) {
-                        const tagsArray = tagsInput.value.split(',').map(t => t.trim()).filter(t => t);
-                        // The form data will be handled in the save handler
+                        // Will be handled in the save handler
                     }
                 });
             }
@@ -2331,9 +2343,52 @@ document.addEventListener('DOMContentLoaded', function() {
 // Initialize Prospect Manager
 const ProspectManagerInstance = new ProspectManager();
 
+// Auto-initialize when AppState is ready
+function initProspectManagerWhenReady() {
+    if (typeof AppState !== 'undefined' && AppState.currentUser) {
+        if (!ProspectManagerInstance.isInitialized) {
+            ProspectManagerInstance.init();
+        }
+        window.ProspectManager = ProspectManagerInstance;
+        AppState.prospectManager = ProspectManagerInstance;
+        AppState.prospectManagerReady = true;
+        console.log('📋 Prospect Manager initialized successfully');
+        return true;
+    }
+    return false;
+}
+
+// Try to initialize immediately
+if (typeof AppState !== 'undefined' && AppState.currentUser) {
+    initProspectManagerWhenReady();
+}
+
+// If not ready, wait for AppState
+if (typeof AppState !== 'undefined') {
+    // Watch for user changes
+    const originalSetUser = Object.getOwnPropertyDescriptor(AppState, 'currentUser');
+    if (originalSetUser) {
+        Object.defineProperty(AppState, 'currentUser', {
+            get: originalSetUser.get,
+            set: function(value) {
+                originalSetUser.set.call(this, value);
+                if (value) {
+                    setTimeout(initProspectManagerWhenReady, 500);
+                }
+            }
+        });
+    }
+}
+
+// Also try after DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(initProspectManagerWhenReady, 1000);
+});
+
 // Expose globally
 window.ProspectManager = ProspectManagerInstance;
 window.ProspectUI = ProspectUI;
 window.PROSPECT_SCHEMA = PROSPECT_SCHEMA;
+window.initProspectManagerWhenReady = initProspectManagerWhenReady;
 
 console.log('📋 Prospect Manager module loaded');
