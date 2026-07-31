@@ -240,9 +240,16 @@
     <!-- Prospect Form Container -->
     <div id="prospectFormContainer" class="modal-overlay" style="display:none;"></div>
 
+    <!-- Script Loading Order - IMPORTANT: Load in correct order -->
+    <!-- 1. Firebase Config -->
     <script src="js/firebase-config.js"></script>
+    <!-- 2. Core App -->
     <script src="js/app.js"></script>
+    <!-- 3. Smart Import Module (Centralized) -->
+    <script src="js/smart-import.js"></script>
+    <!-- 4. Objection Handler -->
     <script src="js/objection-handler.js"></script>
+    <!-- 5. Prospect Manager -->
     <script src="js/prospect-manager.js"></script>
 </body>
 </html>

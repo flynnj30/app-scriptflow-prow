@@ -65,36 +65,11 @@ const CONFIG = {
 };
 
 // ================================================================
-// SMART IMPORT CONFIGURATION
+// SMART IMPORT CONFIGURATION - Using centralized module
 // ================================================================
 
-const SMART_IMPORT_CONFIG = {
-    CONFIDENCE: {
-        HIGH: 0.8,
-        MEDIUM: 0.5,
-        LOW: 0.3
-    },
-    VALIDATION: {
-        name: { required: true, minLength: 2, maxLength: 100 },
-        business: { required: true, minLength: 2, maxLength: 100 },
-        phone: { pattern: /^[\+\d\s\-\(\)]{7,20}$/ },
-        email: { pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ },
-        time: { pattern: /^(0?[1-9]|1[0-2]):[0-5][0-9]\s*(AM|PM)$/i },
-        status: { allowed: ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'] }
-    },
-    FIELD_ALIASES: {
-        name: ['name', 'full name', 'contact name', 'client name', 'customer name', 'person name', 'first name', 'last name', 'contact', 'client', 'customer', 'person', 'prospect', 'lead name'],
-        business: ['business', 'company', 'organization', 'org', 'firm', 'brand', 'store', 'business name', 'company name', 'organization name', 'account', 'client company'],
-        phone: ['phone', 'mobile', 'cell', 'telephone', 'number', 'contact number', 'phone number', 'mobile number', 'phone no', 'cell phone', 'work phone', 'home phone'],
-        email: ['email', 'e-mail', 'mail', 'email address', 'e-mail address', 'contact email', 'work email', 'personal email'],
-        date: ['date', 'appointment date', 'schedule date', 'meeting date', 'call date', 'day', 'best time', 'callback date', 'scheduled date', 'event date', 'when'],
-        time: ['time', 'appointment time', 'schedule time', 'meeting time', 'call time', 'hour', 'callback time', 'scheduled time', 'event time', 'at', 'when'],
-        status: ['status', 'state', 'stage', 'lead status', 'appointment status', 'call status', 'phase', 'step'],
-        notes: ['notes', 'note', 'comment', 'remarks', 'additional notes', 'info', 'details', 'description', 'summary', 'observation', 'feedback'],
-        assigned: ['assigned', 'assigned to', 'owner', 'agent', 'representative', 'rep', 'assigned agent', 'team member', 'handler', 'manager'],
-        role: ['role', 'title', 'position', 'job title', 'designation', 'function', 'department']
-    }
-};
+// This is now imported from smart-import.js
+// The centralized SMART_IMPORT_CONFIG is used by smart-import.js
 
 // ================================================================
 // APPLICATION STATE
@@ -1816,10 +1791,264 @@ const Scripts = {
 };
 
 // ================================================================
-// SMART IMPORT FUNCTIONS
+// SMART IMPORT FUNCTIONS - Using centralized module
 // ================================================================
 
-function parseAppointmentTextEnhanced(text, defaultDate = null) {
+/**
+ * Open the Smart Import modal
+ * Uses the centralized SmartImport module
+ */
+function openSmartImportEnhanced() {
+    const modal = DOM.get('smartImportModal');
+    if (!modal) return;
+    
+    modal.style.display = 'flex';
+    
+    AppState.importRecords = [];
+    AppState.importProcessing = false;
+    AppState.importProgress = 0;
+    
+    const dateInput = DOM.get('importDefaultDate');
+    if (dateInput) {
+        dateInput.value = Utils.getTodayStr();
+    }
+    
+    const textArea = DOM.get('importTextArea');
+    if (textArea) {
+        textArea.value = '';
+        textArea.placeholder = `Paste appointment details here. The system will intelligently parse:
+        
+Example:
+Business Name/Company : Correa and Son's Landscaping LLC
+Name : Kelvin
+Role : Owner
+Phone Number: +12678808990
+Best Time for Warm Callback: Tomorrow at 1pm EDT
+Notes: Custom website preview offered + no website currently + high interest, positive and booked a manager callback to review the website.`;
+    }
+    
+    const preview = DOM.get('importPreview');
+    if (preview) preview.style.display = 'none';
+    
+    const saveBtn = DOM.get('saveImportBtn');
+    if (saveBtn) saveBtn.style.display = 'none';
+    
+    const resultsContainer = DOM.get('importResultsContainer');
+    if (resultsContainer) resultsContainer.innerHTML = '';
+    
+    const progressContainer = DOM.get('importProgressContainer');
+    if (progressContainer) progressContainer.style.display = 'none';
+    
+    const summary = DOM.get('importSummary');
+    if (summary) summary.style.display = 'none';
+}
+
+/**
+ * Close the Smart Import modal
+ */
+function closeSmartImportEnhanced() {
+    const modal = DOM.get('smartImportModal');
+    if (modal) modal.style.display = 'none';
+    AppState.importRecords = [];
+    AppState.importProcessing = false;
+}
+
+/**
+ * Parse and preview import using the centralized SmartImport engine
+ */
+function parseAndPreviewImportEnhanced() {
+    const textArea = DOM.get('importTextArea');
+    if (!textArea) return;
+    
+    const text = textArea.value;
+    if (!text.trim()) {
+        showToast('Please paste some text to parse', 'warning');
+        return;
+    }
+    
+    const dateInput = DOM.get('importDefaultDate');
+    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
+    
+    const progressContainer = DOM.get('importProgressContainer');
+    if (progressContainer) progressContainer.style.display = 'block';
+    AppState.importProcessing = true;
+    AppState.importProgress = 0;
+    updateImportProgress(5, 'Splitting appointments...');
+    
+    setTimeout(() => {
+        // Use the centralized SmartImport engine if available
+        let appointments = [];
+        let parsedResults = [];
+        
+        if (typeof window.smartImportEngine !== 'undefined' && window.smartImportEngine) {
+            try {
+                // Use the centralized engine's splitAppointments method
+                if (typeof window.smartImportEngine.splitAppointments === 'function') {
+                    appointments = window.smartImportEngine.splitAppointments(text);
+                } else {
+                    appointments = splitAppointments(text);
+                }
+                
+                const total = appointments.length;
+                AppState.importProgress = 15;
+                updateImportProgress(15, `Found ${total} appointment(s). Parsing...`);
+                
+                if (total === 0) {
+                    showToast('No appointments detected in the text', 'warning');
+                    AppState.importProcessing = false;
+                    if (progressContainer) progressContainer.style.display = 'none';
+                    return;
+                }
+                
+                let validCount = 0;
+                let invalidCount = 0;
+                let duplicateCount = 0;
+                
+                // Get existing appointments for duplicate checking
+                const existingAppointments = Data.getAllAppointments();
+                
+                appointments.forEach((apptText, index) => {
+                    const progress = 15 + ((index + 1) / total) * 50;
+                    updateImportProgress(progress, `Processing appointment ${index + 1} of ${total}...`);
+                    
+                    // Use the centralized engine's parseText method
+                    let parsed;
+                    if (typeof window.smartImportEngine.parseText === 'function') {
+                        parsed = window.smartImportEngine.parseText(apptText, { defaultDate });
+                    } else {
+                        // Fallback to legacy parser
+                        const { result, confidence, context } = parseAppointmentTextLegacy(apptText, defaultDate);
+                        parsed = {
+                            result,
+                            confidence,
+                            context,
+                            isValid: validateAppointmentDataLegacy(result).isValid,
+                            errors: validateAppointmentDataLegacy(result).errors,
+                            warnings: validateAppointmentDataLegacy(result).warnings
+                        };
+                    }
+                    
+                    // Check for duplicates using centralized engine or legacy
+                    let duplicates = [];
+                    if (typeof window.smartImportEngine !== 'undefined' && 
+                        typeof window.smartImportEngine.checkDuplicates === 'function') {
+                        duplicates = window.smartImportEngine.checkDuplicates(parsed, existingAppointments);
+                    } else {
+                        duplicates = checkForDuplicatesLegacy(parsed.result, existingAppointments);
+                    }
+                    
+                    const hasSignificantDuplicate = duplicates.some(d => d.confidence >= 70);
+                    if (hasSignificantDuplicate) duplicateCount++;
+                    
+                    if (parsed.isValid) validCount++;
+                    else invalidCount++;
+                    
+                    parsedResults.push({
+                        index: index + 1,
+                        raw: apptText,
+                        parsed: parsed.result || {},
+                        confidence: parsed.confidence || {},
+                        context: parsed.context || {},
+                        validated: parsed.result || {},
+                        isValid: parsed.isValid || false,
+                        errors: parsed.errors || [],
+                        warnings: parsed.warnings || [],
+                        hasDuplicate: hasSignificantDuplicate,
+                        duplicates: duplicates
+                    });
+                });
+                
+                AppState.importRecords = parsedResults;
+                AppState.importProgress = 80;
+                updateImportProgress(80, 'Generating preview...');
+                
+                setTimeout(() => {
+                    renderImportResults(parsedResults);
+                    AppState.importProcessing = false;
+                    updateImportProgress(100, 'Complete!');
+                    
+                    setTimeout(() => {
+                        if (progressContainer) progressContainer.style.display = 'none';
+                    }, 1500);
+                    
+                    showToast(`Parsed ${parsedResults.length} appointment(s)! ${validCount} valid, ${invalidCount} need review`, 'info');
+                }, 300);
+            } catch (error) {
+                console.error('Smart Import parse error:', error);
+                showToast('Error parsing text: ' + error.message, 'error');
+                AppState.importProcessing = false;
+                if (progressContainer) progressContainer.style.display = 'none';
+            }
+        } else {
+            // Fallback to legacy parser if centralized engine is not available
+            appointments = splitAppointments(text);
+            const total = appointments.length;
+            AppState.importProgress = 15;
+            updateImportProgress(15, `Found ${total} appointment(s). Parsing...`);
+            
+            if (total === 0) {
+                showToast('No appointments detected in the text', 'warning');
+                AppState.importProcessing = false;
+                if (progressContainer) progressContainer.style.display = 'none';
+                return;
+            }
+            
+            let validCount = 0;
+            let invalidCount = 0;
+            let duplicateCount = 0;
+            const existingAppointments = Data.getAllAppointments();
+            
+            appointments.forEach((apptText, index) => {
+                const progress = 15 + ((index + 1) / total) * 50;
+                updateImportProgress(progress, `Processing appointment ${index + 1} of ${total}...`);
+                
+                const { result, confidence, context } = parseAppointmentTextLegacy(apptText, defaultDate);
+                const validationResult = validateAppointmentDataLegacy(result);
+                const duplicates = checkForDuplicatesLegacy(result, existingAppointments);
+                const hasSignificantDuplicate = duplicates.some(d => d.confidence >= 70);
+                if (hasSignificantDuplicate) duplicateCount++;
+                
+                if (validationResult.isValid) validCount++;
+                else invalidCount++;
+                
+                parsedResults.push({
+                    index: index + 1,
+                    raw: apptText,
+                    parsed: result,
+                    confidence: confidence,
+                    context: context,
+                    validated: validationResult.validated,
+                    isValid: validationResult.isValid,
+                    errors: validationResult.errors,
+                    warnings: validationResult.warnings,
+                    hasDuplicate: hasSignificantDuplicate,
+                    duplicates: duplicates
+                });
+            });
+            
+            AppState.importRecords = parsedResults;
+            AppState.importProgress = 80;
+            updateImportProgress(80, 'Generating preview...');
+            
+            setTimeout(() => {
+                renderImportResults(parsedResults);
+                AppState.importProcessing = false;
+                updateImportProgress(100, 'Complete!');
+                
+                setTimeout(() => {
+                    if (progressContainer) progressContainer.style.display = 'none';
+                }, 1500);
+                
+                showToast(`Parsed ${parsedResults.length} appointment(s)! ${validCount} valid, ${invalidCount} need review`, 'info');
+            }, 300);
+        }
+    }, 300);
+}
+
+/**
+ * Legacy parse function for fallback
+ */
+function parseAppointmentTextLegacy(text, defaultDate = null) {
     const result = {};
     const confidence = {};
     const context = {
@@ -1847,269 +2076,40 @@ function parseAppointmentTextEnhanced(text, defaultDate = null) {
     else if (context.hasBulletPoints) context.detectedFormat = 'bullet_points';
     else if (context.hasNaturalLanguage) context.detectedFormat = 'natural_language';
     
-    if (context.detectedFormat === 'key_value') {
-        parseKeyValueFormat(lines, result, confidence, context);
-    } else if (context.detectedFormat === 'bullet_points') {
-        parseBulletFormat(lines, result, confidence);
-    } else {
-        parseNaturalLanguage(fullText, lines, result, confidence);
+    // Simple field extraction
+    const fieldPatterns = {
+        business: /(?:business|company|organization|org|firm|brand|store)[:\s]+([^\n]+)/i,
+        name: /(?:name|contact|client|customer|person)[:\s]+([^\n]+)/i,
+        role: /(?:role|title|position|job title)[:\s]+([^\n]+)/i,
+        phone: /(?:phone|mobile|cell|telephone|number)[:\s]+([^\n]+)/i,
+        email: /(?:email|e-mail|mail)[:\s]+([^\n]+)/i,
+        date: /(?:date|appointment date|schedule date|meeting date|call date)[:\s]+([^\n]+)/i,
+        time: /(?:time|appointment time|schedule time|meeting time|call time)[:\s]+([^\n]+)/i,
+        status: /(?:status|state|stage|lead status)[:\s]+([^\n]+)/i,
+        notes: /(?:notes|note|comment|remarks|additional notes)[:\s]+([^\n]+)/i,
+        assigned: /(?:assigned|assigned to|owner|agent|representative)[:\s]+([^\n]+)/i
+    };
+    
+    for (const [field, pattern] of Object.entries(fieldPatterns)) {
+        const match = fullText.match(pattern);
+        if (match && match[1]) {
+            result[field] = match[1].trim();
+            confidence[field] = 0.8;
+        }
+    }
+    
+    // If no fields were extracted, use notes fallback
+    if (Object.keys(result).length === 0) {
+        result.notes = fullText;
+        confidence.notes = 0.3;
     }
     
     if (!result.date && defaultDate) {
         result.date = defaultDate;
         confidence.date = 1.0;
-        context.synonyms.date.push('user selected');
     }
     
-    enhanceParsedData(result, confidence, fullText, context);
-    
-    return { result, confidence, context };
-}
-
-function parseKeyValueFormat(lines, result, confidence, context) {
-    const separators = [':', '=', '->', '=>'];
-    
-    lines.forEach(line => {
-        let separatorIndex = -1;
-        let separatorUsed = '';
-        
-        for (const sep of separators) {
-            const idx = line.indexOf(sep);
-            if (idx !== -1 && (separatorIndex === -1 || idx < separatorIndex)) {
-                separatorIndex = idx;
-                separatorUsed = sep;
-            }
-        }
-        
-        if (separatorIndex !== -1) {
-            let key = line.substring(0, separatorIndex).trim().toLowerCase();
-            const value = line.substring(separatorIndex + separatorUsed.length).trim();
-            
-            if (value) {
-                const matchedField = matchFieldName(key);
-                if (matchedField) {
-                    result[matchedField] = value;
-                    confidence[matchedField] = 0.9;
-                    
-                    if (matchedField === 'date') {
-                        const parsedDate = parseDateStringEnhanced(value);
-                        if (parsedDate) {
-                            result.date = parsedDate;
-                            confidence.date = 0.95;
-                        }
-                    }
-                } else if (key.includes('best time') || key.includes('callback')) {
-                    const dateMatch = value.match(/(\w+\s+\d{1,2},?\s+\d{4})/i);
-                    const timeMatch = value.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
-                    if (dateMatch) {
-                        result.date = dateMatch[1];
-                        confidence.date = 0.8;
-                    }
-                    if (timeMatch) {
-                        result.time = timeMatch[1];
-                        confidence.time = 0.8;
-                    }
-                    if (!result.notes) result.notes = '';
-                    result.notes += (result.notes ? '\n' : '') + `Best time: ${value}`;
-                    confidence.notes = 0.6;
-                } else {
-                    if (!result.notes) result.notes = '';
-                    result.notes += (result.notes ? '\n' : '') + `${key}: ${value}`;
-                    confidence.notes = 0.4;
-                }
-            }
-        }
-    });
-}
-
-function parseBulletFormat(lines, result, confidence) {
-    const bulletPattern = /^[\s]*[•\-*]\s*(.*)$/;
-    let currentSection = 'notes';
-    
-    lines.forEach(line => {
-        const match = line.match(bulletPattern);
-        if (match) {
-            const content = match[1].trim();
-            const fieldMatch = content.match(/^([^:]+):\s*(.*)$/);
-            if (fieldMatch) {
-                const key = fieldMatch[1].trim().toLowerCase();
-                const value = fieldMatch[2].trim();
-                const matchedField = matchFieldName(key);
-                if (matchedField) {
-                    result[matchedField] = value;
-                    confidence[matchedField] = 0.85;
-                    currentSection = matchedField;
-                } else {
-                    if (!result.notes) result.notes = '';
-                    result.notes += (result.notes ? '\n' : '') + content;
-                    confidence.notes = 0.4;
-                }
-            } else {
-                if (!result.notes) result.notes = '';
-                result.notes += (result.notes ? '\n' : '') + content;
-                confidence.notes = 0.4;
-            }
-        }
-    });
-}
-
-function parseNaturalLanguage(fullText, lines, result, confidence) {
-    const namePatterns = [
-        /(?:name|contact|client|customer|person|full name)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
-        /(?:from|with|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
-        /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:from|at|with|said|wants|would like)/i
-    ];
-    for (const pattern of namePatterns) {
-        const match = fullText.match(pattern);
-        if (match && match[1]) {
-            result.name = match[1].trim();
-            confidence.name = 0.7;
-            break;
-        }
-    }
-    
-    const businessPatterns = [
-        /(?:business|company|organization|org|firm|brand|store)[:\s]+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i,
-        /(?:from|at|with)\s+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i
-    ];
-    for (const pattern of businessPatterns) {
-        const match = fullText.match(pattern);
-        if (match && match[1]) {
-            result.business = match[1].trim();
-            confidence.business = 0.7;
-            break;
-        }
-    }
-    
-    const phonePatterns = [
-        /(?:phone|mobile|cell|telephone|number|call)[:\s]+([+\d\s\-\(\)]{7,20})/i,
-        /([+\d\s\-\(\)]{10,20})(?:\s*(?:is|was|will be|the|their|his|her))/i,
-        /(\d{3}[-.]?\d{3}[-.]?\d{4})/,
-        /\(\d{3}\)\s*\d{3}[-.]?\d{4}/
-    ];
-    for (const pattern of phonePatterns) {
-        const match = fullText.match(pattern);
-        if (match && match[1]) {
-            result.phone = match[1].trim();
-            confidence.phone = 0.85;
-            break;
-        }
-    }
-    
-    const emailMatch = fullText.match(/([^\s@]+@[^\s@]+\.[^\s@]+)/);
-    if (emailMatch) {
-        result.email = emailMatch[1].trim().toLowerCase();
-        confidence.email = 0.9;
-    }
-    
-    const datePatterns = [
-        /(?:date|appointment|scheduled|meeting|call|day)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,
-        /(\d{1,2}\/\d{1,2}\/\d{4})/,
-        /(\d{4}-\d{2}-\d{2})/,
-        /([A-Za-z]+\s+\d{1,2},?\s+\d{4})/
-    ];
-    for (const pattern of datePatterns) {
-        const match = fullText.match(pattern);
-        if (match && match[1]) {
-            result.date = match[1].trim();
-            confidence.date = 0.8;
-            break;
-        }
-    }
-    
-    const timeMatch = fullText.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
-    if (timeMatch) {
-        result.time = timeMatch[1].trim();
-        confidence.time = 0.85;
-    }
-    
-    const statusValues = SMART_IMPORT_CONFIG.VALIDATION.status.allowed;
-    for (const status of statusValues) {
-        if (fullText.toLowerCase().includes(status.toLowerCase())) {
-            result.status = status;
-            confidence.status = 0.7;
-            break;
-        }
-    }
-    
-    if (Object.keys(result).length === 0) {
-        result.notes = fullText;
-        confidence.notes = 0.3;
-    }
-}
-
-function matchFieldName(key) {
-    const normalizedKey = key.toLowerCase().trim();
-    for (const [field, aliases] of Object.entries(SMART_IMPORT_CONFIG.FIELD_ALIASES)) {
-        if (aliases.some(alias => 
-            normalizedKey === alias || 
-            normalizedKey.includes(alias) || 
-            alias.includes(normalizedKey) ||
-            normalizedKey.split(' ').some(word => word === alias.split(' ')[0])
-        )) {
-            return field;
-        }
-    }
-    return null;
-}
-
-function parseDateStringEnhanced(dateStr) {
-    if (!dateStr) return null;
-    const trimmed = dateStr.trim();
-    
-    const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (isoMatch) {
-        const year = parseInt(isoMatch[1]);
-        const month = parseInt(isoMatch[2]) - 1;
-        const day = parseInt(isoMatch[3]);
-        const date = new Date(year, month, day);
-        if (!isNaN(date.getTime())) {
-            return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        }
-    }
-    
-    const usMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (usMatch) {
-        const month = parseInt(usMatch[1]) - 1;
-        const day = parseInt(usMatch[2]);
-        const year = parseInt(usMatch[3]);
-        const date = new Date(year, month, day);
-        if (!isNaN(date.getTime())) {
-            return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        }
-    }
-    
-    const naturalMatch = trimmed.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/i);
-    if (naturalMatch) {
-        const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-        const monthName = naturalMatch[1].toLowerCase();
-        const monthIndex = months.indexOf(monthName);
-        if (monthIndex !== -1) {
-            const day = parseInt(naturalMatch[2]);
-            const year = parseInt(naturalMatch[3]);
-            const date = new Date(year, monthIndex, day);
-            if (!isNaN(date.getTime())) {
-                return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            }
-        }
-    }
-    
-    if (/today/i.test(trimmed)) return Utils.getTodayStr();
-    if (/tomorrow/i.test(trimmed)) {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        return Utils.formatDateForCompare(tomorrow);
-    }
-    if (/yesterday/i.test(trimmed)) {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        return Utils.formatDateForCompare(yesterday);
-    }
-    
-    return null;
-}
-
-function enhanceParsedData(result, confidence, fullText, context) {
+    // Normalize phone
     if (result.phone) {
         result.phone = result.phone.replace(/[^\d+]/g, '');
         if (result.phone.length === 10 && /^\d{10}$/.test(result.phone)) {
@@ -2117,64 +2117,13 @@ function enhanceParsedData(result, confidence, fullText, context) {
         }
     }
     
-    if (result.email) {
-        result.email = result.email.toLowerCase().trim();
-    }
-    
-    if (result.date) {
-        const parsedDate = parseDateStringEnhanced(result.date);
-        if (parsedDate) {
-            result.date = parsedDate;
-            confidence.date = Math.max(confidence.date || 0, 0.9);
-        }
-    }
-    
-    if (result.time) {
-        const timeStr = result.time.trim();
-        if (!timeStr.includes('AM') && !timeStr.includes('PM')) {
-            const hourMatch = timeStr.match(/^(\d{1,2}):?(\d{2})?$/);
-            if (hourMatch) {
-                const hour = parseInt(hourMatch[1]);
-                const minute = hourMatch[2] || '00';
-                if (hour >= 1 && hour <= 12) {
-                    result.time = `${hour}:${minute} ${hour >= 6 && hour <= 11 ? 'AM' : 'PM'}`;
-                } else if (hour >= 13 && hour <= 23) {
-                    const adjustedHour = hour - 12;
-                    result.time = `${adjustedHour}:${minute} PM`;
-                }
-            }
-        }
-        confidence.time = Math.max(confidence.time || 0, 0.9);
-    }
-    
-    if (!result.role && result.notes) {
-        const roleMatch = result.notes.match(/(?:role|title|position|job title)[:\s]+([A-Za-z\s]+?)(?:[,.\n]|$)/i);
-        if (roleMatch && roleMatch[1]) {
-            result.role = roleMatch[1].trim();
-            confidence.role = 0.6;
-        }
-    }
-    
-    if (result.notes) {
-        const tags = result.tags || [];
-        const sentimentPatterns = {
-            high_interest: /(?:high interest|very interested|excited|enthusiastic|positive|great|excellent|wants|would like|looking forward)/i,
-            vip: /(?:vip|priority|important|key|major|top)/i,
-            callback_requested: /(?:callback|call back|return call|follow up|follow-up|next steps|schedule call)/i
-        };
-        for (const [key, pattern] of Object.entries(sentimentPatterns)) {
-            if (pattern.test(result.notes) && !tags.includes(key)) {
-                tags.push(key);
-            }
-        }
-        if (tags.length > 0) {
-            result.tags = tags;
-            confidence.tags = 0.6;
-        }
-    }
+    return { result, confidence, context };
 }
 
-function validateAppointmentData(data) {
+/**
+ * Legacy validation function for fallback
+ */
+function validateAppointmentDataLegacy(data) {
     const errors = [];
     const warnings = [];
     const validated = {};
@@ -2208,7 +2157,7 @@ function validateAppointmentData(data) {
     }
     
     if (data.date) {
-        const parsedDate = parseDateStringEnhanced(data.date);
+        const parsedDate = Utils.parseDateString(data.date);
         if (parsedDate) {
             validated.date = parsedDate;
         } else {
@@ -2220,7 +2169,7 @@ function validateAppointmentData(data) {
     }
     
     if (data.status) {
-        const statusOptions = SMART_IMPORT_CONFIG.VALIDATION.status.allowed;
+        const statusOptions = CONFIG.STATUS_OPTIONS || ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'];
         const matchedStatus = statusOptions.find(s => 
             s.toLowerCase() === data.status.toLowerCase() ||
             s.toLowerCase().includes(data.status.toLowerCase()) ||
@@ -2250,17 +2199,19 @@ function validateAppointmentData(data) {
     };
 }
 
-function checkForDuplicates(newData, existingAppointments) {
+/**
+ * Legacy duplicate check for fallback
+ */
+function checkForDuplicatesLegacy(newData, existingAppointments) {
     const duplicates = [];
-    const allAppointments = Data.getAllAppointments();
-    if (allAppointments.length === 0) return duplicates;
+    if (!existingAppointments || existingAppointments.length === 0) return duplicates;
     
     const newName = (newData.name || '').toLowerCase().trim();
     const newBusiness = (newData.business || '').toLowerCase().trim();
     const newPhone = (newData.phone || '').replace(/[^\d+]/g, '');
     const newEmail = (newData.email || '').toLowerCase().trim();
     
-    for (const existing of allAppointments) {
+    for (const existing of existingAppointments) {
         let score = 0;
         let matchedFields = [];
         let totalChecks = 0;
@@ -2325,6 +2276,9 @@ function checkForDuplicates(newData, existingAppointments) {
     return duplicates;
 }
 
+/**
+ * Split text into individual appointments
+ */
 function splitAppointments(text) {
     const appointments = [];
     const lines = text.split('\n').map(l => l.trim()).filter(l => l);
@@ -2347,10 +2301,9 @@ function splitAppointments(text) {
         
         if (line.includes(':') && line.split(':')[0].trim().length > 0 && line.split(':')[0].trim().length < 30) {
             const key = line.split(':')[0].trim().toLowerCase();
-            const isField = SMART_IMPORT_CONFIG.FIELD_ALIASES[key] || 
-                           Object.keys(SMART_IMPORT_CONFIG.FIELD_ALIASES).some(f => 
-                               SMART_IMPORT_CONFIG.FIELD_ALIASES[f].includes(key)
-                           );
+            const isField = CONFIG.FIELD_MAPPINGS && Object.keys(CONFIG.FIELD_MAPPINGS).some(f => 
+                CONFIG.FIELD_MAPPINGS[f] && CONFIG.FIELD_MAPPINGS[f].includes(key)
+            );
             if (isField && currentAppointment.length === 0 && !inAppointment) {
                 inAppointment = true;
             }
@@ -2370,165 +2323,9 @@ function splitAppointments(text) {
     return appointments;
 }
 
-function generateImportTemplate() {
-    const dateInput = DOM.get('importDefaultDate');
-    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
-    const formattedDate = defaultDate ? Utils.formatDate(defaultDate) : 'Today';
-    
-    const textArea = DOM.get('importTextArea');
-    if (!textArea) return;
-    
-    const template = `Business Name/Company : [Enter Business Name]
-Name : [Enter Contact Name]
-Role : [Owner/Manager/Decision Maker]
-Phone Number: [Enter Phone Number]
-Email: [Enter Email Address]
-Best Time for Warm Callback: ${formattedDate} at [Time] [Timezone]
-
-Notes: [Enter notes about the conversation, interest level, and next steps]`;
-    
-    if (textArea.value) {
-        if (!confirm('This will replace your current text. Continue?')) return;
-    }
-    textArea.value = template;
-    showToast('📋 Template inserted! Fill in the details and click Parse.', 'success');
-}
-
-function openSmartImportEnhanced() {
-    const modal = DOM.get('smartImportModal');
-    if (!modal) return;
-    
-    modal.style.display = 'flex';
-    
-    AppState.importRecords = [];
-    AppState.importProcessing = false;
-    AppState.importProgress = 0;
-    
-    const dateInput = DOM.get('importDefaultDate');
-    if (dateInput) {
-        dateInput.value = Utils.getTodayStr();
-    }
-    
-    const textArea = DOM.get('importTextArea');
-    if (textArea) {
-        textArea.value = '';
-        textArea.placeholder = `Paste appointment details here. The system will intelligently parse:
-        
-Example:
-Business Name/Company : Correa and Son's Landscaping LLC
-Name : Kelvin
-Role : Owner
-Phone Number: +12678808990
-Best Time for Warm Callback: Tomorrow at 1pm EDT
-Notes: Custom website preview offered + no website currently + high interest, positive and booked a manager callback to review the website.`;
-    }
-    
-    const preview = DOM.get('importPreview');
-    if (preview) preview.style.display = 'none';
-    
-    const saveBtn = DOM.get('saveImportBtn');
-    if (saveBtn) saveBtn.style.display = 'none';
-    
-    const resultsContainer = DOM.get('importResultsContainer');
-    if (resultsContainer) resultsContainer.innerHTML = '';
-    
-    const progressContainer = DOM.get('importProgressContainer');
-    if (progressContainer) progressContainer.style.display = 'none';
-    
-    const summary = DOM.get('importSummary');
-    if (summary) summary.style.display = 'none';
-}
-
-function closeSmartImportEnhanced() {
-    const modal = DOM.get('smartImportModal');
-    if (modal) modal.style.display = 'none';
-    AppState.importRecords = [];
-    AppState.importProcessing = false;
-}
-
-function parseAndPreviewImportEnhanced() {
-    const textArea = DOM.get('importTextArea');
-    if (!textArea) return;
-    
-    const text = textArea.value;
-    if (!text.trim()) {
-        showToast('Please paste some text to parse', 'warning');
-        return;
-    }
-    
-    const dateInput = DOM.get('importDefaultDate');
-    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
-    
-    const progressContainer = DOM.get('importProgressContainer');
-    if (progressContainer) progressContainer.style.display = 'block';
-    AppState.importProcessing = true;
-    AppState.importProgress = 0;
-    updateImportProgress(5, 'Splitting appointments...');
-    
-    setTimeout(() => {
-        const appointments = splitAppointments(text);
-        const total = appointments.length;
-        AppState.importProgress = 15;
-        updateImportProgress(15, `Found ${total} appointment(s). Parsing...`);
-        
-        if (total === 0) {
-            showToast('No appointments detected in the text', 'warning');
-            AppState.importProcessing = false;
-            if (progressContainer) progressContainer.style.display = 'none';
-            return;
-        }
-        
-        const parsedResults = [];
-        let validCount = 0;
-        let invalidCount = 0;
-        let duplicateCount = 0;
-        
-        appointments.forEach((apptText, index) => {
-            const progress = 15 + ((index + 1) / total) * 50;
-            updateImportProgress(progress, `Processing appointment ${index + 1} of ${total}...`);
-            
-            const { result, confidence, context } = parseAppointmentTextEnhanced(apptText, defaultDate);
-            const validationResult = validateAppointmentData(result);
-            const duplicates = checkForDuplicates(result, AppState.appointments);
-            const hasSignificantDuplicate = duplicates.some(d => d.confidence >= 70);
-            if (hasSignificantDuplicate) duplicateCount++;
-            
-            if (validationResult.isValid) validCount++;
-            else invalidCount++;
-            
-            parsedResults.push({
-                index: index + 1,
-                raw: apptText,
-                parsed: result,
-                confidence: confidence,
-                context: context,
-                validated: validationResult.validated,
-                isValid: validationResult.isValid,
-                errors: validationResult.errors,
-                warnings: validationResult.warnings,
-                hasDuplicate: hasSignificantDuplicate,
-                duplicates: duplicates
-            });
-        });
-        
-        AppState.importRecords = parsedResults;
-        AppState.importProgress = 80;
-        updateImportProgress(80, 'Generating preview...');
-        
-        setTimeout(() => {
-            renderImportResults(parsedResults);
-            AppState.importProcessing = false;
-            updateImportProgress(100, 'Complete!');
-            
-            setTimeout(() => {
-                if (progressContainer) progressContainer.style.display = 'none';
-            }, 1500);
-            
-            showToast(`Parsed ${parsedResults.length} appointment(s)! ${validCount} valid, ${invalidCount} need review`, 'info');
-        }, 300);
-    }, 300);
-}
-
+/**
+ * Update import progress bar
+ */
 function updateImportProgress(percent, message) {
     const progressBar = DOM.get('importProgressBar');
     const progressStatus = DOM.get('importProgressStatus');
@@ -2541,6 +2338,9 @@ function updateImportProgress(percent, message) {
     }
 }
 
+/**
+ * Render import results
+ */
 function renderImportResults(records) {
     const preview = DOM.get('importPreview');
     const resultsContainer = DOM.get('importResultsContainer');
@@ -2597,7 +2397,7 @@ function renderImportResults(records) {
         
         resultsHtml += `
             <div class="import-record ${statusClass} ${hasDuplicate ? 'duplicate' : ''}">
-                <div class="record-header" onclick="toggleImportRecord(this)">
+                <div class="record-header" onclick="window.toggleImportRecord(this)">
                     <div class="record-status">
                         <span class="status-icon">${record.isValid ? '✅' : '⚠️'}</span>
                         <span class="record-index">#${record.index}</span>
@@ -2659,6 +2459,9 @@ function renderImportResults(records) {
     }
 }
 
+/**
+ * Render record fields
+ */
 function renderRecordFields(record) {
     const fields = record.validated || record.parsed || {};
     const confidence = record.confidence || {};
@@ -2698,6 +2501,9 @@ function renderRecordFields(record) {
     return html;
 }
 
+/**
+ * Toggle import record expansion
+ */
 function toggleImportRecord(header) {
     const body = header.nextElementSibling;
     if (body) {
@@ -2710,6 +2516,9 @@ function toggleImportRecord(header) {
     }
 }
 
+/**
+ * Save all imported appointments
+ */
 function saveAllImportedAppointments() {
     const validRecords = AppState.importRecords.filter(r => r.isValid);
     
@@ -2778,6 +2587,9 @@ function saveAllImportedAppointments() {
     Stats.updateAll();
 }
 
+/**
+ * Expand all records
+ */
 function expandAllRecords() {
     document.querySelectorAll('.import-record .record-body').forEach(body => {
         body.style.display = 'block';
@@ -2787,6 +2599,9 @@ function expandAllRecords() {
     });
 }
 
+/**
+ * Collapse all records
+ */
 function collapseAllRecords() {
     document.querySelectorAll('.import-record .record-body').forEach(body => {
         body.style.display = 'none';
@@ -2796,6 +2611,36 @@ function collapseAllRecords() {
     });
 }
 
+/**
+ * Generate import template
+ */
+function generateImportTemplate() {
+    const dateInput = DOM.get('importDefaultDate');
+    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
+    const formattedDate = defaultDate ? Utils.formatDate(defaultDate) : 'Today';
+    
+    const textArea = DOM.get('importTextArea');
+    if (!textArea) return;
+    
+    const template = `Business Name/Company : [Enter Business Name]
+Name : [Enter Contact Name]
+Role : [Owner/Manager/Decision Maker]
+Phone Number: [Enter Phone Number]
+Email: [Enter Email Address]
+Best Time for Warm Callback: ${formattedDate} at [Time] [Timezone]
+
+Notes: [Enter notes about the conversation, interest level, and next steps]`;
+    
+    if (textArea.value) {
+        if (!confirm('This will replace your current text. Continue?')) return;
+    }
+    textArea.value = template;
+    showToast('📋 Template inserted! Fill in the details and click Parse.', 'success');
+}
+
+/**
+ * Quick import from clipboard
+ */
 async function quickImportFromClipboard() {
     try {
         const text = await navigator.clipboard.readText();
