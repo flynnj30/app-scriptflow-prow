@@ -11,6 +11,10 @@ const firebaseConfig = {
     appId: "1:250157640936:web:cd6218470c302b305aed5d"
 };
 
+// ================================================================
+// FIREBASE INITIALIZATION
+// ================================================================
+
 /**
  * Initialize Firebase with proper error handling and persistence
  * @returns {boolean} True if Firebase initialized successfully
@@ -97,7 +101,10 @@ function initializeFirebase() {
     }
 }
 
-// Execute initialization
+// ================================================================
+// EXECUTE INITIALIZATION
+// ================================================================
+
 const isFirebaseReady = initializeFirebase();
 
 // ================================================================
@@ -340,6 +347,125 @@ function getUserCollection(userId, subCollection) {
     }
 }
 
+/**
+ * Get Firestore query with error handling
+ * @param {string} collectionName - Collection name
+ * @param {Array} filters - Array of filter objects {field, operator, value}
+ * @param {Object} options - Query options (orderBy, limit, etc.)
+ * @returns {Object|null} Query reference or null
+ */
+function getQuery(collectionName, filters = [], options = {}) {
+    try {
+        const collection = getCollection(collectionName);
+        if (!collection) return null;
+        
+        let query = collection;
+        
+        // Apply filters
+        filters.forEach(filter => {
+            if (filter.field && filter.operator && filter.value !== undefined) {
+                query = query.where(filter.field, filter.operator, filter.value);
+            }
+        });
+        
+        // Apply order by
+        if (options.orderBy) {
+            query = query.orderBy(options.orderBy.field, options.orderBy.direction || 'asc');
+        }
+        
+        // Apply limit
+        if (options.limit) {
+            query = query.limit(options.limit);
+        }
+        
+        return query;
+    } catch (error) {
+        console.warn(`⚠️ Could not create query for "${collectionName}":`, error.message);
+        return null;
+    }
+}
+
+/**
+ * Execute a Firestore query and return results
+ * @param {string} collectionName - Collection name
+ * @param {Array} filters - Array of filter objects {field, operator, value}
+ * @param {Object} options - Query options (orderBy, limit, etc.)
+ * @returns {Promise<Array>} Array of documents
+ */
+async function executeQuery(collectionName, filters = [], options = {}) {
+    try {
+        const query = getQuery(collectionName, filters, options);
+        if (!query) return [];
+        
+        const snapshot = await query.get();
+        const results = [];
+        snapshot.forEach(doc => {
+            results.push({ id: doc.id, ...doc.data() });
+        });
+        return results;
+    } catch (error) {
+        console.warn(`⚠️ Could not execute query for "${collectionName}":`, error.message);
+        return [];
+    }
+}
+
+/**
+ * Update document with error handling
+ * @param {string} collectionName - Collection name
+ * @param {string} docId - Document ID
+ * @param {Object} data - Data to update
+ * @returns {Promise<boolean>} True if successful
+ */
+async function updateDocument(collectionName, docId, data) {
+    try {
+        const docRef = getDocument(collectionName, docId);
+        if (!docRef) return false;
+        await docRef.update(data);
+        return true;
+    } catch (error) {
+        console.warn(`⚠️ Could not update document "${docId}" in "${collectionName}":`, error.message);
+        return false;
+    }
+}
+
+/**
+ * Set document with error handling
+ * @param {string} collectionName - Collection name
+ * @param {string} docId - Document ID
+ * @param {Object} data - Data to set
+ * @param {Object} options - Set options (merge, etc.)
+ * @returns {Promise<boolean>} True if successful
+ */
+async function setDocument(collectionName, docId, data, options = { merge: true }) {
+    try {
+        const docRef = getDocument(collectionName, docId);
+        if (!docRef) return false;
+        await docRef.set(data, options);
+        return true;
+    } catch (error) {
+        console.warn(`⚠️ Could not set document "${docId}" in "${collectionName}":`, error.message);
+        return false;
+    }
+}
+
+/**
+ * Delete document with error handling
+ * @param {string} collectionName - Collection name
+ * @param {string} docId - Document ID
+ * @returns {Promise<boolean>} True if successful
+ */
+async function deleteDocument(collectionName, docId) {
+    try {
+        const docRef = getDocument(collectionName, docId);
+        if (!docRef) return false;
+        await docRef.delete();
+        return true;
+    } catch (error) {
+        console.warn(`⚠️ Could not delete document "${docId}" from "${collectionName}":`, error.message);
+        return false;
+    }
+}
+
 // ================================================================
 // EXPOSE HELPER FUNCTIONS GLOBALLY
 // ================================================================
@@ -357,6 +483,58 @@ window.onAuthStateChanged = onAuthStateChanged;
 window.getCollection = getCollection;
 window.getDocument = getDocument;
 window.getUserCollection = getUserCollection;
+window.getQuery = getQuery;
+window.executeQuery = executeQuery;
+window.updateDocument = updateDocument;
+window.setDocument = setDocument;
+window.deleteDocument = deleteDocument;
 
 console.log('📋 Firebase helper functions exposed globally');
-console.log('📋 Available functions: isFirebaseAvailable, getFirestore, getAuth, getCurrentUser, signInWithGoogle, signInWithEmail, signUpWithEmail, signOutUser, onAuthStateChanged, getCollection, getDocument, getUserCollection');
+console.log('📋 Available functions: isFirebaseAvailable, getFirestore, getAuth, getCurrentUser, signInWithGoogle, signInWithEmail, signUpWithEmail, signOutUser, onAuthStateChanged, getCollection, getDocument, getUserCollection, getQuery, executeQuery, updateDocument, setDocument, deleteDocument');
+
+// ================================================================
+// ERROR HANDLING FOR UNHANDLED PROMISE REJECTIONS
+// ================================================================
+
+// Handle Firebase-related unhandled rejections gracefully
+window.addEventListener('unhandledrejection', function(e) {
+    // Check if this is a Firebase-related error
+    if (e.reason && e.reason.code && e.reason.code.startsWith('firebase/')) {
+        console.warn('⚠️ Firebase unhandled rejection:', e.reason.message);
+        e.preventDefault();
+        return;
+    }
+    // Check for message channel errors (Chrome extension related)
+    if (e.reason && e.reason.message && e.reason.message.includes('message channel')) {
+        console.warn('⚠️ Message channel error (likely extension related):', e.reason.message);
+        e.preventDefault();
+        return;
+    }
+});
+
+// ================================================================
+// CONNECTION STATE MONITORING
+// ================================================================
+
+// Monitor Firebase connection state
+if (isFirebaseAvailable()) {
+    const db = getFirestore();
+    if (db) {
+        db.enableNetwork()
+            .then(() => {
+                console.log('✅ Firestore network enabled');
+            })
+            .catch(err => {
+                console.warn('⚠️ Could not enable Firestore network:', err.message);
+            });
+        
+        // Monitor connection state
+        db.collection('nonexistent').limit(1).get()
+            .catch(() => {
+                // This is expected if the collection doesn't exist
+                // But we're just testing connectivity
+            });
+    }
+}
+
+console.log('📋 Firebase module fully loaded');
