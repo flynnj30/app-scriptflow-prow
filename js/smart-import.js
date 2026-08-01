@@ -29,7 +29,7 @@ const SMART_IMPORT = {
             confidence: 0.9
         },
         date: {
-            labels: ['date', 'appointment date', 'demo date', 'schedule date', 'meeting date', 'call date', 'day', 'best time', 'callback date', 'scheduled date', 'event date', 'when', 'demo time & date', 'appointment'],
+            labels: ['date', 'appointment date', 'demo date', 'schedule date', 'meeting date', 'call date', 'day', 'best time', 'callback date', 'scheduled date', 'event date', 'when', 'demo time & date', 'appointment', 'meeting scheduled', 'booked for'],
             confidence: 0.85
         },
         time: {
@@ -68,7 +68,86 @@ const SMART_IMPORT = {
         address: {
             labels: ['address', 'location', 'street', 'city', 'state', 'zip', 'location'],
             confidence: 0.5
+        },
+        meetingLink: {
+            labels: ['meeting link', 'zoom', 'google meet', 'teams', 'webex', 'join link', 'video call', 'conference link'],
+            confidence: 0.7
+        },
+        meetingDuration: {
+            labels: ['duration', 'length', 'meeting length', 'call duration', 'estimated time'],
+            confidence: 0.6
+        },
+        meetingAgenda: {
+            labels: ['agenda', 'topics', 'discussion points', 'what to cover', 'meeting agenda'],
+            confidence: 0.6
+        },
+        timezone: {
+            labels: ['timezone', 'tz', 'est', 'edt', 'cst', 'cdt', 'mst', 'mdt', 'pst', 'pdt', 'gmt', 'utc'],
+            confidence: 0.7
         }
+    },
+
+    // Meeting detection patterns - keywords that indicate a meeting is booked
+    MEETING_DETECTION_PATTERNS: {
+        confirmed: [
+            /meeting\s+booked/i,
+            /confirmed\s+(?:meeting|appointment|call|demo)/i,
+            /scheduled\s+(?:meeting|appointment|call|demo)/i,
+            /booked\s+(?:meeting|appointment|call|demo)/i,
+            /meeting\s+confirmed/i,
+            /appointment\s+confirmed/i,
+            /demo\s+booked/i,
+            /call\s+booked/i,
+            /meeting\s+scheduled/i,
+            /appointment\s+scheduled/i,
+            /demo\s+scheduled/i,
+            /calendar\s+invite\s+sent/i,
+            /invitation\s+sent/i,
+            /meeting\s+set/i,
+            /call\s+set/i,
+            /demo\s+set/i
+        ],
+        meeting_keywords: [
+            /meeting/i,
+            /appointment/i,
+            /demo/i,
+            /call/i,
+            /discovery call/i,
+            /sales call/i,
+            /walkthrough/i,
+            /preview/i,
+            /presentation/i,
+            /discussion/i,
+            /consultation/i,
+            /review/i
+        ],
+        date_indicators: [
+            /(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i,
+            /(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}/i,
+            /\d{1,2}\/\d{1,2}\/\d{2,4}/,
+            /\d{4}-\d{2}-\d{2}/,
+            /tomorrow/i,
+            /today/i,
+            /next\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i,
+            /this\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i
+        ],
+        time_indicators: [
+            /\d{1,2}:\d{2}\s*(?:AM|PM)/i,
+            /\d{1,2}\s*(?:AM|PM)/i,
+            /at\s+\d{1,2}(?::\d{2})?\s*(?:AM|PM)/i,
+            /\d{1,2}(?::\d{2})?\s*(?:AM|PM)\s*(?:EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC)?/i
+        ],
+        timezone_patterns: [
+            /(?:EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC)/i,
+            /eastern/i,
+            /central/i,
+            /mountain/i,
+            /pacific/i,
+            /european/i,
+            /london/i,
+            /uk/i,
+            /et|ct|mt|pt/i
+        ]
     },
 
     // Auto-tagging rules
@@ -84,7 +163,10 @@ const SMART_IMPORT = {
         { pattern: /cold call|cold outreach|intro|introduction|first contact/i, tag: 'cold_lead' },
         { pattern: /busy|available|free|schedule|booked|confirmed/i, tag: 'scheduled' },
         { pattern: /discovery|explore|discuss|goals|objectives|needs|requirements/i, tag: 'discovery' },
-        { pattern: /deferred|postponed|later|reschedule|another time/i, tag: 'deferred' }
+        { pattern: /deferred|postponed|later|reschedule|another time/i, tag: 'deferred' },
+        { pattern: /meeting booked|confirmed|scheduled|booked/i, tag: 'meeting_confirmed' },
+        { pattern: /demo|walkthrough|presentation|showcase/i, tag: 'demo' },
+        { pattern: /discovery call|exploratory/i, tag: 'discovery_call' }
     ],
 
     // Sentiment detection patterns
@@ -131,7 +213,9 @@ const SmartImportState = {
         autoSentiment: true,
         autoSource: true,
         detectDuplicates: true,
-        confidenceThreshold: 0.5
+        confidenceThreshold: 0.5,
+        autoDetectMeetings: true,
+        autoAssignClosers: true
     }
 };
 
@@ -146,6 +230,8 @@ class SmartImportEngine {
         this.autoTagRules = SMART_IMPORT.AUTO_TAG_RULES;
         this.sentimentPatterns = SMART_IMPORT.SENTIMENT_PATTERNS;
         this.sourcePatterns = SMART_IMPORT.SOURCE_PATTERNS;
+        this.meetingPatterns = SMART_IMPORT.MEETING_DETECTION_PATTERNS;
+        this._initialized = true;
     }
 
     /**
@@ -153,6 +239,8 @@ class SmartImportEngine {
      * This method is called by app.js when parsing import text
      */
     splitAppointments(text) {
+        if (!text || typeof text !== 'string') return [];
+        
         const appointments = [];
         const lines = text.split('\n').map(l => l.trim()).filter(l => l);
         let currentAppointment = [];
@@ -199,9 +287,13 @@ class SmartImportEngine {
     }
 
     /**
-     * Parse text into structured data
+     * Parse text into structured data with meeting detection
      */
     parseText(text, options = {}) {
+        if (!text || typeof text !== 'string') {
+            return this._getEmptyResult();
+        }
+
         const config = { ...this.config, ...options };
         const result = {};
         const confidence = {};
@@ -219,6 +311,45 @@ class SmartImportEngine {
             this._parseBulletPoints(lines, result, confidence, context);
         } else {
             this._parseNaturalLanguage(fullText, lines, result, confidence, context);
+        }
+
+        // ================================================================
+        // MEETING DETECTION - Auto-detect if this is a confirmed meeting
+        // ================================================================
+        const meetingDetection = this._detectMeeting(fullText, result);
+        if (meetingDetection.isMeeting && config.autoDetectMeetings) {
+            result._meetingDetected = true;
+            result._meetingConfidence = meetingDetection.confidence;
+            result._meetingDetails = meetingDetection.details;
+            
+            // Auto-set status to "Meeting Booked" if meeting is confirmed
+            if (meetingDetection.confidence >= 0.7) {
+                result.status = 'Meeting Booked';
+                confidence.status = Math.max(confidence.status || 0, meetingDetection.confidence);
+            }
+            
+            // Extract meeting details
+            if (meetingDetection.details) {
+                if (meetingDetection.details.link && !result.meetingLink) {
+                    result.meetingLink = meetingDetection.details.link;
+                    confidence.meetingLink = 0.8;
+                }
+                if (meetingDetection.details.duration && !result.meetingDuration) {
+                    result.meetingDuration = meetingDetection.details.duration;
+                    confidence.meetingDuration = 0.7;
+                }
+                if (meetingDetection.details.agenda && !result.meetingAgenda) {
+                    result.meetingAgenda = meetingDetection.details.agenda;
+                    confidence.meetingAgenda = 0.7;
+                }
+                if (meetingDetection.details.timezone && !result.timezone) {
+                    result.timezone = meetingDetection.details.timezone;
+                    confidence.timezone = 0.8;
+                }
+                if (config.autoAssignClosers && meetingDetection.confidence >= 0.7) {
+                    result._autoAssignCloser = true;
+                }
+            }
         }
 
         // Apply default values
@@ -246,7 +377,8 @@ class SmartImportEngine {
             context,
             isValid: this._validateRequiredFields(result),
             errors: this._getValidationErrors(result),
-            warnings: this._getWarnings(result, confidence)
+            warnings: this._getWarnings(result, confidence),
+            meetingDetection: meetingDetection
         };
     }
 
@@ -254,6 +386,8 @@ class SmartImportEngine {
      * Parse multiple texts
      */
     parseBatch(texts, options = {}) {
+        if (!Array.isArray(texts)) return [];
+        
         const results = [];
         const total = texts.length;
 
@@ -270,9 +404,151 @@ class SmartImportEngine {
     }
 
     /**
+     * Get empty result for invalid input
+     */
+    _getEmptyResult() {
+        return {
+            result: {},
+            confidence: {},
+            context: { detectedFormat: 'unknown' },
+            isValid: false,
+            errors: [{ field: 'input', message: 'No text provided' }],
+            warnings: [],
+            meetingDetection: { isMeeting: false, confidence: 0 }
+        };
+    }
+
+    /**
+     * Detect if text contains a confirmed meeting
+     */
+    _detectMeeting(text, parsedResult) {
+        const details = {
+            isMeeting: false,
+            confidence: 0,
+            details: {
+                link: null,
+                duration: null,
+                agenda: null,
+                timezone: null,
+                meetingType: null
+            },
+            matchedPatterns: []
+        };
+
+        if (!text) return details;
+
+        // Check for confirmation keywords
+        let hasConfirmation = false;
+        let hasMeetingKeyword = false;
+        let hasDate = false;
+        let hasTime = false;
+
+        // Check confirmation patterns
+        for (const pattern of this.meetingPatterns.confirmed) {
+            if (pattern.test(text)) {
+                hasConfirmation = true;
+                details.matchedPatterns.push('confirmed');
+                break;
+            }
+        }
+
+        // Check meeting keywords
+        for (const pattern of this.meetingPatterns.meeting_keywords) {
+            if (pattern.test(text)) {
+                hasMeetingKeyword = true;
+                details.matchedPatterns.push('meeting_keyword');
+                break;
+            }
+        }
+
+        // Check for date indicators
+        for (const pattern of this.meetingPatterns.date_indicators) {
+            if (pattern.test(text)) {
+                hasDate = true;
+                details.matchedPatterns.push('date');
+                break;
+            }
+        }
+
+        // Check for time indicators
+        for (const pattern of this.meetingPatterns.time_indicators) {
+            if (pattern.test(text)) {
+                hasTime = true;
+                details.matchedPatterns.push('time');
+                break;
+            }
+        }
+
+        // Check for timezone
+        for (const pattern of this.meetingPatterns.timezone_patterns) {
+            const match = text.match(pattern);
+            if (match) {
+                details.details.timezone = match[0];
+                details.matchedPatterns.push('timezone');
+                break;
+            }
+        }
+
+        // Extract meeting link
+        const linkMatch = text.match(/(?:meeting link|zoom|join|https?:\/\/[^\s]+)/i);
+        if (linkMatch) {
+            details.details.link = linkMatch[0];
+        }
+
+        // Extract duration
+        const durationMatch = text.match(/(\d+)\s*(?:min|minute|hour|hr)/i);
+        if (durationMatch) {
+            details.details.duration = durationMatch[0];
+        }
+
+        // Extract agenda
+        const agendaMatch = text.match(/agenda[:\s]+([^\n]+)/i);
+        if (agendaMatch) {
+            details.details.agenda = agendaMatch[1].trim();
+        }
+
+        // Extract meeting type
+        const typeMatch = text.match(/(?:demo|walkthrough|presentation|discovery call|sales call|consultation|review)/i);
+        if (typeMatch) {
+            details.details.meetingType = typeMatch[0];
+        }
+
+        // Calculate confidence
+        let confidenceScore = 0;
+        if (hasConfirmation) confidenceScore += 0.4;
+        if (hasMeetingKeyword) confidenceScore += 0.2;
+        if (hasDate) confidenceScore += 0.15;
+        if (hasTime) confidenceScore += 0.15;
+        if (details.details.timezone) confidenceScore += 0.05;
+        if (details.details.link) confidenceScore += 0.05;
+
+        // Boost confidence if parsed result already has meeting-related fields
+        if (parsedResult && parsedResult.status === 'Meeting Booked') confidenceScore += 0.1;
+        if (parsedResult && parsedResult.date && parsedResult.time) confidenceScore += 0.1;
+
+        details.confidence = Math.min(confidenceScore, 1.0);
+        details.isMeeting = details.confidence >= 0.5;
+
+        return details;
+    }
+
+    /**
      * Analyze text context
      */
     _analyzeContext(text) {
+        if (!text) {
+            return {
+                hasKeyValue: false,
+                hasBulletPoints: false,
+                hasDateTime: false,
+                hasPhone: false,
+                hasEmail: false,
+                detectedFormat: 'unknown',
+                wordCount: 0,
+                lineCount: 0
+            };
+        }
+
         const lines = text.split('\n').filter(l => l.trim());
         return {
             hasKeyValue: lines.some(line => /^[^:]+:.+/.test(line)),
@@ -290,6 +566,8 @@ class SmartImportEngine {
      * Detect format type
      */
     _detectFormat(lines) {
+        if (!lines || lines.length === 0) return 'unknown';
+        
         let keyValueCount = 0;
         let bulletCount = 0;
 
@@ -307,6 +585,7 @@ class SmartImportEngine {
      * Clean text
      */
     _cleanText(text) {
+        if (!text) return '';
         return text
             .replace(/\r\n/g, '\n')
             .replace(/\r/g, '\n')
@@ -341,7 +620,6 @@ class SmartImportEngine {
                 if (value) {
                     const matchedField = this._matchField(key);
                     if (matchedField) {
-                        // Special handling for date/time fields
                         if (matchedField === 'date' || matchedField === 'time') {
                             this._parseDateTime(value, result, confidence);
                         } else {
@@ -349,14 +627,12 @@ class SmartImportEngine {
                             confidence[matchedField] = this.fieldMappings[matchedField]?.confidence || 0.8;
                         }
                     } else {
-                        // Store unknown fields as notes
                         if (!result.notes) result.notes = '';
                         result.notes += (result.notes ? '\n' : '') + `${key}: ${value}`;
                         confidence.notes = 0.5;
                     }
                 }
             } else if (line.trim()) {
-                // Lines without separator go to notes
                 if (!result.notes) result.notes = '';
                 result.notes += (result.notes ? '\n' : '') + line.trim();
                 confidence.notes = 0.4;
@@ -403,16 +679,21 @@ class SmartImportEngine {
     }
 
     /**
-     * Parse natural language
+     * Parse natural language with enhanced meeting detection
      */
     _parseNaturalLanguage(fullText, lines, result, confidence, context) {
+        if (!fullText) return;
+
         // Extract business name
         const businessPatterns = [
             /(?:business|company|organization|org|firm|brand|store)[:\s]+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i,
             /(?:from|at|with)\s+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i,
             /^([A-Z][a-zA-Z0-9\s&]+?)\s+(?:business|company|organization)/i,
             /(?:for|about)\s+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i,
-            /(?:company|business|org|firm)[:\s]+([A-Z][a-zA-Z0-9\s&]+)/i
+            /(?:company|business|org|firm)[:\s]+([A-Z][a-zA-Z0-9\s&]+)/i,
+            /meeting with\s+([A-Z][a-zA-Z0-9\s&]+)/i,
+            /call with\s+([A-Z][a-zA-Z0-9\s&]+)/i,
+            /demo for\s+([A-Z][a-zA-Z0-9\s&]+)/i
         ];
         for (const pattern of businessPatterns) {
             const match = fullText.match(pattern);
@@ -429,7 +710,9 @@ class SmartImportEngine {
             /(?:from|with|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
             /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:from|at|with|said|wants|would like|requested)/i,
             /contact[:\s]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
-            /(?:name|contact)[:\s]+([A-Z][a-z]+)/i
+            /(?:name|contact)[:\s]+([A-Z][a-z]+)/i,
+            /meeting with\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+            /call with\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i
         ];
         for (const pattern of namePatterns) {
             const match = fullText.match(pattern);
@@ -464,40 +747,64 @@ class SmartImportEngine {
             confidence.email = 0.95;
         }
 
-        // Extract date and time together
-        const dateTimeMatch = fullText.match(/(?:demo|appointment|meeting|call|schedule|booked|on|at)\s+([A-Za-z]+(?:day)?)\s*,?\s+([A-Za-z]+)\s+(\d{1,2})\s*(?:,?\s*(\d{4}))?\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i);
-        if (dateTimeMatch) {
-            const dayName = dateTimeMatch[1];
-            const monthName = dateTimeMatch[2];
-            const day = parseInt(dateTimeMatch[3]);
-            const year = dateTimeMatch[4] ? parseInt(dateTimeMatch[4]) : new Date().getFullYear();
-            const time = dateTimeMatch[5];
+        // Extract date and time together - Enhanced for meeting detection
+        const dateTimePatterns = [
+            /(?:demo|appointment|meeting|call|schedule|booked|on|at)\s+([A-Za-z]+(?:day)?)\s*,?\s+([A-Za-z]+)\s+(\d{1,2})\s*(?:,?\s*(\d{4}))?\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?\s*(?:([A-Z]{2,4}))?/i,
+            /(?:scheduled for|booked for|confirmed for)\s+([A-Za-z]+(?:day)?)\s*,?\s+([A-Za-z]+)\s+(\d{1,2})\s*(?:,?\s*(\d{4}))?\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i,
+            /(?:on)\s+([A-Za-z]+(?:day)?)\s*(?:,?\s*([A-Za-z]+)\s+(\d{1,2}))?\s*(?:,?\s*(\d{4}))?\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i
+        ];
 
-            const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-            const monthIndex = months.indexOf(monthName.toLowerCase());
+        let dateFound = false;
+        let timeFound = false;
 
-            if (monthIndex !== -1) {
-                const dateObj = new Date(year, monthIndex, day);
-                if (!isNaN(dateObj.getTime())) {
-                    result.date = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    confidence.date = 0.9;
+        for (const pattern of dateTimePatterns) {
+            const match = fullText.match(pattern);
+            if (match) {
+                const dayName = match[1];
+                const monthName = match[2];
+                const day = parseInt(match[3]);
+                const year = match[4] ? parseInt(match[4]) : new Date().getFullYear();
+                const time = match[5];
+                const timezone = match[6];
+
+                if (monthName) {
+                    const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+                    const monthIndex = months.indexOf(monthName.toLowerCase());
+
+                    if (monthIndex !== -1) {
+                        const dateObj = new Date(year, monthIndex, day);
+                        if (!isNaN(dateObj.getTime())) {
+                            result.date = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                            confidence.date = 0.9;
+                            dateFound = true;
+                        }
+                    }
                 }
-            }
 
-            if (time) {
-                result.time = time.trim();
-                confidence.time = 0.9;
+                if (time) {
+                    result.time = time.trim();
+                    confidence.time = 0.9;
+                    timeFound = true;
+                }
+
+                if (timezone) {
+                    result.timezone = timezone;
+                    confidence.timezone = 0.8;
+                }
+
+                if (dateFound && timeFound) break;
             }
         }
 
-        // Extract date from other patterns
-        if (!result.date) {
+        // Extract date from other patterns (if not found above)
+        if (!dateFound) {
             const datePatterns = [
                 /(?:date|appointment|scheduled|meeting|call|day|demo)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,
                 /(?:on|for)\s+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,
                 /(\d{1,2}\/\d{1,2}\/\d{4})/,
                 /(\d{4}-\d{2}-\d{2})/,
-                /([A-Za-z]+\s+\d{1,2},?\s+\d{4})/
+                /([A-Za-z]+\s+\d{1,2},?\s+\d{4})/,
+                /(?:tomorrow|today|next\s+\w+day)/i
             ];
             for (const pattern of datePatterns) {
                 const match = fullText.match(pattern);
@@ -506,36 +813,50 @@ class SmartImportEngine {
                     if (parsedDate) {
                         result.date = parsedDate;
                         confidence.date = 0.8;
+                        dateFound = true;
                         break;
                     }
                 }
             }
         }
 
-        // Extract time from other patterns
-        if (!result.time) {
+        // Extract time from other patterns (if not found above)
+        if (!timeFound) {
             const timePatterns = [
                 /(?:time|at|scheduled|appointment|meeting|call|demo)[:\s]+(\d{1,2}:\d{2}\s*(?:AM|PM))/i,
                 /(?:at\s+)(\d{1,2}:\d{2}\s*(?:AM|PM))/i,
-                /(\d{1,2}:\d{2}\s*(?:AM|PM))/i
+                /(\d{1,2}:\d{2}\s*(?:AM|PM))/i,
+                /(\d{1,2})\s*(?:AM|PM)/i
             ];
             for (const pattern of timePatterns) {
                 const match = fullText.match(pattern);
                 if (match && match[1]) {
                     result.time = match[1].trim();
                     confidence.time = 0.85;
+                    timeFound = true;
                     break;
                 }
             }
         }
 
-        // Extract status
+        // Extract status - Auto-detect meeting status
         const statusValues = ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'];
+        let statusFound = false;
         for (const status of statusValues) {
             if (fullText.toLowerCase().includes(status.toLowerCase())) {
                 result.status = status;
                 confidence.status = 0.8;
+                statusFound = true;
                 break;
+            }
+        }
+
+        // If no status found but meeting detected, set to "Meeting Booked"
+        if (!statusFound) {
+            const meetingDetection = this._detectMeeting(fullText, result);
+            if (meetingDetection.isMeeting && meetingDetection.confidence >= 0.6) {
+                result.status = 'Meeting Booked';
+                confidence.status = meetingDetection.confidence;
             }
         }
 
@@ -570,6 +891,27 @@ class SmartImportEngine {
         if (websiteMatch && websiteMatch[1]) {
             result.website = websiteMatch[1].trim();
             confidence.website = 0.8;
+        }
+
+        // Extract meeting link
+        const linkMatch = fullText.match(/(?:meeting link|zoom|join|https?:\/\/[^\s]+)/i);
+        if (linkMatch) {
+            result.meetingLink = linkMatch[0];
+            confidence.meetingLink = 0.7;
+        }
+
+        // Extract duration
+        const durationMatch = fullText.match(/(\d+)\s*(?:min|minute|hour|hr)/i);
+        if (durationMatch) {
+            result.meetingDuration = durationMatch[0];
+            confidence.meetingDuration = 0.6;
+        }
+
+        // Extract agenda
+        const agendaMatch = fullText.match(/agenda[:\s]+([^\n]+)/i);
+        if (agendaMatch) {
+            result.meetingAgenda = agendaMatch[1].trim();
+            confidence.meetingAgenda = 0.6;
         }
 
         // If nothing was parsed, store everything as notes
@@ -634,7 +976,7 @@ class SmartImportEngine {
     }
 
     /**
-     * Parse date string to YYYY-MM-DD
+     * Parse date string to YYYY-MM-DD with enhanced natural language support
      */
     _parseDateString(dateStr) {
         if (!dateStr) return null;
@@ -678,6 +1020,21 @@ class SmartImportEngine {
                     return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 }
             }
+        }
+
+        // "Next Monday", "This Tuesday", etc.
+        const dayMatch = trimmed.match(/(?:next|this)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i);
+        if (dayMatch) {
+            const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const targetDay = days.indexOf(dayMatch[1].toLowerCase());
+            const today = new Date();
+            const todayDay = today.getDay();
+            let daysToAdd = targetDay - todayDay;
+            if (daysToAdd <= 0) daysToAdd += 7;
+            if (dayMatch[0].toLowerCase().startsWith('this') && daysToAdd === 7) daysToAdd = 0;
+            const date = new Date(today);
+            date.setDate(date.getDate() + daysToAdd);
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
         }
 
         // Today/Tomorrow/Yesterday
@@ -821,6 +1178,14 @@ class SmartImportEngine {
                 }
             }
         }
+
+        // If meeting was detected, ensure status is set
+        if (result._meetingDetected && result._meetingConfidence >= 0.7) {
+            if (!result.status || result.status === 'Pending') {
+                result.status = 'Meeting Booked';
+                confidence.status = Math.max(confidence.status || 0, 0.8);
+            }
+        }
     }
 
     /**
@@ -869,6 +1234,11 @@ class SmartImportEngine {
             }
         }
 
+        // Meeting-specific warnings
+        if (result._meetingDetected && result._meetingConfidence < 0.7) {
+            warnings.push({ field: 'meeting', message: `Meeting detected with low confidence (${Math.round(result._meetingConfidence * 100)}%)` });
+        }
+
         return warnings;
     }
 
@@ -877,6 +1247,7 @@ class SmartImportEngine {
      */
     checkDuplicates(record, existingAppointments) {
         if (!existingAppointments || existingAppointments.length === 0) return [];
+        if (!record) return [];
 
         const duplicates = [];
         const data = record.result || record;
@@ -952,9 +1323,11 @@ class SmartImportEngine {
     }
 
     /**
-     * Format record for display
+     * Format record for display with meeting indicators
      */
     formatRecord(record) {
+        if (!record) return '';
+        
         const data = record.result || record;
         const confidence = record.confidence || {};
 
@@ -974,21 +1347,38 @@ class SmartImportEngine {
             source: '📡 Source',
             industry: '🏭 Industry',
             website: '🌐 Website',
-            address: '📍 Address'
+            address: '📍 Address',
+            meetingLink: '🔗 Meeting Link',
+            meetingDuration: '⏱️ Duration',
+            meetingAgenda: '📋 Agenda',
+            timezone: '🕐 Timezone'
         };
 
-        const fieldOrder = ['business', 'name', 'role', 'phone', 'email', 'date', 'time', 'status', 'assigned', 'source', 'sentiment', 'industry', 'website', 'address', 'notes', 'tags'];
+        const fieldOrder = ['business', 'name', 'role', 'phone', 'email', 'date', 'time', 'status', 'assigned', 'source', 'sentiment', 'industry', 'website', 'address', 'meetingLink', 'meetingDuration', 'meetingAgenda', 'timezone', 'notes', 'tags'];
 
-        let html = '';
+        // Meeting indicator
+        let meetingIndicator = '';
+        if (data._meetingDetected) {
+            const confPercent = Math.round((data._meetingConfidence || 0) * 100);
+            meetingIndicator = `
+                <div class="meeting-indicator ${data._meetingConfidence >= 0.7 ? 'confirmed' : 'suspected'}">
+                    ${data._meetingConfidence >= 0.7 ? '✅ Meeting Confirmed' : '⚠️ Meeting Suspected'} (${confPercent}%)
+                </div>
+            `;
+        }
+
+        let html = meetingIndicator;
         for (const field of fieldOrder) {
             if (data[field]) {
                 const conf = confidence[field] || 0.5;
                 const confClass = conf >= 0.7 ? 'high' : (conf >= 0.4 ? 'medium' : 'low');
                 const isDate = field === 'date';
+                const isMeetingField = field.startsWith('meeting') || field === 'timezone';
+                const fieldClass = isMeetingField ? 'meeting-field' : '';
                 const valueDisplay = isDate ? this._formatDate(data[field]) : this._escapeHtml(data[field]);
 
                 html += `
-                    <div class="field-row ${isDate ? 'date-field' : ''}">
+                    <div class="field-row ${isDate ? 'date-field' : ''} ${fieldClass}">
                         <span class="field-label">${fieldLabels[field] || field}</span>
                         <span class="field-value">${valueDisplay}</span>
                         <span class="field-confidence ${confClass}">${Math.round(conf * 100)}%</span>
@@ -1056,6 +1446,9 @@ const SmartImportUI = {
         const validRecords = records.filter(r => r.isValid);
         const invalidRecords = records.filter(r => !r.isValid);
 
+        // Count meetings detected
+        const meetingsDetected = records.filter(r => r.result && r.result._meetingDetected).length;
+
         let html = `
             <div class="import-summary-grid">
                 <div class="import-stat ${validRecords.length > 0 ? 'success' : ''}">
@@ -1065,6 +1458,10 @@ const SmartImportUI = {
                 <div class="import-stat ${invalidRecords.length > 0 ? 'warning' : ''}">
                     <span class="stat-number">${invalidRecords.length}</span>
                     <span class="stat-label">⚠️ Needs Review</span>
+                </div>
+                <div class="import-stat ${meetingsDetected > 0 ? 'success' : ''}">
+                    <span class="stat-number">${meetingsDetected}</span>
+                    <span class="stat-label">📅 Meetings Detected</span>
                 </div>
                 <div class="import-stat">
                     <span class="stat-number">${records.length}</span>
@@ -1080,8 +1477,8 @@ const SmartImportUI = {
             const statusClass = record.isValid ? 'valid' : 'invalid';
             const hasWarnings = record.warnings && record.warnings.length > 0;
             const hasErrors = record.errors && record.errors.length > 0;
+            const isMeeting = record.result && record.result._meetingDetected;
 
-            // Calculate average confidence
             const confValues = Object.values(record.confidence || {});
             const avgConf = confValues.length > 0 ? confValues.reduce((a, b) => a + b, 0) / confValues.length : 0;
             const confColor = avgConf >= 0.7 ? 'high' : avgConf >= 0.4 ? 'medium' : 'low';
@@ -1089,18 +1486,21 @@ const SmartImportUI = {
             const data = record.result || {};
 
             html += `
-                <div class="import-record ${statusClass}" data-index="${record.index || index + 1}">
+                <div class="import-record ${statusClass} ${isMeeting ? 'meeting' : ''}" data-index="${record.index || index + 1}">
                     <div class="record-header" onclick="SmartImportUI.toggleRecord(this)">
                         <div class="record-status">
                             <span class="status-icon">${record.isValid ? '✅' : '⚠️'}</span>
                             <span class="record-index">#${record.index || index + 1}</span>
+                            ${isMeeting ? '<span class="meeting-badge">📅</span>' : ''}
                         </div>
                         <div class="record-summary">
                             <span class="record-name">${engine._escapeHtml(data.name || 'Unknown')}</span>
                             <span class="record-business">${engine._escapeHtml(data.business || 'Unknown Business')}</span>
                             ${data.date ? `<span class="record-date">📅 ${engine._formatDate(data.date)}</span>` : ''}
+                            ${data.status ? `<span class="record-status-tag">${engine._escapeHtml(data.status)}</span>` : ''}
                         </div>
                         <div class="record-badges">
+                            ${isMeeting ? `<span class="badge meeting">📅 Meeting</span>` : ''}
                             ${hasWarnings ? `<span class="badge warning">⚠️ ${record.warnings.length}</span>` : ''}
                             ${hasErrors ? `<span class="badge error">❌ ${record.errors.length}</span>` : ''}
                             <span class="badge confidence ${confColor}">${Math.round(avgConf * 100)}%</span>
@@ -1205,7 +1605,7 @@ const SmartImportUI = {
     },
 
     /**
-     * Render edit form for a record
+     * Render edit form for a record with meeting fields
      */
     renderEditForm(container, record) {
         if (!container || !record) return;
@@ -1243,10 +1643,14 @@ const SmartImportUI = {
             },
             industry: { label: 'Industry', type: 'text', required: false },
             website: { label: 'Website', type: 'text', required: false },
-            address: { label: 'Address', type: 'text', required: false }
+            address: { label: 'Address', type: 'text', required: false },
+            meetingLink: { label: 'Meeting Link', type: 'text', required: false },
+            meetingDuration: { label: 'Duration', type: 'text', required: false },
+            meetingAgenda: { label: 'Agenda', type: 'text', required: false },
+            timezone: { label: 'Timezone', type: 'text', required: false }
         };
 
-        const fieldOrder = ['business', 'name', 'role', 'phone', 'email', 'date', 'time', 'status', 'assigned', 'notes', 'tags', 'sentiment', 'industry', 'website', 'address'];
+        const fieldOrder = ['business', 'name', 'role', 'phone', 'email', 'date', 'time', 'status', 'assigned', 'notes', 'tags', 'sentiment', 'industry', 'website', 'address', 'meetingLink', 'meetingDuration', 'meetingAgenda', 'timezone'];
 
         let html = `
             <div class="edit-fields">
@@ -1261,12 +1665,14 @@ const SmartImportUI = {
                 const conf = confidence[field] || 0.5;
                 const confClass = conf >= 0.7 ? 'high' : (conf >= 0.4 ? 'medium' : 'low');
 
+                const isMeetingField = field.startsWith('meeting') || field === 'timezone';
                 html += `
-                    <div class="edit-field">
+                    <div class="edit-field ${isMeetingField ? 'meeting-field' : ''}">
                         <label>
                             ${config.label}
                             ${config.required ? '<span class="required-star">*</span>' : ''}
                             ${conf ? `<span class="field-confidence ${confClass}">${Math.round(conf * 100)}%</span>` : ''}
+                            ${isMeetingField ? '<span class="meeting-field-badge">📅</span>' : ''}
                         </label>
                 `;
 
@@ -1329,6 +1735,12 @@ const SmartImportUI = {
                         updatedData[field] = input.value.trim();
                     }
                 });
+
+                // If status is "Meeting Booked" and no meeting fields, add default values
+                if (updatedData.status === 'Meeting Booked') {
+                    if (!updatedData.meetingLink) updatedData.meetingLink = 'TBD';
+                    if (!updatedData.meetingDuration) updatedData.meetingDuration = '30 min';
+                }
 
                 const event = new CustomEvent('smartImportUpdate', {
                     detail: { index: record.index || 0, data: updatedData }
@@ -1437,6 +1849,70 @@ const SMART_IMPORT_STYLES = `
 
 .import-record.duplicate {
     border-left: 4px solid var(--warning);
+}
+
+.import-record.meeting {
+    border-left: 4px solid var(--primary);
+    background: rgba(59, 130, 246, 0.03);
+}
+
+/* Meeting Badge */
+.meeting-badge {
+    font-size: 0.8rem;
+    margin-left: 4px;
+}
+
+.record-status-tag {
+    font-size: 0.65rem;
+    padding: 1px 8px;
+    border-radius: 12px;
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    margin-left: 6px;
+}
+
+.badge.meeting {
+    background: var(--primary);
+    color: white;
+}
+
+/* Meeting Indicator */
+.meeting-indicator {
+    padding: 6px 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.meeting-indicator.confirmed {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.meeting-indicator.suspected {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warning);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+/* Meeting Fields */
+.field-row.meeting-field {
+    background: rgba(59, 130, 246, 0.06);
+    border: 1px solid rgba(59, 130, 246, 0.1);
+}
+
+.edit-field.meeting-field {
+    border-left: 2px solid var(--primary);
+    padding-left: 10px;
+}
+
+.meeting-field-badge {
+    font-size: 0.7rem;
+    margin-left: 4px;
+    opacity: 0.6;
 }
 
 .record-header {
@@ -1756,20 +2232,30 @@ window.smartImportEngine = smartImportEngine;
 
 // Expose the splitAppointments method directly for easy access
 window.splitAppointments = function(text) {
-    return smartImportEngine.splitAppointments(text);
+    if (!window.smartImportEngine) return [];
+    return window.smartImportEngine.splitAppointments(text);
 };
 
 // Expose the parseText method directly for easy access
 window.parseImportText = function(text, options) {
-    return smartImportEngine.parseText(text, options);
+    if (!window.smartImportEngine) return { result: {}, confidence: {}, isValid: false };
+    return window.smartImportEngine.parseText(text, options);
 };
 
 // Expose the checkDuplicates method directly for easy access
 window.checkImportDuplicates = function(record, existing) {
-    return smartImportEngine.checkDuplicates(record, existing);
+    if (!window.smartImportEngine) return [];
+    return window.smartImportEngine.checkDuplicates(record, existing);
+};
+
+// Expose meeting detection
+window.detectMeeting = function(text) {
+    if (!window.smartImportEngine) return { isMeeting: false, confidence: 0 };
+    return window.smartImportEngine._detectMeeting(text, {});
 };
 
 console.log('📥 Smart Import module loaded successfully');
+console.log('📥 Meeting detection enabled - will auto-detect confirmed meetings');
 console.log('📥 Use smartImportEngine.splitAppointments() to split text into appointments');
 console.log('📥 Use smartImportEngine.parseText() to parse individual appointment text');
-console.log('📥 Use smartImportEngine.checkDuplicates() to check for duplicates');
+console.log('📥 Use smartImportEngine._detectMeeting() to detect meetings in text');
