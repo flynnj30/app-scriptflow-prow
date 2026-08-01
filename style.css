@@ -76,26 +76,11 @@ body.light {
    ============================================================ */
 
 /* 
- * Inter font - loaded from Google Fonts with CORS support
- * Fallback: system fonts if Google Fonts fail to load
+ * System font fallback - works even if Google Fonts CORS fails
+ * This ensures the app is always readable
  */
-@font-face {
-    font-family: 'Inter';
-    font-style: normal;
-    font-weight: 300 800;
-    font-display: swap;
-    /* Try system fonts first as fallback, then Google Fonts */
-    src: local('Inter'), 
-         local('Inter-Regular'),
-         local('-apple-system'), 
-         local('BlinkMacSystemFont'),
-         local('Segoe UI'),
-         local('Roboto');
-}
-
-/* System font fallback for all text - works even if Google Fonts CORS fails */
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 /* Ensure script content uses fallback fonts */
@@ -114,8 +99,16 @@ body {
 .metric-value,
 .metric-label,
 .stat-number,
-.stat-label {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+.stat-label,
+.release-version,
+.release-category,
+.release-meta,
+.whats-new-header h3,
+.release-manager-header-title h3,
+.modal-card h3,
+.script-header-bar h2,
+.feature-panel-header h2 {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 /* Font loading indicator - shows when fonts are loading */
@@ -638,7 +631,6 @@ body {
 .script-title-area h2 { 
     font-size: 1.3rem; 
     font-weight: 700;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .version-chip {
@@ -768,9 +760,9 @@ body {
     position: absolute;
     top: calc(100% + 8px);
     right: 0;
-    width: 560px;
+    width: 580px;
     max-width: calc(100vw - 40px);
-    max-height: 550px;
+    max-height: 580px;
     background: var(--bg-secondary);
     border-radius: 16px;
     border: 1px solid var(--border-color);
@@ -923,7 +915,7 @@ body {
     overflow-y: auto;
     padding: 8px 12px;
     min-height: 120px;
-    max-height: 300px;
+    max-height: 320px;
 }
 
 .objection-list-integrated::-webkit-scrollbar {
@@ -1033,6 +1025,15 @@ body {
 .objection-item-int .obj-actions .fav-btn-int:hover {
     border-color: var(--favorite-color);
     color: var(--favorite-color);
+}
+
+.objection-item-int .obj-actions .meeting-btn-int {
+    color: var(--primary);
+}
+
+.objection-item-int .obj-actions .meeting-btn-int:hover {
+    border-color: var(--primary);
+    background: rgba(59, 130, 246, 0.1);
 }
 
 .objection-empty-int {
@@ -3660,7 +3661,7 @@ body {
     .objection-panel-integrated {
         width: calc(100vw - 30px);
         right: -10px;
-        max-height: 450px;
+        max-height: 480px;
         top: calc(100% + 4px);
     }
     .objection-panel-header h4 {
@@ -3671,7 +3672,7 @@ body {
         padding: 3px 10px;
     }
     .objection-list-integrated {
-        max-height: 220px;
+        max-height: 240px;
     }
     .objection-item-int .obj-label {
         font-size: 0.7rem;
@@ -3938,10 +3939,10 @@ body {
     .objection-panel-integrated {
         width: calc(100vw - 20px);
         right: -5px;
-        max-height: 400px;
+        max-height: 420px;
     }
     .objection-list-integrated {
-        max-height: 180px;
+        max-height: 200px;
     }
     .objection-panel-footer-int {
         flex-direction: column;
