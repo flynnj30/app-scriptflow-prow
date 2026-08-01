@@ -71,23 +71,56 @@ body.light {
     --scrollbar-thumb: rgba(0,0,0,0.15);
 }
 
-body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    transition: var(--transition);
-    overflow-x: hidden;
-}
-
 /* ============================================================
-   FONT LOADING OPTIMIZATION
+   FONT LOADING - CORS FIX WITH FALLBACKS
    ============================================================ */
+
+/* 
+ * Inter font - loaded from Google Fonts with CORS support
+ * Fallback: system fonts if Google Fonts fail to load
+ */
 @font-face {
     font-family: 'Inter';
     font-style: normal;
     font-weight: 300 800;
     font-display: swap;
-    src: url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800&display=swap') format('woff2');
+    /* Try system fonts first as fallback, then Google Fonts */
+    src: local('Inter'), 
+         local('Inter-Regular'),
+         local('-apple-system'), 
+         local('BlinkMacSystemFont'),
+         local('Segoe UI'),
+         local('Roboto');
+}
+
+/* System font fallback for all text - works even if Google Fonts CORS fails */
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Ensure script content uses fallback fonts */
+.script-display,
+.edit-textarea,
+.script-item .script-name,
+.record-name,
+.record-business,
+.release-title,
+.release-description,
+.script-title-area h2,
+.objection-item-int .obj-label,
+.objection-item-int .obj-response,
+.kpi-value,
+.kpi-label,
+.metric-value,
+.metric-label,
+.stat-number,
+.stat-label {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Font loading indicator - shows when fonts are loading */
+.font-loading * {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
 }
 
 /* ============================================================
@@ -602,7 +635,11 @@ body {
     flex-wrap: wrap;
 }
 
-.script-title-area h2 { font-size: 1.3rem; font-weight: 700; }
+.script-title-area h2 { 
+    font-size: 1.3rem; 
+    font-weight: 700;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
 
 .version-chip {
     font-size: 0.7rem;

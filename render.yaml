@@ -14,6 +14,7 @@ services:
       - key: NODE_ENV
         value: production
     headers:
+      # Security Headers
       - path: /*
         name: X-Content-Type-Options
         value: nosniff
@@ -23,6 +24,71 @@ services:
       - path: /*
         name: X-XSS-Protection
         value: 1; mode=block
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Permissions-Policy
+        value: "geolocation=(), microphone=(), camera=()"
+      
+      # CORS Headers - Allow Google Fonts and other CDN resources
+      - path: /*
+        name: Access-Control-Allow-Origin
+        value: "*"
+      - path: /*
+        name: Access-Control-Allow-Methods
+        value: "GET, POST, OPTIONS, HEAD"
+      - path: /*
+        name: Access-Control-Allow-Headers
+        value: "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+      - path: /*
+        name: Access-Control-Allow-Credentials
+        value: "true"
+      - path: /*
+        name: Access-Control-Expose-Headers
+        value: "Content-Length, Content-Range"
+      - path: /*
+        name: Vary
+        value: "Origin, Accept-Encoding"
+      
+      # Cache Headers for static assets
+      - path: /js/*.js
+        name: Cache-Control
+        value: "public, max-age=31536000, immutable"
+      - path: /style.css
+        name: Cache-Control
+        value: "public, max-age=31536000, immutable"
+      - path: /favicon.ico
+        name: Cache-Control
+        value: "public, max-age=31536000, immutable"
+      - path: /*.html
+        name: Cache-Control
+        value: "public, max-age=3600, must-revalidate"
+      - path: /*
+        name: Cache-Control
+        value: "public, max-age=86400, must-revalidate"
+      
+      # Content-Type Headers
+      - path: /js/*.js
+        name: Content-Type
+        value: "application/javascript; charset=utf-8"
+      - path: /style.css
+        name: Content-Type
+        value: "text/css; charset=utf-8"
+      - path: /index.html
+        name: Content-Type
+        value: "text/html; charset=utf-8"
+      
+      # Font Loading CORS Fix - Allow cross-origin font loading
+      - path: /*
+        name: Cross-Origin-Resource-Policy
+        value: "cross-origin"
+      - path: /*
+        name: Cross-Origin-Embedder-Policy
+        value: "unsafe-none"
+      - path: /*
+        name: Cross-Origin-Opener-Policy
+        value: "unsafe-none"
     healthCheckPath: /
     scaling:
       minInstances: 1

@@ -466,6 +466,73 @@ async function deleteDocument(collectionName, docId) {
     }
 }
 
+/**
+ * Get Firestore server timestamp
+ * @returns {Object} Server timestamp object
+ */
+function getServerTimestamp() {
+    try {
+        if (isFirebaseAvailable()) {
+            return firebase.firestore.FieldValue.serverTimestamp();
+        }
+        return new Date().toISOString();
+    } catch (error) {
+        console.warn('⚠️ Could not get server timestamp:', error.message);
+        return new Date().toISOString();
+    }
+}
+
+/**
+ * Get Firestore increment operation
+ * @param {number} value - Value to increment by
+ * @returns {Object} Increment operation object
+ */
+function getIncrement(value = 1) {
+    try {
+        if (isFirebaseAvailable()) {
+            return firebase.firestore.FieldValue.increment(value);
+        }
+        return value;
+    } catch (error) {
+        console.warn('⚠️ Could not get increment operation:', error.message);
+        return value;
+    }
+}
+
+/**
+ * Get Firestore array union operation
+ * @param {Array} elements - Elements to add to array
+ * @returns {Object} Array union operation object
+ */
+function getArrayUnion(elements) {
+    try {
+        if (isFirebaseAvailable()) {
+            return firebase.firestore.FieldValue.arrayUnion(...elements);
+        }
+        return elements;
+    } catch (error) {
+        console.warn('⚠️ Could not get array union operation:', error.message);
+        return elements;
+    }
+}
+
+/**
+ * Get Firestore array remove operation
+ * @param {Array} elements - Elements to remove from array
+ * @returns {Object} Array remove operation object
+ */
+function getArrayRemove(elements) {
+    try {
+        if (isFirebaseAvailable()) {
+            return firebase.firestore.FieldValue.arrayRemove(...elements);
+        }
+        return elements;
+    } catch (error) {
+        console.warn('⚠️ Could not get array remove operation:', error.message);
+        return elements;
+    }
+}
+
 // ================================================================
 // EXPOSE HELPER FUNCTIONS GLOBALLY
 // ================================================================
@@ -488,9 +555,13 @@ window.executeQuery = executeQuery;
 window.updateDocument = updateDocument;
 window.setDocument = setDocument;
 window.deleteDocument = deleteDocument;
+window.getServerTimestamp = getServerTimestamp;
+window.getIncrement = getIncrement;
+window.getArrayUnion = getArrayUnion;
+window.getArrayRemove = getArrayRemove;
 
 console.log('📋 Firebase helper functions exposed globally');
-console.log('📋 Available functions: isFirebaseAvailable, getFirestore, getAuth, getCurrentUser, signInWithGoogle, signInWithEmail, signUpWithEmail, signOutUser, onAuthStateChanged, getCollection, getDocument, getUserCollection, getQuery, executeQuery, updateDocument, setDocument, deleteDocument');
+console.log('📋 Available functions: isFirebaseAvailable, getFirestore, getAuth, getCurrentUser, signInWithGoogle, signInWithEmail, signUpWithEmail, signOutUser, onAuthStateChanged, getCollection, getDocument, getUserCollection, getQuery, executeQuery, updateDocument, setDocument, deleteDocument, getServerTimestamp, getIncrement, getArrayUnion, getArrayRemove');
 
 // ================================================================
 // ERROR HANDLING FOR UNHANDLED PROMISE REJECTIONS
@@ -507,6 +578,12 @@ window.addEventListener('unhandledrejection', function(e) {
     // Check for message channel errors (Chrome extension related)
     if (e.reason && e.reason.message && e.reason.message.includes('message channel')) {
         console.warn('⚠️ Message channel error (likely extension related):', e.reason.message);
+        e.preventDefault();
+        return;
+    }
+    // Check for CORS-related errors
+    if (e.reason && e.reason.message && (e.reason.message.includes('CORS') || e.reason.message.includes('cross-origin'))) {
+        console.warn('⚠️ CORS-related error:', e.reason.message);
         e.preventDefault();
         return;
     }

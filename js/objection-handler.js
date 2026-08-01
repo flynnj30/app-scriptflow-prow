@@ -205,6 +205,24 @@ const ObjectionHandler = {
                     label: '"Who else needs to be on the call?"',
                     response: 'Ideally, anyone who would be involved in the decision-making process. Usually that\'s the owner or manager, but feel free to bring whoever you think should see it.',
                     tags: ['meeting', 'preparation']
+                },
+                {
+                    id: 'meeting_timezone',
+                    label: '"What timezone is this in?"',
+                    response: 'Great question! I\'m in Eastern Time (EDT). What timezone are you in? I want to make sure we\'re on the same page for timing.',
+                    tags: ['meeting', 'timezone']
+                },
+                {
+                    id: 'meeting_link_not_working',
+                    label: '"The meeting link isn\'t working."',
+                    response: 'Oh no, I\'m sorry about that! Let me send you a fresh link. I can also email it to you or send it via text if that\'s easier. What works best for you?',
+                    tags: ['meeting', 'technical']
+                },
+                {
+                    id: 'meeting_reschedule',
+                    label: '"Can we reschedule?"',
+                    response: 'Of course! I understand things come up. What day and time works better for you? I have availability [X day] at [Y time].',
+                    tags: ['meeting', 'reschedule']
                 }
             ]
         },
@@ -241,6 +259,12 @@ const ObjectionHandler = {
                     id: 'need_partner_approval',
                     label: '"I need to discuss with my partner."',
                     response: 'That makes sense. Is there a time we could all get together to review the preview? I\'d be happy to present it to both of you together.',
+                    tags: ['closing', 'decision']
+                },
+                {
+                    id: 'need_to_sleep_on_it',
+                    label: '"Let me sleep on it."',
+                    response: 'Of course, that\'s completely fair. While it\'s fresh in your mind, is there anything specific you\'d like me to clarify before you make a decision?',
                     tags: ['closing', 'decision']
                 }
             ]
@@ -339,9 +363,9 @@ const ObjectionHandler = {
                 position: absolute;
                 top: calc(100% + 8px);
                 right: 0;
-                width: 560px;
+                width: 580px;
                 max-width: calc(100vw - 40px);
-                max-height: 550px;
+                max-height: 580px;
                 background: var(--bg-secondary);
                 border-radius: 16px;
                 border: 1px solid var(--border-color);
@@ -381,10 +405,6 @@ const ObjectionHandler = {
                 align-items: center;
                 gap: 8px;
                 margin: 0;
-            }
-
-            .objection-panel-header h4 .header-icon {
-                font-size: 1rem;
             }
 
             .objection-panel-header .header-sub {
@@ -502,7 +522,7 @@ const ObjectionHandler = {
                 overflow-y: auto;
                 padding: 8px 12px;
                 min-height: 120px;
-                max-height: 300px;
+                max-height: 320px;
             }
 
             .objection-list-integrated::-webkit-scrollbar {
@@ -614,6 +634,15 @@ const ObjectionHandler = {
                 color: var(--favorite-color);
             }
 
+            .objection-item-int .obj-actions .meeting-btn-int {
+                color: var(--primary);
+            }
+
+            .objection-item-int .obj-actions .meeting-btn-int:hover {
+                border-color: var(--primary);
+                background: rgba(59, 130, 246, 0.1);
+            }
+
             .objection-empty-int {
                 text-align: center;
                 padding: 30px 16px;
@@ -689,7 +718,7 @@ const ObjectionHandler = {
                 .objection-panel-integrated {
                     width: calc(100vw - 30px);
                     right: -10px;
-                    max-height: 450px;
+                    max-height: 480px;
                     top: calc(100% + 4px);
                 }
 
@@ -703,7 +732,7 @@ const ObjectionHandler = {
                 }
 
                 .objection-list-integrated {
-                    max-height: 220px;
+                    max-height: 240px;
                 }
 
                 .objection-item-int .obj-label {
@@ -730,11 +759,11 @@ const ObjectionHandler = {
                 .objection-panel-integrated {
                     width: calc(100vw - 20px);
                     right: -5px;
-                    max-height: 400px;
+                    max-height: 420px;
                 }
 
                 .objection-list-integrated {
-                    max-height: 180px;
+                    max-height: 200px;
                 }
 
                 .objection-panel-footer-int {
@@ -956,6 +985,7 @@ const ObjectionHandler = {
             const isFavorite = this.favorites.includes(obj.id);
             const isRecent = this.recentlyUsed.includes(obj.id);
             const tags = obj.tags || [];
+            const isMeetingRelated = tags.some(t => t === 'meeting' || t === 'reschedule' || t === 'timezone' || t === 'technical');
             
             return `
                 <div class="objection-item-int ${isRecent ? 'recent' : ''}" data-id="${obj.id}">
@@ -965,6 +995,7 @@ const ObjectionHandler = {
                         <div class="obj-tags">
                             ${tags.map(tag => `<span class="obj-tag">${tag}</span>`).join('')}
                             ${isRecent ? `<span class="obj-tag" style="background:var(--primary);color:white;">recent</span>` : ''}
+                            ${isMeetingRelated ? `<span class="obj-tag" style="background:var(--primary);color:white;">📅</span>` : ''}
                         </div>
                     ` : ''}
                     <div class="obj-actions">
@@ -977,6 +1008,11 @@ const ObjectionHandler = {
                         <button class="fav-btn-int ${isFavorite ? 'active' : ''}" data-id="${obj.id}">
                             <i class="fas fa-star"></i>
                         </button>
+                        ${isMeetingRelated ? `
+                            <button class="meeting-btn-int" onclick="window.openMeetingScheduler && window.openMeetingScheduler()" title="Schedule Meeting">
+                                <i class="fas fa-calendar-plus"></i>
+                            </button>
+                        ` : ''}
                     </div>
                 </div>
             `;
@@ -1208,6 +1244,45 @@ const ObjectionHandler = {
             this.elements.searchInput.value = tag;
         }
         this.renderList();
+    },
+
+    // Get objections by category
+    getByCategory: function(categoryId) {
+        return this.categories[categoryId]?.objections || [];
+    },
+
+    // Get meeting-related objections
+    getMeetingObjections: function() {
+        return this.getByCategory('meeting');
+    },
+
+    // Get closing objections
+    getClosingObjections: function() {
+        return this.getByCategory('closing');
+    },
+
+    // Get objections by tag
+    getByTag: function(tag) {
+        const all = this.getAllObjections();
+        return all.filter(obj => obj.tags && obj.tags.includes(tag));
+    },
+
+    // Get favorite objections
+    getFavorites: function() {
+        const all = this.getAllObjections();
+        return all.filter(obj => this.favorites.includes(obj.id));
+    },
+
+    // Get recently used objections
+    getRecentlyUsed: function() {
+        const all = this.getAllObjections();
+        return all.filter(obj => this.recentlyUsed.includes(obj.id));
+    },
+
+    // Get objection by ID
+    getById: function(id) {
+        const all = this.getAllObjections();
+        return all.find(obj => obj.id === id);
     }
 };
 

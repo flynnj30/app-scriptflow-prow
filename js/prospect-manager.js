@@ -229,6 +229,30 @@ const PROSPECT_SCHEMA = {
         section: 'meta',
         min: 0,
         max: 10
+    },
+    // Meeting detection metadata
+    _meetingDetected: {
+        type: 'boolean',
+        required: false,
+        label: 'Meeting Detected',
+        icon: '📅',
+        section: 'meta'
+    },
+    _meetingConfidence: {
+        type: 'number',
+        required: false,
+        label: 'Meeting Confidence',
+        icon: '📊',
+        section: 'meta',
+        min: 0,
+        max: 1
+    },
+    _autoAssignCloser: {
+        type: 'boolean',
+        required: false,
+        label: 'Auto-Assign Closer',
+        icon: '🤖',
+        section: 'meta'
     }
 };
 
@@ -440,6 +464,9 @@ class ProspectManager {
         if (filters.qualityScoreMax) {
             prospects = prospects.filter(p => (p.qualityScore || 0) <= filters.qualityScoreMax);
         }
+        if (filters.isMeeting) {
+            prospects = prospects.filter(p => p._meetingDetected === true);
+        }
         if (filters.limit) {
             prospects = prospects.slice(0, filters.limit);
         }
@@ -473,6 +500,13 @@ class ProspectManager {
      */
     getMeetingsHeld() {
         return this.getAll({ status: 'Held' });
+    }
+
+    /**
+     * Get prospects with meeting detected
+     */
+    getMeetingsDetected() {
+        return this.getAll({ isMeeting: true });
     }
 
     /**
@@ -784,6 +818,11 @@ class ProspectManager {
             normalized.leadScore = Math.max(0, Math.min(100, normalized.leadScore));
         }
         
+        // Normalize meeting confidence
+        if (normalized._meetingConfidence !== undefined && normalized._meetingConfidence !== null) {
+            normalized._meetingConfidence = Math.max(0, Math.min(1, normalized._meetingConfidence));
+        }
+        
         return normalized;
     }
 
@@ -840,6 +879,11 @@ class ProspectManager {
         // Meeting link bonus
         if (prospect.meetingLink) score += 0.5;
         if (prospect.meetingAgenda) score += 0.5;
+        
+        // Meeting detection bonus
+        if (prospect._meetingDetected && prospect._meetingConfidence >= 0.7) {
+            score += 1;
+        }
         
         return Math.max(0, Math.min(10, score));
     }
@@ -926,6 +970,11 @@ class ProspectManager {
         // Meeting link bonus
         if (prospect.meetingLink) score += 10;
         if (prospect.meetingAgenda) score += 5;
+        
+        // Meeting detection bonus
+        if (prospect._meetingDetected && prospect._meetingConfidence >= 0.7) {
+            score += 15;
+        }
 
         return Math.max(0, Math.min(100, score));
     }
@@ -1203,7 +1252,10 @@ class ProspectManager {
             'meetingDuration': ['duration', 'length', 'meeting length', 'call duration'],
             'meetingAgenda': ['agenda', 'topics', 'discussion points'],
             'timezone': ['timezone', 'tz', 'est', 'edt', 'cst', 'cdt', 'pst', 'pdt', 'gmt', 'utc'],
-            'qualityScore': ['quality score', 'rating', 'score']
+            'qualityScore': ['quality score', 'rating', 'score'],
+            '_meetingDetected': ['meeting detected', 'confirmed meeting', 'meeting booked'],
+            '_meetingConfidence': ['meeting confidence', 'confidence'],
+            '_autoAssignCloser': ['auto assign', 'assign closer']
         };
         
         for (const [field, aliases] of Object.entries(fieldMap)) {
@@ -1405,6 +1457,7 @@ class ProspectManager {
             canceledCount: 0,
             meetingsBookedCount: 0,
             meetingsHeldCount: 0,
+            meetingsDetectedCount: 0,
             lowQualityCount: 0,
             highQualityCount: 0
         };
@@ -1425,6 +1478,7 @@ class ProspectManager {
             if (status === 'Canceled') stats.canceledCount++;
             if (status === 'Meeting Booked') stats.meetingsBookedCount++;
             if (status === 'Held') stats.meetingsHeldCount++;
+            if (p._meetingDetected) stats.meetingsDetectedCount++;
 
             // Source counts
             const source = p.source || 'Unknown';
@@ -1491,7 +1545,8 @@ class ProspectManager {
             pending: prospects.filter(p => p.status === 'Pending').length,
             canceled: prospects.filter(p => p.status === 'Canceled').length,
             meetingsBooked: prospects.filter(p => p.status === 'Meeting Booked').length,
-            meetingsHeld: prospects.filter(p => p.status === 'Held').length
+            meetingsHeld: prospects.filter(p => p.status === 'Held').length,
+            meetingsDetected: prospects.filter(p => p._meetingDetected === true).length
         };
     }
 
@@ -1503,7 +1558,8 @@ class ProspectManager {
             p.status === 'Meeting Booked' || 
             p.status === 'Held' || 
             p.meetingLink ||
-            p.meetingAgenda
+            p.meetingAgenda ||
+            p._meetingDetected === true
         );
     }
 
@@ -1552,6 +1608,20 @@ class ProspectManager {
             p.email && this._getEmailStatus(p.email) === 'bounced'
         );
     }
+
+    /**
+     * Get prospects with meeting links
+     */
+    getWithMeetingLinks() {
+        return this.getAll().filter(p => p.meetingLink);
+    }
+
+    /**
+     * Get prospects with meeting agendas
+     */
+    getWithMeetingAgendas() {
+        return this.getAll().filter(p => p.meetingAgenda);
+    }
 }
 
 // ================================================================
@@ -1594,7 +1664,7 @@ const ProspectUI = {
             const scoreClass = score >= 70 ? 'score-hot' : score >= 40 ? 'score-warm' : 'score-cold';
             const qualityClass = qualityScore >= 8 ? 'score-high' : qualityScore >= 6 ? 'score-medium' : 'score-low';
             const statusClass = (window.Utils && window.Utils.getStatusClass) ? window.Utils.getStatusClass(prospect.status) : '';
-            const isMeeting = prospect.status === 'Meeting Booked' || prospect.status === 'Held';
+            const isMeeting = prospect.status === 'Meeting Booked' || prospect.status === 'Held' || prospect._meetingDetected === true;
             
             html += `
                 <div class="prospect-card ${isMeeting ? 'meeting' : ''}" data-id="${prospect.id}">
@@ -1607,6 +1677,7 @@ const ProspectUI = {
                             ${prospect.status ? `<span class="status-tag ${statusClass}">${this._escapeHtml(prospect.status)}</span>` : ''}
                             ${qualityScore > 0 ? `<span class="score-badge ${qualityClass}">⭐ ${qualityScore.toFixed(1)}</span>` : ''}
                             <span class="score-badge ${scoreClass}">${score} Pts</span>
+                            ${prospect._meetingDetected ? `<span class="meeting-badge" title="Meeting detected with ${Math.round((prospect._meetingConfidence || 0) * 100)}% confidence">📅</span>` : ''}
                         </div>
                     </div>
                     
@@ -1728,7 +1799,7 @@ const ProspectUI = {
                 const value = prospect ? prospect[key] : '';
                 const isRequired = schema.required ? 'required' : '';
                 const isDisabled = disabledFields.includes(key) ? 'disabled' : '';
-                const isMeetingField = key.startsWith('meeting') || key === 'timezone';
+                const isMeetingField = key.startsWith('meeting') || key === 'timezone' || key.startsWith('_meeting');
                 const meetingClass = isMeetingField ? 'meeting-field' : '';
                 
                 let inputHtml = '';
@@ -1759,6 +1830,10 @@ const ProspectUI = {
                     inputHtml = `
                         <input type="text" id="prospect_${key}" class="form-input ${meetingClass}" value="${this._escapeHtml(tagsValue)}" placeholder="${schema.placeholder || 'Separate with commas'}" ${isRequired} ${isDisabled} />
                     `;
+                } else if (schema.type === 'boolean') {
+                    inputHtml = `
+                        <input type="checkbox" id="prospect_${key}" class="form-input ${meetingClass}" ${value ? 'checked' : ''} ${isDisabled} />
+                    `;
                 } else {
                     inputHtml = `
                         <input type="${schema.type === 'email' ? 'email' : 'text'}" id="prospect_${key}" class="form-input ${meetingClass}" value="${this._escapeHtml(value)}" placeholder="${schema.placeholder || ''}" ${isRequired} ${isDisabled} />
@@ -1788,11 +1863,13 @@ const ProspectUI = {
 
         // Meeting indicator if editing and has meeting status
         let meetingIndicator = '';
-        if (prospect && (prospect.status === 'Meeting Booked' || prospect.status === 'Held')) {
+        if (prospect && (prospect.status === 'Meeting Booked' || prospect.status === 'Held' || prospect._meetingDetected)) {
+            const confPercent = prospect._meetingConfidence ? Math.round(prospect._meetingConfidence * 100) : 0;
             meetingIndicator = `
-                <div class="meeting-indicator confirmed">
-                    📅 Meeting ${prospect.status === 'Held' ? 'Held' : 'Booked'}
+                <div class="meeting-indicator ${prospect._meetingConfidence >= 0.7 ? 'confirmed' : 'suspected'}">
+                    📅 ${prospect.status === 'Held' ? 'Meeting Held' : prospect._meetingDetected ? 'Meeting Detected' : 'Meeting Booked'}
                     ${prospect.qualityScore ? `· ⭐ ${prospect.qualityScore.toFixed(1)}/10` : ''}
+                    ${prospect._meetingConfidence ? `· ${confPercent}% confidence` : ''}
                 </div>
             `;
         }
@@ -1854,7 +1931,7 @@ const ProspectUI = {
                             data[key] = input.checked;
                         } else if (key === 'tags' && input.value) {
                             data[key] = input.value.split(',').map(t => t.trim()).filter(t => t);
-                        } else if (key === 'qualityScore') {
+                        } else if (key === 'qualityScore' || key === 'leadScore' || key === '_meetingConfidence') {
                             data[key] = parseFloat(input.value) || 0;
                         } else {
                             data[key] = input.value;
@@ -1903,7 +1980,7 @@ const ProspectUI = {
         const scoreClass = score >= 70 ? 'score-hot' : score >= 40 ? 'score-warm' : 'score-cold';
         const qualityClass = qualityScore >= 8 ? 'score-high' : qualityScore >= 6 ? 'score-medium' : 'score-low';
         const statusClass = (window.Utils && window.Utils.getStatusClass) ? window.Utils.getStatusClass(prospect.status) : '';
-        const isMeeting = prospect.status === 'Meeting Booked' || prospect.status === 'Held';
+        const isMeeting = prospect.status === 'Meeting Booked' || prospect.status === 'Held' || prospect._meetingDetected;
 
         container.innerHTML = `
             <div class="prospect-detail-modal">
@@ -1922,14 +1999,16 @@ const ProspectUI = {
                                 ${prospect.status ? `<span class="status-tag ${statusClass}">${this._escapeHtml(prospect.status)}</span>` : ''}
                                 ${qualityScore > 0 ? `<span class="score-badge ${qualityClass}">⭐ ${qualityScore.toFixed(1)}</span>` : ''}
                                 <span class="score-badge ${scoreClass}">${score} Pts</span>
+                                ${prospect._meetingDetected ? `<span class="meeting-badge" title="Meeting detected with ${Math.round((prospect._meetingConfidence || 0) * 100)}% confidence">📅</span>` : ''}
                             </div>
                         </div>
                         
                         ${isMeeting ? `
-                            <div class="meeting-indicator confirmed" style="margin-bottom:12px;">
-                                📅 Meeting ${prospect.status === 'Held' ? 'Held' : 'Booked'}
+                            <div class="meeting-indicator ${prospect._meetingConfidence >= 0.7 ? 'confirmed' : 'suspected'}" style="margin-bottom:12px;">
+                                📅 ${prospect.status === 'Held' ? 'Meeting Held' : prospect._meetingDetected ? 'Meeting Detected' : 'Meeting Booked'}
                                 ${prospect.date ? `· ${this._formatDate(prospect.date)}` : ''}
                                 ${prospect.time ? `· ${this._escapeHtml(prospect.time)}` : ''}
+                                ${prospect._meetingConfidence ? `· ${Math.round(prospect._meetingConfidence * 100)}% confidence` : ''}
                             </div>
                         ` : ''}
                         
@@ -2012,6 +2091,12 @@ const ProspectUI = {
                                     <span class="detail-value">${this._escapeHtml(prospect.meetingDuration)}</span>
                                 </div>
                             ` : ''}
+                            ${prospect.meetingAgenda ? `
+                                <div class="detail-item">
+                                    <span class="detail-label"><i class="fas fa-list"></i> Agenda</span>
+                                    <span class="detail-value">${this._escapeHtml(prospect.meetingAgenda)}</span>
+                                </div>
+                            ` : ''}
                             ${prospect.timezone ? `
                                 <div class="detail-item">
                                     <span class="detail-label"><i class="fas fa-map-pin"></i> Timezone</span>
@@ -2022,6 +2107,18 @@ const ProspectUI = {
                                 <div class="detail-item">
                                     <span class="detail-label"><i class="fas fa-star"></i> Quality Score</span>
                                     <span class="detail-value ${qualityClass}">${prospect.qualityScore.toFixed(1)} / 10</span>
+                                </div>
+                            ` : ''}
+                            ${prospect._meetingDetected !== undefined && prospect._meetingDetected !== null ? `
+                                <div class="detail-item">
+                                    <span class="detail-label"><i class="fas fa-check-circle"></i> Meeting Detected</span>
+                                    <span class="detail-value">${prospect._meetingDetected ? '✅ Yes' : '❌ No'}</span>
+                                </div>
+                            ` : ''}
+                            ${prospect._meetingConfidence !== undefined && prospect._meetingConfidence !== null ? `
+                                <div class="detail-item">
+                                    <span class="detail-label"><i class="fas fa-chart-bar"></i> Meeting Confidence</span>
+                                    <span class="detail-value">${Math.round(prospect._meetingConfidence * 100)}%</span>
                                 </div>
                             ` : ''}
                         </div>
@@ -2126,6 +2223,10 @@ const ProspectUI = {
                 <div class="prospect-stat-card">
                     <div class="prospect-stat-value" style="color:var(--success);">${stats.avgQualityScore}</div>
                     <div class="prospect-stat-label">⭐ Avg Quality Score</div>
+                </div>
+                <div class="prospect-stat-card">
+                    <div class="prospect-stat-value" style="color:#8b5cf6;">${stats.meetingsDetectedCount}</div>
+                    <div class="prospect-stat-label">📅 Meetings Detected</div>
                 </div>
             </div>
         `;
@@ -2722,6 +2823,17 @@ const PROSPECT_STYLES = `
     .prospect-stat-value {
         font-size: 1.2rem;
     }
+}
+
+/* Meeting Badge */
+.meeting-badge {
+    display: inline-block;
+    font-size: 0.8rem;
+    background: var(--primary);
+    color: white;
+    padding: 1px 6px;
+    border-radius: 10px;
+    margin-left: 4px;
 }
 `;
 
