@@ -149,6 +149,56 @@ class SmartImportEngine {
     }
 
     /**
+     * Split text into individual appointments
+     * This method is called by app.js when parsing import text
+     */
+    splitAppointments(text) {
+        const appointments = [];
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+        let currentAppointment = [];
+        let inAppointment = false;
+        
+        for (const line of lines) {
+            const isNewAppointment = 
+                line.match(/^[A-Z][a-zA-Z]+\s+(?:Company|Corp|Inc|LLC|Ltd|Agency|Studio|Designs|Solutions|Services|Consulting|Group|Partners|&|Associates)/) ||
+                line.match(/^---+\s*$/) ||
+                line.match(/^={3,}\s*$/) ||
+                line.match(/^Appointment\s+#\d+/) ||
+                line.match(/^\d+\.\s*[A-Z]/) ||
+                line.match(/^[A-Z][a-zA-Z]+\s+[A-Z][a-zA-Z]+\s*[:\-]\s*/);
+            
+            if (isNewAppointment && currentAppointment.length > 0) {
+                appointments.push(currentAppointment.join('\n'));
+                currentAppointment = [];
+                inAppointment = false;
+            }
+            
+            if (line.includes(':') && line.split(':')[0].trim().length > 0 && line.split(':')[0].trim().length < 30) {
+                const key = line.split(':')[0].trim().toLowerCase();
+                const isField = this.fieldMappings[key] || 
+                               Object.keys(this.fieldMappings).some(f => 
+                                   this.fieldMappings[f].labels.includes(key)
+                               );
+                if (isField && currentAppointment.length === 0 && !inAppointment) {
+                    inAppointment = true;
+                }
+            }
+            
+            currentAppointment.push(line);
+        }
+        
+        if (currentAppointment.length > 0) {
+            appointments.push(currentAppointment.join('\n'));
+        }
+        
+        if (appointments.length === 0 && text.trim()) {
+            appointments.push(text.trim());
+        }
+        
+        return appointments;
+    }
+
+    /**
      * Parse text into structured data
      */
     parseText(text, options = {}) {
@@ -217,54 +267,6 @@ class SmartImportEngine {
         });
 
         return results;
-    }
-
-    /**
-     * Split text into individual appointments
-     */
-    splitAppointments(text) {
-        const appointments = [];
-        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-        let currentAppointment = [];
-        let inAppointment = false;
-        
-        for (const line of lines) {
-            const isNewAppointment = 
-                line.match(/^[A-Z][a-zA-Z]+\s+(?:Company|Corp|Inc|LLC|Ltd|Agency|Studio|Designs|Solutions|Services|Consulting|Group|Partners|&|Associates)/) ||
-                line.match(/^---+\s*$/) ||
-                line.match(/^={3,}\s*$/) ||
-                line.match(/^Appointment\s+#\d+/) ||
-                line.match(/^\d+\.\s*[A-Z]/);
-            
-            if (isNewAppointment && currentAppointment.length > 0) {
-                appointments.push(currentAppointment.join('\n'));
-                currentAppointment = [];
-                inAppointment = false;
-            }
-            
-            if (line.includes(':') && line.split(':')[0].trim().length > 0 && line.split(':')[0].trim().length < 30) {
-                const key = line.split(':')[0].trim().toLowerCase();
-                const isField = this.fieldMappings[key] || 
-                               Object.keys(this.fieldMappings).some(f => 
-                                   this.fieldMappings[f].labels.includes(key)
-                               );
-                if (isField && currentAppointment.length === 0 && !inAppointment) {
-                    inAppointment = true;
-                }
-            }
-            
-            currentAppointment.push(line);
-        }
-        
-        if (currentAppointment.length > 0) {
-            appointments.push(currentAppointment.join('\n'));
-        }
-        
-        if (appointments.length === 0 && text.trim()) {
-            appointments.push(text.trim());
-        }
-        
-        return appointments;
     }
 
     /**
@@ -409,7 +411,8 @@ class SmartImportEngine {
             /(?:business|company|organization|org|firm|brand|store)[:\s]+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i,
             /(?:from|at|with)\s+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i,
             /^([A-Z][a-zA-Z0-9\s&]+?)\s+(?:business|company|organization)/i,
-            /(?:for|about)\s+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i
+            /(?:for|about)\s+([A-Z][a-zA-Z0-9\s&]+?)(?:[,.\n]|$)/i,
+            /(?:company|business|org|firm)[:\s]+([A-Z][a-zA-Z0-9\s&]+)/i
         ];
         for (const pattern of businessPatterns) {
             const match = fullText.match(pattern);
@@ -425,7 +428,8 @@ class SmartImportEngine {
             /(?:name|contact|client|customer|person|full name)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
             /(?:from|with|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
             /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:from|at|with|said|wants|would like|requested)/i,
-            /contact[:\s]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i
+            /contact[:\s]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+            /(?:name|contact)[:\s]+([A-Z][a-z]+)/i
         ];
         for (const pattern of namePatterns) {
             const match = fullText.match(pattern);
@@ -1227,7 +1231,7 @@ const SmartImportUI = {
                 label: 'Assigned To',
                 type: 'select',
                 required: false,
-                options: ['Daniel', 'Sarah', 'Mike', 'Jessica', 'David']
+                options: ['Daniel', 'Sarah', 'Mike', 'Jessica', 'David', 'Kailan', 'Seif']
             },
             notes: { label: 'Notes', type: 'textarea', required: false },
             tags: { label: 'Tags (comma separated)', type: 'text', required: false },
@@ -1739,11 +1743,33 @@ document.addEventListener('DOMContentLoaded', function() {
 // Create engine instance
 const smartImportEngine = new SmartImportEngine();
 
-// Expose globally
+// ================================================================
+// EXPOSE GLOBALLY
+// ================================================================
+
+// Expose classes and instances
 window.SmartImportEngine = SmartImportEngine;
 window.SmartImportUI = SmartImportUI;
 window.SmartImportState = SmartImportState;
 window.SMART_IMPORT = SMART_IMPORT;
 window.smartImportEngine = smartImportEngine;
 
-console.log('📥 Smart Import module loaded');
+// Expose the splitAppointments method directly for easy access
+window.splitAppointments = function(text) {
+    return smartImportEngine.splitAppointments(text);
+};
+
+// Expose the parseText method directly for easy access
+window.parseImportText = function(text, options) {
+    return smartImportEngine.parseText(text, options);
+};
+
+// Expose the checkDuplicates method directly for easy access
+window.checkImportDuplicates = function(record, existing) {
+    return smartImportEngine.checkDuplicates(record, existing);
+};
+
+console.log('📥 Smart Import module loaded successfully');
+console.log('📥 Use smartImportEngine.splitAppointments() to split text into appointments');
+console.log('📥 Use smartImportEngine.parseText() to parse individual appointment text');
+console.log('📥 Use smartImportEngine.checkDuplicates() to check for duplicates');

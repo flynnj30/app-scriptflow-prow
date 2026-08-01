@@ -88,7 +88,7 @@ const AppState = {
     toolsOpen: false,
     currentView: 'calendar',
     calendarView: 'calendar',
-    analyticsTab: 'meetings', // Changed to 'meetings' by default
+    analyticsTab: 'meetings',
     taskFilter: 'all',
     selectedAppointments: new Set(),
     currentAppointmentId: null,
@@ -129,11 +129,9 @@ const AppState = {
     importProcessing: false,
     importProgress: 0,
     
-    // Prospect Manager - will be initialized when script loads
     prospectManager: null,
     prospectManagerReady: false,
 
-    // Analytics Filters
     analyticsFilters: {
         timeRange: 'today',
         startDate: null,
@@ -272,16 +270,13 @@ const Utils = {
         return Math.max(0, Math.min(100, score));
     },
 
-    // Quality score calculation (0-10 scale)
     calculateQualityScore(appt) {
-        if (!appt || !appt.qualityScore && appt.qualityScore !== 0) return null;
-        // If qualityScore is already set, use it
+        if (!appt) return null;
         if (appt.qualityScore !== undefined && appt.qualityScore !== null) {
             return Math.max(0, Math.min(10, appt.qualityScore));
         }
-        // Auto-calculate based on meeting outcome
         const status = Utils.getStatus(appt);
-        let score = 5; // Default neutral
+        let score = 5;
         
         if (status === 'Held') {
             score = 8;
@@ -295,7 +290,6 @@ const Utils = {
             score = 2;
         }
         
-        // Email validation affects quality
         if (appt.email && Utils.isValidEmail(appt.email)) {
             score += 0.5;
         }
@@ -303,23 +297,19 @@ const Utils = {
         return Math.max(0, Math.min(10, score));
     },
 
-    // Email validation
     isValidEmail(email) {
         if (!email) return false;
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return emailRegex.test(email);
     },
 
-    // Check if email bounced (simplified - in production, would check against email service)
     isEmailBounced(email) {
         if (!email) return false;
-        // Common bounce indicators - in production, would check with email service
         const bounceIndicators = ['bounce', 'undeliverable', 'failed', 'invalid', 'rejected'];
         const lowerEmail = email.toLowerCase();
         return bounceIndicators.some(indicator => lowerEmail.includes(indicator));
     },
 
-    // Email status
     getEmailStatus(email) {
         if (!email) return 'unknown';
         if (this.isEmailBounced(email)) return 'bounced';
@@ -397,7 +387,6 @@ const Utils = {
         }
     },
 
-    // Date range helpers
     getDateRange(range) {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -680,7 +669,6 @@ const Auth = {
                 AppState.teamMembersUnsubscribe = null;
             }
             
-            // Clean up prospect manager
             if (AppState.prospectManager && AppState.prospectManager.unsubscribe) {
                 AppState.prospectManager.unsubscribe();
             }
@@ -890,7 +878,6 @@ const Stats = {
         return 0;
     },
 
-    // Meeting Performance Stats
     getMeetingStats: function() {
         const allAppointments = Data.getAllAppointments();
         let meetingsBooked = 0;
@@ -907,17 +894,12 @@ const Stats = {
         allAppointments.forEach(appt => {
             const status = Utils.getStatus(appt);
             
-            // Count meetings booked (only status = "Meeting Booked")
             if (status === 'Meeting Booked') {
                 meetingsBooked++;
             }
-            
-            // Count meetings held (status = "Held")
             if (status === 'Held') {
                 meetingsHeld++;
             }
-            
-            // Count no shows (status = "Canceled" or "Overdue" with notes indicating no-show)
             if (status === 'Canceled' || status === 'Overdue') {
                 if (appt.notes && appt.notes.toLowerCase().includes('no show')) {
                     noShows++;
@@ -925,23 +907,16 @@ const Stats = {
                     cancelled++;
                 }
             }
-            
-            // Count rescheduled
             if (status === 'Rescheduled') {
                 rescheduled++;
             }
-            
-            // Count pending
             if (status === 'Pending') {
                 pending++;
             }
-            
-            // Count completed (status = "Completed")
             if (status === 'Completed') {
                 completed++;
             }
             
-            // Quality score - only for meetings with quality score
             const qualityScore = Utils.calculateQualityScore(appt);
             if (qualityScore !== null && qualityScore !== undefined) {
                 totalQualityScore += qualityScore;
@@ -1010,9 +985,7 @@ const Data = {
                         Scripts.renderSidebar();
                         Scripts.loadScript('opening');
                     }
-                    // Try to initialize Prospect Manager
                     Data.initProspectManager();
-                    // Trigger analytics update
                     if (typeof FeaturePanel !== 'undefined') {
                         FeaturePanel.refreshCurrentView();
                     }
@@ -1087,7 +1060,6 @@ const Data = {
                 AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
             }
 
-            // Initialize Prospect Manager - with safe check
             Data.initProspectManager();
 
             localStorage.setItem('userData_fallback', JSON.stringify({
@@ -1106,7 +1078,6 @@ const Data = {
             Auth.closeModal();
             if (statusEl) statusEl.innerHTML = '<i class="fas fa-check"></i> Synced';
             
-            // Trigger analytics update
             if (typeof FeaturePanel !== 'undefined') {
                 FeaturePanel.refreshCurrentView();
             }
@@ -1118,9 +1089,7 @@ const Data = {
 
     initProspectManager: function() {
         try {
-            // Check if ProspectManager is available globally
             if (typeof ProspectManager !== 'undefined' && ProspectManager) {
-                // Make sure ProspectManager is initialized
                 if (!ProspectManager.isInitialized) {
                     ProspectManager.init();
                 }
@@ -1129,7 +1098,6 @@ const Data = {
                 console.log('📋 Prospect Manager initialized successfully');
                 Stats.updateAll();
             } else {
-                // ProspectManager not loaded yet, try again later
                 if (!AppState.prospectManagerReady) {
                     setTimeout(() => {
                         Data.initProspectManager();
@@ -1138,7 +1106,6 @@ const Data = {
             }
         } catch (error) {
             console.warn('Could not initialize Prospect Manager:', error);
-            // Don't throw error, app should still work
         }
     },
 
@@ -1270,7 +1237,6 @@ const Data = {
         }
         if (!CONFIG.STATUS_OPTIONS.includes(status)) status = 'Pending';
         
-        // Extract email from notes if present
         let email = '';
         if (notes && notes.includes('Email:')) {
             const emailMatch = notes.match(/Email:\s*([^\s\n]+)/);
@@ -1279,10 +1245,8 @@ const Data = {
             }
         }
         
-        // Auto-assign to closer if status is "Meeting Booked"
         let assignedTo = assigned || 'Daniel';
         if (status === 'Meeting Booked') {
-            // Alternate between Kailan and Seif for meeting bookings
             const meetingBookedCount = this.getMeetingBookedCount();
             assignedTo = meetingBookedCount % 2 === 0 ? 'Kailan' : 'Seif';
         }
@@ -1316,7 +1280,6 @@ const Data = {
             updatedAt: new Date().toISOString()
         };
         
-        // Calculate quality score if meeting booked
         if (status === 'Meeting Booked' || status === 'Held') {
             newAppt.qualityScore = Utils.calculateQualityScore(newAppt);
         }
@@ -1384,7 +1347,6 @@ const Data = {
         Object.assign(appt, updates);
         appt.updatedAt = new Date().toISOString();
         
-        // Recalculate quality score if status changed
         if (updates.status) {
             appt.qualityScore = Utils.calculateQualityScore(appt);
         }
@@ -1597,21 +1559,16 @@ const Data = {
 // ================================================================
 
 const AnalyticsEngine = {
-    /**
-     * Get filtered appointments based on current filters
-     */
     getFilteredAppointments() {
         const filters = AppState.analyticsFilters || {};
         let appointments = Data.getAllAppointments();
         
-        // Apply date filter
         if (filters.timeRange && filters.timeRange !== 'custom') {
             const range = Utils.getDateRange(filters.timeRange);
             appointments = appointments.filter(appt => {
                 const date = new Date(appt.date);
                 const start = new Date(range.start);
                 const end = new Date(range.end);
-                // Set end date to end of day
                 end.setHours(23, 59, 59, 999);
                 return date >= start && date <= end;
             });
@@ -1625,7 +1582,6 @@ const AnalyticsEngine = {
             });
         }
         
-        // Apply setter filter
         if (filters.setter && filters.setter !== 'all') {
             appointments = appointments.filter(appt => 
                 appt.assigned === filters.setter || 
@@ -1633,7 +1589,6 @@ const AnalyticsEngine = {
             );
         }
         
-        // Apply campaign filter
         if (filters.campaign && filters.campaign !== 'all') {
             appointments = appointments.filter(appt => appt.campaign === filters.campaign);
         }
@@ -1641,9 +1596,6 @@ const AnalyticsEngine = {
         return appointments;
     },
 
-    /**
-     * Calculate meeting performance metrics
-     */
     calculateMetrics(appointments) {
         let meetingsBooked = 0;
         let meetingsHeld = 0;
@@ -1671,42 +1623,28 @@ const AnalyticsEngine = {
             const status = Utils.getStatus(appt);
             const qualityScore = Utils.calculateQualityScore(appt);
             
-            // Count meetings booked (only status = "Meeting Booked")
             if (status === 'Meeting Booked') {
                 meetingsBooked++;
             }
-            
-            // Count meetings held (status = "Held")
             if (status === 'Held') {
                 meetingsHeld++;
             }
-            
-            // Count no shows
             if (status === 'Canceled' && appt.notes && appt.notes.toLowerCase().includes('no show')) {
                 noShows++;
             }
-            
-            // Count cancelled
             if (status === 'Canceled' && !(appt.notes && appt.notes.toLowerCase().includes('no show'))) {
                 cancelled++;
             }
-            
-            // Count rescheduled
             if (status === 'Rescheduled') {
                 rescheduled++;
             }
-            
-            // Count pending
             if (status === 'Pending') {
                 pending++;
             }
-            
-            // Count completed
             if (status === 'Completed') {
                 completed++;
             }
             
-            // Quality score
             if (qualityScore !== null && qualityScore !== undefined) {
                 totalQualityScore += qualityScore;
                 scoredMeetings++;
@@ -1714,7 +1652,6 @@ const AnalyticsEngine = {
                 if (qualityScore < 5) lowQualityCount++;
                 if (qualityScore >= 8) highQualityCount++;
                 
-                // Quality distribution
                 if (qualityScore <= 2) qualityDistribution['0-2']++;
                 else if (qualityScore <= 4) qualityDistribution['3-4']++;
                 else if (qualityScore <= 6) qualityDistribution['5-6']++;
@@ -1722,15 +1659,12 @@ const AnalyticsEngine = {
                 else qualityDistribution['9-10']++;
             }
             
-            // Status distribution
             statusDistribution[status] = (statusDistribution[status] || 0) + 1;
             
-            // Daily bookings trend (only for meeting booked)
             if (status === 'Meeting Booked' && appt.date) {
                 dailyBookings[appt.date] = (dailyBookings[appt.date] || 0) + 1;
             }
             
-            // Daily show rate (meetings held / meetings booked per day)
             if (appt.date) {
                 if (!dailyShowRate[appt.date]) {
                     dailyShowRate[appt.date] = { booked: 0, held: 0 };
@@ -1743,15 +1677,12 @@ const AnalyticsEngine = {
                 }
             }
             
-            // By setter
             const setter = appt.assigned || appt.setter || 'Unassigned';
             appointmentsBySetter[setter] = (appointmentsBySetter[setter] || 0) + 1;
             
-            // By campaign
             const campaign = appt.campaign || 'Uncategorized';
             appointmentsByCampaign[campaign] = (appointmentsByCampaign[campaign] || 0) + 1;
             
-            // Email validation
             if (appt.email) {
                 const emailStatus = Utils.getEmailStatus(appt.email);
                 if (emailStatus === 'valid') emailValidCount++;
@@ -1767,7 +1698,6 @@ const AnalyticsEngine = {
         const rescheduleRate = meetingsBooked > 0 ? (rescheduled / meetingsBooked) * 100 : 0;
         const completionRate = meetingsBooked > 0 ? (completed / meetingsBooked) * 100 : 0;
 
-        // Calculate daily show rates
         const dailyShowRates = {};
         Object.keys(dailyShowRate).forEach(date => {
             const data = dailyShowRate[date];
@@ -1805,9 +1735,6 @@ const AnalyticsEngine = {
         };
     },
 
-    /**
-     * Get drill-down data for a specific metric
-     */
     getDrillDownData(metric, appointments) {
         const filtered = appointments.filter(appt => {
             const status = Utils.getStatus(appt);
@@ -1845,9 +1772,6 @@ const AnalyticsEngine = {
         return filtered;
     },
 
-    /**
-     * Get chart data for meeting status pie chart
-     */
     getStatusChartData(appointments) {
         const metrics = this.calculateMetrics(appointments);
         const labels = [];
@@ -1874,9 +1798,6 @@ const AnalyticsEngine = {
         return { labels, data, colors };
     },
 
-    /**
-     * Get weekly booking trend data
-     */
     getWeeklyTrendData(appointments) {
         const metrics = this.calculateMetrics(appointments);
         const dates = Object.keys(metrics.dailyBookings).sort();
@@ -1887,9 +1808,6 @@ const AnalyticsEngine = {
         return { labels, data };
     },
 
-    /**
-     * Get daily show rate data
-     */
     getDailyShowRateData(appointments) {
         const metrics = this.calculateMetrics(appointments);
         const dates = Object.keys(metrics.dailyShowRates).sort();
@@ -1900,9 +1818,6 @@ const AnalyticsEngine = {
         return { labels, data };
     },
 
-    /**
-     * Get quality score distribution data
-     */
     getQualityDistributionData(appointments) {
         const metrics = this.calculateMetrics(appointments);
         const labels = ['0-2', '3-4', '5-6', '7-8', '9-10'];
@@ -1914,495 +1829,810 @@ const AnalyticsEngine = {
 };
 
 // ================================================================
-// SCRIPTS MODULE
+// SMART IMPORT FUNCTIONS - MUST BE DEFINED BEFORE EVENT LISTENERS
 // ================================================================
 
-const Scripts = {
-    renderSidebar: function() {
-        const container = DOM.get('scriptListContainer');
-        if (!container) return;
-
-        const scripts = AppState.scripts || {};
-        const scriptOrder = AppState.scriptOrder || [];
+/**
+ * Open the Smart Import modal
+ */
+function openSmartImportEnhanced() {
+    const modal = DOM.get('smartImportModal');
+    if (!modal) return;
+    
+    modal.style.display = 'flex';
+    
+    AppState.importRecords = [];
+    AppState.importProcessing = false;
+    AppState.importProgress = 0;
+    
+    const dateInput = DOM.get('importDefaultDate');
+    if (dateInput) {
+        dateInput.value = Utils.getTodayStr();
+    }
+    
+    const textArea = DOM.get('importTextArea');
+    if (textArea) {
+        textArea.value = '';
+        textArea.placeholder = `Paste appointment details here. The system will intelligently parse:
         
-        const visible = Utils.getOrderedVisible(scripts, scriptOrder);
-        const sorted = [...visible].sort((a, b) => {
-            const aFav = AppState.scriptFavorites.includes(a);
-            const bFav = AppState.scriptFavorites.includes(b);
-            if (aFav && !bFav) return -1;
-            if (!aFav && bFav) return 1;
-            return visible.indexOf(a) - visible.indexOf(b);
-        });
+Example:
+Business Name/Company : Correa and Son's Landscaping LLC
+Name : Kelvin
+Role : Owner
+Phone Number: +12678808990
+Best Time for Warm Callback: Tomorrow at 1pm EDT
+Notes: Custom website preview offered + no website currently + high interest, positive and booked a manager callback to review the website.`;
+    }
+    
+    const preview = DOM.get('importPreview');
+    if (preview) preview.style.display = 'none';
+    
+    const saveBtn = DOM.get('saveImportBtn');
+    if (saveBtn) saveBtn.style.display = 'none';
+    
+    const resultsContainer = DOM.get('importResultsContainer');
+    if (resultsContainer) resultsContainer.innerHTML = '';
+    
+    const progressContainer = DOM.get('importProgressContainer');
+    if (progressContainer) progressContainer.style.display = 'none';
+    
+    const summary = DOM.get('importSummary');
+    if (summary) summary.style.display = 'none';
+}
 
-        let html = '';
-        if (sorted.length === 0) {
-            html = `<div class="empty-scripts-msg" style="padding:20px; text-align:center; color:var(--text-muted); font-size:0.85rem;">
-                <i class="fas fa-scroll" style="font-size:2rem; display:block; margin-bottom:8px; opacity:0.3;"></i>
-                No scripts yet. Click "New Script" to create one.
-            </div>`;
-        } else {
-            sorted.forEach((id, idx) => {
-                const s = scripts[id];
-                if (!s) return;
-                const active = AppState.currentScriptId === id;
-                const isFavorite = AppState.scriptFavorites.includes(id);
-                html += `
-                    <div class="script-item ${active ? 'active' : ''}" data-id="${id}">
-                        <i class="fas fa-grip-vertical drag-handle"></i>
-                        <span class="script-name">${Utils.escapeHtml(s.name)}</span>
-                        <i class="fas fa-star favorite-star ${isFavorite ? 'active' : ''}" data-id="${id}"></i>
-                        <span class="key-hint">${idx < 9 ? idx + 1 : ''}</span>
-                        <i class="fas fa-edit script-edit-btn" data-id="${id}" title="Edit script name"></i>
-                        <i class="fas fa-trash script-delete-btn" data-id="${id}" title="Delete script"></i>
-                    </div>
-                `;
-            });
-        }
-        container.innerHTML = html;
+/**
+ * Close the Smart Import modal
+ */
+function closeSmartImportEnhanced() {
+    const modal = DOM.get('smartImportModal');
+    if (modal) modal.style.display = 'none';
+    AppState.importRecords = [];
+    AppState.importProcessing = false;
+}
 
-        if (window.sortableInstance) {
-            window.sortableInstance.destroy();
-            window.sortableInstance = null;
-        }
-
-        if (sorted.length > 0) {
-            window.sortableInstance = new Sortable(container, {
-                handle: '.drag-handle',
-                animation: 150,
-                ghostClass: 'sortable-ghost',
-                chosenClass: 'sortable-chosen',
-                dragClass: 'sortable-drag',
-                onEnd: async function() {
-                    const newOrder = [];
-                    container.querySelectorAll('.script-item').forEach(item => {
-                        const id = item.getAttribute('data-id');
-                        if (id) newOrder.push(id);
-                    });
-                    AppState.scriptOrder = newOrder;
-                    await Data.saveScriptOrder();
-                    Scripts.renderSidebar();
-                    Scripts.updateKeyHints();
+/**
+ * Parse and preview import
+ */
+function parseAndPreviewImportEnhanced() {
+    const textArea = DOM.get('importTextArea');
+    if (!textArea) return;
+    
+    const text = textArea.value;
+    if (!text.trim()) {
+        showToast('Please paste some text to parse', 'warning');
+        return;
+    }
+    
+    const dateInput = DOM.get('importDefaultDate');
+    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
+    
+    const progressContainer = DOM.get('importProgressContainer');
+    if (progressContainer) progressContainer.style.display = 'block';
+    AppState.importProcessing = true;
+    AppState.importProgress = 0;
+    updateImportProgress(5, 'Splitting appointments...');
+    
+    setTimeout(() => {
+        let appointments = [];
+        let parsedResults = [];
+        
+        // Use centralized engine if available
+        if (typeof window.smartImportEngine !== 'undefined' && window.smartImportEngine) {
+            try {
+                if (typeof window.smartImportEngine.splitAppointments === 'function') {
+                    appointments = window.smartImportEngine.splitAppointments(text);
+                } else {
+                    appointments = splitAppointmentsFallback(text);
                 }
-            });
-        }
-
-        container.querySelectorAll('.script-item').forEach(el => {
-            el.addEventListener('click', (e) => {
-                if (e.target.closest('.drag-handle')) return;
-                if (e.target.closest('.favorite-star')) return;
-                if (e.target.closest('.script-edit-btn')) return;
-                if (e.target.closest('.script-delete-btn')) return;
-                Scripts.loadScript(el.getAttribute('data-id'));
-            });
-        });
-
-        container.querySelectorAll('.favorite-star').forEach(el => {
-            el.addEventListener('click', (e) => {
-                e.stopPropagation();
-                Scripts.toggleFavorite(el.getAttribute('data-id'));
-            });
-        });
-
-        container.querySelectorAll('.script-edit-btn').forEach(el => {
-            el.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = el.getAttribute('data-id');
-                Scripts.editScriptTitle(id);
-            });
-        });
-
-        container.querySelectorAll('.script-delete-btn').forEach(el => {
-            el.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = el.getAttribute('data-id');
-                Scripts.deleteScript(id);
-            });
-        });
-
-        this.updateKeyHints();
-    },
-
-    editScriptTitle: function(id) {
-        const script = AppState.scripts[id];
-        if (!script) {
-            showToast('Script not found', 'error');
-            return;
-        }
-
-        const newName = prompt('Edit script name:', script.name);
-        if (newName && newName.trim() && newName.trim() !== script.name) {
-            const updatedName = newName.trim();
-            
-            AppState.scripts[id] = { ...script, name: updatedName };
-            
-            if (AppState.isFirebaseReady && AppState.currentUser) {
-                firebase.firestore()
-                    .collection('users')
-                    .doc(AppState.currentUser.uid)
-                    .collection('scripts')
-                    .doc(id)
-                    .update({ name: updatedName })
-                    .then(() => {
-                        showToast('Script name updated!', 'success');
-                        Scripts.renderSidebar();
-                        if (AppState.currentScriptId === id) {
-                            DOM.setText('currentScriptName', updatedName);
-                        }
-                    })
-                    .catch(err => {
-                        handleError(err, 'Updating script name');
-                        AppState.scripts[id] = script;
-                        Scripts.renderSidebar();
-                    });
-            } else {
-                const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
-                if (fallback[id]) {
-                    fallback[id].name = updatedName;
-                    localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+                
+                const total = appointments.length;
+                AppState.importProgress = 15;
+                updateImportProgress(15, `Found ${total} appointment(s). Parsing...`);
+                
+                if (total === 0) {
+                    showToast('No appointments detected in the text', 'warning');
+                    AppState.importProcessing = false;
+                    if (progressContainer) progressContainer.style.display = 'none';
+                    return;
                 }
-                showToast('Script name updated!', 'success');
-                Scripts.renderSidebar();
-                if (AppState.currentScriptId === id) {
-                    DOM.setText('currentScriptName', updatedName);
-                }
-            }
-        }
-    },
-
-    deleteScript: function(id) {
-        const script = AppState.scripts[id];
-        if (!script) {
-            showToast('Script not found', 'error');
-            return;
-        }
-
-        const scriptCount = Object.keys(AppState.scripts).length;
-        if (scriptCount <= 1) {
-            showToast('Cannot delete the last script. Create a new one first.', 'warning');
-            return;
-        }
-
-        if (!confirm(`Delete script "${script.name}"? This cannot be undone.`)) {
-            return;
-        }
-
-        delete AppState.scripts[id];
-        AppState.scriptOrder = AppState.scriptOrder.filter(scriptId => scriptId !== id);
-        AppState.scriptFavorites = AppState.scriptFavorites.filter(scriptId => scriptId !== id);
-
-        if (AppState.isFirebaseReady && AppState.currentUser) {
-            firebase.firestore()
-                .collection('users')
-                .doc(AppState.currentUser.uid)
-                .collection('scripts')
-                .doc(id)
-                .delete()
-                .then(() => {
-                    showToast(`Script "${script.name}" deleted`, 'info');
-                    if (AppState.currentScriptId === id) {
-                        const remainingIds = Object.keys(AppState.scripts);
-                        if (remainingIds.length > 0) {
-                            Scripts.loadScript(remainingIds[0]);
-                        }
+                
+                let validCount = 0;
+                let invalidCount = 0;
+                let duplicateCount = 0;
+                const existingAppointments = Data.getAllAppointments();
+                
+                appointments.forEach((apptText, index) => {
+                    const progress = 15 + ((index + 1) / total) * 50;
+                    updateImportProgress(progress, `Processing appointment ${index + 1} of ${total}...`);
+                    
+                    let parsed;
+                    if (typeof window.smartImportEngine.parseText === 'function') {
+                        parsed = window.smartImportEngine.parseText(apptText, { defaultDate });
+                    } else {
+                        const { result, confidence, context } = parseAppointmentTextFallback(apptText, defaultDate);
+                        parsed = {
+                            result,
+                            confidence,
+                            context,
+                            isValid: validateAppointmentDataFallback(result).isValid,
+                            errors: validateAppointmentDataFallback(result).errors,
+                            warnings: validateAppointmentDataFallback(result).warnings
+                        };
                     }
-                    Scripts.renderSidebar();
-                    Scripts.saveScriptOrder();
-                })
-                .catch(err => {
-                    handleError(err, 'Deleting script');
-                    AppState.scripts[id] = script;
-                    AppState.scriptOrder.push(id);
-                    Scripts.renderSidebar();
+                    
+                    let duplicates = [];
+                    if (typeof window.smartImportEngine !== 'undefined' && 
+                        typeof window.smartImportEngine.checkDuplicates === 'function') {
+                        duplicates = window.smartImportEngine.checkDuplicates(parsed, existingAppointments);
+                    } else {
+                        duplicates = checkDuplicatesFallback(parsed.result, existingAppointments);
+                    }
+                    
+                    const hasSignificantDuplicate = duplicates.some(d => d.confidence >= 70);
+                    if (hasSignificantDuplicate) duplicateCount++;
+                    
+                    if (parsed.isValid) validCount++;
+                    else invalidCount++;
+                    
+                    parsedResults.push({
+                        index: index + 1,
+                        raw: apptText,
+                        parsed: parsed.result || {},
+                        confidence: parsed.confidence || {},
+                        context: parsed.context || {},
+                        validated: parsed.result || {},
+                        isValid: parsed.isValid || false,
+                        errors: parsed.errors || [],
+                        warnings: parsed.warnings || [],
+                        hasDuplicate: hasSignificantDuplicate,
+                        duplicates: duplicates
+                    });
                 });
+                
+                AppState.importRecords = parsedResults;
+                AppState.importProgress = 80;
+                updateImportProgress(80, 'Generating preview...');
+                
+                setTimeout(() => {
+                    renderImportResults(parsedResults);
+                    AppState.importProcessing = false;
+                    updateImportProgress(100, 'Complete!');
+                    
+                    setTimeout(() => {
+                        if (progressContainer) progressContainer.style.display = 'none';
+                    }, 1500);
+                    
+                    showToast(`Parsed ${parsedResults.length} appointment(s)! ${validCount} valid, ${invalidCount} need review`, 'info');
+                }, 300);
+            } catch (error) {
+                console.error('Smart Import parse error:', error);
+                showToast('Error parsing text: ' + error.message, 'error');
+                AppState.importProcessing = false;
+                if (progressContainer) progressContainer.style.display = 'none';
+            }
         } else {
-            const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
-            delete fallback[id];
-            localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+            // Fallback parsing
+            appointments = splitAppointmentsFallback(text);
+            const total = appointments.length;
+            AppState.importProgress = 15;
+            updateImportProgress(15, `Found ${total} appointment(s). Parsing...`);
             
-            showToast(`Script "${script.name}" deleted`, 'info');
-            if (AppState.currentScriptId === id) {
-                const remainingIds = Object.keys(AppState.scripts);
-                if (remainingIds.length > 0) {
-                    Scripts.loadScript(remainingIds[0]);
-                }
+            if (total === 0) {
+                showToast('No appointments detected in the text', 'warning');
+                AppState.importProcessing = false;
+                if (progressContainer) progressContainer.style.display = 'none';
+                return;
             }
-            Scripts.renderSidebar();
-            Scripts.saveScriptOrder();
+            
+            let validCount = 0;
+            let invalidCount = 0;
+            let duplicateCount = 0;
+            const existingAppointments = Data.getAllAppointments();
+            
+            appointments.forEach((apptText, index) => {
+                const progress = 15 + ((index + 1) / total) * 50;
+                updateImportProgress(progress, `Processing appointment ${index + 1} of ${total}...`);
+                
+                const { result, confidence, context } = parseAppointmentTextFallback(apptText, defaultDate);
+                const validationResult = validateAppointmentDataFallback(result);
+                const duplicates = checkDuplicatesFallback(result, existingAppointments);
+                const hasSignificantDuplicate = duplicates.some(d => d.confidence >= 70);
+                if (hasSignificantDuplicate) duplicateCount++;
+                
+                if (validationResult.isValid) validCount++;
+                else invalidCount++;
+                
+                parsedResults.push({
+                    index: index + 1,
+                    raw: apptText,
+                    parsed: result,
+                    confidence: confidence,
+                    context: context,
+                    validated: validationResult.validated,
+                    isValid: validationResult.isValid,
+                    errors: validationResult.errors,
+                    warnings: validationResult.warnings,
+                    hasDuplicate: hasSignificantDuplicate,
+                    duplicates: duplicates
+                });
+            });
+            
+            AppState.importRecords = parsedResults;
+            AppState.importProgress = 80;
+            updateImportProgress(80, 'Generating preview...');
+            
+            setTimeout(() => {
+                renderImportResults(parsedResults);
+                AppState.importProcessing = false;
+                updateImportProgress(100, 'Complete!');
+                
+                setTimeout(() => {
+                    if (progressContainer) progressContainer.style.display = 'none';
+                }, 1500);
+                
+                showToast(`Parsed ${parsedResults.length} appointment(s)! ${validCount} valid, ${invalidCount} need review`, 'info');
+            }, 300);
         }
-    },
+    }, 300);
+}
 
-    updateKeyHints: function() {
-        const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
-        const items = document.querySelectorAll('.script-item');
-        items.forEach((item, idx) => {
-            const hint = item.querySelector('.key-hint');
-            if (hint && idx < 9) {
-                hint.textContent = idx + 1;
-            } else if (hint) {
-                hint.textContent = '';
+// ================================================================
+// FALLBACK PARSE FUNCTIONS (when smart-import.js is not loaded)
+// ================================================================
+
+function splitAppointmentsFallback(text) {
+    const appointments = [];
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+    let currentAppointment = [];
+    let inAppointment = false;
+    
+    for (const line of lines) {
+        const isNewAppointment = 
+            line.match(/^[A-Z][a-zA-Z]+\s+(?:Company|Corp|Inc|LLC|Ltd|Agency|Studio|Designs|Solutions|Services|Consulting|Group|Partners|&|Associates)/) ||
+            line.match(/^---+\s*$/) ||
+            line.match(/^={3,}\s*$/) ||
+            line.match(/^Appointment\s+#\d+/) ||
+            line.match(/^\d+\.\s*[A-Z]/);
+        
+        if (isNewAppointment && currentAppointment.length > 0) {
+            appointments.push(currentAppointment.join('\n'));
+            currentAppointment = [];
+            inAppointment = false;
+        }
+        
+        if (line.includes(':') && line.split(':')[0].trim().length > 0 && line.split(':')[0].trim().length < 30) {
+            const key = line.split(':')[0].trim().toLowerCase();
+            const isField = CONFIG.FIELD_MAPPINGS && Object.keys(CONFIG.FIELD_MAPPINGS).some(f => 
+                CONFIG.FIELD_MAPPINGS[f] && CONFIG.FIELD_MAPPINGS[f].includes(key)
+            );
+            if (isField && currentAppointment.length === 0 && !inAppointment) {
+                inAppointment = true;
             }
-        });
-
-        const activeHint = DOM.get('activeShortcutHint');
-        if (activeHint) {
-            const idx = visible.indexOf(AppState.currentScriptId);
-            activeHint.textContent = (idx >= 0 && idx < 9) ? (idx + 1) : '—';
         }
-    },
+        
+        currentAppointment.push(line);
+    }
+    
+    if (currentAppointment.length > 0) {
+        appointments.push(currentAppointment.join('\n'));
+    }
+    
+    if (appointments.length === 0 && text.trim()) {
+        appointments.push(text.trim());
+    }
+    
+    return appointments;
+}
 
-    loadScript: function(id) {
-        if (!AppState.scripts[id]) {
-            const ids = Object.keys(AppState.scripts);
-            if (ids.length > 0) {
-                id = ids[0];
-            } else {
-                showToast('No scripts available. Create a new script.', 'warning');
+function parseAppointmentTextFallback(text, defaultDate = null) {
+    const result = {};
+    const confidence = {};
+    
+    const cleanText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = cleanText.split('\n').filter(line => line.trim());
+    const fullText = lines.join(' ');
+    
+    const fieldPatterns = {
+        business: /(?:business|company|organization|org|firm|brand|store)[:\s]+([^\n]+)/i,
+        name: /(?:name|contact|client|customer|person)[:\s]+([^\n]+)/i,
+        role: /(?:role|title|position|job title)[:\s]+([^\n]+)/i,
+        phone: /(?:phone|mobile|cell|telephone|number)[:\s]+([^\n]+)/i,
+        email: /(?:email|e-mail|mail)[:\s]+([^\n]+)/i,
+        date: /(?:date|appointment date|schedule date|meeting date|call date)[:\s]+([^\n]+)/i,
+        time: /(?:time|appointment time|schedule time|meeting time|call time)[:\s]+([^\n]+)/i,
+        status: /(?:status|state|stage|lead status)[:\s]+([^\n]+)/i,
+        notes: /(?:notes|note|comment|remarks|additional notes)[:\s]+([^\n]+)/i,
+        assigned: /(?:assigned|assigned to|owner|agent|representative)[:\s]+([^\n]+)/i
+    };
+    
+    for (const [field, pattern] of Object.entries(fieldPatterns)) {
+        const match = fullText.match(pattern);
+        if (match && match[1]) {
+            result[field] = match[1].trim();
+            confidence[field] = 0.8;
+        }
+    }
+    
+    if (Object.keys(result).length === 0) {
+        result.notes = fullText;
+        confidence.notes = 0.3;
+    }
+    
+    if (!result.date && defaultDate) {
+        result.date = defaultDate;
+        confidence.date = 1.0;
+    }
+    
+    if (result.phone) {
+        result.phone = result.phone.replace(/[^\d+]/g, '');
+        if (result.phone.length === 10 && /^\d{10}$/.test(result.phone)) {
+            result.phone = `(${result.phone.substring(0, 3)}) ${result.phone.substring(3, 6)}-${result.phone.substring(6)}`;
+        }
+    }
+    
+    return { result, confidence, context: { detectedFormat: 'fallback' } };
+}
+
+function validateAppointmentDataFallback(data) {
+    const errors = [];
+    const warnings = [];
+    const validated = {};
+    
+    if (!data.name || data.name.trim().length < 2) {
+        errors.push({ field: 'name', message: 'Contact name is required (minimum 2 characters)' });
+    } else {
+        validated.name = data.name.trim();
+    }
+    
+    if (!data.business || data.business.trim().length < 2) {
+        errors.push({ field: 'business', message: 'Business name is required (minimum 2 characters)' });
+    } else {
+        validated.business = data.business.trim();
+    }
+    
+    if (data.phone) {
+        const cleanPhone = data.phone.replace(/[^\d+]/g, '');
+        if (cleanPhone.length < 7 || cleanPhone.length > 15) {
+            warnings.push({ field: 'phone', message: 'Phone number seems invalid. Expected 7-15 digits.' });
+        }
+        validated.phone = cleanPhone;
+    }
+    
+    if (data.email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(data.email)) {
+            warnings.push({ field: 'email', message: 'Email format seems invalid.' });
+        }
+        validated.email = data.email.toLowerCase().trim();
+    }
+    
+    if (data.date) {
+        const parsedDate = Utils.parseDateString(data.date);
+        if (parsedDate) {
+            validated.date = parsedDate;
+        } else {
+            warnings.push({ field: 'date', message: 'Date format not recognized. Using today\'s date.' });
+            validated.date = Utils.getTodayStr();
+        }
+    } else {
+        validated.date = Utils.getTodayStr();
+    }
+    
+    if (data.status) {
+        const statusOptions = CONFIG.STATUS_OPTIONS || ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'];
+        const matchedStatus = statusOptions.find(s => 
+            s.toLowerCase() === data.status.toLowerCase() ||
+            s.toLowerCase().includes(data.status.toLowerCase()) ||
+            data.status.toLowerCase().includes(s.toLowerCase())
+        );
+        if (matchedStatus) {
+            validated.status = matchedStatus;
+        } else {
+            warnings.push({ field: 'status', message: `Status "${data.status}" not recognized. Using "Pending".` });
+            validated.status = 'Pending';
+        }
+    } else {
+        validated.status = 'Pending';
+    }
+    
+    ['assigned', 'role', 'notes', 'tags', 'email', 'time', 'phone'].forEach(field => {
+        if (data[field]) {
+            validated[field] = data[field];
+        }
+    });
+    
+    return {
+        validated,
+        errors,
+        warnings,
+        isValid: errors.length === 0
+    };
+}
+
+function checkDuplicatesFallback(newData, existingAppointments) {
+    const duplicates = [];
+    if (!existingAppointments || existingAppointments.length === 0) return duplicates;
+    
+    const newName = (newData.name || '').toLowerCase().trim();
+    const newBusiness = (newData.business || '').toLowerCase().trim();
+    const newPhone = (newData.phone || '').replace(/[^\d+]/g, '');
+    const newEmail = (newData.email || '').toLowerCase().trim();
+    
+    for (const existing of existingAppointments) {
+        let score = 0;
+        let matchedFields = [];
+        let totalChecks = 0;
+        
+        if (newName && existing.contactName) {
+            totalChecks++;
+            const existingName = existing.contactName.toLowerCase().trim();
+            if (newName === existingName) {
+                score += 0.6;
+                matchedFields.push('name');
+            } else if (newName.includes(existingName) || existingName.includes(newName)) {
+                score += 0.3;
+                matchedFields.push('name_partial');
+            }
+        }
+        
+        if (newBusiness && existing.business) {
+            totalChecks++;
+            const existingBusiness = existing.business.toLowerCase().trim();
+            if (newBusiness === existingBusiness) {
+                score += 0.5;
+                matchedFields.push('business');
+            } else if (newBusiness.includes(existingBusiness) || existingBusiness.includes(newBusiness)) {
+                score += 0.25;
+                matchedFields.push('business_partial');
+            }
+        }
+        
+        if (newPhone && existing.phone) {
+            totalChecks++;
+            const existingPhone = existing.phone.replace(/[^\d+]/g, '');
+            if (newPhone === existingPhone) {
+                score += 0.7;
+                matchedFields.push('phone');
+            } else if (newPhone.includes(existingPhone) || existingPhone.includes(newPhone)) {
+                score += 0.3;
+                matchedFields.push('phone_partial');
+            }
+        }
+        
+        if (newEmail && existing.email) {
+            totalChecks++;
+            const existingEmail = existing.email.toLowerCase().trim();
+            if (newEmail === existingEmail) {
+                score += 0.8;
+                matchedFields.push('email');
+            }
+        }
+        
+        const confidence = totalChecks > 0 ? Math.min(score + (totalChecks - 1) * 0.1, 1) : 0;
+        if (confidence >= 0.5) {
+            duplicates.push({
+                existing: existing,
+                confidence: Math.round(confidence * 100),
+                matchedFields: matchedFields,
+                score: score
+            });
+        }
+    }
+    
+    duplicates.sort((a, b) => b.confidence - a.confidence);
+    return duplicates;
+}
+
+function updateImportProgress(percent, message) {
+    const progressBar = DOM.get('importProgressBar');
+    const progressStatus = DOM.get('importProgressStatus');
+    
+    if (progressBar) {
+        progressBar.style.width = Math.min(percent, 100) + '%';
+    }
+    if (progressStatus && message) {
+        progressStatus.textContent = message;
+    }
+}
+
+function renderImportResults(records) {
+    const preview = DOM.get('importPreview');
+    const resultsContainer = DOM.get('importResultsContainer');
+    const saveBtn = DOM.get('saveImportBtn');
+    const summary = DOM.get('importSummary');
+    const recordCount = DOM.get('importRecordCount');
+    
+    if (!preview || !resultsContainer) return;
+    
+    preview.style.display = 'block';
+    
+    if (recordCount) {
+        recordCount.textContent = records.length;
+    }
+    
+    if (summary) {
+        const total = records.length;
+        const valid = records.filter(r => r.isValid).length;
+        const invalid = records.filter(r => !r.isValid).length;
+        const duplicates = records.filter(r => r.hasDuplicate).length;
+        
+        summary.style.display = 'block';
+        summary.innerHTML = `
+            <div class="import-summary-grid">
+                <div class="import-stat ${valid > 0 ? 'success' : ''}">
+                    <span class="stat-number">${valid}</span>
+                    <span class="stat-label">✅ Valid</span>
+                </div>
+                <div class="import-stat ${invalid > 0 ? 'warning' : ''}">
+                    <span class="stat-number">${invalid}</span>
+                    <span class="stat-label">⚠️ Needs Review</span>
+                </div>
+                <div class="import-stat ${duplicates > 0 ? 'warning' : ''}">
+                    <span class="stat-number">${duplicates}</span>
+                    <span class="stat-label">🔄 Potential Duplicates</span>
+                </div>
+                <div class="import-stat">
+                    <span class="stat-number">${total}</span>
+                    <span class="stat-label">📋 Total</span>
+                </div>
+            </div>
+        `;
+    }
+    
+    let resultsHtml = '';
+    records.forEach((record, idx) => {
+        const statusClass = record.isValid ? 'valid' : 'invalid';
+        const hasDuplicate = record.hasDuplicate;
+        const hasWarnings = record.warnings && record.warnings.length > 0;
+        
+        const confValues = Object.values(record.confidence || {});
+        const avgConf = confValues.length > 0 ? confValues.reduce((a, b) => a + b, 0) / confValues.length : 0;
+        const confColor = avgConf >= 0.7 ? 'high' : avgConf >= 0.4 ? 'medium' : 'low';
+        
+        resultsHtml += `
+            <div class="import-record ${statusClass} ${hasDuplicate ? 'duplicate' : ''}">
+                <div class="record-header" onclick="window.toggleImportRecord(this)">
+                    <div class="record-status">
+                        <span class="status-icon">${record.isValid ? '✅' : '⚠️'}</span>
+                        <span class="record-index">#${record.index}</span>
+                    </div>
+                    <div class="record-summary">
+                        <span class="record-name">${Utils.escapeHtml(record.validated.name || record.parsed.name || 'Unknown')}</span>
+                        <span class="record-business">${Utils.escapeHtml(record.validated.business || record.parsed.business || 'Unknown Business')}</span>
+                        ${record.parsed.date ? `<span class="record-date">📅 ${Utils.escapeHtml(record.parsed.date)}</span>` : ''}
+                    </div>
+                    <div class="record-badges">
+                        ${hasDuplicate ? '<span class="badge duplicate">🔄 Duplicate</span>' : ''}
+                        ${hasWarnings ? `<span class="badge warning">⚠️ ${record.warnings.length}</span>` : ''}
+                        ${!record.isValid ? `<span class="badge error">❌ ${record.errors.length}</span>` : ''}
+                        <span class="badge confidence ${confColor}">${Math.round(avgConf * 100)}%</span>
+                    </div>
+                    <span class="record-toggle">▼</span>
+                </div>
+                <div class="record-body" style="display:none;">
+                    <div class="record-fields">
+                        ${renderRecordFields(record)}
+                    </div>
+                    
+                    ${record.warnings && record.warnings.length > 0 ? `
+                        <div class="record-warnings">
+                            <strong>⚠️ Warnings:</strong>
+                            <ul>${record.warnings.map(w => `<li>${w.field}: ${w.message}</li>`).join('')}</ul>
+                        </div>
+                    ` : ''}
+                    
+                    ${!record.isValid ? `
+                        <div class="record-errors">
+                            <strong>❌ Errors:</strong>
+                            <ul>${record.errors.map(e => `<li>${e.field}: ${e.message}</li>`).join('')}</ul>
+                        </div>
+                    ` : ''}
+                    
+                    ${record.hasDuplicate && record.duplicates.length > 0 ? `
+                        <div class="record-duplicates">
+                            <strong>🔄 Potential Duplicates:</strong>
+                            <ul>${record.duplicates.filter(d => d.confidence >= 60).map(d => 
+                                `<li>${Utils.escapeHtml(d.existing.business)} - ${Utils.escapeHtml(d.existing.contactName)} (${d.confidence}% match)</li>`
+                            ).join('')}</ul>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    });
+    
+    resultsContainer.innerHTML = resultsHtml;
+    
+    const validRecords = records.filter(r => r.isValid);
+    if (saveBtn && validRecords.length > 0) {
+        saveBtn.style.display = 'inline-flex';
+        saveBtn.textContent = `💾 Save ${validRecords.length} Record(s)`;
+        saveBtn.onclick = () => saveAllImportedAppointments();
+    } else if (saveBtn) {
+        saveBtn.style.display = 'none';
+    }
+}
+
+function renderRecordFields(record) {
+    const fields = record.validated || record.parsed || {};
+    const confidence = record.confidence || {};
+    
+    const fieldLabels = {
+        name: '👤 Name',
+        business: '🏢 Business',
+        phone: '📞 Phone',
+        email: '✉️ Email',
+        date: '📅 Date',
+        time: '🕐 Time',
+        status: '📊 Status',
+        assigned: '👤 Assigned',
+        role: '💼 Role',
+        notes: '📝 Notes'
+    };
+    
+    const fieldOrder = ['name', 'business', 'phone', 'email', 'date', 'time', 'status', 'assigned', 'role', 'notes'];
+    
+    let html = '';
+    for (const field of fieldOrder) {
+        if (fields[field]) {
+            const conf = confidence[field] || 0.5;
+            const confClass = conf >= 0.7 ? 'high' : (conf >= 0.4 ? 'medium' : 'low');
+            const isDate = field === 'date';
+            const valueDisplay = isDate ? Utils.formatDate(fields[field]) : Utils.escapeHtml(fields[field]);
+            html += `
+                <div class="field-row ${isDate ? 'date-field' : ''}">
+                    <span class="field-label">${fieldLabels[field] || field}</span>
+                    <span class="field-value">${valueDisplay}</span>
+                    <span class="field-confidence ${confClass}">${Math.round(conf * 100)}%</span>
+                </div>
+            `;
+        }
+    }
+    
+    return html;
+}
+
+function toggleImportRecord(header) {
+    const body = header.nextElementSibling;
+    if (body) {
+        const isVisible = body.style.display !== 'none';
+        body.style.display = isVisible ? 'none' : 'block';
+        const toggle = header.querySelector('.record-toggle');
+        if (toggle) {
+            toggle.textContent = isVisible ? '▶' : '▼';
+        }
+    }
+}
+
+function saveAllImportedAppointments() {
+    const validRecords = AppState.importRecords.filter(r => r.isValid);
+    
+    if (validRecords.length === 0) {
+        showToast('No valid records to save', 'warning');
+        return;
+    }
+    
+    if (!AppState.currentUser) {
+        showToast('Please sign in first', 'error');
+        return;
+    }
+    
+    const highConfidenceDuplicates = validRecords.filter(r => 
+        r.duplicates && r.duplicates.some(d => d.confidence >= 80)
+    );
+    
+    let confirmMsg = `Save ${validRecords.length} appointment(s)?`;
+    if (highConfidenceDuplicates.length > 0) {
+        confirmMsg += `\n\n⚠️ ${highConfidenceDuplicates.length} of these appear to be high-confidence duplicates.`;
+    }
+    
+    if (!confirm(confirmMsg)) return;
+    
+    let savedCount = 0;
+    let skippedCount = 0;
+    
+    validRecords.forEach(record => {
+        const data = record.validated || record.parsed;
+        
+        const hasHighDuplicate = record.duplicates && record.duplicates.some(d => d.confidence >= 85);
+        if (hasHighDuplicate) {
+            const duplicate = record.duplicates.find(d => d.confidence >= 85);
+            if (duplicate && !confirm(`"${data.business}" appears to be a duplicate (${duplicate.confidence}% match with ${duplicate.existing.business}). Save anyway?`)) {
+                skippedCount++;
                 return;
             }
         }
-        if (AppState.isEditing) {
-            if (!confirm('You have unsaved changes. Discard them?')) return;
-            this.cancelEdit();
-        }
-        AppState.currentScriptId = id;
-        const script = AppState.scripts[id];
-        DOM.setText('currentScriptName', script.name);
-        DOM.setHTML('scriptContent', `<div class="script-display">${Utils.escapeHtml(script.content).replace(/\n/g, '<br>')}</div>`);
-        DOM.setText('versionNumber', script.version || 1);
-        this.updateFavoriteStar();
-        this.renderSidebar();
-        this.updateKeyHints();
         
-        // Notify Objection Handler
-        if (window.ObjectionHandler && typeof window.ObjectionHandler.onScriptLoaded === 'function') {
-            window.ObjectionHandler.onScriptLoaded();
-        }
-    },
-
-    toggleFavorite: function(id) {
-        const index = AppState.scriptFavorites.indexOf(id);
-        if (index > -1) {
-            AppState.scriptFavorites.splice(index, 1);
-        } else {
-            AppState.scriptFavorites.push(id);
-        }
-        localStorage.setItem('scriptFavorites', JSON.stringify(AppState.scriptFavorites));
-        this.renderSidebar();
-        this.updateFavoriteStar();
-        showToast(index > -1 ? 'Removed from favorites' : 'Added to favorites', 'info');
-    },
-
-    updateFavoriteStar: function() {
-        const star = DOM.get('favoriteScriptBtn');
-        if (star) {
-            const isFavorite = AppState.scriptFavorites.includes(AppState.currentScriptId);
-            star.innerHTML = `<i class="fas fa-star" style="color:${isFavorite ? 'var(--favorite-color)' : 'var(--text-muted)'}"></i>`;
-            star.title = isFavorite ? 'Remove from favorites' : 'Add to favorites';
-        }
-    },
-
-    startEdit: function() {
-        if (!AppState.scripts[AppState.currentScriptId]) return;
-        AppState.isEditing = true;
-        AppState.shortcutsEnabled = false;
-        const script = AppState.scripts[AppState.currentScriptId];
-        AppState.currentEditContent = script.content;
-
-        DOM.hide('editScriptBtn');
-        DOM.show('saveScriptBtn');
-        DOM.show('cancelEditBtn');
-        DOM.show('editStatusBadge');
-
-        const contentDiv = DOM.get('scriptContent');
-        if (contentDiv) {
-            contentDiv.innerHTML = `
-                <textarea class="edit-textarea" id="editTextarea">${Utils.escapeHtml(script.content)}</textarea>
-                <div class="auto-save-indicator">Auto-saving...</div>
-            `;
-        }
-
-        const textarea = DOM.get('editTextarea');
-        if (textarea) {
-            textarea.focus();
-
-            const saveContent = Utils.debounce((content) => {
-                this.saveScriptContent(content);
-                const indicator = document.querySelector('.auto-save-indicator');
-                if (indicator) {
-                    indicator.textContent = '✓ Auto-saved';
-                    indicator.style.color = 'var(--success)';
-                }
-            }, 1000);
-
-            textarea.addEventListener('input', () => {
-                AppState.currentEditContent = textarea.value;
-                const indicator = document.querySelector('.auto-save-indicator');
-                if (indicator) {
-                    indicator.textContent = 'Saving...';
-                    indicator.style.color = 'var(--warning)';
-                }
-                if (window.autoSaveTimer) clearTimeout(window.autoSaveTimer);
-                window.autoSaveTimer = setTimeout(() => saveContent(textarea.value), 1000);
-            });
-
-            textarea.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') this.cancelEdit();
-                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                    e.preventDefault();
-                    this.saveScriptContent(textarea.value);
-                    this.finishEdit();
-                }
-            });
-        }
-    },
-
-    saveScriptContent: function(content) {
-        if (!AppState.currentUser || !AppState.currentScriptId) return;
-        const script = AppState.scripts[AppState.currentScriptId];
-        if (!script) return;
-
-        const updatedScript = {
-            ...script,
-            content: content,
-            version: (script.version || 1) + 1
-        };
-
-        if (AppState.isFirebaseReady) {
-            firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts').doc(AppState.currentScriptId).set(updatedScript, { merge: true })
-                .then(() => {
-                    AppState.scripts[AppState.currentScriptId] = updatedScript;
-                })
-                .catch(err => handleError(err, 'Saving script'));
-        } else {
-            AppState.scripts[AppState.currentScriptId] = updatedScript;
-            localStorage.setItem('scripts_fallback', JSON.stringify(AppState.scripts));
-        }
-    },
-
-    finishEdit: function() {
-        AppState.isEditing = false;
-        AppState.shortcutsEnabled = true;
-        DOM.show('editScriptBtn');
-        DOM.hide('saveScriptBtn');
-        DOM.hide('cancelEditBtn');
-        DOM.hide('editStatusBadge');
-        this.loadScript(AppState.currentScriptId);
-        showToast('Changes saved', 'success');
-    },
-
-    cancelEdit: function() {
-        if (!confirm('Discard your changes?')) return;
-        AppState.isEditing = false;
-        AppState.shortcutsEnabled = true;
-        DOM.show('editScriptBtn');
-        DOM.hide('saveScriptBtn');
-        DOM.hide('cancelEditBtn');
-        DOM.hide('editStatusBadge');
-        this.loadScript(AppState.currentScriptId);
-    },
-
-    resetScript: function() {
-        if (!confirm('Reset this script to its original content?')) return;
-        if (AppState.currentUser && AppState.currentScriptId) {
-            const script = AppState.scripts[AppState.currentScriptId];
-            if (AppState.isFirebaseReady) {
-                firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts').doc(AppState.currentScriptId).set({
-                    name: script.name,
-                    content: script.content,
-                    version: 1
-                }, { merge: true }).then(() => {
-                    showToast('Script reset', 'info');
-                    Data.loadUserData(true);
-                }).catch(err => handleError(err, 'Resetting script'));
-            } else {
-                script.version = 1;
-                localStorage.setItem('scripts_fallback', JSON.stringify(AppState.scripts));
-                showToast('Script reset locally', 'info');
-                this.loadScript(AppState.currentScriptId);
-            }
-        }
-    },
-
-    createScript: function() {
-        if (!AppState.currentUser) { 
-            showToast('Please sign in first', 'error'); 
-            return; 
-        }
+        const result = Data.addAppointment(
+            data.date || Utils.getTodayStr(),
+            data.business,
+            data.name,
+            data.role || 'Owner',
+            data.phone || '',
+            data.time || '',
+            data.notes || '',
+            data.assigned || 'Daniel',
+            null,
+            data.status || 'Pending',
+            '',
+            data.tags || []
+        );
         
-        const name = prompt('Enter new script name:');
-        if (!name || !name.trim()) return;
-        
-        const scriptName = name.trim();
-        const id = 'script_' + Utils.generateId();
-        const newScript = {
-            name: scriptName,
-            content: 'New script content...\n\nStart writing your script here.',
-            version: 1
-        };
-
-        AppState.scripts[id] = newScript;
-        AppState.scriptOrder.push(id);
-
-        if (AppState.isFirebaseReady) {
-            firebase.firestore()
-                .collection('users')
-                .doc(AppState.currentUser.uid)
-                .collection('scripts')
-                .doc(id)
-                .set({
-                    name: scriptName,
-                    content: newScript.content,
-                    version: 1,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                })
-                .then(() => {
-                    showToast(`Script "${scriptName}" created! 🎉`, 'success');
-                    Scripts.renderSidebar();
-                    Scripts.loadScript(id);
-                    Data.saveScriptOrder();
-                })
-                .catch(err => {
-                    handleError(err, 'Creating script');
-                    delete AppState.scripts[id];
-                    AppState.scriptOrder = AppState.scriptOrder.filter(sid => sid !== id);
-                    Scripts.renderSidebar();
-                });
-        } else {
-            const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
-            fallback[id] = newScript;
-            localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
-            
-            showToast(`Script "${scriptName}" created! 🎉`, 'success');
-            Scripts.renderSidebar();
-            Scripts.loadScript(id);
-            Scripts.saveScriptOrder();
+        if (result) {
+            savedCount++;
         }
-    },
-
-    saveScriptOrder: function() {
-        if (AppState.isFirebaseReady && AppState.currentUser) {
-            firebase.firestore()
-                .collection('users')
-                .doc(AppState.currentUser.uid)
-                .update({ scriptOrder: AppState.scriptOrder })
-                .catch(err => console.warn('Error saving script order:', err));
-        } else {
-            const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
-            fallback.scriptOrder = AppState.scriptOrder;
-            localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
-        }
-    },
-
-    isEditing: function() {
-        return AppState.isEditing;
+    });
+    
+    showToast(`✅ Saved ${savedCount} appointment(s)! ${skippedCount > 0 ? `⏭️ Skipped ${skippedCount} duplicates.` : ''}`, 'success');
+    
+    closeSmartImportEnhanced();
+    if (typeof FeaturePanel !== 'undefined') {
+        FeaturePanel.refreshCurrentView();
     }
-};
+    Stats.updateAll();
+}
 
-// ================================================================
-// SMART IMPORT FUNCTIONS - Using centralized module
-// ================================================================
+function expandAllRecords() {
+    document.querySelectorAll('.import-record .record-body').forEach(body => {
+        body.style.display = 'block';
+    });
+    document.querySelectorAll('.import-record .record-toggle').forEach(toggle => {
+        toggle.textContent = '▼';
+    });
+}
 
-// ... (Smart Import functions remain the same as in the previous update)
+function collapseAllRecords() {
+    document.querySelectorAll('.import-record .record-body').forEach(body => {
+        body.style.display = 'none';
+    });
+    document.querySelectorAll('.import-record .record-toggle').forEach(toggle => {
+        toggle.textContent = '▶';
+    });
+}
+
+function generateImportTemplate() {
+    const dateInput = DOM.get('importDefaultDate');
+    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
+    const formattedDate = defaultDate ? Utils.formatDate(defaultDate) : 'Today';
+    
+    const textArea = DOM.get('importTextArea');
+    if (!textArea) return;
+    
+    const template = `Business Name/Company : [Enter Business Name]
+Name : [Enter Contact Name]
+Role : [Owner/Manager/Decision Maker]
+Phone Number: [Enter Phone Number]
+Email: [Enter Email Address]
+Best Time for Warm Callback: ${formattedDate} at [Time] [Timezone]
+
+Notes: [Enter notes about the conversation, interest level, and next steps]`;
+    
+    if (textArea.value) {
+        if (!confirm('This will replace your current text. Continue?')) return;
+    }
+    textArea.value = template;
+    showToast('📋 Template inserted! Fill in the details and click Parse.', 'success');
+}
+
+async function quickImportFromClipboard() {
+    try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+            openSmartImportEnhanced();
+            const textArea = DOM.get('importTextArea');
+            if (textArea) {
+                textArea.value = text;
+            }
+            setTimeout(() => {
+                parseAndPreviewImportEnhanced();
+            }, 500);
+        } else {
+            showToast('Clipboard is empty', 'warning');
+        }
+    } catch (error) {
+        showToast('Unable to read clipboard. Please paste manually.', 'error');
+    }
+}
 
 // ================================================================
 // PROSPECT MANAGER INTEGRATION FUNCTIONS
@@ -2598,7 +2828,6 @@ function performGlobalSearch(query) {
     const searchResults = [];
     const q = query.toLowerCase();
 
-    // Search appointments
     for (let date in AppState.appointments) {
         if (AppState.appointments[date].reports) {
             AppState.appointments[date].reports.forEach(appt => {
@@ -2610,21 +2839,18 @@ function performGlobalSearch(query) {
         }
     }
 
-    // Search tasks
     AppState.tasks.forEach(task => {
         if (task.description.toLowerCase().includes(q)) {
             searchResults.push({ type: 'task', data: task });
         }
     });
 
-    // Search scripts
     for (const [id, script] of Object.entries(AppState.scripts)) {
         if (script.name.toLowerCase().includes(q) || script.content.toLowerCase().includes(q)) {
             searchResults.push({ type: 'script', data: { id, ...script } });
         }
     }
 
-    // Search prospects
     if (AppState.prospectManagerReady && AppState.prospectManager) {
         try {
             const prospects = AppState.prospectManager.search(q);
@@ -3973,7 +4199,6 @@ const FeaturePanel = {
             </div>
         `;
         
-        // Search functionality
         const searchInput = container.querySelector('#prospectSearchInput');
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
@@ -4305,24 +4530,17 @@ const FeaturePanel = {
         if (exportCSV) exportCSV.addEventListener('click', () => Data.exportToCSV());
     },
 
-    /**
-     * Meeting Performance Dashboard
-     * Fully integrated with centralized CRM data
-     */
     renderMeetingPerformance: function(container) {
         if (!container) return;
 
-        // Get filtered appointments based on current filters
         const appointments = AnalyticsEngine.getFilteredAppointments();
         const metrics = AnalyticsEngine.calculateMetrics(appointments);
 
-        // Get chart data
         const statusChartData = AnalyticsEngine.getStatusChartData(appointments);
         const weeklyTrend = AnalyticsEngine.getWeeklyTrendData(appointments);
         const showRateData = AnalyticsEngine.getDailyShowRateData(appointments);
         const qualityDistData = AnalyticsEngine.getQualityDistributionData(appointments);
 
-        // Build filter bar
         const filterBar = this.buildAnalyticsFilters();
 
         container.innerHTML = `
@@ -4332,10 +4550,8 @@ const FeaturePanel = {
                     <span class="version-chip"><i class="fas fa-database"></i> ${appointments.length} Records</span>
                 </div>
 
-                <!-- Filters -->
                 ${filterBar}
 
-                <!-- KPI Cards -->
                 <div class="meeting-kpi-grid">
                     <div class="kpi-card clickable" data-drilldown="meetingsBooked">
                         <div class="kpi-value" style="color:#3b82f6;">${metrics.meetingsBooked}</div>
@@ -4367,7 +4583,6 @@ const FeaturePanel = {
                     </div>
                 </div>
 
-                <!-- Second Row KPI Cards -->
                 <div class="meeting-kpi-grid secondary">
                     <div class="kpi-card clickable" data-drilldown="pending">
                         <div class="kpi-value" style="color:#94a3b8;">${metrics.pending}</div>
@@ -4403,7 +4618,6 @@ const FeaturePanel = {
                     </div>
                 </div>
 
-                <!-- Charts -->
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px;">
                     <div class="feature-card">
                         <h4>📊 Meeting Status Distribution</h4>
@@ -4433,27 +4647,13 @@ const FeaturePanel = {
                         </div>
                     </div>
                 </div>
-
-                <!-- Drilldown Modal -->
-                <div id="drilldownModal" class="modal-overlay" style="display:none;">
-                    <div class="modal-card" style="max-width:800px;">
-                        <h3 id="drilldownTitle">📋 Records</h3>
-                        <div id="drilldownContent" style="max-height:500px; overflow-y:auto; margin-top:12px;"></div>
-                        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
-                            <button id="drilldownExportBtn" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-file-csv"></i> Export</button>
-                            <button id="drilldownCloseBtn" class="btn-icon">Close</button>
-                        </div>
-                    </div>
-                </div>
             </div>
         `;
 
-        // Initialize charts
         setTimeout(() => {
             this.initMeetingCharts(statusChartData, weeklyTrend, showRateData, qualityDistData);
         }, 300);
 
-        // Attach event listeners for KPI clicks
         container.querySelectorAll('.kpi-card.clickable').forEach(card => {
             card.addEventListener('click', () => {
                 const drilldown = card.dataset.drilldown;
@@ -4461,7 +4661,6 @@ const FeaturePanel = {
             });
         });
 
-        // Attach filter events
         this.attachFilterEvents(container);
     },
 
@@ -4483,7 +4682,6 @@ const FeaturePanel = {
             `<option value="${m.id}">${m.name}</option>`
         ).join('');
 
-        // Get unique campaigns from appointments
         const allAppointments = Data.getAllAppointments();
         const campaigns = new Set();
         allAppointments.forEach(appt => {
@@ -4494,30 +4692,30 @@ const FeaturePanel = {
         ).join('');
 
         return `
-            <div class="analytics-filters" style="display:flex; flex-wrap:wrap; gap:12px; padding:12px 16px; background:var(--bg-card); border-radius:12px; border:1px solid var(--border-color); margin-bottom:16px;">
+            <div class="analytics-filters">
                 <div style="display:flex; align-items:center; gap:6px;">
-                    <label style="font-size:0.75rem; color:var(--text-muted);">Time Range:</label>
-                    <select id="analyticsTimeRange" style="padding:6px 12px; border-radius:20px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:0.75rem;">
+                    <label>Time Range:</label>
+                    <select id="analyticsTimeRange">
                         ${timeRanges.map(range => `
                             <option value="${range.value}" ${filters.timeRange === range.value ? 'selected' : ''}>${range.label}</option>
                         `).join('')}
                     </select>
                 </div>
                 <div id="customDateRange" style="display:${filters.timeRange === 'custom' ? 'flex' : 'none'}; align-items:center; gap:6px;">
-                    <input type="date" id="analyticsStartDate" value="${filters.startDate || ''}" style="padding:6px 10px; border-radius:20px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:0.75rem;" />
-                    <span style="color:var(--text-muted);">to</span>
-                    <input type="date" id="analyticsEndDate" value="${filters.endDate || ''}" style="padding:6px 10px; border-radius:20px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:0.75rem;" />
+                    <input type="date" id="analyticsStartDate" value="${filters.startDate || ''}" />
+                    <span>to</span>
+                    <input type="date" id="analyticsEndDate" value="${filters.endDate || ''}" />
                 </div>
                 <div style="display:flex; align-items:center; gap:6px;">
-                    <label style="font-size:0.75rem; color:var(--text-muted);">Setter:</label>
-                    <select id="analyticsSetter" style="padding:6px 12px; border-radius:20px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:0.75rem;">
+                    <label>Setter:</label>
+                    <select id="analyticsSetter">
                         <option value="all" ${filters.setter === 'all' ? 'selected' : ''}>All</option>
                         ${setterOptions}
                     </select>
                 </div>
                 <div style="display:flex; align-items:center; gap:6px;">
-                    <label style="font-size:0.75rem; color:var(--text-muted);">Campaign:</label>
-                    <select id="analyticsCampaign" style="padding:6px 12px; border-radius:20px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:0.75rem;">
+                    <label>Campaign:</label>
+                    <select id="analyticsCampaign">
                         <option value="all" ${filters.campaign === 'all' ? 'selected' : ''}>All</option>
                         ${campaignOptions}
                     </select>
@@ -4545,7 +4743,8 @@ const FeaturePanel = {
             AppState.analyticsFilters.setter = setter ? setter.value : 'all';
             AppState.analyticsFilters.campaign = campaign ? campaign.value : 'all';
             
-            // Refresh the dashboard
+            localStorage.setItem('analyticsFilters', JSON.stringify(AppState.analyticsFilters));
+            
             const body = DOM.get('featurePanelBody');
             if (body && AppState.currentView === 'analytics') {
                 this.renderMeetingPerformance(body);
@@ -4569,9 +4768,9 @@ const FeaturePanel = {
     },
 
     showDrilldown: function(metric, appointments) {
-        const modal = DOM.get('drilldownModal');
-        const title = DOM.get('drilldownTitle');
-        const content = DOM.get('drilldownContent');
+        const modal = document.getElementById('drilldownModal');
+        const title = document.getElementById('drilldownTitle');
+        const content = document.getElementById('drilldownContent');
         
         if (!modal || !title || !content) return;
 
@@ -4626,17 +4825,14 @@ const FeaturePanel = {
 
         modal.style.display = 'flex';
 
-        // Close button
-        const closeBtn = DOM.get('drilldownCloseBtn');
+        const closeBtn = document.getElementById('drilldownCloseBtn');
         if (closeBtn) {
             closeBtn.onclick = () => { modal.style.display = 'none'; };
         }
 
-        // Export button
-        const exportBtn = DOM.get('drilldownExportBtn');
+        const exportBtn = document.getElementById('drilldownExportBtn');
         if (exportBtn) {
             exportBtn.onclick = () => {
-                // Export the drilldown data
                 let csv = 'Business,Contact,Phone,Email,Date,Time,Status,QualityScore,Notes,Assigned\n';
                 data.forEach(appt => {
                     const status = Utils.getStatus(appt);
@@ -4662,11 +4858,9 @@ const FeaturePanel = {
     },
 
     initMeetingCharts: function(statusData, weeklyTrend, showRateData, qualityDistData) {
-        // Destroy existing charts
         Object.values(AppState.chartInstances).forEach(chart => { if (chart) chart.destroy(); });
         AppState.chartInstances = {};
 
-        // Meeting Status Pie Chart
         const statusCtx = DOM.get('meetingStatusChart')?.getContext('2d');
         if (statusCtx && statusData.labels.length > 0) {
             AppState.chartInstances.meetingStatus = new Chart(statusCtx, {
@@ -4694,7 +4888,6 @@ const FeaturePanel = {
             });
         }
 
-        // Weekly Booking Trend
         const trendCtx = DOM.get('weeklyTrendChart')?.getContext('2d');
         if (trendCtx && weeklyTrend.labels.length > 0) {
             AppState.chartInstances.weeklyTrend = new Chart(trendCtx, {
@@ -4719,7 +4912,6 @@ const FeaturePanel = {
             });
         }
 
-        // Daily Show Rate Trend
         const showRateCtx = DOM.get('showRateTrendChart')?.getContext('2d');
         if (showRateCtx && showRateData.labels.length > 0) {
             AppState.chartInstances.showRateTrend = new Chart(showRateCtx, {
@@ -4745,7 +4937,6 @@ const FeaturePanel = {
             });
         }
 
-        // Quality Score Distribution
         const qualityCtx = DOM.get('qualityDistChart')?.getContext('2d');
         if (qualityCtx) {
             AppState.chartInstances.qualityDist = new Chart(qualityCtx, {
@@ -4934,6 +5125,490 @@ const FeaturePanel = {
 };
 
 // ================================================================
+// SCRIPTS MODULE
+// ================================================================
+
+const Scripts = {
+    renderSidebar: function() {
+        const container = DOM.get('scriptListContainer');
+        if (!container) return;
+
+        const scripts = AppState.scripts || {};
+        const scriptOrder = AppState.scriptOrder || [];
+        
+        const visible = Utils.getOrderedVisible(scripts, scriptOrder);
+        const sorted = [...visible].sort((a, b) => {
+            const aFav = AppState.scriptFavorites.includes(a);
+            const bFav = AppState.scriptFavorites.includes(b);
+            if (aFav && !bFav) return -1;
+            if (!aFav && bFav) return 1;
+            return visible.indexOf(a) - visible.indexOf(b);
+        });
+
+        let html = '';
+        if (sorted.length === 0) {
+            html = `<div class="empty-scripts-msg" style="padding:20px; text-align:center; color:var(--text-muted); font-size:0.85rem;">
+                <i class="fas fa-scroll" style="font-size:2rem; display:block; margin-bottom:8px; opacity:0.3;"></i>
+                No scripts yet. Click "New Script" to create one.
+            </div>`;
+        } else {
+            sorted.forEach((id, idx) => {
+                const s = scripts[id];
+                if (!s) return;
+                const active = AppState.currentScriptId === id;
+                const isFavorite = AppState.scriptFavorites.includes(id);
+                html += `
+                    <div class="script-item ${active ? 'active' : ''}" data-id="${id}">
+                        <i class="fas fa-grip-vertical drag-handle"></i>
+                        <span class="script-name">${Utils.escapeHtml(s.name)}</span>
+                        <i class="fas fa-star favorite-star ${isFavorite ? 'active' : ''}" data-id="${id}"></i>
+                        <span class="key-hint">${idx < 9 ? idx + 1 : ''}</span>
+                        <i class="fas fa-edit script-edit-btn" data-id="${id}" title="Edit script name"></i>
+                        <i class="fas fa-trash script-delete-btn" data-id="${id}" title="Delete script"></i>
+                    </div>
+                `;
+            });
+        }
+        container.innerHTML = html;
+
+        if (window.sortableInstance) {
+            window.sortableInstance.destroy();
+            window.sortableInstance = null;
+        }
+
+        if (sorted.length > 0) {
+            window.sortableInstance = new Sortable(container, {
+                handle: '.drag-handle',
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                chosenClass: 'sortable-chosen',
+                dragClass: 'sortable-drag',
+                onEnd: async function() {
+                    const newOrder = [];
+                    container.querySelectorAll('.script-item').forEach(item => {
+                        const id = item.getAttribute('data-id');
+                        if (id) newOrder.push(id);
+                    });
+                    AppState.scriptOrder = newOrder;
+                    await Data.saveScriptOrder();
+                    Scripts.renderSidebar();
+                    Scripts.updateKeyHints();
+                }
+            });
+        }
+
+        container.querySelectorAll('.script-item').forEach(el => {
+            el.addEventListener('click', (e) => {
+                if (e.target.closest('.drag-handle')) return;
+                if (e.target.closest('.favorite-star')) return;
+                if (e.target.closest('.script-edit-btn')) return;
+                if (e.target.closest('.script-delete-btn')) return;
+                Scripts.loadScript(el.getAttribute('data-id'));
+            });
+        });
+
+        container.querySelectorAll('.favorite-star').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                Scripts.toggleFavorite(el.getAttribute('data-id'));
+            });
+        });
+
+        container.querySelectorAll('.script-edit-btn').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = el.getAttribute('data-id');
+                Scripts.editScriptTitle(id);
+            });
+        });
+
+        container.querySelectorAll('.script-delete-btn').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = el.getAttribute('data-id');
+                Scripts.deleteScript(id);
+            });
+        });
+
+        this.updateKeyHints();
+    },
+
+    editScriptTitle: function(id) {
+        const script = AppState.scripts[id];
+        if (!script) {
+            showToast('Script not found', 'error');
+            return;
+        }
+
+        const newName = prompt('Edit script name:', script.name);
+        if (newName && newName.trim() && newName.trim() !== script.name) {
+            const updatedName = newName.trim();
+            
+            AppState.scripts[id] = { ...script, name: updatedName };
+            
+            if (AppState.isFirebaseReady && AppState.currentUser) {
+                firebase.firestore()
+                    .collection('users')
+                    .doc(AppState.currentUser.uid)
+                    .collection('scripts')
+                    .doc(id)
+                    .update({ name: updatedName })
+                    .then(() => {
+                        showToast('Script name updated!', 'success');
+                        Scripts.renderSidebar();
+                        if (AppState.currentScriptId === id) {
+                            DOM.setText('currentScriptName', updatedName);
+                        }
+                    })
+                    .catch(err => {
+                        handleError(err, 'Updating script name');
+                        AppState.scripts[id] = script;
+                        Scripts.renderSidebar();
+                    });
+            } else {
+                const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
+                if (fallback[id]) {
+                    fallback[id].name = updatedName;
+                    localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+                }
+                showToast('Script name updated!', 'success');
+                Scripts.renderSidebar();
+                if (AppState.currentScriptId === id) {
+                    DOM.setText('currentScriptName', updatedName);
+                }
+            }
+        }
+    },
+
+    deleteScript: function(id) {
+        const script = AppState.scripts[id];
+        if (!script) {
+            showToast('Script not found', 'error');
+            return;
+        }
+
+        const scriptCount = Object.keys(AppState.scripts).length;
+        if (scriptCount <= 1) {
+            showToast('Cannot delete the last script. Create a new one first.', 'warning');
+            return;
+        }
+
+        if (!confirm(`Delete script "${script.name}"? This cannot be undone.`)) {
+            return;
+        }
+
+        delete AppState.scripts[id];
+        AppState.scriptOrder = AppState.scriptOrder.filter(scriptId => scriptId !== id);
+        AppState.scriptFavorites = AppState.scriptFavorites.filter(scriptId => scriptId !== id);
+
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            firebase.firestore()
+                .collection('users')
+                .doc(AppState.currentUser.uid)
+                .collection('scripts')
+                .doc(id)
+                .delete()
+                .then(() => {
+                    showToast(`Script "${script.name}" deleted`, 'info');
+                    if (AppState.currentScriptId === id) {
+                        const remainingIds = Object.keys(AppState.scripts);
+                        if (remainingIds.length > 0) {
+                            Scripts.loadScript(remainingIds[0]);
+                        }
+                    }
+                    Scripts.renderSidebar();
+                    Scripts.saveScriptOrder();
+                })
+                .catch(err => {
+                    handleError(err, 'Deleting script');
+                    AppState.scripts[id] = script;
+                    AppState.scriptOrder.push(id);
+                    Scripts.renderSidebar();
+                });
+        } else {
+            const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
+            delete fallback[id];
+            localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+            
+            showToast(`Script "${script.name}" deleted`, 'info');
+            if (AppState.currentScriptId === id) {
+                const remainingIds = Object.keys(AppState.scripts);
+                if (remainingIds.length > 0) {
+                    Scripts.loadScript(remainingIds[0]);
+                }
+            }
+            Scripts.renderSidebar();
+            Scripts.saveScriptOrder();
+        }
+    },
+
+    updateKeyHints: function() {
+        const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
+        const items = document.querySelectorAll('.script-item');
+        items.forEach((item, idx) => {
+            const hint = item.querySelector('.key-hint');
+            if (hint && idx < 9) {
+                hint.textContent = idx + 1;
+            } else if (hint) {
+                hint.textContent = '';
+            }
+        });
+
+        const activeHint = DOM.get('activeShortcutHint');
+        if (activeHint) {
+            const idx = visible.indexOf(AppState.currentScriptId);
+            activeHint.textContent = (idx >= 0 && idx < 9) ? (idx + 1) : '—';
+        }
+    },
+
+    loadScript: function(id) {
+        if (!AppState.scripts[id]) {
+            const ids = Object.keys(AppState.scripts);
+            if (ids.length > 0) {
+                id = ids[0];
+            } else {
+                showToast('No scripts available. Create a new script.', 'warning');
+                return;
+            }
+        }
+        if (AppState.isEditing) {
+            if (!confirm('You have unsaved changes. Discard them?')) return;
+            this.cancelEdit();
+        }
+        AppState.currentScriptId = id;
+        const script = AppState.scripts[id];
+        DOM.setText('currentScriptName', script.name);
+        DOM.setHTML('scriptContent', `<div class="script-display">${Utils.escapeHtml(script.content).replace(/\n/g, '<br>')}</div>`);
+        DOM.setText('versionNumber', script.version || 1);
+        this.updateFavoriteStar();
+        this.renderSidebar();
+        this.updateKeyHints();
+        
+        if (window.ObjectionHandler && typeof window.ObjectionHandler.onScriptLoaded === 'function') {
+            window.ObjectionHandler.onScriptLoaded();
+        }
+    },
+
+    toggleFavorite: function(id) {
+        const index = AppState.scriptFavorites.indexOf(id);
+        if (index > -1) {
+            AppState.scriptFavorites.splice(index, 1);
+        } else {
+            AppState.scriptFavorites.push(id);
+        }
+        localStorage.setItem('scriptFavorites', JSON.stringify(AppState.scriptFavorites));
+        this.renderSidebar();
+        this.updateFavoriteStar();
+        showToast(index > -1 ? 'Removed from favorites' : 'Added to favorites', 'info');
+    },
+
+    updateFavoriteStar: function() {
+        const star = DOM.get('favoriteScriptBtn');
+        if (star) {
+            const isFavorite = AppState.scriptFavorites.includes(AppState.currentScriptId);
+            star.innerHTML = `<i class="fas fa-star" style="color:${isFavorite ? 'var(--favorite-color)' : 'var(--text-muted)'}"></i>`;
+            star.title = isFavorite ? 'Remove from favorites' : 'Add to favorites';
+        }
+    },
+
+    startEdit: function() {
+        if (!AppState.scripts[AppState.currentScriptId]) return;
+        AppState.isEditing = true;
+        AppState.shortcutsEnabled = false;
+        const script = AppState.scripts[AppState.currentScriptId];
+        AppState.currentEditContent = script.content;
+
+        DOM.hide('editScriptBtn');
+        DOM.show('saveScriptBtn');
+        DOM.show('cancelEditBtn');
+        DOM.show('editStatusBadge');
+
+        const contentDiv = DOM.get('scriptContent');
+        if (contentDiv) {
+            contentDiv.innerHTML = `
+                <textarea class="edit-textarea" id="editTextarea">${Utils.escapeHtml(script.content)}</textarea>
+                <div class="auto-save-indicator">Auto-saving...</div>
+            `;
+        }
+
+        const textarea = DOM.get('editTextarea');
+        if (textarea) {
+            textarea.focus();
+
+            const saveContent = Utils.debounce((content) => {
+                this.saveScriptContent(content);
+                const indicator = document.querySelector('.auto-save-indicator');
+                if (indicator) {
+                    indicator.textContent = '✓ Auto-saved';
+                    indicator.style.color = 'var(--success)';
+                }
+            }, 1000);
+
+            textarea.addEventListener('input', () => {
+                AppState.currentEditContent = textarea.value;
+                const indicator = document.querySelector('.auto-save-indicator');
+                if (indicator) {
+                    indicator.textContent = 'Saving...';
+                    indicator.style.color = 'var(--warning)';
+                }
+                if (window.autoSaveTimer) clearTimeout(window.autoSaveTimer);
+                window.autoSaveTimer = setTimeout(() => saveContent(textarea.value), 1000);
+            });
+
+            textarea.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') this.cancelEdit();
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    this.saveScriptContent(textarea.value);
+                    this.finishEdit();
+                }
+            });
+        }
+    },
+
+    saveScriptContent: function(content) {
+        if (!AppState.currentUser || !AppState.currentScriptId) return;
+        const script = AppState.scripts[AppState.currentScriptId];
+        if (!script) return;
+
+        const updatedScript = {
+            ...script,
+            content: content,
+            version: (script.version || 1) + 1
+        };
+
+        if (AppState.isFirebaseReady) {
+            firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts').doc(AppState.currentScriptId).set(updatedScript, { merge: true })
+                .then(() => {
+                    AppState.scripts[AppState.currentScriptId] = updatedScript;
+                })
+                .catch(err => handleError(err, 'Saving script'));
+        } else {
+            AppState.scripts[AppState.currentScriptId] = updatedScript;
+            localStorage.setItem('scripts_fallback', JSON.stringify(AppState.scripts));
+        }
+    },
+
+    finishEdit: function() {
+        AppState.isEditing = false;
+        AppState.shortcutsEnabled = true;
+        DOM.show('editScriptBtn');
+        DOM.hide('saveScriptBtn');
+        DOM.hide('cancelEditBtn');
+        DOM.hide('editStatusBadge');
+        this.loadScript(AppState.currentScriptId);
+        showToast('Changes saved', 'success');
+    },
+
+    cancelEdit: function() {
+        if (!confirm('Discard your changes?')) return;
+        AppState.isEditing = false;
+        AppState.shortcutsEnabled = true;
+        DOM.show('editScriptBtn');
+        DOM.hide('saveScriptBtn');
+        DOM.hide('cancelEditBtn');
+        DOM.hide('editStatusBadge');
+        this.loadScript(AppState.currentScriptId);
+    },
+
+    resetScript: function() {
+        if (!confirm('Reset this script to its original content?')) return;
+        if (AppState.currentUser && AppState.currentScriptId) {
+            const script = AppState.scripts[AppState.currentScriptId];
+            if (AppState.isFirebaseReady) {
+                firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts').doc(AppState.currentScriptId).set({
+                    name: script.name,
+                    content: script.content,
+                    version: 1
+                }, { merge: true }).then(() => {
+                    showToast('Script reset', 'info');
+                    Data.loadUserData(true);
+                }).catch(err => handleError(err, 'Resetting script'));
+            } else {
+                script.version = 1;
+                localStorage.setItem('scripts_fallback', JSON.stringify(AppState.scripts));
+                showToast('Script reset locally', 'info');
+                this.loadScript(AppState.currentScriptId);
+            }
+        }
+    },
+
+    createScript: function() {
+        if (!AppState.currentUser) { 
+            showToast('Please sign in first', 'error'); 
+            return; 
+        }
+        
+        const name = prompt('Enter new script name:');
+        if (!name || !name.trim()) return;
+        
+        const scriptName = name.trim();
+        const id = 'script_' + Utils.generateId();
+        const newScript = {
+            name: scriptName,
+            content: 'New script content...\n\nStart writing your script here.',
+            version: 1
+        };
+
+        AppState.scripts[id] = newScript;
+        AppState.scriptOrder.push(id);
+
+        if (AppState.isFirebaseReady) {
+            firebase.firestore()
+                .collection('users')
+                .doc(AppState.currentUser.uid)
+                .collection('scripts')
+                .doc(id)
+                .set({
+                    name: scriptName,
+                    content: newScript.content,
+                    version: 1,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                })
+                .then(() => {
+                    showToast(`Script "${scriptName}" created! 🎉`, 'success');
+                    Scripts.renderSidebar();
+                    Scripts.loadScript(id);
+                    Data.saveScriptOrder();
+                })
+                .catch(err => {
+                    handleError(err, 'Creating script');
+                    delete AppState.scripts[id];
+                    AppState.scriptOrder = AppState.scriptOrder.filter(sid => sid !== id);
+                    Scripts.renderSidebar();
+                });
+        } else {
+            const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
+            fallback[id] = newScript;
+            localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+            
+            showToast(`Script "${scriptName}" created! 🎉`, 'success');
+            Scripts.renderSidebar();
+            Scripts.loadScript(id);
+            Scripts.saveScriptOrder();
+        }
+    },
+
+    saveScriptOrder: function() {
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            firebase.firestore()
+                .collection('users')
+                .doc(AppState.currentUser.uid)
+                .update({ scriptOrder: AppState.scriptOrder })
+                .catch(err => console.warn('Error saving script order:', err));
+        } else {
+            const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
+            fallback.scriptOrder = AppState.scriptOrder;
+            localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+        }
+    },
+
+    isEditing: function() {
+        return AppState.isEditing;
+    }
+};
+
+// ================================================================
 // INITIALIZATION
 // ================================================================
 
@@ -4957,7 +5632,6 @@ function initApp() {
     AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS, ...AppState.customShortcuts };
     AppState.scriptFavorites = JSON.parse(localStorage.getItem('scriptFavorites') || '[]');
 
-    // Initialize analytics filters from localStorage
     const savedFilters = localStorage.getItem('analyticsFilters');
     if (savedFilters) {
         try {
@@ -5038,7 +5712,6 @@ function initApp() {
         Scripts.loadScript('opening');
     });
 
-    // Script editing buttons
     const editScriptBtn = DOM.get('editScriptBtn');
     const saveScriptBtn = DOM.get('saveScriptBtn');
     const cancelEditBtn = DOM.get('cancelEditBtn');
@@ -5059,7 +5732,6 @@ function initApp() {
     if (resetScriptBtn) resetScriptBtn.addEventListener('click', () => Scripts.resetScript());
     if (favoriteScriptBtn) favoriteScriptBtn.addEventListener('click', () => Scripts.toggleFavorite(AppState.currentScriptId));
 
-    // Smart Import Event Listeners
     const quickReportBtn = DOM.get('quickReportBtn');
     const parseBtn = DOM.get('parseImportBtn');
     const saveImportBtn = DOM.get('saveImportBtn');
@@ -5074,7 +5746,6 @@ function initApp() {
     if (templateBtn) templateBtn.addEventListener('click', generateImportTemplate);
     if (clipboardBtn) clipboardBtn.addEventListener('click', quickImportFromClipboard);
 
-    // Prospect Add Button
     const addProspectBtn = DOM.get('addProspectBtn');
     if (addProspectBtn) addProspectBtn.addEventListener('click', openAddProspect);
 
@@ -5221,7 +5892,6 @@ function initApp() {
         }
     });
 
-    // Try to initialize Prospect Manager
     Data.initProspectManager();
 
     try {
