@@ -5,8 +5,8 @@
 const APP_CONFIG = {
     // Gemini AI Configuration
     gemini: {
-        // API Key - Will be loaded from localStorage or environment
-        apiKey: null,
+        // Your Gemini API Key - Set this here or in localStorage
+        apiKey: 'AQ.Ab8RN6JFZQI0-gFgMDUVTeuMDan3e7_8DAEGRffNQRwkEhPtzw',
         model: 'gemini-1.5-flash',
         temperature: 0.3,
         maxTokens: 2000,
@@ -56,42 +56,42 @@ const APP_CONFIG = {
 (function initializeConfig() {
     console.log('⚙️ Initializing application configuration...');
     
-    // 1. Load API key from localStorage
+    // 1. Load API key from localStorage first (user's saved key)
     const storedKey = localStorage.getItem(APP_CONFIG.storageKeys.geminiApiKey);
-    if (storedKey && storedKey.trim().length > 0) {
+    if (storedKey && storedKey.trim().length > 10) {
         APP_CONFIG.gemini.apiKey = storedKey.trim();
         console.log('🔑 Gemini API key loaded from localStorage');
     }
     
-    // 2. Check for global variable (for development/testing)
-    if (window.GEMINI_API_KEY && !APP_CONFIG.gemini.apiKey) {
+    // 2. If no stored key, check if we have a default key set in the config
+    if (!APP_CONFIG.gemini.apiKey || APP_CONFIG.gemini.apiKey.length < 10) {
+        // The default key is already set in the config above
+        // But we need to save it to localStorage for persistence
+        if (APP_CONFIG.gemini.apiKey && APP_CONFIG.gemini.apiKey.length > 10) {
+            localStorage.setItem(APP_CONFIG.storageKeys.geminiApiKey, APP_CONFIG.gemini.apiKey);
+            console.log('🔑 Gemini API key saved from config to localStorage');
+        }
+    }
+    
+    // 3. Check for global variable (for development/testing)
+    if (window.GEMINI_API_KEY && window.GEMINI_API_KEY.trim().length > 10) {
         APP_CONFIG.gemini.apiKey = window.GEMINI_API_KEY.trim();
-        // Save to localStorage for persistence
         localStorage.setItem(APP_CONFIG.storageKeys.geminiApiKey, APP_CONFIG.gemini.apiKey);
         console.log('🔑 Gemini API key loaded from global variable');
     }
     
-    // 3. Check for environment variable (if running in Node/Electron)
-    if (typeof process !== 'undefined' && process.env && process.env.GEMINI_API_KEY) {
-        const envKey = process.env.GEMINI_API_KEY.trim();
-        if (envKey && !APP_CONFIG.gemini.apiKey) {
-            APP_CONFIG.gemini.apiKey = envKey;
-            localStorage.setItem(APP_CONFIG.storageKeys.geminiApiKey, envKey);
-            console.log('🔑 Gemini API key loaded from environment variable');
-        }
-    }
-    
-    // 4. Validate API key format (basic check)
+    // 4. Validate API key format
     if (APP_CONFIG.gemini.apiKey) {
         const isValid = APP_CONFIG.gemini.apiKey.length > 10;
         if (!isValid) {
             console.warn('⚠️ Gemini API key appears to be invalid (too short)');
             APP_CONFIG.gemini.apiKey = null;
         } else {
-            console.log('✅ Gemini API key validated');
+            console.log('✅ Gemini API key validated (length: ' + APP_CONFIG.gemini.apiKey.length + ' chars)');
         }
     } else {
         console.warn('⚠️ No Gemini API key found. AI features will be limited.');
+        console.info('ℹ️ To set your API key, run: setGeminiApiKey("YOUR_API_KEY") in the console');
     }
     
     // 5. Log configuration status
@@ -133,7 +133,7 @@ function setGeminiApiKey(key) {
     
     const trimmedKey = key.trim();
     if (trimmedKey.length < 10) {
-        console.error('❌ Invalid API key: key is too short');
+        console.error('❌ Invalid API key: key is too short (min 10 chars)');
         return false;
     }
     

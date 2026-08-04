@@ -31,18 +31,28 @@ function initializeFirebase() {
         // Get Firestore instance
         const db = firebase.firestore();
 
-        // Enable persistence with recommended settings
+        // Enable persistence with proper settings
+        // Note: synchronizeTabs and experimentalForceOwningTab cannot be used together
         db.enablePersistence({
-            synchronizeTabs: true,
-            experimentalForceOwningTab: true
+            synchronizeTabs: true
         })
         .then(() => {
-            console.log('✅ Firebase persistence enabled with cache configuration');
+            console.log('✅ Firebase persistence enabled with multi-tab support');
         })
         .catch(err => {
             if (err.code === 'failed-precondition') {
-                console.warn('⚠️ Firebase persistence: multiple tabs open, persistence disabled in this tab');
+                console.warn('⚠️ Firebase persistence: multiple tabs open, persistence may be limited');
                 console.info('ℹ️ Data will still work, but offline support may be limited');
+                // Try fallback without multi-tab support
+                db.enablePersistence({
+                    synchronizeTabs: false
+                })
+                .then(() => {
+                    console.log('✅ Firebase persistence enabled (single-tab mode)');
+                })
+                .catch(fallbackErr => {
+                    console.warn('⚠️ Firebase persistence fallback failed:', fallbackErr.message);
+                });
             } else if (err.code === 'unimplemented') {
                 console.warn('⚠️ Firebase persistence not supported in this browser');
                 console.info('ℹ️ Continuing in online-only mode');
@@ -52,7 +62,7 @@ function initializeFirebase() {
             }
         });
 
-        // Configure cache size for better performance
+        // Configure cache settings
         try {
             db.settings({
                 cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED

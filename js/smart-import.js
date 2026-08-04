@@ -251,6 +251,31 @@ function updateAIStatus(message) {
 }
 
 // ================================================================
+// DOM HELPERS - Check if already defined in app.js
+// ================================================================
+
+// Use existing DOM from app.js, or create fallback
+const SmartImportDOM = window.DOM || {
+    get: function(id) { return document.getElementById(id); },
+    show: function(id) { 
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'block';
+    },
+    hide: function(id) {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    },
+    setText: function(id, text) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    },
+    setHTML: function(id, html) {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = html;
+    }
+};
+
+// ================================================================
 // SMART IMPORT UI FUNCTIONS
 // ================================================================
 
@@ -258,7 +283,7 @@ function updateAIStatus(message) {
  * Open the Smart Import modal
  */
 function openSmartImportEnhanced() {
-    const modal = document.getElementById('smartImportModal');
+    const modal = SmartImportDOM.get('smartImportModal');
     if (!modal) return;
     
     modal.style.display = 'flex';
@@ -272,12 +297,12 @@ function openSmartImportEnhanced() {
     SmartImportState.aiErrorMessage = null;
     SmartImportState.parsedData = null;
     
-    const dateInput = document.getElementById('importDefaultDate');
+    const dateInput = SmartImportDOM.get('importDefaultDate');
     if (dateInput) {
         dateInput.value = Utils.getTodayStr();
     }
     
-    const textArea = document.getElementById('importTextArea');
+    const textArea = SmartImportDOM.get('importTextArea');
     if (textArea) {
         textArea.value = '';
         textArea.placeholder = `Paste your conversation transcript here. The AI will intelligently extract all CRM fields.
@@ -294,30 +319,30 @@ Prospect: Right now, my email doesn't work, it's full. Just call me Thursday.
 Flynn: I'll try to call you back Thursday if you have an update on the email. My manager will prepare a 10-minute walkthrough."`;
     }
     
-    const preview = document.getElementById('importPreview');
+    const preview = SmartImportDOM.get('importPreview');
     if (preview) preview.style.display = 'none';
     
-    const saveBtn = document.getElementById('saveImportBtn');
+    const saveBtn = SmartImportDOM.get('saveImportBtn');
     if (saveBtn) saveBtn.style.display = 'none';
     
-    const resultsContainer = document.getElementById('importResultsContainer');
+    const resultsContainer = SmartImportDOM.get('importResultsContainer');
     if (resultsContainer) resultsContainer.innerHTML = '';
     
-    const progressContainer = document.getElementById('importProgressContainer');
+    const progressContainer = SmartImportDOM.get('importProgressContainer');
     if (progressContainer) progressContainer.style.display = 'none';
     
-    const summary = document.getElementById('importSummary');
+    const summary = SmartImportDOM.get('importSummary');
     if (summary) summary.style.display = 'none';
     
     // Update parse button text with AI icon
-    const parseBtn = document.getElementById('parseImportBtn');
+    const parseBtn = SmartImportDOM.get('parseImportBtn');
     if (parseBtn) {
         parseBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Parse Transcript (AI)';
         parseBtn.disabled = false;
     }
     
     // Show AI status
-    let aiStatusEl = document.getElementById('aiStatusDisplay');
+    let aiStatusEl = SmartImportDOM.get('aiStatusDisplay');
     if (!aiStatusEl) {
         const statusContainer = document.createElement('div');
         statusContainer.id = 'aiStatusDisplay';
@@ -337,7 +362,7 @@ Flynn: I'll try to call you back Thursday if you have an update on the email. My
  * Close the Smart Import modal
  */
 function closeSmartImportEnhanced() {
-    const modal = document.getElementById('smartImportModal');
+    const modal = SmartImportDOM.get('smartImportModal');
     if (modal) modal.style.display = 'none';
     AppState.importRecords = [];
     AppState.importProcessing = false;
@@ -352,7 +377,7 @@ function closeSmartImportEnhanced() {
  * AI-Powered parse and preview import
  */
 async function parseAndPreviewImportEnhanced() {
-    const textArea = document.getElementById('importTextArea');
+    const textArea = SmartImportDOM.get('importTextArea');
     if (!textArea) return;
     
     const text = textArea.value;
@@ -361,10 +386,10 @@ async function parseAndPreviewImportEnhanced() {
         return;
     }
     
-    const dateInput = document.getElementById('importDefaultDate');
+    const dateInput = SmartImportDOM.get('importDefaultDate');
     const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
     
-    const progressContainer = document.getElementById('importProgressContainer');
+    const progressContainer = SmartImportDOM.get('importProgressContainer');
     if (progressContainer) progressContainer.style.display = 'block';
     AppState.importProcessing = true;
     SmartImportState.isParsing = true;
@@ -372,7 +397,7 @@ async function parseAndPreviewImportEnhanced() {
     SmartImportState.parseStartTime = Date.now();
     
     // Update parse button
-    const parseBtn = document.getElementById('parseImportBtn');
+    const parseBtn = SmartImportDOM.get('parseImportBtn');
     if (parseBtn) {
         parseBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI Analyzing...';
         parseBtn.disabled = true;
@@ -579,11 +604,11 @@ async function parseAndPreviewImportEnhanced() {
  * Render import results with AI confidence indicators
  */
 function renderImportResults(records, avgConfidence, parseTime) {
-    const preview = document.getElementById('importPreview');
-    const resultsContainer = document.getElementById('importResultsContainer');
-    const saveBtn = document.getElementById('saveImportBtn');
-    const summary = document.getElementById('importSummary');
-    const recordCount = document.getElementById('importRecordCount');
+    const preview = SmartImportDOM.get('importPreview');
+    const resultsContainer = SmartImportDOM.get('importResultsContainer');
+    const saveBtn = SmartImportDOM.get('saveImportBtn');
+    const summary = SmartImportDOM.get('importSummary');
+    const recordCount = SmartImportDOM.get('importRecordCount');
     
     if (!preview || !resultsContainer) return;
     
@@ -874,8 +899,8 @@ function saveAllImportedAppointments() {
  * Update import progress
  */
 function updateImportProgress(percent, message) {
-    const progressBar = document.getElementById('importProgressBar');
-    const progressStatus = document.getElementById('importProgressStatus');
+    const progressBar = SmartImportDOM.get('importProgressBar');
+    const progressStatus = SmartImportDOM.get('importProgressStatus');
     
     if (progressBar) {
         progressBar.style.width = Math.min(percent, 100) + '%';
@@ -928,11 +953,11 @@ function collapseAllRecords() {
  * Generate import template
  */
 function generateImportTemplate() {
-    const dateInput = document.getElementById('importDefaultDate');
+    const dateInput = SmartImportDOM.get('importDefaultDate');
     const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
     const formattedDate = defaultDate ? Utils.formatDate(defaultDate) : 'Today';
     
-    const textArea = document.getElementById('importTextArea');
+    const textArea = SmartImportDOM.get('importTextArea');
     if (!textArea) return;
     
     const template = `Business Name/Company : [Enter Business Name]
@@ -963,7 +988,7 @@ async function quickImportFromClipboard() {
         const text = await navigator.clipboard.readText();
         if (text) {
             openSmartImportEnhanced();
-            const textArea = document.getElementById('importTextArea');
+            const textArea = SmartImportDOM.get('importTextArea');
             if (textArea) {
                 textArea.value = text;
             }
@@ -987,19 +1012,19 @@ function clearExtractedData() {
     SmartImportState.parsedData = null;
     AppState.importRecords = [];
     
-    const preview = document.getElementById('importPreview');
+    const preview = SmartImportDOM.get('importPreview');
     if (preview) preview.style.display = 'none';
     
-    const resultsContainer = document.getElementById('importResultsContainer');
+    const resultsContainer = SmartImportDOM.get('importResultsContainer');
     if (resultsContainer) resultsContainer.innerHTML = '';
     
-    const summary = document.getElementById('importSummary');
+    const summary = SmartImportDOM.get('importSummary');
     if (summary) summary.style.display = 'none';
     
-    const saveBtn = document.getElementById('saveImportBtn');
+    const saveBtn = SmartImportDOM.get('saveImportBtn');
     if (saveBtn) saveBtn.style.display = 'none';
     
-    const textArea = document.getElementById('importTextArea');
+    const textArea = SmartImportDOM.get('importTextArea');
     if (textArea) {
         textArea.value = '';
     }
@@ -1095,41 +1120,6 @@ function importAsNew(index) {
 }
 
 // ================================================================
-// DOM HELPERS (if not available from app.js)
-// ================================================================
-
-// Use existing DOM helpers from app.js if available
-const DOM = window.DOM || {
-    get: function(id) { return document.getElementById(id); },
-    show: function(id) { 
-        const el = document.getElementById(id);
-        if (el) el.style.display = 'block';
-    },
-    hide: function(id) {
-        const el = document.getElementById(id);
-        if (el) el.style.display = 'none';
-    }
-};
-
-// Use existing Utils if available
-const Utils = window.Utils || {
-    getTodayStr: function() {
-        const d = new Date();
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    },
-    formatDate: function(dateStr) {
-        if (!dateStr) return 'No date';
-        const d = new Date(dateStr);
-        if (isNaN(d.getTime())) return 'No date';
-        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    },
-    escapeHtml: function(s) {
-        if (!s) return '';
-        return String(s).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
-    }
-};
-
-// ================================================================
 // EXPOSE GLOBALLY
 // ================================================================
 
@@ -1161,6 +1151,9 @@ window.saveFieldEdit = saveFieldEdit;
 window.reviewDuplicate = reviewDuplicate;
 window.updateDuplicate = updateDuplicate;
 window.importAsNew = importAsNew;
+
+// Export SmartImportState for debugging
+window.SmartImportState = SmartImportState;
 
 console.log('📥 Smart Import with Gemini AI loaded successfully');
 console.log('🔑 AI Configured:', isAIConfigured() ? '✅ Yes' : '❌ No');
