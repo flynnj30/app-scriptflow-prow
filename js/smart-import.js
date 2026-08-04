@@ -1,5 +1,5 @@
 // ================================================================
-// SMART IMPORT ENHANCED - AI-Powered Transcript Parsing
+// SMART IMPORT AI - Conversation Transcript Parser
 // Complete replacement for smart-import.js
 // ================================================================
 
@@ -77,7 +77,7 @@ const SMART_IMPORT = {
         { pattern: /no website|doesn't have a website|needs website|wants website|website redesign|no current website|no site|doesn't have site|needs a website|wants a website/i, tag: 'no_website' },
         { pattern: /high interest|very interested|excited|enthusiastic|positive|great|excellent|wants|would like|looking forward|interested|keen|motivated|willing/i, tag: 'high_interest' },
         { pattern: /vip|priority|important|key|major|top|critical|urgent|hot lead|hot prospect/i, tag: 'vip' },
-        { pattern: /callback|call back|return call|follow up|follow-up|next steps|schedule call|demo|walkthrough|meeting|book call|set call/i, tag: 'callback_requested' },
+        { pattern: /callback|call back|return call|follow up|follow-up|next steps|schedule call|demo|walkthrough|meeting|book call|set call|call you back|call back later/i, tag: 'callback_requested' },
         { pattern: /referred|reference|referral|recommended|suggested|from|sent by|introduced|referred by/i, tag: 'referred' },
         { pattern: /decision maker|owner|ceo|president|founder|director|manager|leader|head of|partner|principal/i, tag: 'decision_maker' },
         { pattern: /qualified|warm call|good fit|ideal|perfect fit|qualified lead|good prospect|right fit|great fit/i, tag: 'qualified_warm_call' },
@@ -89,15 +89,16 @@ const SMART_IMPORT = {
         { pattern: /no show|didn't show|did not show|failed to show|missed|no-show|didn't attend|skipped/i, tag: 'no_show' },
         { pattern: /hot transfer|hot lead|ready now|ready to close|urgent|immediate|hot|transfer/i, tag: 'hot_lead' },
         { pattern: /meeting booked|booked|demo booked|scheduled|confirmed|appointment set|calendar invite sent|meeting set/i, tag: 'booked' },
-        { pattern: /personal callback|personal call|call back personally|call me back|call me directly|my cell/i, tag: 'personal_callback' }
+        { pattern: /personal callback|personal call|call back personally|call me back|call me directly|my cell/i, tag: 'personal_callback' },
+        { pattern: /email full|email doesn't work|email not working|email unavailable|email not functioning|inbox full|email full/i, tag: 'email_issue' }
     ],
 
     // Sentiment detection patterns
     SENTIMENT_PATTERNS: {
-        'Very Positive': /(?:amazing|excellent|outstanding|fantastic|perfect|brilliant|incredible|wonderful|extraordinary|exceptional|superb|phenomenal|remarkable|unbelievable|awesome|spectacular)/i,
-        'Positive': /(?:great|good|nice|positive|happy|pleased|satisfied|impressed|interested|excited|enthusiastic|optimistic|favorable|well|fine|glad)/i,
-        'Neutral': /(?:okay|fine|alright|neutral|average|decent|moderate|standard|normal|fair|adequate|acceptable|reasonable)/i,
-        'Negative': /(?:bad|poor|terrible|awful|horrible|disappointed|unhappy|frustrated|annoyed|irritated|concerned|worried|upset|angry|mad)/i,
+        'Very Positive': /(?:amazing|excellent|outstanding|fantastic|perfect|brilliant|incredible|wonderful|extraordinary|exceptional|superb|phenomenal|remarkable|unbelievable|awesome|spectacular|love it|love that)/i,
+        'Positive': /(?:great|good|nice|positive|happy|pleased|satisfied|impressed|interested|excited|enthusiastic|optimistic|favorable|well|fine|glad|okay|alright|awesome|perfect|sounds good)/i,
+        'Neutral': /(?:okay|fine|alright|neutral|average|decent|moderate|standard|normal|fair|adequate|acceptable|reasonable|i see|i understand)/i,
+        'Negative': /(?:bad|poor|terrible|awful|horrible|disappointed|unhappy|frustrated|annoyed|irritated|concerned|worried|upset|angry|mad|doesn't work|not working|unavailable)/i,
         'Very Negative': /(?:worst|horrible|disgusting|atrocious|abysmal|appalling|dreadful|unacceptable|terrible|awful|hopeless|useless)/i
     },
 
@@ -110,17 +111,28 @@ const SMART_IMPORT = {
         'Web Form': /(?:form|web|online|submitted|contact form)/i
     },
 
-    // Meeting outcome detection
+    // Meeting outcome detection - Enhanced for conversation analysis
     OUTCOME_PATTERNS: {
-        'Meeting Booked': /(?:meeting booked|booked|demo booked|scheduled|confirmed|appointment set|calendar invite sent|meeting set|call scheduled|demo scheduled)/i,
-        'Warm Callback': /(?:warm callback|callback|follow up|follow-up|return call|call back later|check back)/i,
-        'Personal Callback': /(?:personal callback|personal call|call me back directly|my cell|personal number|direct line)/i,
-        'Hot Transfer': /(?:hot transfer|transfer now|connect now|hot handoff|immediate transfer)/i,
-        'Completed': /(?:completed|done|finished|closed|finalized|wrapped up|concluded)/i,
-        'Canceled': /(?:canceled|cancelled|off|called off|not happening|no longer|scrapped)/i,
-        'No Show': /(?:no show|didn't show|did not show|failed to show|missed|no-show|didn't attend|skipped|not attended)/i,
-        'Rescheduled': /(?:rescheduled|moved|pushed back|postponed|new time|different day|changed date|moved to)/i,
-        'Pending': /(?:pending|awaiting|waiting|not yet|tbd|to be determined|undecided|open|unresolved)/i
+        'Meeting Booked': /(?:meeting booked|booked|demo booked|scheduled|confirmed|appointment set|calendar invite sent|meeting set|call scheduled|demo scheduled|walkthrough|quick look|share screen|screen share|preview|show you|take a look|look at it|check it out|send the invite|send you the invite|call you back|call back|thursday|tomorrow|monday|tuesday|wednesday|friday|saturday|sunday|[0-9]{1,2}:[0-9]{2}\s*(?:AM|PM)|(?:at\s+)[0-9]{1,2}\s*(?:AM|PM))/i,
+        'Warm Callback': /(?:warm callback|callback|follow up|follow-up|return call|call back later|check back|call you back|call back|give you a call|reach back)/i,
+        'Personal Callback': /(?:personal callback|personal call|call me back directly|my cell|personal number|direct line|call me on my cell|reach me at)/i,
+        'Hot Transfer': /(?:hot transfer|transfer now|connect now|hot handoff|immediate transfer|transfer you|connect you|hand you off)/i,
+        'Completed': /(?:completed|done|finished|closed|finalized|wrapped up|concluded|all set|good to go)/i,
+        'Canceled': /(?:canceled|cancelled|off|called off|not happening|no longer|scrapped|not gonna work|cancel|not interested)/i,
+        'No Show': /(?:no show|didn't show|did not show|failed to show|missed|no-show|didn't attend|skipped|not attended|didn't make it)/i,
+        'Rescheduled': /(?:rescheduled|moved|pushed back|postponed|new time|different day|changed date|moved to|not available|can't make it|won't be here|not gonna be here)/i,
+        'Pending': /(?:pending|awaiting|waiting|not yet|tbd|to be determined|undecided|open|unresolved|let me think|i'll get back|i'll call back|let me check)/i
+    },
+
+    // Role detection patterns
+    ROLE_PATTERNS: {
+        'Owner': /(?:owner|founder|proprietor|boss|ceo|president|i own|my company|my business)/i,
+        'Manager': /(?:manager|store manager|general manager|operations manager|office manager)/i,
+        'Director': /(?:director|executive director|managing director|creative director|sales director)/i,
+        'Supervisor': /(?:supervisor|team lead|lead|shift lead|floor supervisor)/i,
+        'CEO': /(?:ceo|chief executive officer|executive|top executive)/i,
+        'Administrator': /(?:administrator|admin|office admin|system admin)/i,
+        'Coordinator': /(?:coordinator|project coordinator|event coordinator|marketing coordinator)/i
     },
 
     // Date/time phrases for natural language parsing
@@ -131,7 +143,17 @@ const SMART_IMPORT = {
         'next week': /next week/i,
         'this week': /this week/i,
         'next month': /next month/i,
-        'this month': /this month/i
+        'this month': /this month/i,
+        'morning': /morning/i,
+        'afternoon': /afternoon/i,
+        'evening': /evening/i,
+        'monday': /monday/i,
+        'tuesday': /tuesday/i,
+        'wednesday': /wednesday/i,
+        'thursday': /thursday/i,
+        'friday': /friday/i,
+        'saturday': /saturday/i,
+        'sunday': /sunday/i
     },
 
     // Month names
@@ -170,14 +192,15 @@ const SmartImportState = {
     },
     isParsing: false,
     parseStartTime: null,
-    parseEndTime: null
+    parseEndTime: null,
+    currentTranscript: null
 };
 
 // ================================================================
-// SMART IMPORT ENHANCED ENGINE
+// SMART IMPORT AI ENGINE
 // ================================================================
 
-class SmartImportEnhanced {
+class SmartImportAI {
     constructor() {
         this.config = SmartImportState.parseConfig;
         this.fieldMappings = SMART_IMPORT.FIELD_MAPPINGS;
@@ -185,6 +208,7 @@ class SmartImportEnhanced {
         this.sentimentPatterns = SMART_IMPORT.SENTIMENT_PATTERNS;
         this.sourcePatterns = SMART_IMPORT.SOURCE_PATTERNS;
         this.outcomePatterns = SMART_IMPORT.OUTCOME_PATTERNS;
+        this.rolePatterns = SMART_IMPORT.ROLE_PATTERNS;
         this.dateTimePhrases = SMART_IMPORT.DATE_TIME_PHRASES;
         this.months = SMART_IMPORT.MONTHS;
         this.monthsShort = SMART_IMPORT.MONTHS_SHORT;
@@ -192,7 +216,7 @@ class SmartImportEnhanced {
     }
 
     /**
-     * AI-Powered parse transcript - Main entry point
+     * AI-Powered parse conversation transcript
      */
     parseTranscript(text, options = {}) {
         const config = { ...this.config, ...options };
@@ -205,29 +229,32 @@ class SmartImportEnhanced {
         const lines = cleanText.split('\n').filter(l => l.trim());
         const fullText = lines.join(' ');
         
-        // STEP 1: Extract key-value pairs (most reliable)
+        // Store for reference
+        SmartImportState.currentTranscript = fullText;
+        
+        // STEP 1: Extract speaker lines for better parsing
+        const speakers = this._extractSpeakers(lines);
+        
+        // STEP 2: Extract key-value pairs (most reliable)
         this._extractKeyValuePairs(lines, result, confidence, warnings);
         
-        // STEP 2: Extract business name
-        this._extractBusinessName(fullText, result, confidence);
+        // STEP 3: Extract business name from conversation
+        this._extractBusinessName(fullText, result, confidence, speakers);
         
-        // STEP 3: Extract contact name
-        this._extractContactName(fullText, result, confidence);
+        // STEP 4: Extract contact name
+        this._extractContactName(fullText, result, confidence, speakers);
         
-        // STEP 4: Extract phone number
+        // STEP 5: Extract phone number
         this._extractPhoneNumber(fullText, result, confidence);
         
-        // STEP 5: Extract email
+        // STEP 6: Extract email
         this._extractEmail(fullText, result, confidence);
         
-        // STEP 6: Extract date and time (natural language)
+        // STEP 7: Extract date and time (natural language)
         this._extractDateTime(fullText, result, confidence, warnings);
         
-        // STEP 7: Extract status/outcome from context
+        // STEP 8: Extract status/outcome from context
         this._extractStatus(fullText, result, confidence, warnings);
-        
-        // STEP 8: Extract notes for developer
-        this._extractDeveloperNotes(fullText, lines, result, confidence);
         
         // STEP 9: Extract role
         this._extractRole(fullText, result, confidence);
@@ -235,30 +262,36 @@ class SmartImportEnhanced {
         // STEP 10: Extract assigned to
         this._extractAssigned(fullText, result, confidence);
         
-        // STEP 11: Detect tags
+        // STEP 11: Extract notes for developer
+        this._extractDeveloperNotes(fullText, lines, result, confidence);
+        
+        // STEP 12: Detect tags
         this._detectTags(result, confidence);
         
-        // STEP 12: Detect sentiment
+        // STEP 13: Detect sentiment
         this._detectSentiment(result, confidence);
         
-        // STEP 13: Detect source
+        // STEP 14: Detect source
         this._detectSource(fullText, result, confidence);
         
-        // STEP 14: Apply defaults
+        // STEP 15: Apply defaults
         this._applyDefaults(result, confidence, config);
         
-        // STEP 15: Validate
+        // STEP 16: Validate
         const isValid = this._validateRequiredFields(result);
         const errors = this._getValidationErrors(result);
         
         // Generate developer notes if empty or too short
         if (!result.notes || result.notes.trim().length < 10) {
-            result.notes = this._generateDeveloperNotes(result, fullText);
+            result.notes = this._generateDeveloperNotes(result, fullText, speakers);
             confidence.notes = 0.7;
         }
         
         // Check for missing/uncertain fields
         const uncertainFields = this._getUncertainFields(result, confidence);
+        
+        // Mark N/A for missing fields
+        this._markMissingFields(result, confidence);
         
         return {
             result,
@@ -267,8 +300,49 @@ class SmartImportEnhanced {
             warnings,
             errors,
             uncertainFields,
+            speakers,
             isValid: isValid && errors.length === 0
         };
+    }
+    
+    /**
+     * Extract speakers from conversation
+     */
+    _extractSpeakers(lines) {
+        const speakers = {
+            setter: null,
+            prospect: null,
+            other: []
+        };
+        
+        const speakerPatterns = [
+            /^([A-Za-z]+)\s*[\(\[\(]?(?:Setter|Booker|Agent|Rep|Flynn|Kailan|Seif|Daniel|Sarah)[\)\]\)]?\s*[:：]/i,
+            /^([A-Za-z]+)\s*[\(\[\(]?(?:Prospect|Client|Customer|Lead)[\)\]\)]?\s*[:：]/i,
+            /^([A-Za-z]+)\s*[:：]/i
+        ];
+        
+        let setterFound = false;
+        let prospectFound = false;
+        
+        for (const line of lines) {
+            for (const pattern of speakerPatterns) {
+                const match = line.match(pattern);
+                if (match) {
+                    const name = match[1].trim();
+                    if (!setterFound && /(?:Flynn|Kailan|Seif|Daniel|Sarah|Agent|Setter|Booker|Rep)/i.test(name)) {
+                        speakers.setter = name;
+                        setterFound = true;
+                    } else if (!prospectFound && !/(?:Flynn|Kailan|Seif|Daniel|Sarah|Agent|Setter|Booker|Rep)/i.test(name)) {
+                        speakers.prospect = name;
+                        prospectFound = true;
+                    } else if (!speakers.setter && !speakers.prospect) {
+                        speakers.other.push(name);
+                    }
+                }
+            }
+        }
+        
+        return speakers;
     }
     
     /**
@@ -282,22 +356,31 @@ class SmartImportEnhanced {
             hasDateTime: /\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2}/i.test(text),
             hasPhone: /[\+\d\s\-\(\)]{7,20}/.test(text),
             hasEmail: /[^\s@]+@[^\s@]+\.[^\s@]+/.test(text),
+            hasConversation: /(?:said|asked|told|called|spoke|talked|conversation|call|transcript)/i.test(text),
             detectedFormat: this._detectFormat(lines),
             wordCount: text.split(/\s+/).length,
-            lineCount: lines.length
+            lineCount: lines.length,
+            hasSpeakers: this._detectSpeakers(lines)
         };
+    }
+    
+    _detectSpeakers(lines) {
+        return lines.some(line => /^[A-Za-z]+\s*[:：]/.test(line));
     }
     
     _detectFormat(lines) {
         let keyValueCount = 0;
         let bulletCount = 0;
+        let conversationCount = 0;
         
         lines.forEach(line => {
             if (/^[^:]+:.+/.test(line)) keyValueCount++;
             if (/^[\s]*[â€¢\-*]\s/.test(line)) bulletCount++;
+            if (/^[A-Za-z]+\s*[:：]/.test(line)) conversationCount++;
         });
         
         if (keyValueCount > lines.length * 0.25) return 'key_value';
+        if (conversationCount > lines.length * 0.3) return 'conversation';
         if (bulletCount > lines.length * 0.25) return 'bullet_points';
         return 'natural_language';
     }
@@ -363,11 +446,6 @@ class SmartImportEnhanced {
                             result[matchedField] = value;
                             confidence[matchedField] = 0.9;
                         }
-                    } else {
-                        // Store as notes
-                        if (!result.notes) result.notes = '';
-                        result.notes += (result.notes ? '\n' : '') + `${key}: ${value}`;
-                        confidence.notes = 0.5;
                     }
                 }
             }
@@ -378,7 +456,6 @@ class SmartImportEnhanced {
      * Parse date/time field
      */
     _parseDateTimeField(value, result, confidence) {
-        // Check if it contains both date and time
         const dateTimeMatch = value.match(/([A-Za-z]+(?:day)?)\s*,?\s*([A-Za-z]+)\s*(\d{1,2})\s*(?:,?\s*(\d{4}))?\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i);
         if (dateTimeMatch) {
             const monthName = dateTimeMatch[2];
@@ -401,14 +478,12 @@ class SmartImportEnhanced {
                 confidence.time = 0.95;
             }
         } else {
-            // Try to parse as date only
             const parsedDate = this._parseDateString(value);
             if (parsedDate) {
                 result.date = parsedDate;
                 confidence.date = 0.85;
             }
             
-            // Try to parse as time only
             const timeMatch = value.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))|(\d{1,2}\s*(?:AM|PM))/i);
             if (timeMatch) {
                 result.time = this._normalizeTime(timeMatch[0].trim());
@@ -418,28 +493,42 @@ class SmartImportEnhanced {
     }
     
     /**
-     * Extract business name
+     * Extract business name from conversation
      */
-    _extractBusinessName(text, result, confidence) {
+    _extractBusinessName(text, result, confidence, speakers) {
         if (result.business) return;
         
+        // Try to find business name from conversation patterns
         const patterns = [
             /(?:business|company|organization|org|firm|brand|store|business name|company name)[:\s]+([A-Z][a-zA-Z0-9\s&.,\-']+?)(?:[,.\n]|$)/i,
             /(?:from|at|with)\s+([A-Z][a-zA-Z0-9\s&.,\-']+?)(?:[,.\n]|$)/i,
             /^([A-Z][a-zA-Z0-9\s&.,\-']+?)\s+(?:business|company|organization)/i,
             /(?:for|about)\s+([A-Z][a-zA-Z0-9\s&.,\-']+?)(?:[,.\n]|$)/i,
             /(?:company|business)[:\s]+([A-Z][a-zA-Z0-9\s&.,\-']+)/i,
-            /(?:working with|dealing with)\s+([A-Z][a-zA-Z0-9\s&.,\-']+?)(?:[,.\n]|$)/i
+            /(?:working with|dealing with|reaching out to)\s+([A-Z][a-zA-Z0-9\s&.,\-']+?)(?:[,.\n]|$)/i,
+            /(?:at\s+)([A-Z][a-zA-Z0-9\s&.,\-']+?)(?:\s+where|\s+and|\s+that|\s+for|\s+with|[,.\n]|$)/i
         ];
         
         for (const pattern of patterns) {
             const match = text.match(pattern);
             if (match && match[1]) {
                 const business = match[1].trim();
-                // Clean up common suffixes
                 const cleaned = business.replace(/\s*(?:business|company|inc|llc|ltd|corp|corporation|agency|studios?|designs?|solutions|services|consulting|group|partners|associates|enterprises?|ventures?)\s*$/i, '').trim();
-                result.business = cleaned || business;
-                confidence.business = 0.85;
+                if (cleaned.length > 2 && !this._isPersonName(cleaned)) {
+                    result.business = cleaned || business;
+                    confidence.business = 0.85;
+                    return;
+                }
+            }
+        }
+        
+        // Try to extract from conversation
+        const conversationMatch = text.match(/(?:this is|this is called|called|known as|doing business as|dba)\s+([A-Z][a-zA-Z0-9\s&.,\-']{2,30})/i);
+        if (conversationMatch && conversationMatch[1]) {
+            const business = conversationMatch[1].trim();
+            if (business.length > 2 && !this._isPersonName(business)) {
+                result.business = business;
+                confidence.business = 0.7;
                 return;
             }
         }
@@ -469,20 +558,30 @@ class SmartImportEnhanced {
                 return true;
             }
         }
+        if (parts.length === 1 && /^[A-Z][a-z]+$/.test(text) && text.length >= 3) {
+            return true;
+        }
         return false;
     }
     
     _isLocationName(text) {
-        const locationKeywords = ['city', 'town', 'village', 'county', 'state', 'province', 'region', 'district'];
+        const locationKeywords = ['city', 'town', 'village', 'county', 'state', 'province', 'region', 'district', 'street', 'avenue', 'road', 'lane', 'drive'];
         const lower = text.toLowerCase();
         return locationKeywords.some(kw => lower.includes(kw));
     }
     
     /**
-     * Extract contact name
+     * Extract contact name from conversation
      */
-    _extractContactName(text, result, confidence) {
+    _extractContactName(text, result, confidence, speakers) {
         if (result.name) return;
+        
+        // Use prospect name from speakers if available
+        if (speakers && speakers.prospect) {
+            result.name = speakers.prospect;
+            confidence.name = 0.8;
+            return;
+        }
         
         const patterns = [
             /(?:name|contact|client|customer|person|full name|contact name|contact person)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
@@ -491,7 +590,8 @@ class SmartImportEnhanced {
             /contact[:\s]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
             /(?:name|contact)[:\s]+([A-Z][a-z]+)/i,
             /(?:spoke|talked|connected|chatted|conversed)\s+with\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
-            /(?:person)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i
+            /(?:person)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+            /(?:this is|this is called|my name is|name is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i
         ];
         
         for (const pattern of patterns) {
@@ -510,7 +610,7 @@ class SmartImportEnhanced {
         const nameMatches = text.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/g);
         if (nameMatches) {
             for (const match of nameMatches) {
-                if (match.length >= 2 && match.length < 30 && !this._isBusinessName(match)) {
+                if (match.length >= 2 && match.length < 30 && !this._isBusinessName(match) && !this._isRole(match)) {
                     result.name = match;
                     confidence.name = 0.5;
                     return;
@@ -519,8 +619,14 @@ class SmartImportEnhanced {
         }
     }
     
+    _isRole(text) {
+        const roles = ['owner', 'manager', 'ceo', 'director', 'supervisor', 'lead', 'head', 'vp', 'president', 'founder', 'administrator', 'coordinator', 'specialist', 'analyst', 'engineer', 'developer', 'designer', 'consultant', 'advisor', 'assistant', 'partner', 'principal', 'executive', 'officer'];
+        const lower = text.toLowerCase();
+        return roles.some(role => lower.includes(role));
+    }
+    
     _isBusinessName(text) {
-        const businessSuffixes = ['company', 'inc', 'llc', 'ltd', 'corp', 'corp', 'agency', 'studio', 'design', 'solution', 'service', 'consulting', 'group', 'partner', 'associate', 'solutions', 'services', 'consultants', 'pro', 'specialists', 'experts', 'team', 'lab', 'labs', 'works', 'workshop', 'enterprises', 'ventures', 'holdings', 'industries', 'systems', 'technologies'];
+        const businessSuffixes = ['company', 'inc', 'llc', 'ltd', 'corp', 'corp', 'agency', 'studio', 'design', 'solution', 'service', 'consulting', 'group', 'partner', 'associate', 'solutions', 'services', 'consultants', 'pro', 'specialists', 'experts', 'team', 'lab', 'labs', 'works', 'workshop', 'enterprises', 'ventures', 'holdings', 'industries', 'systems', 'technologies', 'tires', 'auto', 'automotive', 'parts', 'services', 'supply', 'supplies', 'equipment', 'tools', 'machinery', 'apparel', 'clothing', 'food', 'beverage', 'restaurant', 'catering'];
         const lower = text.toLowerCase();
         for (const suffix of businessSuffixes) {
             if (lower.includes(suffix)) return true;
@@ -580,6 +686,13 @@ class SmartImportEnhanced {
         if (match) {
             result.email = match[1].trim().toLowerCase();
             confidence.email = 0.95;
+            return;
+        }
+        
+        // Check for email issue mention
+        if (/email\s*(?:doesn't work|not working|unavailable|full|not functioning|inbox full|email full)/i.test(text)) {
+            result.email = 'N/A (Email unavailable/full)';
+            confidence.email = 0.9;
         }
     }
     
@@ -601,11 +714,12 @@ class SmartImportEnhanced {
         
         // Look for date/time phrases in natural language
         const patterns = [
-            /(?:demo|appointment|meeting|call|schedule|booked|on|at|for|scheduled for)\s+([A-Za-z]+(?:day)?)\s*,?\s*([A-Za-z]+)\s*(\d{1,2})\s*(?:,?\s*(\d{4}))?\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i,
+            /(?:demo|appointment|meeting|call|schedule|booked|on|at|for|scheduled for|callback)\s+([A-Za-z]+(?:day)?)\s*,?\s*([A-Za-z]+)\s*(\d{1,2})\s*(?:,?\s*(\d{4}))?\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i,
             /([A-Za-z]+(?:day)?)\s*,?\s*([A-Za-z]+)\s*(\d{1,2})\s*,?\s*(\d{4})\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i,
             /([A-Za-z]+)\s*(\d{1,2})\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i,
             /(?:today|tomorrow|yesterday)\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i,
-            /(?:next|this|last)\s+(?:week|month)\s*(?:on\s*)?([A-Za-z]+(?:day)?)\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i
+            /(?:next|this|last)\s+(?:week|month)\s*(?:on\s*)?([A-Za-z]+(?:day)?)\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i,
+            /(?:morning|afternoon|evening)\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i
         ];
         
         for (const pattern of patterns) {
@@ -673,6 +787,21 @@ class SmartImportEnhanced {
                 if (time) {
                     result.time = this._normalizeTime(time.trim());
                     confidence.time = 0.95;
+                } else if (match[0] && /morning|afternoon|evening/i.test(match[0])) {
+                    const timeOfDay = match[0].match(/(morning|afternoon|evening)/i);
+                    if (timeOfDay) {
+                        const tod = timeOfDay[1].toLowerCase();
+                        if (tod === 'morning') {
+                            result.time = '9:00 AM';
+                            confidence.time = 0.7;
+                        } else if (tod === 'afternoon') {
+                            result.time = '1:00 PM';
+                            confidence.time = 0.7;
+                        } else if (tod === 'evening') {
+                            result.time = '6:00 PM';
+                            confidence.time = 0.7;
+                        }
+                    }
                 }
                 
                 if (result.date) break;
@@ -682,7 +811,7 @@ class SmartImportEnhanced {
         // If still no date, try date-only patterns
         if (!result.date) {
             const datePatterns = [
-                /(?:date|appointment|scheduled|meeting|call|day|demo|scheduled for)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,
+                /(?:date|appointment|scheduled|meeting|call|day|demo|scheduled for|callback)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,
                 /(?:on|for)\s+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,
                 /(\d{1,2}\/\d{1,2}\/\d{4})/,
                 /(\d{4}-\d{2}-\d{2})/,
@@ -704,7 +833,7 @@ class SmartImportEnhanced {
         // If no time, try time-only patterns
         if (!result.time) {
             const timePatterns = [
-                /(?:time|at|scheduled|appointment|meeting|call|demo)[:\s]+(\d{1,2}:\d{2}\s*(?:AM|PM))/i,
+                /(?:time|at|scheduled|appointment|meeting|call|demo|callback)[:\s]+(\d{1,2}:\d{2}\s*(?:AM|PM))/i,
                 /(?:at\s+)(\d{1,2}:\d{2}\s*(?:AM|PM))/i,
                 /(\d{1,2}:\d{2}\s*(?:AM|PM))/i,
                 /(\d{1,2}\s*(?:AM|PM))/i
@@ -768,7 +897,6 @@ class SmartImportEnhanced {
         if (!dateStr) return null;
         const trimmed = dateStr.trim();
         
-        // ISO format: YYYY-MM-DD
         const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
         if (isoMatch) {
             const year = parseInt(isoMatch[1]);
@@ -780,7 +908,6 @@ class SmartImportEnhanced {
             }
         }
         
-        // US format: MM/DD/YYYY
         const usMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
         if (usMatch) {
             const month = parseInt(usMatch[1]) - 1;
@@ -792,7 +919,6 @@ class SmartImportEnhanced {
             }
         }
         
-        // European format: DD.MM.YYYY
         const euMatch = trimmed.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
         if (euMatch) {
             const day = parseInt(euMatch[1]);
@@ -804,7 +930,6 @@ class SmartImportEnhanced {
             }
         }
         
-        // Natural format: Month Day, Year
         const naturalMatch = trimmed.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/i);
         if (naturalMatch) {
             const monthIndex = this._getMonthIndex(naturalMatch[1]);
@@ -829,14 +954,16 @@ class SmartImportEnhanced {
         
         let highestConfidence = 0;
         let matchedStatus = null;
+        let matchedPattern = null;
         
         for (const [status, pattern] of Object.entries(this.outcomePatterns)) {
             if (pattern.test(text)) {
                 const matchCount = (text.match(pattern) || []).length;
-                const conf = Math.min(0.5 + matchCount * 0.15, 0.95);
+                const conf = Math.min(0.5 + matchCount * 0.12, 0.95);
                 if (conf > highestConfidence) {
                     highestConfidence = conf;
                     matchedStatus = status;
+                    matchedPattern = pattern;
                 }
             }
         }
@@ -846,7 +973,7 @@ class SmartImportEnhanced {
             confidence.status = highestConfidence;
         } else {
             // Default to Meeting Booked if there's evidence of a meeting
-            if (/meeting|demo|appointment|schedule|book|call/i.test(text)) {
+            if (/meeting|demo|appointment|schedule|book|call|walkthrough|preview|look|check|share screen|screen share/i.test(text)) {
                 result.status = 'Meeting Booked';
                 confidence.status = 0.5;
             }
@@ -854,107 +981,30 @@ class SmartImportEnhanced {
     }
     
     /**
-     * Extract developer notes
-     */
-    _extractDeveloperNotes(text, lines, result, confidence) {
-        if (result.notes && result.notes.length > 10) return;
-        
-        const notePatterns = [
-            /(?:notes|note|comment|remarks|additional notes|info|details|description|summary|developer notes|call notes)[:\s]+(.+?)(?=\n\s*\n|$)/i,
-            /(?:developer notes?|dev notes?|notes for developer|notes to developer)[:\s]+(.+?)(?=\n\s*\n|$)/i
-        ];
-        
-        for (const pattern of notePatterns) {
-            const match = text.match(pattern);
-            if (match && match[1]) {
-                result.notes = match[1].trim();
-                confidence.notes = 0.9;
-                return;
-            }
-        }
-        
-        const nonKeyLines = lines.filter(line => {
-            return !/^[^:]+:.+/.test(line) && !/^[\s]*[â€¢\-*]\s/.test(line);
-        });
-        
-        if (nonKeyLines.length > 0) {
-            let notes = nonKeyLines.join('\n').trim();
-            notes = notes.replace(/[\+\d\s\-\(\)]{7,20}/g, '');
-            notes = notes.replace(/[^\s@]+@[^\s@]+\.[^\s@]+/g, '');
-            notes = notes.replace(/\s+/g, ' ').trim();
-            
-            if (notes.length > 0) {
-                result.notes = notes;
-                confidence.notes = 0.6;
-                return;
-            }
-        }
-    }
-    
-    /**
-     * Generate developer notes automatically
-     */
-    _generateDeveloperNotes(result, text) {
-        const parts = [];
-        
-        if (result.business) {
-            parts.push(`Business: ${result.business}`);
-        }
-        if (result.name) {
-            parts.push(`Contact: ${result.name}`);
-        }
-        if (result.phone) {
-            parts.push(`Phone: ${result.phone}`);
-        }
-        if (result.email) {
-            parts.push(`Email: ${result.email}`);
-        }
-        if (result.date) {
-            parts.push(`Date: ${result.date}`);
-        }
-        if (result.time) {
-            parts.push(`Time: ${result.time}`);
-        }
-        if (result.status) {
-            parts.push(`Status: ${result.status}`);
-        }
-        if (result.role) {
-            parts.push(`Role: ${result.role}`);
-        }
-        if (result.assigned) {
-            parts.push(`Assigned to: ${result.assigned}`);
-        }
-        if (result.tags && result.tags.length > 0) {
-            parts.push(`Tags: ${result.tags.join(', ')}`);
-        }
-        if (result.sentiment) {
-            parts.push(`Sentiment: ${result.sentiment}`);
-        }
-        
-        if (parts.length > 0) {
-            const sentences = text.match(/[^.!?]+[.!?]+/g);
-            if (sentences) {
-                const meaningful = sentences
-                    .filter(s => s.length > 20 && s.length < 150)
-                    .map(s => s.trim())
-                    .slice(0, 3);
-                if (meaningful.length > 0) {
-                    parts.push('\n---\nKey points:');
-                    parts.push(meaningful.join(' '));
-                }
-            }
-            
-            return parts.join('\n');
-        }
-        
-        return 'No notes provided.';
-    }
-    
-    /**
-     * Extract role
+     * Extract role from conversation
      */
     _extractRole(text, result, confidence) {
         if (result.role) return;
+        
+        let highestConfidence = 0;
+        let matchedRole = null;
+        
+        for (const [role, pattern] of Object.entries(this.rolePatterns)) {
+            if (pattern.test(text)) {
+                const matchCount = (text.match(pattern) || []).length;
+                const conf = Math.min(0.5 + matchCount * 0.1, 0.9);
+                if (conf > highestConfidence) {
+                    highestConfidence = conf;
+                    matchedRole = role;
+                }
+            }
+        }
+        
+        if (matchedRole) {
+            result.role = matchedRole;
+            confidence.role = highestConfidence;
+            return;
+        }
         
         const rolePatterns = [
             /(?:role|title|position|job title|job role|job position)[:\s]+([A-Za-z\s]+?)(?:[,.\n]|$)/i,
@@ -986,7 +1036,8 @@ class SmartImportEnhanced {
         
         const assignedPatterns = [
             /(?:assigned|assigned to|owner|agent|representative|rep|handler|manager|closer|booker)[:\s]+([A-Z][a-z]+)/i,
-            /(?:will be|handled by|managed by)\s+([A-Z][a-z]+)/i
+            /(?:will be|handled by|managed by)\s+([A-Z][a-z]+)/i,
+            /(?:set|book)\s+by\s+([A-Z][a-z]+)/i
         ];
         
         for (const pattern of assignedPatterns) {
@@ -1001,6 +1052,16 @@ class SmartImportEnhanced {
             }
         }
         
+        // Use setter name from speakers if available
+        if (SmartImportState.currentTranscript) {
+            const setterMatch = SmartImportState.currentTranscript.match(/(?:Flynn|Kailan|Seif|Daniel|Sarah|Agent|Setter|Booker|Rep)/i);
+            if (setterMatch) {
+                result.assigned = setterMatch[0];
+                confidence.assigned = 0.6;
+                return;
+            }
+        }
+        
         if (window.AppState && window.AppState.teamMembers) {
             for (const member of window.AppState.teamMembers) {
                 if (text.toLowerCase().includes(member.name.toLowerCase())) {
@@ -1008,6 +1069,161 @@ class SmartImportEnhanced {
                     confidence.assigned = 0.5;
                     return;
                 }
+            }
+        }
+    }
+    
+    /**
+     * Extract developer notes
+     */
+    _extractDeveloperNotes(text, lines, result, confidence) {
+        if (result.notes && result.notes.length > 10) return;
+        
+        const notePatterns = [
+            /(?:notes|note|comment|remarks|additional notes|info|details|description|summary|developer notes|call notes)[:\s]+(.+?)(?=\n\s*\n|$)/i,
+            /(?:developer notes?|dev notes?|notes for developer|notes to developer)[:\s]+(.+?)(?=\n\s*\n|$)/i,
+            /(?:next steps|follow-up|action items|summary)[:\s]+(.+?)(?=\n\s*\n|$)/i
+        ];
+        
+        for (const pattern of notePatterns) {
+            const match = text.match(pattern);
+            if (match && match[1]) {
+                result.notes = match[1].trim();
+                confidence.notes = 0.9;
+                return;
+            }
+        }
+        
+        const nonKeyLines = lines.filter(line => {
+            return !/^[^:]+:.+/.test(line) && !/^[\s]*[â€¢\-*]\s/.test(line) && !/^[A-Za-z]+\s*[:：]/.test(line);
+        });
+        
+        if (nonKeyLines.length > 0) {
+            let notes = nonKeyLines.join('\n').trim();
+            notes = notes.replace(/[\+\d\s\-\(\)]{7,20}/g, '');
+            notes = notes.replace(/[^\s@]+@[^\s@]+\.[^\s@]+/g, '');
+            notes = notes.replace(/\s+/g, ' ').trim();
+            
+            if (notes.length > 0) {
+                result.notes = notes;
+                confidence.notes = 0.6;
+                return;
+            }
+        }
+    }
+    
+    /**
+     * Generate developer notes automatically
+     */
+    _generateDeveloperNotes(result, text, speakers) {
+        const parts = [];
+        const bullets = [];
+        
+        // Key information
+        if (result.business) {
+            bullets.push(`Business: ${result.business}`);
+        }
+        if (result.name) {
+            bullets.push(`Contact: ${result.name}`);
+        }
+        if (result.phone) {
+            bullets.push(`Phone: ${result.phone}`);
+        }
+        if (result.email && !result.email.includes('N/A')) {
+            bullets.push(`Email: ${result.email}`);
+        } else if (result.email && result.email.includes('N/A')) {
+            bullets.push(`Email: ${result.email}`);
+        }
+        if (result.date) {
+            bullets.push(`Date: ${Utils.formatDate(result.date)}`);
+        }
+        if (result.time) {
+            bullets.push(`Time: ${result.time}`);
+        }
+        if (result.status) {
+            bullets.push(`Status: ${result.status}`);
+        }
+        if (result.role) {
+            bullets.push(`Role: ${result.role}`);
+        }
+        if (result.assigned) {
+            bullets.push(`Assigned to: ${result.assigned}`);
+        }
+        if (result.tags && result.tags.length > 0) {
+            bullets.push(`Tags: ${result.tags.join(', ')}`);
+        }
+        if (result.sentiment) {
+            bullets.push(`Sentiment: ${result.sentiment}`);
+        }
+        
+        // Extract key conversation points
+        const keyPhrases = [
+            /(?:free|no cost|no obligation|custom|preview|modern|website|site|design|redesign|update|improve|upgrade|new)/i,
+            /(?:interest|interested|wants|would like|looking for|needs|wants to|looking to)/i,
+            /(?:available|unavailable|busy|free|not here|not in|not available|can't make it)/i,
+            /(?:email|inbox|full|not working|unavailable|not functioning|not receiving)/i,
+            /(?:callback|follow-up|next steps|schedule|book|set up|arrange)/i,
+            /(?:preview|walkthrough|demo|share screen|screen share|presentation|show)/i
+        ];
+        
+        const conversationLines = text.split('\n').filter(l => /^[A-Za-z]+\s*[:：]/.test(l));
+        const meaningfulLines = conversationLines.filter(l => {
+            return keyPhrases.some(p => p.test(l));
+        });
+        
+        if (meaningfulLines.length > 0) {
+            bullets.push('\n--- Key Conversation Points ---');
+            meaningfulLines.slice(0, 5).forEach(line => {
+                const cleanLine = line.replace(/^[A-Za-z]+\s*[:：]\s*/, '').trim();
+                if (cleanLine.length > 10) {
+                    bullets.push(`• ${cleanLine}`);
+                }
+            });
+        }
+        
+        // Add summary from transcript
+        if (text.length > 0) {
+            const sentences = text.match(/[^.!?]+[.!?]+/g);
+            if (sentences) {
+                const meaningful = sentences
+                    .filter(s => s.length > 20 && s.length < 150 && !/^[A-Za-z]+\s*[:：]/.test(s))
+                    .map(s => s.trim())
+                    .slice(0, 3);
+                if (meaningful.length > 0) {
+                    bullets.push('\n--- Summary ---');
+                    bullets.push(meaningful.join(' '));
+                }
+            }
+        }
+        
+        parts.push(bullets.join('\n'));
+        
+        // Add note about missing information
+        const missing = [];
+        if (!result.business) missing.push('Business Name');
+        if (!result.name) missing.push('Contact Name');
+        if (!result.phone) missing.push('Phone Number');
+        if (!result.email || result.email.includes('N/A')) missing.push('Email');
+        if (!result.date) missing.push('Date');
+        if (!result.time) missing.push('Time');
+        
+        if (missing.length > 0) {
+            parts.push(`\n⚠️ Missing Information: ${missing.join(', ')}`);
+        }
+        
+        return parts.join('\n');
+    }
+    
+    /**
+     * Mark missing fields as N/A
+     */
+    _markMissingFields(result, confidence) {
+        const fields = ['business', 'name', 'role', 'phone', 'email', 'date', 'time', 'status', 'assigned'];
+        
+        for (const field of fields) {
+            if (!result[field] || result[field].trim().length === 0) {
+                result[field] = 'N/A';
+                confidence[field] = 0;
             }
         }
     }
@@ -1052,6 +1268,11 @@ class SmartImportEnhanced {
         }
         if (result.status === 'Rescheduled' && !tags.includes('rescheduled')) {
             tags.push('rescheduled');
+        }
+        
+        // Add email issue tag
+        if (result.email && result.email.includes('N/A')) {
+            tags.push('email_issue');
         }
         
         if (tags.length > 0) {
@@ -1121,22 +1342,22 @@ class SmartImportEnhanced {
      * Apply default values
      */
     _applyDefaults(result, confidence, config) {
-        if (!result.date) {
+        if (!result.date || result.date === 'N/A') {
             result.date = config.defaultDate || new Date().toISOString().split('T')[0];
             confidence.date = 0.3;
         }
         
-        if (!result.status) {
+        if (!result.status || result.status === 'N/A') {
             result.status = config.defaultStatus || 'Meeting Booked';
             confidence.status = 0.5;
         }
         
-        if (!result.assigned) {
+        if (!result.assigned || result.assigned === 'N/A') {
             result.assigned = config.defaultAssigned || 'Daniel';
             confidence.assigned = 0.4;
         }
         
-        if (result.phone) {
+        if (result.phone && result.phone !== 'N/A') {
             result.phone = result.phone.replace(/[^\d+]/g, '');
             if (result.phone.length === 10 && /^\d{10}$/.test(result.phone)) {
                 result.phone = `(${result.phone.substring(0, 3)}) ${result.phone.substring(3, 6)}-${result.phone.substring(6)}`;
@@ -1148,8 +1369,9 @@ class SmartImportEnhanced {
      * Validate required fields
      */
     _validateRequiredFields(result) {
-        return !!(result.business && result.business.trim().length > 0 && 
-                  result.name && result.name.trim().length > 0);
+        const businessValid = result.business && result.business !== 'N/A' && result.business.trim().length > 0;
+        const nameValid = result.name && result.name !== 'N/A' && result.name.trim().length > 0;
+        return !!(businessValid && nameValid);
     }
     
     /**
@@ -1158,19 +1380,19 @@ class SmartImportEnhanced {
     _getValidationErrors(result) {
         const errors = [];
         
-        if (!result.business || result.business.trim().length < 2) {
-            errors.push({ field: 'business', message: 'Business name is required (minimum 2 characters)' });
+        if (!result.business || result.business === 'N/A' || result.business.trim().length < 2) {
+            errors.push({ field: 'business', message: 'Business name is required' });
         }
         
-        if (!result.name || result.name.trim().length < 2) {
-            errors.push({ field: 'name', message: 'Contact name is required (minimum 2 characters)' });
+        if (!result.name || result.name === 'N/A' || result.name.trim().length < 2) {
+            errors.push({ field: 'name', message: 'Contact name is required' });
         }
         
-        if (result.phone && !/^[\+\d\s\-\(\)]{7,20}$/.test(result.phone)) {
+        if (result.phone && result.phone !== 'N/A' && !/^[\+\d\s\-\(\)]{7,20}$/.test(result.phone)) {
             errors.push({ field: 'phone', message: 'Phone number format seems invalid' });
         }
         
-        if (result.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(result.email)) {
+        if (result.email && result.email !== 'N/A' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(result.email)) {
             errors.push({ field: 'email', message: 'Email format seems invalid' });
         }
         
@@ -1182,12 +1404,12 @@ class SmartImportEnhanced {
      */
     _getUncertainFields(result, confidence) {
         const uncertain = [];
-        const requiredFields = ['business', 'name', 'phone', 'email', 'date', 'time', 'status'];
+        const fields = ['business', 'name', 'role', 'phone', 'email', 'date', 'time', 'status', 'assigned'];
         
-        for (const field of requiredFields) {
-            if (!result[field] || result[field].trim().length === 0) {
+        for (const field of fields) {
+            if (!result[field] || result[field] === 'N/A') {
                 uncertain.push({ field, message: `Missing ${field}` });
-            } else if (confidence[field] && confidence[field] < 0.6) {
+            } else if (confidence[field] && confidence[field] < 0.5) {
                 uncertain.push({ field, message: `Low confidence in ${field}` });
             }
         }
@@ -1207,7 +1429,7 @@ class SmartImportEnhanced {
         const newBusiness = (data.business || '').toLowerCase().trim();
         const newPhone = (data.phone || '').replace(/[^\d+]/g, '');
         
-        if (!newBusiness || newBusiness.length < 2) return [];
+        if (!newBusiness || newBusiness.length < 2 || newBusiness === 'n/a') return [];
         
         for (const existing of existingAppointments) {
             let score = 0;
@@ -1230,7 +1452,7 @@ class SmartImportEnhanced {
             }
             
             // Secondary: Phone match (if both have phone numbers)
-            if (newPhone && existing.phone) {
+            if (newPhone && existing.phone && newPhone !== 'n/a') {
                 const existingPhone = existing.phone.replace(/[^\d+]/g, '');
                 if (newPhone === existingPhone) {
                     score += 0.4;
@@ -1288,7 +1510,7 @@ class SmartImportEnhanced {
         
         for (const line of lines) {
             const isNewAppointment = 
-                line.match(/^[A-Z][a-zA-Z]+\s+(?:Company|Corp|Inc|LLC|Ltd|Agency|Studio|Designs|Solutions|Services|Consulting|Group|Partners|&|Associates|Enterprises|Ventures|Holdings|Industries|Systems|Technologies)/) ||
+                line.match(/^[A-Z][a-zA-Z]+\s+(?:Company|Corp|Inc|LLC|Ltd|Agency|Studio|Designs|Solutions|Services|Consulting|Group|Partners|&|Associates|Enterprises|Ventures|Holdings|Industries|Systems|Technologies|Tires|Auto|Automotive|Parts|Services|Supply|Supplies|Equipment|Tools|Machinery|Apparel|Clothing|Food|Beverage|Restaurant|Catering)/) ||
                 line.match(/^---+\s*$/) ||
                 line.match(/^={3,}\s*$/) ||
                 line.match(/^Appointment\s+#\d+/) ||
@@ -1371,10 +1593,18 @@ function openSmartImportEnhanced() {
     const textArea = DOM.get('importTextArea');
     if (textArea) {
         textArea.value = '';
-        textArea.placeholder = `Paste your call transcript or notes here. The AI will intelligently extract all CRM fields.
+        textArea.placeholder = `Paste your conversation transcript here. The AI will intelligently extract all CRM fields.
 
 Example transcript:
-"Just got off the phone with Mitch from MS Auto Parts and Services. He's the owner and very interested in our website services. He said they don't have a website right now and want to grow their business online. I booked a demo for him on Tuesday, August 3 at 2:30 PM EDT. His number is +1 (786) 763-7501 and email is mitchsells7501@gmail.com. High interest, should be a good call."`;
+"Flynn: Hey, is this RG77 Tires?
+Prospect: Yes, sir.
+Flynn: Awesome, Flynn here. I found you online and my team created a custom website preview for your business. I was wondering if you have a few moments tomorrow to look at it?
+Prospect: Honestly, tomorrow I ain't gonna be here.
+Flynn: What date this week would be best?
+Prospect: Thursday morning.
+Flynn: Great, I'll call you Thursday at 9:00 AM EDT. May I ask for the best email to send the invite?
+Prospect: Right now, my email doesn't work, it's full. Just call me Thursday.
+Flynn: I'll try to call you back Thursday if you have an update on the email. My manager will prepare a 10-minute walkthrough."`;
     }
     
     const preview = DOM.get('importPreview');
@@ -1409,6 +1639,7 @@ function closeSmartImportEnhanced() {
     AppState.importRecords = [];
     AppState.importProcessing = false;
     SmartImportState.isParsing = false;
+    SmartImportState.currentTranscript = null;
 }
 
 /**
@@ -1445,7 +1676,7 @@ function parseAndPreviewImportEnhanced() {
     
     setTimeout(() => {
         try {
-            const engine = new SmartImportEnhanced();
+            const engine = new SmartImportAI();
             
             // Step 1: Split into appointments
             updateImportProgress(15, '📋 Identifying appointments...');
@@ -1504,7 +1735,8 @@ function parseAndPreviewImportEnhanced() {
                     uncertainFields: parsed.uncertainFields || [],
                     hasDuplicate: hasSignificantDuplicate,
                     duplicates: duplicates,
-                    avgConfidence: avgConf
+                    avgConfidence: avgConf,
+                    speakers: parsed.speakers || {}
                 });
             });
             
@@ -1647,12 +1879,14 @@ function renderImportResults(records, avgConfidence, parseTime) {
                 const isUncertain = record.uncertainFields && record.uncertainFields.some(u => u.field === f.key);
                 const valueDisplay = isDate && f.key === 'date' ? Utils.formatDate(f.value) : Utils.escapeHtml(f.value);
                 const requiredClass = f.required ? 'required' : '';
+                const isNA = f.value === 'N/A';
                 return `
-                    <div class="field-row ${isDate ? 'date-field' : ''} ${isUncertain ? 'uncertain' : ''} ${requiredClass}">
+                    <div class="field-row ${isDate ? 'date-field' : ''} ${isUncertain ? 'uncertain' : ''} ${requiredClass} ${isNA ? 'na-field' : ''}">
                         <span class="field-label">${f.label}</span>
-                        <span class="field-value">${valueDisplay}</span>
-                        <span class="field-confidence ${confClass}">${Math.round(conf * 100)}%</span>
+                        <span class="field-value ${isNA ? 'na-value' : ''}">${isNA ? 'N/A' : valueDisplay}</span>
+                        <span class="field-confidence ${confClass}">${isNA ? 'N/A' : Math.round(conf * 100) + '%'}</span>
                         ${isUncertain ? '<span class="field-warning">⚠️</span>' : ''}
+                        ${isNA ? '<span class="field-na">N/A</span>' : ''}
                     </div>
                 `;
             }).join('');
@@ -1665,10 +1899,10 @@ function renderImportResults(records, avgConfidence, parseTime) {
                         <span class="record-index">#${record.index}</span>
                     </div>
                     <div class="record-summary">
-                        <span class="record-name">${Utils.escapeHtml(data.name || 'Unknown')}</span>
-                        <span class="record-business">${Utils.escapeHtml(data.business || 'Unknown Business')}</span>
-                        ${data.date ? `<span class="record-date">📅 ${Utils.formatDate(data.date)}</span>` : ''}
-                        ${data.time ? `<span class="record-date">🕐 ${Utils.escapeHtml(data.time)}</span>` : ''}
+                        <span class="record-name">${data.name && data.name !== 'N/A' ? Utils.escapeHtml(data.name) : 'Unknown'}</span>
+                        <span class="record-business">${data.business && data.business !== 'N/A' ? Utils.escapeHtml(data.business) : 'Unknown Business'}</span>
+                        ${data.date && data.date !== 'N/A' ? `<span class="record-date">📅 ${Utils.formatDate(data.date)}</span>` : ''}
+                        ${data.time && data.time !== 'N/A' ? `<span class="record-date">🕐 ${Utils.escapeHtml(data.time)}</span>` : ''}
                     </div>
                     <div class="record-badges">
                         ${hasDuplicate ? '<span class="badge duplicate">🔄 Duplicate</span>' : ''}
@@ -1765,6 +1999,12 @@ function saveAllImportedAppointments() {
     validRecords.forEach(record => {
         const data = record.validated || record.parsed;
         
+        // Skip if business or name is N/A
+        if (data.business === 'N/A' || data.name === 'N/A') {
+            skippedCount++;
+            return;
+        }
+        
         // Skip high-confidence duplicates unless user confirms
         const highDuplicate = record.duplicates && record.duplicates.find(d => d.confidence >= 85);
         if (highDuplicate) {
@@ -1776,16 +2016,16 @@ function saveAllImportedAppointments() {
         
         // Add appointment using the centralized Data layer
         const result = Data.addAppointment(
-            data.date || Utils.getTodayStr(),
+            data.date && data.date !== 'N/A' ? data.date : Utils.getTodayStr(),
             data.business,
             data.name,
-            data.role || 'Owner',
-            data.phone || '',
-            data.time || '',
-            data.notes || '',
-            data.assigned || 'Daniel',
+            data.role && data.role !== 'N/A' ? data.role : 'Owner',
+            data.phone && data.phone !== 'N/A' ? data.phone : '',
+            data.time && data.time !== 'N/A' ? data.time : '',
+            data.notes && data.notes !== 'N/A' ? data.notes : '',
+            data.assigned && data.assigned !== 'N/A' ? data.assigned : 'Daniel',
             null,
-            data.status || 'Meeting Booked',
+            data.status && data.status !== 'N/A' ? data.status : 'Meeting Booked',
             '',
             data.tags || []
         );
@@ -1795,7 +2035,7 @@ function saveAllImportedAppointments() {
         }
     });
     
-    showToast(`✅ Saved ${savedCount} appointment(s)! ${skippedCount > 0 ? `⏭️ Skipped ${skippedCount} duplicates.` : ''}`, 'success');
+    showToast(`✅ Saved ${savedCount} appointment(s)! ${skippedCount > 0 ? `⏭️ Skipped ${skippedCount} invalid records.` : ''}`, 'success');
     
     closeSmartImportEnhanced();
     if (typeof FeaturePanel !== 'undefined') {
@@ -2158,6 +2398,16 @@ const SMART_IMPORT_STYLES = `
     border: 1px solid rgba(59, 130, 246, 0.15);
 }
 
+.field-row.na-field {
+    background: rgba(148, 163, 184, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.field-row .na-value {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
 .field-label {
     font-size: 0.7rem;
     font-weight: 600;
@@ -2196,6 +2446,15 @@ const SMART_IMPORT_STYLES = `
 .field-warning {
     font-size: 0.7rem;
     margin-left: 2px;
+}
+
+.field-na {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    background: var(--bg-card);
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-weight: 600;
 }
 
 .record-warnings,
@@ -2512,18 +2771,18 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Create engine instance
-const smartImportEnhanced = new SmartImportEnhanced();
+const smartImportAI = new SmartImportAI();
 
 // ================================================================
 // EXPOSE GLOBALLY
 // ================================================================
 
-window.SmartImportEnhanced = SmartImportEnhanced;
-window.smartImportEnhanced = smartImportEnhanced;
+window.SmartImportAI = SmartImportAI;
+window.smartImportAI = smartImportAI;
 window.SMART_IMPORT = SMART_IMPORT;
 window.SmartImportState = SmartImportState;
 
 console.log('🧠 Smart Import AI Enhanced loaded successfully');
-console.log('🧠 Use smartImportEnhanced.parseTranscript() for AI-powered parsing');
-console.log('🧠 Use smartImportEnhanced.checkDuplicates() for smart duplicate detection');
-console.log('🧠 Click the "Parse Transcript" button to analyze your transcript');
+console.log('🧠 Use smartImportAI.parseTranscript() for AI-powered parsing');
+console.log('🧠 Use smartImportAI.checkDuplicates() for smart duplicate detection');
+console.log('🧠 Click the "Parse Transcript" button to analyze your conversation');
