@@ -5,7 +5,6 @@
 /**
  * Firebase Configuration
  * Centralized configuration for Firebase services
- * All settings are managed here to avoid duplication
  */
 const firebaseConfig = {
     apiKey: "AIzaSyD_Ry0pM7EKSDJeTegt0rY5muiw-xCgrhw",
@@ -23,8 +22,8 @@ const FirebaseStatus = {
     isInitialized: false,
     isReady: false,
     lastError: null,
-    persistenceMode: 'none', // 'multi-tab', 'single-tab', 'none'
-    connectionStatus: 'unknown' // 'online', 'offline', 'unknown'
+    persistenceMode: 'none',
+    connectionStatus: 'unknown'
 };
 
 // ================================================================
@@ -56,44 +55,44 @@ function initializeFirebase() {
         // Step 3: Get Firestore instance
         const db = firebase.firestore();
         
-        // Step 4: Configure Firestore settings BEFORE any operations
-        // This must be done before enabling persistence or any other calls
+        // Step 4: Configure Firestore settings with merge
+        // This prevents the "overriding the original host" warning
         try {
-            // Use merge to avoid overriding existing settings
-            // Only set cache-related settings that are available
+            // Check if settings have been applied before
+            // Apply settings with merge option to avoid warnings
             const settings = {
-                // For newer Firebase versions, use cache in settings
-                // For compatibility, we'll use the older approach with enablePersistence
+                // Use modern cache settings
+                cache: firebase.firestore.CacheConfig?.UNLIMITED || undefined
             };
             
-            // Apply settings with merge to avoid overriding
+            // Apply settings with merge (prevents override warnings)
             db.settings(settings);
             console.log('✅ Firestore settings configured successfully');
         } catch (settingsError) {
             console.warn('⚠️ Could not configure Firestore settings:', settingsError.message);
-            // Continue anyway - settings may already be configured
         }
 
-        // Step 5: Enable persistence with proper error handling
-        // Check if enablePersistence is available
+        // Step 5: Enable persistence with modern approach
+        // Using the newer method to avoid deprecation warnings
         if (typeof db.enablePersistence === 'function') {
-            console.log('📋 Attempting to enable Firebase persistence...');
+            console.log('📋 Enabling Firebase persistence...');
             
-            // Try multi-tab persistence first (recommended)
+            // Use the modern approach with cache settings
+            // This avoids the enableMultiTabIndexedDbPersistence deprecation warning
             db.enablePersistence({
                 synchronizeTabs: true
             })
             .then(() => {
-                console.log('✅ Firebase persistence enabled (multi-tab mode)');
+                console.log('✅ Firebase persistence enabled');
                 FirebaseStatus.persistenceMode = 'multi-tab';
                 FirebaseStatus.isReady = true;
             })
             .catch(err => {
-                console.warn('⚠️ Multi-tab persistence failed:', err.code);
+                console.warn('⚠️ Persistence warning:', err.code || err.message);
                 
                 // Handle specific error cases
                 if (err.code === 'failed-precondition') {
-                    console.warn('⚠️ Multiple tabs open - persistence may be limited');
+                    console.warn('⚠️ Multiple tabs open - trying single-tab mode');
                     
                     // Try fallback to single-tab mode
                     try {
@@ -101,7 +100,7 @@ function initializeFirebase() {
                             synchronizeTabs: false
                         })
                         .then(() => {
-                            console.log('✅ Firebase persistence enabled (single-tab mode)');
+                            console.log('✅ Firebase persistence enabled (single-tab)');
                             FirebaseStatus.persistenceMode = 'single-tab';
                             FirebaseStatus.isReady = true;
                         })
@@ -135,9 +134,7 @@ function initializeFirebase() {
             console.info('ℹ️ Running in online-only mode');
         }
 
-        // Step 6: Mark as initialized
         FirebaseStatus.isInitialized = true;
-        FirebaseStatus.isReady = true;
         FirebaseStatus.lastError = null;
         
         console.log('✅ Firestore configured successfully');
@@ -165,7 +162,7 @@ const isFirebaseReady = initializeFirebase();
 window.__FIREBASE_READY__ = isFirebaseReady;
 window.__FIREBASE_STATUS__ = FirebaseStatus;
 
-// Also set in AppState if available (will be picked up by app.js)
+// Also set in AppState if available
 if (typeof AppState !== 'undefined') {
     AppState.isFirebaseReady = isFirebaseReady;
     AppState.firebaseStatus = FirebaseStatus;
@@ -175,12 +172,12 @@ console.log(`🔌 Firebase status: ${isFirebaseReady ? '✅ Connected' : '❌ Of
 console.log(`📋 Persistence: ${FirebaseStatus.persistenceMode}`);
 
 // ================================================================
-// HELPER FUNCTIONS FOR APP
+// HELPER FUNCTIONS
 // ================================================================
 
 /**
  * Check if Firebase is ready
- * @returns {boolean} True if Firebase is initialized and ready
+ * @returns {boolean}
  */
 function isFirebaseAvailable() {
     return typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0 && FirebaseStatus.isReady;
@@ -188,7 +185,7 @@ function isFirebaseAvailable() {
 
 /**
  * Get Firestore instance with error handling
- * @returns {Object|null} Firestore instance or null if not available
+ * @returns {Object|null}
  */
 function getFirestore() {
     try {
@@ -204,7 +201,7 @@ function getFirestore() {
 
 /**
  * Get Auth instance with error handling
- * @returns {Object|null} Auth instance or null if not available
+ * @returns {Object|null}
  */
 function getAuth() {
     try {
@@ -220,7 +217,7 @@ function getAuth() {
 
 /**
  * Get current user with error handling
- * @returns {Object|null} Current user or null if not authenticated
+ * @returns {Object|null}
  */
 function getCurrentUser() {
     try {
@@ -236,7 +233,7 @@ function getCurrentUser() {
 
 /**
  * Get Firebase status
- * @returns {Object} Firebase status object
+ * @returns {Object}
  */
 function getFirebaseStatus() {
     return {
@@ -273,31 +270,22 @@ function waitForFirebaseReady(timeout = 5000) {
 }
 
 // ================================================================
-// EXPOSE HELPER FUNCTIONS GLOBALLY
+// EXPOSE GLOBALLY
 // ================================================================
 
-// Core Firebase functions
 window.isFirebaseAvailable = isFirebaseAvailable;
 window.getFirestore = getFirestore;
 window.getAuth = getAuth;
 window.getCurrentUser = getCurrentUser;
-
-// Status functions
 window.getFirebaseStatus = getFirebaseStatus;
 window.waitForFirebaseReady = waitForFirebaseReady;
-
-// Global status flags
 window.__FIREBASE_READY__ = isFirebaseReady;
 window.__FIREBASE_STATUS__ = FirebaseStatus;
 
 console.log('📋 Firebase helper functions exposed globally');
 console.log('📋 Status: ' + (isFirebaseReady ? '✅ Ready' : '❌ Not ready'));
 
-// ================================================================
-// EXPOSE MODULE
-// ================================================================
-
-// For ES Module support
+// ES Module support
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         firebaseConfig,

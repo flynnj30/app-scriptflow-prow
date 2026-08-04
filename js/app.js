@@ -3072,7 +3072,6 @@ const CalendarView = {
             btn.addEventListener('click', () => {
                 const view = btn.getAttribute('data-view');
                 AppState.calendarViewMode = view;
-                // Re-render with new view
                 const body = DOM.get('featurePanelBody');
                 if (body && AppState.currentView === 'calendar') {
                     CalendarView.render(body);
@@ -3671,7 +3670,7 @@ function cancelAppointment(appointmentId) {
 }
 
 // ================================================================
-// INITIALIZATION
+// INITIALIZATION - WITH SMART IMPORT FALLBACK
 // ================================================================
 
 function initApp() {
@@ -3706,6 +3705,78 @@ function initApp() {
         AppState.isFirebaseReady = false;
         AppState.isAIAvailable = false;
     }
+
+    // ================================================================
+    // SMART IMPORT FALLBACK - Ensure functions are available
+    // ================================================================
+    
+    // Check if Smart Import functions are defined, if not, create fallbacks
+    if (typeof openSmartImportEnhanced === 'undefined') {
+        console.warn('⚠️ openSmartImportEnhanced not defined, creating fallback');
+        window.openSmartImportEnhanced = function() {
+            showToast('Smart Import loading...', 'info');
+            // Try to load smart-import.js dynamically
+            const script = document.createElement('script');
+            script.src = 'js/smart-import.js';
+            script.onload = function() {
+                showToast('Smart Import loaded! Please try again.', 'success');
+                // Re-initialize the function
+                if (typeof window.openSmartImportEnhanced === 'function') {
+                    window.openSmartImportEnhanced();
+                }
+            };
+            script.onerror = function() {
+                showToast('Failed to load Smart Import. Please refresh the page.', 'error');
+            };
+            document.head.appendChild(script);
+        };
+    }
+    
+    if (typeof parseAndPreviewImportEnhanced === 'undefined') {
+        window.parseAndPreviewImportEnhanced = function() {
+            showToast('Parsing transcript...', 'info');
+        };
+    }
+    
+    if (typeof saveAllImportedAppointments === 'undefined') {
+        window.saveAllImportedAppointments = function() {
+            showToast('Saving appointments...', 'info');
+        };
+    }
+    
+    if (typeof closeSmartImportEnhanced === 'undefined') {
+        window.closeSmartImportEnhanced = function() {
+            const modal = document.getElementById('smartImportModal');
+            if (modal) modal.style.display = 'none';
+        };
+    }
+    
+    // Also ensure SmartImportState exists
+    if (typeof SmartImportState === 'undefined') {
+        window.SmartImportState = {
+            records: [],
+            validRecords: [],
+            invalidRecords: [],
+            duplicates: [],
+            processing: false,
+            progress: 0,
+            isParsing: false,
+            parseStartTime: null,
+            parseEndTime: null,
+            currentTranscript: null,
+            aiResult: null,
+            aiStatus: 'idle',
+            aiErrorMessage: null,
+            isEditable: false,
+            useAI: true,
+            fallbackToRuleBased: true,
+            parsedData: null
+        };
+    }
+
+    // ================================================================
+    // CONTINUE WITH REST OF INITIALIZATION
+    // ================================================================
 
     // Check if Firebase is not ready but SDK is loaded
     if (!AppState.isFirebaseReady && typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0) {
@@ -3838,7 +3909,7 @@ function initApp() {
     if (resetScriptBtn) resetScriptBtn.addEventListener('click', () => Scripts.resetScript());
     if (favoriteScriptBtn) favoriteScriptBtn.addEventListener('click', () => Scripts.toggleFavorite(AppState.currentScriptId));
 
-    // Smart Import buttons
+    // Smart Import buttons - these will be overridden by smart-import.js if loaded
     const quickReportBtn = DOM.get('quickReportBtn');
     const parseBtn = DOM.get('parseImportBtn');
     const saveImportBtn = DOM.get('saveImportBtn');

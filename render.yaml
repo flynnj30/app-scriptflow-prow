@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: app-scriptflow-pro
+    name: scriptflow-pro
     runtime: static
     buildCommand: echo "Static site - no build needed"
     staticPublishPath: ./
@@ -13,6 +13,11 @@ services:
         value: 18.0.0
       - key: NODE_ENV
         value: production
+      # IMPORTANT: Set your Gemini API key here
+      # Go to your Render dashboard → Environment Variables
+      - key: GEMINI_API_KEY
+        value: your_gemini_api_key_here
+        sync: false
     headers:
       # Security Headers
       - path: /*
@@ -31,7 +36,7 @@ services:
         name: Permissions-Policy
         value: "geolocation=(), microphone=(), camera=()"
       
-      # CORS Headers - Allow Google Fonts and other CDN resources
+      # CORS Headers
       - path: /*
         name: Access-Control-Allow-Origin
         value: "*"
@@ -79,7 +84,7 @@ services:
         name: Content-Type
         value: "text/html; charset=utf-8"
       
-      # Font Loading CORS Fix - Allow cross-origin font loading
+      # Cross-Origin Headers
       - path: /*
         name: Cross-Origin-Resource-Policy
         value: "cross-origin"
