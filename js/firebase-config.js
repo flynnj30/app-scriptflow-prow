@@ -18,87 +18,62 @@ function initializeFirebase() {
     try {
         // Check if Firebase SDK is loaded
         if (typeof firebase === 'undefined') {
-            console.warn('âš ï¸ Firebase SDK not loaded - running in offline mode');
+            console.warn('⚠️ Firebase SDK not loaded - running in offline mode');
             return false;
         }
 
         // Initialize Firebase app if not already initialized
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
-            console.log('âœ… Firebase initialized successfully');
+            console.log('✅ Firebase initialized successfully');
         }
 
         // Get Firestore instance
         const db = firebase.firestore();
 
-        // ================================================================
-        // FIX: Use the new cache configuration to avoid deprecation warning
-        // Reference: https://firebase.google.com/docs/firestore/manage-data/enable-offline
-        // ================================================================
-        
-        // Method 1: Use enablePersistence with recommended settings
-        // This is the recommended approach for Firestore 9.x
+        // Enable persistence with recommended settings
         db.enablePersistence({
             synchronizeTabs: true,
             experimentalForceOwningTab: true
         })
         .then(() => {
-            console.log('âœ… Firebase persistence enabled with cache configuration');
+            console.log('✅ Firebase persistence enabled with cache configuration');
         })
         .catch(err => {
-            // Handle specific error cases gracefully
             if (err.code === 'failed-precondition') {
-                // Multiple tabs open - persistence is disabled in other tabs
-                console.warn('âš ï¸ Firebase persistence: multiple tabs open, persistence disabled in this tab');
-                console.info('â„¹ï¸ Data will still work, but offline support may be limited');
+                console.warn('⚠️ Firebase persistence: multiple tabs open, persistence disabled in this tab');
+                console.info('ℹ️ Data will still work, but offline support may be limited');
             } else if (err.code === 'unimplemented') {
-                // Browser doesn't support persistence
-                console.warn('âš ï¸ Firebase persistence not supported in this browser');
-                console.info('â„¹ï¸ Continuing in online-only mode');
+                console.warn('⚠️ Firebase persistence not supported in this browser');
+                console.info('ℹ️ Continuing in online-only mode');
             } else {
-                // Other persistence errors
-                console.warn('âš ï¸ Firebase persistence error:', err.message);
-                console.info('â„¹ï¸ Continuing without persistence - data will still work online');
+                console.warn('⚠️ Firebase persistence error:', err.message);
+                console.info('ℹ️ Continuing without persistence - data will still work online');
             }
         });
 
-        // ================================================================
-        // OPTIONAL: Configure cache size for better performance
-        // This helps manage memory usage for offline data
-        // ================================================================
+        // Configure cache size for better performance
         try {
-            // Use unlimited cache size for better offline support
-            // You can also use a specific size like: 104857600 (100MB)
             db.settings({
                 cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
             });
-            console.log('âœ… Firestore cache size configured');
+            console.log('✅ Firestore cache size configured');
         } catch (cacheError) {
-            // Cache size configuration is optional and may not be supported in all versions
-            console.warn('âš ï¸ Could not set cache size:', cacheError.message);
+            console.warn('⚠️ Could not set cache size:', cacheError.message);
         }
 
-        // ================================================================
-        // OPTIONAL: Enable Firestore logging for debugging (disable in production)
-        // ================================================================
-        // firebase.firestore.setLogLevel('debug'); // Uncomment for debugging
-
-        console.log('âœ… Firestore configured successfully');
+        console.log('✅ Firestore configured successfully');
         return true;
 
     } catch (error) {
-        console.warn('âš ï¸ Firebase initialization failed:', error.message);
-        console.info('â„¹ï¸ Running in offline mode - some features may be limited');
+        console.warn('⚠️ Firebase initialization failed:', error.message);
+        console.info('ℹ️ Running in offline mode - some features may be limited');
         return false;
     }
 }
 
 // Execute initialization
 const isFirebaseReady = initializeFirebase();
-
-// ================================================================
-// EXPOSE FIREBASE STATUS FOR APP
-// ================================================================
 
 // Make Firebase status available globally
 window.__FIREBASE_READY__ = isFirebaseReady;
@@ -108,7 +83,7 @@ if (typeof AppState !== 'undefined') {
     AppState.isFirebaseReady = isFirebaseReady;
 }
 
-console.log(`ðŸ”Œ Firebase status: ${isFirebaseReady ? 'âœ… Connected' : 'âŒ Offline mode'}`);
+console.log(`🔌 Firebase status: ${isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
 
 // ================================================================
 // HELPER FUNCTIONS FOR APP
@@ -133,7 +108,7 @@ function getFirestore() {
         }
         return null;
     } catch (error) {
-        console.warn('âš ï¸ Could not get Firestore instance:', error.message);
+        console.warn('⚠️ Could not get Firestore instance:', error.message);
         return null;
     }
 }
@@ -149,7 +124,7 @@ function getAuth() {
         }
         return null;
     } catch (error) {
-        console.warn('âš ï¸ Could not get Auth instance:', error.message);
+        console.warn('⚠️ Could not get Auth instance:', error.message);
         return null;
     }
 }
@@ -165,7 +140,7 @@ function getCurrentUser() {
         }
         return null;
     } catch (error) {
-        console.warn('âš ï¸ Could not get current user:', error.message);
+        console.warn('⚠️ Could not get current user:', error.message);
         return null;
     }
 }
@@ -178,5 +153,6 @@ window.isFirebaseAvailable = isFirebaseAvailable;
 window.getFirestore = getFirestore;
 window.getAuth = getAuth;
 window.getCurrentUser = getCurrentUser;
+window.__FIREBASE_READY__ = isFirebaseReady;
 
-console.log('ðŸ“‹ Firebase helper functions exposed globally');
+console.log('📋 Firebase helper functions exposed globally');
