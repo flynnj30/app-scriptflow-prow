@@ -145,7 +145,8 @@ const AppState = {
     
     // AI Configuration (using centralized config)
     aiConfig: null,
-    isAIAvailable: false
+    isAIAvailable: false,
+    firebaseStatus: null
 };
 
 // ================================================================
@@ -1855,9 +1856,479 @@ const AnalyticsEngine = {
 // [REST OF APP.JS CONTINUES WITH FEATURE PANEL, SCRIPTS, INITIALIZATION]
 // ================================================================
 
-// Note: The FeaturePanel, Scripts, and initialization code remain the same
-// as in the original app.js. They have been omitted here for brevity
-// but are included in the full implementation.
+// ================================================================
+// INITIALIZATION - UPDATED WITH FIREBASE STATUS CHECK
+// ================================================================
+
+function initApp() {
+    console.log('🚀 Starting ScriptFlow Pro...');
+    updateLoadingProgress(10, 'Initializing application...');
+
+    try {
+        // Check Firebase availability using centralized status
+        if (typeof FirebaseStatus !== 'undefined') {
+            AppState.isFirebaseReady = FirebaseStatus.isReady;
+            AppState.firebaseStatus = FirebaseStatus;
+            console.log(`🔌 Firebase status: ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
+            console.log(`📋 Persistence mode: ${FirebaseStatus.persistenceMode}`);
+        } else {
+            // Fallback check
+            AppState.isFirebaseReady = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
+            console.log(`🔌 Firebase status (fallback): ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
+        }
+        
+        // Check AI configuration using centralized helpers
+        const aiConfigured = typeof isAIConfigured === 'function' && isAIConfigured();
+        AppState.isAIAvailable = aiConfigured;
+        console.log(`🤖 AI status: ${aiConfigured ? '✅ Configured' : '❌ Not configured'}`);
+        
+        // Set global flags
+        window.__FIREBASE_READY__ = AppState.isFirebaseReady;
+        
+        // Log version info
+        console.log(`📦 App version: ${Date.now()}`);
+        console.log(`🌐 Environment: ${AppState.isFirebaseReady ? 'Online' : 'Offline'}`);
+        
+    } catch (e) {
+        console.warn('⚠️ Initialization check error:', e);
+        AppState.isFirebaseReady = false;
+        AppState.isAIAvailable = false;
+    }
+
+    // Check if Firebase is not ready but SDK is loaded
+    if (!AppState.isFirebaseReady && typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0) {
+        console.warn('⚠️ Firebase SDK loaded but not ready, attempting re-initialization...');
+        if (typeof initializeFirebase === 'function') {
+            try {
+                AppState.isFirebaseReady = initializeFirebase();
+                console.log(`🔄 Firebase re-initialized: ${AppState.isFirebaseReady ? '✅ Success' : '❌ Failed'}`);
+            } catch (initError) {
+                console.warn('⚠️ Firebase re-initialization failed:', initError);
+            }
+        }
+    }
+
+    // ================================================================
+    // CONTINUE WITH EXISTING INITIALIZATION CODE
+    // ================================================================
+
+    // Check if Firebase is available
+    try {
+        AppState.isFirebaseReady = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
+    } catch (e) {
+        AppState.isFirebaseReady = false;
+    }
+
+    if (!AppState.isFirebaseReady) {
+        console.warn('⚠️ Firebase not available - running in offline mode');
+        showToast('Offline mode - Some features may be limited', 'warning');
+    }
+    updateLoadingProgress(35, 'Connecting to services...');
+
+    // Load custom shortcuts from localStorage
+    AppState.customShortcuts = JSON.parse(localStorage.getItem(STORAGE_KEYS.customShortcuts) || '{}');
+    AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS, ...AppState.customShortcuts };
+    AppState.scriptFavorites = JSON.parse(localStorage.getItem(STORAGE_KEYS.scriptFavorites) || '[]');
+
+    // Load analytics filters from localStorage
+    const savedFilters = localStorage.getItem(STORAGE_KEYS.analyticsFilters);
+    if (savedFilters) {
+        try {
+            AppState.analyticsFilters = { ...AppState.analyticsFilters, ...JSON.parse(savedFilters) };
+        } catch (e) {}
+    }
+
+    // Tools menu toggle
+    const toolsHeader = DOM.get('toolsHeader');
+    const toolsMenu = DOM.get('toolsMenu');
+    const toolsChevron = DOM.get('toolsChevron');
+    const toolsOpen = localStorage.getItem(STORAGE_KEYS.toolsMenuOpen) === 'true';
+
+    if (toolsHeader && toolsMenu && toolsChevron) {
+        if (toolsOpen) { toolsMenu.classList.add('open'); toolsChevron.classList.add('rotated'); }
+        toolsHeader.addEventListener('click', () => {
+            const isOpen = toolsMenu.classList.toggle('open');
+            toolsChevron.classList.toggle('rotated');
+            localStorage.setItem(STORAGE_KEYS.toolsMenuOpen, isOpen);
+        });
+    }
+    updateLoadingProgress(50, 'Setting up UI...');
+
+    // Menu toggle
+    const menuToggle = DOM.get('menuToggleBtn');
+    const sidebar = DOM.get('mainSidebar');
+    const mainContent = DOM.get('mainContent');
+
+    if (menuToggle && sidebar && mainContent) {
+        menuToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('closed');
+            mainContent.classList.toggle('expanded');
+        });
+    }
+
+    // Escape key handler
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') handleEscapeKey();
+    });
+    updateLoadingProgress(65, 'Loading features...');
+
+    // ================================================================
+    // TOOL ITEMS EVENT LISTENERS
+    // ================================================================
+
+    document.querySelectorAll('.tool-item').forEach(item => {
+        item.addEventListener('click', function() {
+            const tool = this.getAttribute('data-tool');
+            if (tool === 'notepad') showToast('📝 Notes feature coming soon!', 'info');
+            else if (tool === 'calendar') FeaturePanel.show('calendar', '📅 Appointment & Handoff Calendar');
+            else if (tool === 'tasks') FeaturePanel.show('tasks', '📋 Follow-up Tasks Manager');
+            else if (tool === 'analytics') {
+                AppState.analyticsTab = 'meetings';
+                FeaturePanel.show('analytics', '📊 Analytics Hub');
+            } else if (tool === 'shortcuts') FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts');
+            else if (tool === 'prospects') {
+                openProspectManager();
+            } else if (tool === 'objections') {
+                if (window.ObjectionHandler) {
+                    window.ObjectionHandler.toggle();
+                } else {
+                    showToast('Objection Handler loading...', 'info');
+                }
+            } else if (tool === 'theme') {
+                document.body.classList.toggle('light');
+                showToast('Theme toggled', 'info');
+            } else if (tool === 'help') {
+                showToast('Handoffs: Hot Transfer, Warm Callback, Completed (includes Meeting Booked, Rescheduled, Held), Pending, Canceled', 'info');
+            } else if (tool === 'reset') {
+                if (confirm('⚠️ This will clear all local data and reset the app. Continue?')) {
+                    localStorage.clear();
+                    if (AppState.currentUser && AppState.isFirebaseReady) {
+                        firebase.firestore().collection('users').doc(AppState.currentUser.uid).delete().catch(e => console.warn('Delete error:', e));
+                    }
+                    location.reload();
+                }
+            } else if (tool === 'export') Data.exportToCSV();
+            else if (tool === 'signOut') Auth.signOut();
+        });
+    });
+
+    // Feature panel close button
+    const closeFeatureBtn = DOM.get('closeFeaturePanelBtn');
+    if (closeFeatureBtn) closeFeatureBtn.addEventListener('click', () => {
+        FeaturePanel.hide();
+        Scripts.loadScript('opening');
+    });
+
+    // Script buttons
+    const editScriptBtn = DOM.get('editScriptBtn');
+    const saveScriptBtn = DOM.get('saveScriptBtn');
+    const cancelEditBtn = DOM.get('cancelEditBtn');
+    const copyScriptBtn = DOM.get('copyScriptBtn');
+    const resetScriptBtn = DOM.get('resetScriptBtn');
+    const favoriteScriptBtn = DOM.get('favoriteScriptBtn');
+
+    if (editScriptBtn) editScriptBtn.addEventListener('click', () => Scripts.startEdit());
+    if (saveScriptBtn) saveScriptBtn.addEventListener('click', () => {
+        const textarea = DOM.get('editTextarea');
+        if (textarea) { Scripts.saveScriptContent(textarea.value); Scripts.finishEdit(); }
+    });
+    if (cancelEditBtn) cancelEditBtn.addEventListener('click', () => Scripts.cancelEdit());
+    if (copyScriptBtn) copyScriptBtn.addEventListener('click', () => {
+        const script = AppState.scripts[AppState.currentScriptId];
+        if (script) copyToClipboard(script.content);
+    });
+    if (resetScriptBtn) resetScriptBtn.addEventListener('click', () => Scripts.resetScript());
+    if (favoriteScriptBtn) favoriteScriptBtn.addEventListener('click', () => Scripts.toggleFavorite(AppState.currentScriptId));
+
+    // Smart Import buttons
+    const quickReportBtn = DOM.get('quickReportBtn');
+    const parseBtn = DOM.get('parseImportBtn');
+    const saveImportBtn = DOM.get('saveImportBtn');
+    const closeImportBtn = DOM.get('closeImportBtn');
+    const templateBtn = DOM.get('quickTemplateBtn');
+    const clipboardBtn = DOM.get('clipboardImportBtn');
+
+    if (quickReportBtn) quickReportBtn.addEventListener('click', openSmartImportEnhanced);
+    if (parseBtn) parseBtn.addEventListener('click', parseAndPreviewImportEnhanced);
+    if (saveImportBtn) saveImportBtn.addEventListener('click', saveAllImportedAppointments);
+    if (closeImportBtn) closeImportBtn.addEventListener('click', closeSmartImportEnhanced);
+    if (templateBtn) templateBtn.addEventListener('click', generateImportTemplate);
+    if (clipboardBtn) clipboardBtn.addEventListener('click', quickImportFromClipboard);
+
+    // Prospect buttons
+    const addProspectBtn = DOM.get('addProspectBtn');
+    if (addProspectBtn) addProspectBtn.addEventListener('click', openAddProspect);
+
+    // Bulk actions
+    const bulkActionsBtn = DOM.get('bulkActionsBtn');
+    const closeBulkBtn = DOM.get('closeBulkModalBtn');
+    const executeBulkBtn = DOM.get('executeBulkActionBtn');
+    const bulkActionSelect = DOM.get('bulkActionSelect');
+
+    if (bulkActionsBtn) bulkActionsBtn.addEventListener('click', openBulkActions);
+    if (closeBulkBtn) closeBulkBtn.addEventListener('click', () => {
+        const modal = DOM.get('bulkActionsModal');
+        if (modal) modal.style.display = 'none';
+    });
+    if (executeBulkBtn) executeBulkBtn.addEventListener('click', executeBulkAction);
+
+    if (bulkActionSelect) bulkActionSelect.addEventListener('change', () => {
+        const value = bulkActionSelect.value;
+        const statusGroup = DOM.get('bulkStatusGroup');
+        const tagGroup = DOM.get('bulkTagGroup');
+        const options = DOM.get('bulkActionOptions');
+        if (statusGroup) statusGroup.style.display = value === 'status' ? 'block' : 'none';
+        if (tagGroup) tagGroup.style.display = value === 'tag' ? 'block' : 'none';
+        if (options) options.style.display = (value === 'status' || value === 'tag') ? 'block' : 'none';
+    });
+
+    // Sign out
+    const signOutBtn = DOM.get('signOutBtn');
+    if (signOutBtn) signOutBtn.addEventListener('click', () => Auth.signOut());
+
+    // Refresh
+    const refreshBtn = DOM.get('refreshBtn');
+    if (refreshBtn) refreshBtn.addEventListener('click', async () => {
+        if (AppState.isRefreshing) return;
+        AppState.isRefreshing = true;
+        refreshBtn.classList.add('spinning');
+        refreshBtn.disabled = true;
+
+        try {
+            showToast('Refreshing data...', 'info');
+            await Data.loadUserData(true);
+            FeaturePanel.refreshCurrentView();
+            showToast('Data refreshed!', 'success');
+        } catch (error) { handleError(error, 'Refresh'); }
+        finally {
+            AppState.isRefreshing = false;
+            refreshBtn.classList.remove('spinning');
+            refreshBtn.disabled = false;
+        }
+    });
+
+    // Add script
+    const addScriptBtn = DOM.get('addScriptBtnSide');
+    if (addScriptBtn) addScriptBtn.addEventListener('click', () => Scripts.createScript());
+
+    // Script search
+    const scriptSearch = DOM.get('scriptSearch');
+    if (scriptSearch) scriptSearch.addEventListener('input', (e) => {
+        AppState.searchTerm = e.target.value.toLowerCase();
+        document.querySelectorAll('.script-item').forEach(item => {
+            const name = item.querySelector('.script-name')?.textContent?.toLowerCase() || '';
+            item.style.display = name.includes(AppState.searchTerm) ? 'flex' : 'none';
+        });
+    });
+
+    // Global search
+    const searchGlobalBtn = DOM.get('searchGlobalBtn');
+    const globalSearchInput = DOM.get('globalSearchInput');
+    const globalSearchClose = DOM.get('globalSearchCloseBtn');
+
+    if (searchGlobalBtn) searchGlobalBtn.addEventListener('click', openGlobalSearch);
+    if (globalSearchInput) globalSearchInput.addEventListener('input', (e) => performGlobalSearch(e.target.value));
+    if (globalSearchClose) globalSearchClose.addEventListener('click', () => {
+        const modal = DOM.get('globalSearchModal');
+        if (modal) modal.style.display = 'none';
+    });
+
+    // CSV Import
+    const csvFileInput = DOM.get('csvFileInput');
+    if (csvFileInput) csvFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const csvText = event.target.result;
+                    const lines = csvText.split('\n').filter(line => line.trim());
+                    if (lines.length > 0) {
+                        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                        let imported = 0;
+                        for (let i = 1; i < lines.length; i++) {
+                            const values = lines[i].split(',').map(v => v.trim());
+                            const data = {};
+                            headers.forEach((h, idx) => data[h] = values[idx] || '');
+                            if (data.name || data.business) {
+                                Data.addAppointment(
+                                    data.date || Utils.getTodayStr(),
+                                    data.business || data.company || 'Unknown Business',
+                                    data.name || data.contact || 'Unknown Contact',
+                                    'Owner',
+                                    data.phone || data.mobile || '',
+                                    data.time || '',
+                                    data.notes || '',
+                                    'Daniel',
+                                    null,
+                                    data.status || 'Pending'
+                                );
+                                imported++;
+                            }
+                        }
+                        showToast(`Imported ${imported} appointments from CSV!`, 'success');
+                        FeaturePanel.refreshCurrentView();
+                    }
+                } catch (err) { showToast('Error parsing CSV: ' + err.message, 'error'); }
+            };
+            reader.readAsText(file);
+        }
+        e.target.value = '';
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        if (!AppState.shortcutsEnabled || AppState.isEditing) {
+            if (e.key === 'Escape') {
+                handleEscapeKey();
+            }
+            return;
+        }
+
+        if (e.key >= '1' && e.key <= '9') {
+            const index = parseInt(e.key) - 1;
+            const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
+            if (index < visible.length) {
+                e.preventDefault();
+                Scripts.loadScript(visible[index]);
+                showToast(`Switched to: ${AppState.scripts[visible[index]]?.name}`, 'info');
+            }
+        }
+
+        for (const [action, shortcut] of Object.entries(AppState.shortcuts)) {
+            if (shortcut.keys && shortcut.keys.length > 0) {
+                const keys = shortcut.keys;
+                const ctrl = keys.includes('Ctrl');
+                const shift = keys.includes('Shift');
+                const alt = keys.includes('Alt');
+                const key = keys.find(k => !['Ctrl', 'Shift', 'Alt'].includes(k));
+                if (e.ctrlKey === ctrl && e.shiftKey === shift && e.altKey === alt && e.key === key) {
+                    e.preventDefault();
+                    handleShortcutAction(action);
+                }
+            }
+        }
+    });
+
+    // Initialize Prospect Manager
+    Data.initProspectManager();
+
+    // Firebase auth state listener
+    try {
+        if (AppState.isFirebaseReady) {
+            firebase.auth().onAuthStateChanged(async (user) => {
+                if (user) {
+                    AppState.currentUser = user;
+                    Auth.updateUI();
+                    await Data.loadUserData();
+                    updateLoadingProgress(85, 'Loading your data...');
+                } else {
+                    const localData = localStorage.getItem(STORAGE_KEYS.userData);
+                    if (localData) {
+                        try {
+                            const data = JSON.parse(localData);
+                            AppState.scripts = data.scripts || {};
+                            AppState.scriptOrder = data.scriptOrder || [];
+                            AppState.appointments = data.appointments || {};
+                            AppState.tasks = data.tasks || {};
+                            AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
+                            Stats.updateAll();
+                            Scripts.renderSidebar();
+                            Scripts.loadScript('opening');
+                            showToast('Loaded offline data', 'info');
+                        } catch (e) {}
+                    }
+                    Auth.showModal();
+                }
+                updateLoadingProgress(100, 'Ready!');
+                setTimeout(hideLoadingScreen, 400);
+            });
+        } else {
+            const localData = localStorage.getItem(STORAGE_KEYS.userData);
+            if (localData) {
+                try {
+                    const data = JSON.parse(localData);
+                    AppState.scripts = data.scripts || {};
+                    AppState.scriptOrder = data.scriptOrder || [];
+                    AppState.appointments = data.appointments || {};
+                    AppState.tasks = data.tasks || {};
+                    AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
+                    Stats.updateAll();
+                    Scripts.renderSidebar();
+                    Scripts.loadScript('opening');
+                } catch (e) {}
+            }
+            Auth.showModal();
+            updateLoadingProgress(100, 'Ready!');
+            setTimeout(hideLoadingScreen, 400);
+        }
+    } catch (error) {
+        console.warn('Auth setup error:', error);
+        Auth.showModal();
+        updateLoadingProgress(100, 'Ready!');
+        setTimeout(hideLoadingScreen, 400);
+    }
+
+    // Click outside modal to close
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-overlay')) {
+            e.target.style.display = 'none';
+        }
+    });
+
+    console.log('🚀 ScriptFlow Pro initialized successfully!');
+    console.log(`🔌 Firebase status: ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
+    console.log(`🤖 AI status: ${AppState.isAIAvailable ? '✅ Configured' : '❌ Not configured'}`);
+    console.log('🛡️ Objection Handler available via Ctrl+Shift+O or sidebar menu');
+    console.log('📥 Smart Import: Click the "Smart Import" button, paste text, click Parse, review, and Save!');
+    console.log('👥 Prospect Manager: Manage all your prospects with the "Prospects" tool');
+    console.log('📊 Meeting Performance Dashboard: Available in Analytics Hub > Meetings tab');
+}
+
+// ================================================================
+// GLOBAL EXPOSURE
+// ================================================================
+
+// Core functions
+window.showAppointmentDetail = showAppointmentDetail;
+window.closeAppointmentDetail = closeAppointmentDetail;
+window.loadScript = Scripts.loadScript;
+window.openShortcutEdit = openShortcutEdit;
+window.showToast = showToast;
+window.openGlobalSearch = openGlobalSearch;
+window.editAppointment = editAppointment;
+window.rescheduleAppointment = rescheduleAppointment;
+window.completeAppointment = completeAppointment;
+window.cancelAppointment = cancelAppointment;
+window.FeaturePanel = FeaturePanel;
+window.Data = Data;
+window.Stats = Stats;
+window.Scripts = Scripts;
+window.Auth = Auth;
+window.CONFIG = CONFIG;
+window.AppState = AppState;
+window.openSmartImportEnhanced = openSmartImportEnhanced;
+window.parseAndPreviewImportEnhanced = parseAndPreviewImportEnhanced;
+window.generateImportTemplate = generateImportTemplate;
+window.quickImportFromClipboard = quickImportFromClipboard;
+window.expandAllRecords = expandAllRecords;
+window.collapseAllRecords = collapseAllRecords;
+window.toggleImportRecord = toggleImportRecord;
+window.saveAllImportedAppointments = saveAllImportedAppointments;
+window.CalendarView = CalendarView;
+window.handleShortcutAction = handleShortcutAction;
+window.Utils = Utils;
+window.openProspectManager = openProspectManager;
+window.openAddProspect = openAddProspect;
+window.viewProspect = viewProspect;
+window.editProspect = editProspect;
+window.deleteProspect = deleteProspect;
+window.AnalyticsEngine = AnalyticsEngine;
+window.STORAGE_KEYS = STORAGE_KEYS;
+
+// Start the app
+document.addEventListener('DOMContentLoaded', initApp);
 
 console.log('🚀 ScriptFlow Pro loaded successfully');
 console.log('🔑 AI Configured:', window.isAIConfigured ? window.isAIConfigured() : 'Unknown');
+console.log('🔌 Firebase Ready:', AppState.isFirebaseReady);
