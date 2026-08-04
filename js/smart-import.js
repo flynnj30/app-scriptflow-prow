@@ -1,5 +1,5 @@
 // ================================================================
-// SMART IMPORT ENHANCED - Advanced Transcript Parsing
+// SMART IMPORT ENHANCED - AI-Powered Transcript Parsing
 // Complete replacement for smart-import.js
 // ================================================================
 
@@ -10,104 +10,134 @@ const SMART_IMPORT = {
     // Field mappings for intelligent parsing
     FIELD_MAPPINGS: {
         business: {
-            labels: ['business', 'company', 'organization', 'org', 'firm', 'brand', 'store', 'business name', 'company name', 'client', 'account'],
+            labels: ['business', 'company', 'organization', 'org', 'firm', 'brand', 'store', 'business name', 'company name', 'client', 'account', 'firm name'],
             confidence: 0.9
         },
         name: {
-            labels: ['name', 'contact', 'contact name', 'client name', 'customer name', 'person', 'full name', 'first name', 'last name', 'prospect', 'lead name'],
+            labels: ['name', 'contact', 'contact name', 'client name', 'customer name', 'person', 'full name', 'first name', 'last name', 'prospect', 'lead name', 'contact person'],
             confidence: 0.9
         },
         role: {
-            labels: ['role', 'title', 'position', 'job title', 'designation', 'function', 'department', 'job role'],
+            labels: ['role', 'title', 'position', 'job title', 'designation', 'function', 'department', 'job role', 'job position'],
             confidence: 0.85
         },
         phone: {
-            labels: ['phone', 'mobile', 'cell', 'telephone', 'number', 'contact number', 'phone number', 'mobile number', 'phone no', 'cell phone', 'work phone', 'home phone', 'tel'],
+            labels: ['phone', 'mobile', 'cell', 'telephone', 'number', 'contact number', 'phone number', 'mobile number', 'phone no', 'cell phone', 'work phone', 'home phone', 'tel', 'telephone number'],
             confidence: 0.9
         },
         email: {
-            labels: ['email', 'e-mail', 'mail', 'email address', 'e-mail address', 'contact email', 'work email', 'personal email'],
+            labels: ['email', 'e-mail', 'mail', 'email address', 'e-mail address', 'contact email', 'work email', 'personal email', 'email id'],
             confidence: 0.9
         },
         date: {
-            labels: ['date', 'appointment date', 'demo date', 'schedule date', 'meeting date', 'call date', 'day', 'best time', 'callback date', 'scheduled date', 'event date', 'when', 'demo time & date', 'appointment'],
+            labels: ['date', 'appointment date', 'demo date', 'schedule date', 'meeting date', 'call date', 'day', 'best time', 'callback date', 'scheduled date', 'event date', 'when', 'demo time & date', 'appointment', 'scheduled for'],
             confidence: 0.85
         },
         time: {
-            labels: ['time', 'appointment time', 'demo time', 'schedule time', 'meeting time', 'call time', 'hour', 'callback time', 'scheduled time', 'event time', 'at'],
+            labels: ['time', 'appointment time', 'demo time', 'schedule time', 'meeting time', 'call time', 'hour', 'callback time', 'scheduled time', 'event time', 'at', 'appointment at'],
             confidence: 0.85
         },
         status: {
-            labels: ['status', 'state', 'stage', 'lead status', 'appointment status', 'call status', 'phase', 'step', 'demo status'],
+            labels: ['status', 'state', 'stage', 'lead status', 'appointment status', 'call status', 'phase', 'step', 'demo status', 'outcome', 'result'],
             confidence: 0.8,
-            options: ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held']
+            options: ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held', 'Personal Callback', 'No Show']
         },
         notes: {
-            labels: ['notes', 'note', 'comment', 'remarks', 'additional notes', 'info', 'details', 'description', 'summary', 'observation', 'feedback', 'developer notes', 'notes for the developer'],
+            labels: ['notes', 'note', 'comment', 'remarks', 'additional notes', 'info', 'details', 'description', 'summary', 'observation', 'feedback', 'developer notes', 'notes for the developer', 'call notes', 'conversation notes'],
             confidence: 0.7
         },
         assigned: {
-            labels: ['assigned', 'assigned to', 'owner', 'agent', 'representative', 'rep', 'assigned agent', 'team member', 'handler', 'manager'],
+            labels: ['assigned', 'assigned to', 'owner', 'agent', 'representative', 'rep', 'assigned agent', 'team member', 'handler', 'manager', 'closer', 'booker'],
             confidence: 0.7
         },
         tags: {
-            labels: ['tags', 'tag', 'label', 'labels', 'category'],
+            labels: ['tags', 'tag', 'label', 'labels', 'category', 'categories'],
             confidence: 0.6
         },
         sentiment: {
-            labels: ['sentiment', 'feeling', 'tone', 'mood', 'attitude'],
+            labels: ['sentiment', 'feeling', 'tone', 'mood', 'attitude', 'emotion'],
             confidence: 0.5
         },
         industry: {
-            labels: ['industry', 'sector', 'field', 'type', 'vertical'],
+            labels: ['industry', 'sector', 'field', 'type', 'vertical', 'business type'],
             confidence: 0.5
         },
         website: {
-            labels: ['website', 'url', 'web', 'site', 'current website'],
+            labels: ['website', 'url', 'web', 'site', 'current website', 'web address'],
             confidence: 0.6
         },
         address: {
-            labels: ['address', 'location', 'street', 'city', 'state', 'zip', 'location'],
+            labels: ['address', 'location', 'street', 'city', 'state', 'zip', 'location', 'business address'],
             confidence: 0.5
         }
     },
 
     // Auto-tagging rules
     AUTO_TAG_RULES: [
-        { pattern: /no website|doesn't have a website|needs website|wants website|website redesign|no current website|no site/i, tag: 'no_website' },
-        { pattern: /high interest|very interested|excited|enthusiastic|positive|great|excellent|wants|would like|looking forward|interested/i, tag: 'high_interest' },
-        { pattern: /vip|priority|important|key|major|top|critical|urgent/i, tag: 'vip' },
-        { pattern: /callback|call back|return call|follow up|follow-up|next steps|schedule call|demo|walkthrough|meeting/i, tag: 'callback_requested' },
-        { pattern: /referred|reference|referral|recommended|suggested|from|sent by/i, tag: 'referred' },
-        { pattern: /decision maker|owner|ceo|president|founder|director|manager|leader|head of/i, tag: 'decision_maker' },
-        { pattern: /qualified|warm call|good fit|ideal|perfect fit|qualified lead|good prospect/i, tag: 'qualified_warm_call' },
-        { pattern: /social media|word of mouth|facebook|instagram|linkedin|social/i, tag: 'social_media' },
-        { pattern: /cold call|cold outreach|intro|introduction|first contact/i, tag: 'cold_lead' },
-        { pattern: /busy|available|free|schedule|booked|confirmed/i, tag: 'scheduled' },
-        { pattern: /discovery|explore|discuss|goals|objectives|needs|requirements/i, tag: 'discovery' },
-        { pattern: /deferred|postponed|later|reschedule|another time/i, tag: 'deferred' },
-        { pattern: /no show|didn't show|did not show|failed to show|missed|no-show/i, tag: 'no_show' },
-        { pattern: /hot transfer|hot lead|ready now|ready to close|urgent|immediate|hot/i, tag: 'hot_lead' },
-        { pattern: /meeting booked|booked|demo booked|scheduled|confirmed|appointment set/i, tag: 'booked' }
+        { pattern: /no website|doesn't have a website|needs website|wants website|website redesign|no current website|no site|doesn't have site|needs a website|wants a website/i, tag: 'no_website' },
+        { pattern: /high interest|very interested|excited|enthusiastic|positive|great|excellent|wants|would like|looking forward|interested|keen|motivated|willing/i, tag: 'high_interest' },
+        { pattern: /vip|priority|important|key|major|top|critical|urgent|hot lead|hot prospect/i, tag: 'vip' },
+        { pattern: /callback|call back|return call|follow up|follow-up|next steps|schedule call|demo|walkthrough|meeting|book call|set call/i, tag: 'callback_requested' },
+        { pattern: /referred|reference|referral|recommended|suggested|from|sent by|introduced|referred by/i, tag: 'referred' },
+        { pattern: /decision maker|owner|ceo|president|founder|director|manager|leader|head of|partner|principal/i, tag: 'decision_maker' },
+        { pattern: /qualified|warm call|good fit|ideal|perfect fit|qualified lead|good prospect|right fit|great fit/i, tag: 'qualified_warm_call' },
+        { pattern: /social media|word of mouth|facebook|instagram|linkedin|social|twitter|youtube|tiktok/i, tag: 'social_media' },
+        { pattern: /cold call|cold outreach|intro|introduction|first contact|initial call|first call/i, tag: 'cold_lead' },
+        { pattern: /busy|available|free|schedule|booked|confirmed|set|fixed|locked in/i, tag: 'scheduled' },
+        { pattern: /discovery|explore|discuss|goals|objectives|needs|requirements|pain points|challenges/i, tag: 'discovery' },
+        { pattern: /deferred|postponed|later|reschedule|another time|push back|move/i, tag: 'deferred' },
+        { pattern: /no show|didn't show|did not show|failed to show|missed|no-show|didn't attend|skipped/i, tag: 'no_show' },
+        { pattern: /hot transfer|hot lead|ready now|ready to close|urgent|immediate|hot|transfer/i, tag: 'hot_lead' },
+        { pattern: /meeting booked|booked|demo booked|scheduled|confirmed|appointment set|calendar invite sent|meeting set/i, tag: 'booked' },
+        { pattern: /personal callback|personal call|call back personally|call me back|call me directly|my cell/i, tag: 'personal_callback' }
     ],
 
     // Sentiment detection patterns
     SENTIMENT_PATTERNS: {
-        'Very Positive': /(?:amazing|excellent|outstanding|fantastic|perfect|brilliant|incredible|wonderful|extraordinary|exceptional|superb|phenomenal|remarkable)/i,
-        'Positive': /(?:great|good|nice|positive|happy|pleased|satisfied|impressed|interested|excited|enthusiastic|optimistic|favorable)/i,
-        'Neutral': /(?:okay|fine|alright|neutral|average|decent|moderate|standard|normal|fair|adequate)/i,
-        'Negative': /(?:bad|poor|terrible|awful|horrible|disappointed|unhappy|frustrated|annoyed|irritated|concerned|worried)/i,
-        'Very Negative': /(?:worst|horrible|disgusting|atrocious|abysmal|appalling|dreadful|unacceptable|terrible|awful)/i
+        'Very Positive': /(?:amazing|excellent|outstanding|fantastic|perfect|brilliant|incredible|wonderful|extraordinary|exceptional|superb|phenomenal|remarkable|unbelievable|awesome|spectacular)/i,
+        'Positive': /(?:great|good|nice|positive|happy|pleased|satisfied|impressed|interested|excited|enthusiastic|optimistic|favorable|well|fine|glad)/i,
+        'Neutral': /(?:okay|fine|alright|neutral|average|decent|moderate|standard|normal|fair|adequate|acceptable|reasonable)/i,
+        'Negative': /(?:bad|poor|terrible|awful|horrible|disappointed|unhappy|frustrated|annoyed|irritated|concerned|worried|upset|angry|mad)/i,
+        'Very Negative': /(?:worst|horrible|disgusting|atrocious|abysmal|appalling|dreadful|unacceptable|terrible|awful|hopeless|useless)/i
     },
 
     // Source detection
     SOURCE_PATTERNS: {
-        'Smart Import': /(?:import|pasted|bulk|from text)/i,
-        'Manual Entry': /(?:manual|entered|typed|direct)/i,
-        'CSV Import': /(?:csv|spreadsheet|excel|sheet)/i,
-        'API': /(?:api|integration|sync|imported)/i,
-        'Web Form': /(?:form|web|online|submitted)/i
-    }
+        'Smart Import': /(?:import|pasted|bulk|from text|transcript)/i,
+        'Manual Entry': /(?:manual|entered|typed|direct|keyed)/i,
+        'CSV Import': /(?:csv|spreadsheet|excel|sheet|tsv)/i,
+        'API': /(?:api|integration|sync|imported|webhook)/i,
+        'Web Form': /(?:form|web|online|submitted|contact form)/i
+    },
+
+    // Meeting outcome detection
+    OUTCOME_PATTERNS: {
+        'Meeting Booked': /(?:meeting booked|booked|demo booked|scheduled|confirmed|appointment set|calendar invite sent|meeting set|call scheduled|demo scheduled)/i,
+        'Warm Callback': /(?:warm callback|callback|follow up|follow-up|return call|call back later|check back)/i,
+        'Personal Callback': /(?:personal callback|personal call|call me back directly|my cell|personal number|direct line)/i,
+        'Hot Transfer': /(?:hot transfer|transfer now|connect now|hot handoff|immediate transfer)/i,
+        'Completed': /(?:completed|done|finished|closed|finalized|wrapped up|concluded)/i,
+        'Canceled': /(?:canceled|cancelled|off|called off|not happening|no longer|scrapped)/i,
+        'No Show': /(?:no show|didn't show|did not show|failed to show|missed|no-show|didn't attend|skipped|not attended)/i,
+        'Rescheduled': /(?:rescheduled|moved|pushed back|postponed|new time|different day|changed date|moved to)/i,
+        'Pending': /(?:pending|awaiting|waiting|not yet|tbd|to be determined|undecided|open|unresolved)/i
+    },
+
+    // Date/time phrases for natural language parsing
+    DATE_TIME_PHRASES: {
+        'today': /today/i,
+        'tomorrow': /tomorrow/i,
+        'yesterday': /yesterday/i,
+        'next week': /next week/i,
+        'this week': /this week/i,
+        'next month': /next month/i,
+        'this month': /this month/i
+    },
+
+    // Month names
+    MONTHS: ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'],
+    MONTHS_SHORT: ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'],
+    DAYS: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 };
 
 // ================================================================
@@ -129,7 +159,7 @@ const SmartImportState = {
     results: null,
     parseConfig: {
         defaultDate: null,
-        defaultStatus: 'Pending',
+        defaultStatus: 'Meeting Booked',
         defaultAssigned: 'Daniel',
         autoTag: true,
         autoSentiment: true,
@@ -137,7 +167,10 @@ const SmartImportState = {
         detectDuplicates: true,
         confidenceThreshold: 0.5,
         duplicateMatchThreshold: 0.7
-    }
+    },
+    isParsing: false,
+    parseStartTime: null,
+    parseEndTime: null
 };
 
 // ================================================================
@@ -151,11 +184,15 @@ class SmartImportEnhanced {
         this.autoTagRules = SMART_IMPORT.AUTO_TAG_RULES;
         this.sentimentPatterns = SMART_IMPORT.SENTIMENT_PATTERNS;
         this.sourcePatterns = SMART_IMPORT.SOURCE_PATTERNS;
+        this.outcomePatterns = SMART_IMPORT.OUTCOME_PATTERNS;
+        this.dateTimePhrases = SMART_IMPORT.DATE_TIME_PHRASES;
+        this.months = SMART_IMPORT.MONTHS;
+        this.monthsShort = SMART_IMPORT.MONTHS_SHORT;
+        this.days = SMART_IMPORT.DAYS;
     }
 
     /**
-     * Parse transcript text into structured appointment data
-     * Enhanced with natural language date/time detection
+     * AI-Powered parse transcript - Main entry point
      */
     parseTranscript(text, options = {}) {
         const config = { ...this.config, ...options };
@@ -186,8 +223,8 @@ class SmartImportEnhanced {
         // STEP 6: Extract date and time (natural language)
         this._extractDateTime(fullText, result, confidence, warnings);
         
-        // STEP 7: Extract status from context
-        this._extractStatus(fullText, result, confidence);
+        // STEP 7: Extract status/outcome from context
+        this._extractStatus(fullText, result, confidence, warnings);
         
         // STEP 8: Extract notes for developer
         this._extractDeveloperNotes(fullText, lines, result, confidence);
@@ -214,11 +251,14 @@ class SmartImportEnhanced {
         const isValid = this._validateRequiredFields(result);
         const errors = this._getValidationErrors(result);
         
-        // Generate developer notes if empty
-        if (!result.notes || result.notes.trim().length < 3) {
+        // Generate developer notes if empty or too short
+        if (!result.notes || result.notes.trim().length < 10) {
             result.notes = this._generateDeveloperNotes(result, fullText);
-            confidence.notes = 0.6;
+            confidence.notes = 0.7;
         }
+        
+        // Check for missing/uncertain fields
+        const uncertainFields = this._getUncertainFields(result, confidence);
         
         return {
             result,
@@ -226,6 +266,7 @@ class SmartImportEnhanced {
             context,
             warnings,
             errors,
+            uncertainFields,
             isValid: isValid && errors.length === 0
         };
     }
@@ -276,18 +317,18 @@ class SmartImportEnhanced {
      * Extract key-value pairs from transcript
      */
     _extractKeyValuePairs(lines, result, confidence, warnings) {
-        const separators = [':', '=', '->', '=>', 'â€”'];
+        const separators = [':', '=', '->', '=>', 'â€”', '|'];
         const fieldPatterns = {
-            'business': /(?:business|company|organization|org|firm|brand|store)/i,
-            'name': /(?:name|contact|client|customer|person|full name|contact name)/i,
-            'phone': /(?:phone|mobile|cell|telephone|number|contact number|phone number)/i,
-            'email': /(?:email|e-mail|mail|email address)/i,
-            'date': /(?:date|appointment date|demo date|schedule date|meeting date|call date|day|best time|callback date|scheduled date|event date)/i,
-            'time': /(?:time|appointment time|demo time|schedule time|meeting time|call time|hour|callback time|scheduled time|event time)/i,
-            'status': /(?:status|state|stage|lead status|appointment status|call status|demo status)/i,
-            'notes': /(?:notes|note|comment|remarks|additional notes|info|details|description|summary|developer notes)/i,
-            'assigned': /(?:assigned|assigned to|owner|agent|representative|rep|handler|manager)/i,
-            'role': /(?:role|title|position|job title|designation|job role)/i
+            'business': /(?:business|company|organization|org|firm|brand|store|company name|business name)/i,
+            'name': /(?:name|contact|client|customer|person|full name|contact name|contact person)/i,
+            'phone': /(?:phone|mobile|cell|telephone|number|contact number|phone number|mobile number)/i,
+            'email': /(?:email|e-mail|mail|email address|e-mail address)/i,
+            'date': /(?:date|appointment date|demo date|schedule date|meeting date|call date|day|best time|callback date|scheduled date|event date|scheduled for)/i,
+            'time': /(?:time|appointment time|demo time|schedule time|meeting time|call time|hour|callback time|scheduled time|event time|at)/i,
+            'status': /(?:status|state|stage|lead status|appointment status|call status|demo status|outcome|result)/i,
+            'notes': /(?:notes|note|comment|remarks|additional notes|info|details|description|summary|developer notes|call notes)/i,
+            'assigned': /(?:assigned|assigned to|owner|agent|representative|rep|handler|manager|closer|booker)/i,
+            'role': /(?:role|title|position|job title|designation|job role|job position)/i
         };
         
         lines.forEach(line => {
@@ -345,19 +386,18 @@ class SmartImportEnhanced {
             const year = dateTimeMatch[4] ? parseInt(dateTimeMatch[4]) : new Date().getFullYear();
             const time = dateTimeMatch[5];
             
-            const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-            const monthIndex = months.indexOf(monthName.toLowerCase());
+            const monthIndex = this._getMonthIndex(monthName);
             
             if (monthIndex !== -1) {
                 const dateObj = new Date(year, monthIndex, day);
                 if (!isNaN(dateObj.getTime())) {
-                    result.date = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    result.date = this._formatDate(dateObj);
                     confidence.date = 0.95;
                 }
             }
             
             if (time) {
-                result.time = time.trim();
+                result.time = this._normalizeTime(time.trim());
                 confidence.time = 0.95;
             }
         } else {
@@ -371,7 +411,7 @@ class SmartImportEnhanced {
             // Try to parse as time only
             const timeMatch = value.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))|(\d{1,2}\s*(?:AM|PM))/i);
             if (timeMatch) {
-                result.time = timeMatch[0].trim();
+                result.time = this._normalizeTime(timeMatch[0].trim());
                 confidence.time = 0.85;
             }
         }
@@ -384,11 +424,12 @@ class SmartImportEnhanced {
         if (result.business) return;
         
         const patterns = [
-            /(?:business|company|organization|org|firm|brand|store)[:\s]+([A-Z][a-zA-Z0-9\s&.,\-]+?)(?:[,.\n]|$)/i,
-            /(?:from|at|with)\s+([A-Z][a-zA-Z0-9\s&.,\-]+?)(?:[,.\n]|$)/i,
-            /^([A-Z][a-zA-Z0-9\s&.,\-]+?)\s+(?:business|company|organization)/i,
-            /(?:for|about)\s+([A-Z][a-zA-Z0-9\s&.,\-]+?)(?:[,.\n]|$)/i,
-            /(?:company|business)[:\s]+([A-Z][a-zA-Z0-9\s&.,\-]+)/i
+            /(?:business|company|organization|org|firm|brand|store|business name|company name)[:\s]+([A-Z][a-zA-Z0-9\s&.,\-']+?)(?:[,.\n]|$)/i,
+            /(?:from|at|with)\s+([A-Z][a-zA-Z0-9\s&.,\-']+?)(?:[,.\n]|$)/i,
+            /^([A-Z][a-zA-Z0-9\s&.,\-']+?)\s+(?:business|company|organization)/i,
+            /(?:for|about)\s+([A-Z][a-zA-Z0-9\s&.,\-']+?)(?:[,.\n]|$)/i,
+            /(?:company|business)[:\s]+([A-Z][a-zA-Z0-9\s&.,\-']+)/i,
+            /(?:working with|dealing with)\s+([A-Z][a-zA-Z0-9\s&.,\-']+?)(?:[,.\n]|$)/i
         ];
         
         for (const pattern of patterns) {
@@ -396,7 +437,7 @@ class SmartImportEnhanced {
             if (match && match[1]) {
                 const business = match[1].trim();
                 // Clean up common suffixes
-                const cleaned = business.replace(/\s*(?:business|company|inc|llc|ltd|corp|corporation|agency|studios?|designs?|solutions|services|consulting|group|partners|associates)\s*$/i, '').trim();
+                const cleaned = business.replace(/\s*(?:business|company|inc|llc|ltd|corp|corporation|agency|studios?|designs?|solutions|services|consulting|group|partners|associates|enterprises?|ventures?)\s*$/i, '').trim();
                 result.business = cleaned || business;
                 confidence.business = 0.85;
                 return;
@@ -406,11 +447,10 @@ class SmartImportEnhanced {
         // Try to find capitalized phrase that looks like a business name
         const businessPhrases = text.match(/([A-Z][a-zA-Z0-9\s&.,\-']{2,30})(?:\s+(?:is|are|was|were|has|have|will|would|could|should|may|might))/g);
         if (businessPhrases && businessPhrases.length > 0) {
-            // Take the longest one that isn't a person's name
             const sorted = businessPhrases.sort((a, b) => b.length - a.length);
             for (const phrase of sorted) {
                 const cleaned = phrase.replace(/\s+(?:is|are|was|were|has|have|will|would|could|should|may|might)$/, '').trim();
-                if (cleaned.length > 3 && !this._isPersonName(cleaned)) {
+                if (cleaned.length > 3 && !this._isPersonName(cleaned) && !this._isLocationName(cleaned)) {
                     result.business = cleaned;
                     confidence.business = 0.6;
                     return;
@@ -432,6 +472,12 @@ class SmartImportEnhanced {
         return false;
     }
     
+    _isLocationName(text) {
+        const locationKeywords = ['city', 'town', 'village', 'county', 'state', 'province', 'region', 'district'];
+        const lower = text.toLowerCase();
+        return locationKeywords.some(kw => lower.includes(kw));
+    }
+    
     /**
      * Extract contact name
      */
@@ -439,19 +485,20 @@ class SmartImportEnhanced {
         if (result.name) return;
         
         const patterns = [
-            /(?:name|contact|client|customer|person|full name|contact name)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+            /(?:name|contact|client|customer|person|full name|contact name|contact person)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
             /(?:from|with|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
             /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:from|at|with|said|wants|would like|requested|called|spoke|talked)/i,
             /contact[:\s]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
             /(?:name|contact)[:\s]+([A-Z][a-z]+)/i,
-            /(?:spoke|talked|connected|chatted|conversed)\s+with\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i
+            /(?:spoke|talked|connected|chatted|conversed)\s+with\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+            /(?:person)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i
         ];
         
         for (const pattern of patterns) {
             const match = text.match(pattern);
             if (match && match[1]) {
                 const name = match[1].trim();
-                if (name.length >= 2 && /^[A-Z]/.test(name)) {
+                if (name.length >= 2 && /^[A-Z]/.test(name) && !this._isBusinessName(name)) {
                     result.name = name;
                     confidence.name = 0.85;
                     return;
@@ -463,19 +510,17 @@ class SmartImportEnhanced {
         const nameMatches = text.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/g);
         if (nameMatches) {
             for (const match of nameMatches) {
-                if (match.length >= 2 && match.length < 30) {
-                    if (!this._isBusinessName(match)) {
-                        result.name = match;
-                        confidence.name = 0.5;
-                        return;
-                    }
+                if (match.length >= 2 && match.length < 30 && !this._isBusinessName(match)) {
+                    result.name = match;
+                    confidence.name = 0.5;
+                    return;
                 }
             }
         }
     }
     
     _isBusinessName(text) {
-        const businessSuffixes = ['company', 'inc', 'llc', 'ltd', 'corp', 'corp', 'agency', 'studio', 'design', 'solution', 'service', 'consulting', 'group', 'partner', 'associate', 'solutions', 'services', 'consultants', 'pro', 'specialists', 'experts', 'team', 'lab', 'labs', 'works', 'workshop'];
+        const businessSuffixes = ['company', 'inc', 'llc', 'ltd', 'corp', 'corp', 'agency', 'studio', 'design', 'solution', 'service', 'consulting', 'group', 'partner', 'associate', 'solutions', 'services', 'consultants', 'pro', 'specialists', 'experts', 'team', 'lab', 'labs', 'works', 'workshop', 'enterprises', 'ventures', 'holdings', 'industries', 'systems', 'technologies'];
         const lower = text.toLowerCase();
         for (const suffix of businessSuffixes) {
             if (lower.includes(suffix)) return true;
@@ -490,12 +535,13 @@ class SmartImportEnhanced {
         if (result.phone) return;
         
         const patterns = [
-            /(?:phone|mobile|cell|telephone|number|call|tel)[:\s]+([+\d\s\-\(\)]{7,20})/i,
+            /(?:phone|mobile|cell|telephone|number|call|tel|phone number|mobile number)[:\s]+([+\d\s\-\(\)]{7,20})/i,
             /([+\d\s\-\(\)]{10,20})(?:\s*(?:is|was|will be|the|their|his|her|for|at))/i,
             /(?:call|reach|contact)\s+(?:at|on|via)\s+([+\d\s\-\(\)]{10,20})/i,
             /(\d{3}[-.]?\d{3}[-.]?\d{4})/,
             /\(\d{3}\)\s*\d{3}[-.]?\d{4}/,
-            /(\+\d{1,3}[\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{4})/
+            /(\+\d{1,3}[\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{4})/,
+            /(\d{3}\s+\d{3}\s+\d{4})/
         ];
         
         for (const pattern of patterns) {
@@ -504,17 +550,24 @@ class SmartImportEnhanced {
                 let phone = match[1].trim();
                 phone = phone.replace(/[^\d+]/g, '');
                 if (phone.length >= 7 && phone.length <= 15) {
-                    if (phone.length === 10 && /^\d{10}$/.test(phone)) {
-                        phone = `(${phone.substring(0, 3)}) ${phone.substring(3, 6)}-${phone.substring(6)}`;
-                    } else if (phone.length === 11 && phone.startsWith('1') && /^\d{11}$/.test(phone)) {
-                        phone = `+1 (${phone.substring(1, 4)}) ${phone.substring(4, 7)}-${phone.substring(7)}`;
-                    }
+                    phone = this._formatPhoneNumber(phone);
                     result.phone = phone;
                     confidence.phone = 0.95;
                     return;
                 }
             }
         }
+    }
+    
+    _formatPhoneNumber(phone) {
+        if (phone.length === 10 && /^\d{10}$/.test(phone)) {
+            return `(${phone.substring(0, 3)}) ${phone.substring(3, 6)}-${phone.substring(6)}`;
+        } else if (phone.length === 11 && phone.startsWith('1') && /^\d{11}$/.test(phone)) {
+            return `+1 (${phone.substring(1, 4)}) ${phone.substring(4, 7)}-${phone.substring(7)}`;
+        } else if (phone.length > 10) {
+            return `+${phone}`;
+        }
+        return phone;
     }
     
     /**
@@ -540,7 +593,7 @@ class SmartImportEnhanced {
         if (result.date && !result.time) {
             const timeMatch = text.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))|(\d{1,2}\s*(?:AM|PM))/i);
             if (timeMatch) {
-                result.time = timeMatch[0].trim();
+                result.time = this._normalizeTime(timeMatch[0].trim());
                 confidence.time = 0.85;
             }
             return;
@@ -548,10 +601,11 @@ class SmartImportEnhanced {
         
         // Look for date/time phrases in natural language
         const patterns = [
-            /(?:demo|appointment|meeting|call|schedule|booked|on|at|for)\s+([A-Za-z]+(?:day)?)\s*,?\s*([A-Za-z]+)\s*(\d{1,2})\s*(?:,?\s*(\d{4}))?\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i,
+            /(?:demo|appointment|meeting|call|schedule|booked|on|at|for|scheduled for)\s+([A-Za-z]+(?:day)?)\s*,?\s*([A-Za-z]+)\s*(\d{1,2})\s*(?:,?\s*(\d{4}))?\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i,
             /([A-Za-z]+(?:day)?)\s*,?\s*([A-Za-z]+)\s*(\d{1,2})\s*,?\s*(\d{4})\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i,
             /([A-Za-z]+)\s*(\d{1,2})\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i,
-            /(?:today|tomorrow|yesterday)\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i
+            /(?:today|tomorrow|yesterday)\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i,
+            /(?:next|this|last)\s+(?:week|month)\s*(?:on\s*)?([A-Za-z]+(?:day)?)\s*(?:at\s*)?(\d{1,2}:\d{2}\s*(?:AM|PM))?/i
         ];
         
         for (const pattern of patterns) {
@@ -579,30 +633,37 @@ class SmartImportEnhanced {
                 } else if (match.length >= 2) {
                     const dayStr = match[1].toLowerCase();
                     const date = new Date();
+                    
                     if (dayStr === 'today') {
                         // keep current date
                     } else if (dayStr === 'tomorrow') {
                         date.setDate(date.getDate() + 1);
                     } else if (dayStr === 'yesterday') {
                         date.setDate(date.getDate() - 1);
+                    } else if (dayStr === 'next week') {
+                        date.setDate(date.getDate() + 7);
+                    } else if (dayStr === 'next month') {
+                        date.setMonth(date.getMonth() + 1);
                     }
                     
                     if (!result.date) {
-                        result.date = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                        result.date = this._formatDate(date);
                         confidence.date = 0.9;
                     }
-                    time = match[1];
+                    
+                    if (match[1]) {
+                        time = match[1];
+                    }
                 }
                 
                 // Parse month name
                 if (monthName) {
-                    const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-                    const monthIndex = months.indexOf(monthName.toLowerCase());
+                    const monthIndex = this._getMonthIndex(monthName);
                     
                     if (monthIndex !== -1 && day) {
                         const dateObj = new Date(year || new Date().getFullYear(), monthIndex, day);
                         if (!isNaN(dateObj.getTime())) {
-                            result.date = `${dateObj.getFullYear()}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                            result.date = this._formatDate(dateObj);
                             confidence.date = 0.95;
                         }
                     }
@@ -610,7 +671,7 @@ class SmartImportEnhanced {
                 
                 // Parse time
                 if (time) {
-                    result.time = time.trim();
+                    result.time = this._normalizeTime(time.trim());
                     confidence.time = 0.95;
                 }
                 
@@ -621,10 +682,11 @@ class SmartImportEnhanced {
         // If still no date, try date-only patterns
         if (!result.date) {
             const datePatterns = [
-                /(?:date|appointment|scheduled|meeting|call|day|demo)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,
+                /(?:date|appointment|scheduled|meeting|call|day|demo|scheduled for)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,
                 /(?:on|for)\s+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,
                 /(\d{1,2}\/\d{1,2}\/\d{4})/,
-                /(\d{4}-\d{2}-\d{2})/
+                /(\d{4}-\d{2}-\d{2})/,
+                /(\d{1,2}\.\d{1,2}\.\d{4})/
             ];
             for (const pattern of datePatterns) {
                 const match = text.match(pattern);
@@ -650,14 +712,7 @@ class SmartImportEnhanced {
             for (const pattern of timePatterns) {
                 const match = text.match(pattern);
                 if (match && match[1]) {
-                    let time = match[1].trim();
-                    if (!time.includes(':') && (time.includes('AM') || time.includes('PM'))) {
-                        const hour = parseInt(time);
-                        if (hour >= 1 && hour <= 12) {
-                            time = `${hour}:00 ${time.replace(/\d+/, '').trim()}`;
-                        }
-                    }
-                    result.time = time;
+                    result.time = this._normalizeTime(match[1].trim());
                     confidence.time = 0.85;
                     break;
                 }
@@ -674,6 +729,38 @@ class SmartImportEnhanced {
         }
     }
     
+    _getMonthIndex(monthName) {
+        const lower = monthName.toLowerCase();
+        const index = this.months.indexOf(lower);
+        if (index !== -1) return index;
+        return this.monthsShort.indexOf(lower);
+    }
+    
+    _formatDate(date) {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
+    
+    _normalizeTime(time) {
+        if (!time) return '';
+        const parts = time.split(':');
+        if (parts.length === 2) {
+            let hour = parseInt(parts[0]);
+            let minute = parseInt(parts[1].replace(/\D/g, ''));
+            const ampm = parts[1].toUpperCase().includes('PM') ? 'PM' : (parts[1].toUpperCase().includes('AM') ? 'AM' : '');
+            
+            if (ampm === 'PM' && hour < 12) hour += 12;
+            if (ampm === 'AM' && hour === 12) hour = 0;
+            
+            if (hour >= 12) {
+                const displayHour = hour === 12 ? 12 : hour - 12;
+                return `${displayHour}:${String(minute).padStart(2, '0')} PM`;
+            } else {
+                return `${hour === 0 ? 12 : hour}:${String(minute).padStart(2, '0')} AM`;
+            }
+        }
+        return time;
+    }
+    
     /**
      * Parse date string to YYYY-MM-DD
      */
@@ -681,6 +768,7 @@ class SmartImportEnhanced {
         if (!dateStr) return null;
         const trimmed = dateStr.trim();
         
+        // ISO format: YYYY-MM-DD
         const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
         if (isoMatch) {
             const year = parseInt(isoMatch[1]);
@@ -688,10 +776,11 @@ class SmartImportEnhanced {
             const day = parseInt(isoMatch[3]);
             const date = new Date(year, month, day);
             if (!isNaN(date.getTime())) {
-                return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                return this._formatDate(date);
             }
         }
         
+        // US format: MM/DD/YYYY
         const usMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
         if (usMatch) {
             const month = parseInt(usMatch[1]) - 1;
@@ -699,21 +788,32 @@ class SmartImportEnhanced {
             const year = parseInt(usMatch[3]);
             const date = new Date(year, month, day);
             if (!isNaN(date.getTime())) {
-                return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                return this._formatDate(date);
             }
         }
         
+        // European format: DD.MM.YYYY
+        const euMatch = trimmed.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+        if (euMatch) {
+            const day = parseInt(euMatch[1]);
+            const month = parseInt(euMatch[2]) - 1;
+            const year = parseInt(euMatch[3]);
+            const date = new Date(year, month, day);
+            if (!isNaN(date.getTime())) {
+                return this._formatDate(date);
+            }
+        }
+        
+        // Natural format: Month Day, Year
         const naturalMatch = trimmed.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/i);
         if (naturalMatch) {
-            const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-            const monthName = naturalMatch[1].toLowerCase();
-            const monthIndex = months.indexOf(monthName);
+            const monthIndex = this._getMonthIndex(naturalMatch[1]);
             if (monthIndex !== -1) {
                 const day = parseInt(naturalMatch[2]);
                 const year = parseInt(naturalMatch[3]);
                 const date = new Date(year, monthIndex, day);
                 if (!isNaN(date.getTime())) {
-                    return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    return this._formatDate(date);
                 }
             }
         }
@@ -722,26 +822,15 @@ class SmartImportEnhanced {
     }
     
     /**
-     * Extract status from context
+     * Extract status/outcome from context
      */
-    _extractStatus(text, result, confidence) {
+    _extractStatus(text, result, confidence, warnings) {
         if (result.status) return;
-        
-        const statusMap = {
-            'Hot Transfer': /(?:hot transfer|hot lead|ready now|ready to close|urgent|immediate|hot)/i,
-            'Meeting Booked': /(?:meeting booked|booked|demo booked|scheduled|confirmed|appointment set|calendar invite sent)/i,
-            'Held': /(?:held|meeting held|demo held|completed meeting|attended|showed up|show up)/i,
-            'Rescheduled': /(?:rescheduled|moved|pushed back|postponed|new time|different day)/i,
-            'Canceled': /(?:canceled|cancelled|no show|didn\'t show|no-show|not show|failed to show)/i,
-            'Completed': /(?:completed|done|finished|closed|finalized)/i,
-            'Warm Callback': /(?:warm callback|callback|call back|follow up|follow-up|return call)/i,
-            'Pending': /(?:pending|awaiting|waiting|not yet|tbd|to be determined)/i
-        };
         
         let highestConfidence = 0;
         let matchedStatus = null;
         
-        for (const [status, pattern] of Object.entries(statusMap)) {
+        for (const [status, pattern] of Object.entries(this.outcomePatterns)) {
             if (pattern.test(text)) {
                 const matchCount = (text.match(pattern) || []).length;
                 const conf = Math.min(0.5 + matchCount * 0.15, 0.95);
@@ -755,6 +844,12 @@ class SmartImportEnhanced {
         if (matchedStatus) {
             result.status = matchedStatus;
             confidence.status = highestConfidence;
+        } else {
+            // Default to Meeting Booked if there's evidence of a meeting
+            if (/meeting|demo|appointment|schedule|book|call/i.test(text)) {
+                result.status = 'Meeting Booked';
+                confidence.status = 0.5;
+            }
         }
     }
     
@@ -765,7 +860,7 @@ class SmartImportEnhanced {
         if (result.notes && result.notes.length > 10) return;
         
         const notePatterns = [
-            /(?:notes|note|comment|remarks|additional notes|info|details|description|summary|developer notes)[:\s]+(.+?)(?=\n\s*\n|$)/i,
+            /(?:notes|note|comment|remarks|additional notes|info|details|description|summary|developer notes|call notes)[:\s]+(.+?)(?=\n\s*\n|$)/i,
             /(?:developer notes?|dev notes?|notes for developer|notes to developer)[:\s]+(.+?)(?=\n\s*\n|$)/i
         ];
         
@@ -784,7 +879,8 @@ class SmartImportEnhanced {
         
         if (nonKeyLines.length > 0) {
             let notes = nonKeyLines.join('\n').trim();
-            notes = notes.replace(/[\+\d\s\-\(\)]{7,20}/g, '').replace(/[^\s@]+@[^\s@]+\.[^\s@]+/g, '');
+            notes = notes.replace(/[\+\d\s\-\(\)]{7,20}/g, '');
+            notes = notes.replace(/[^\s@]+@[^\s@]+\.[^\s@]+/g, '');
             notes = notes.replace(/\s+/g, ' ').trim();
             
             if (notes.length > 0) {
@@ -843,7 +939,7 @@ class SmartImportEnhanced {
                     .map(s => s.trim())
                     .slice(0, 3);
                 if (meaningful.length > 0) {
-                    parts.push('\n---\nContext:');
+                    parts.push('\n---\nKey points:');
                     parts.push(meaningful.join(' '));
                 }
             }
@@ -861,8 +957,8 @@ class SmartImportEnhanced {
         if (result.role) return;
         
         const rolePatterns = [
-            /(?:role|title|position|job title|job role)[:\s]+([A-Za-z\s]+?)(?:[,.\n]|$)/i,
-            /(?:owner|manager|ceo|director|supervisor|lead|head|vp|president|founder|administrator|coordinator|specialist|analyst|engineer|developer|designer|consultant|advisor|assistant)/i
+            /(?:role|title|position|job title|job role|job position)[:\s]+([A-Za-z\s]+?)(?:[,.\n]|$)/i,
+            /(?:owner|manager|ceo|director|supervisor|lead|head|vp|president|founder|administrator|coordinator|specialist|analyst|engineer|developer|designer|consultant|advisor|assistant|partner|principal|executive|officer)/i
         ];
         
         for (const pattern of rolePatterns) {
@@ -889,7 +985,7 @@ class SmartImportEnhanced {
         if (result.assigned) return;
         
         const assignedPatterns = [
-            /(?:assigned|assigned to|owner|agent|representative|rep|handler|manager)[:\s]+([A-Z][a-z]+)/i,
+            /(?:assigned|assigned to|owner|agent|representative|rep|handler|manager|closer|booker)[:\s]+([A-Z][a-z]+)/i,
             /(?:will be|handled by|managed by)\s+([A-Z][a-z]+)/i
         ];
         
@@ -932,7 +1028,7 @@ class SmartImportEnhanced {
             }
         }
         
-        // Check for specific status-related tags
+        // Add status-based tags
         if (result.status === 'Hot Transfer' && !tags.includes('hot_lead')) {
             tags.push('hot_lead');
         }
@@ -950,6 +1046,12 @@ class SmartImportEnhanced {
         }
         if (result.status === 'Completed' && !tags.includes('completed')) {
             tags.push('completed');
+        }
+        if (result.status === 'Personal Callback' && !tags.includes('personal_callback')) {
+            tags.push('personal_callback');
+        }
+        if (result.status === 'Rescheduled' && !tags.includes('rescheduled')) {
+            tags.push('rescheduled');
         }
         
         if (tags.length > 0) {
@@ -1025,7 +1127,7 @@ class SmartImportEnhanced {
         }
         
         if (!result.status) {
-            result.status = config.defaultStatus || 'Pending';
+            result.status = config.defaultStatus || 'Meeting Booked';
             confidence.status = 0.5;
         }
         
@@ -1073,6 +1175,24 @@ class SmartImportEnhanced {
         }
         
         return errors;
+    }
+    
+    /**
+     * Get uncertain fields (low confidence or missing)
+     */
+    _getUncertainFields(result, confidence) {
+        const uncertain = [];
+        const requiredFields = ['business', 'name', 'phone', 'email', 'date', 'time', 'status'];
+        
+        for (const field of requiredFields) {
+            if (!result[field] || result[field].trim().length === 0) {
+                uncertain.push({ field, message: `Missing ${field}` });
+            } else if (confidence[field] && confidence[field] < 0.6) {
+                uncertain.push({ field, message: `Low confidence in ${field}` });
+            }
+        }
+        
+        return uncertain;
     }
     
     /**
@@ -1168,7 +1288,7 @@ class SmartImportEnhanced {
         
         for (const line of lines) {
             const isNewAppointment = 
-                line.match(/^[A-Z][a-zA-Z]+\s+(?:Company|Corp|Inc|LLC|Ltd|Agency|Studio|Designs|Solutions|Services|Consulting|Group|Partners|&|Associates)/) ||
+                line.match(/^[A-Z][a-zA-Z]+\s+(?:Company|Corp|Inc|LLC|Ltd|Agency|Studio|Designs|Solutions|Services|Consulting|Group|Partners|&|Associates|Enterprises|Ventures|Holdings|Industries|Systems|Technologies)/) ||
                 line.match(/^---+\s*$/) ||
                 line.match(/^={3,}\s*$/) ||
                 line.match(/^Appointment\s+#\d+/) ||
@@ -1177,8 +1297,8 @@ class SmartImportEnhanced {
             
             if (line.includes(':') && line.split(':')[0].trim().length > 0) {
                 const key = line.split(':')[0].trim().toLowerCase();
-                const isBusinessField = /(?:business|company|organization|org|firm|brand|store)/i.test(key);
-                const isNameField = /(?:name|contact|client|customer|person)/i.test(key);
+                const isBusinessField = /(?:business|company|organization|org|firm|brand|store|business name|company name)/i.test(key);
+                const isNameField = /(?:name|contact|client|customer|person|contact name)/i.test(key);
                 
                 if (isBusinessField && !businessDetected && currentAppointment.length > 0) {
                     if (businessDetected || nameDetected) {
@@ -1241,6 +1361,7 @@ function openSmartImportEnhanced() {
     AppState.importRecords = [];
     AppState.importProcessing = false;
     AppState.importProgress = 0;
+    SmartImportState.isParsing = false;
     
     const dateInput = DOM.get('importDefaultDate');
     if (dateInput) {
@@ -1250,17 +1371,10 @@ function openSmartImportEnhanced() {
     const textArea = DOM.get('importTextArea');
     if (textArea) {
         textArea.value = '';
-        textArea.placeholder = `Paste transcript text here. The system will intelligently parse:
+        textArea.placeholder = `Paste your call transcript or notes here. The AI will intelligently extract all CRM fields.
 
-Example:
-Business Name: MS Auto Parts and Services
-Name: Mitch
-Role: Owner
-Phone Number: +17867637501
-Demo Time & Date: Tuesday, August 3 at 2:30 PM EDT
-Email: mitchsells7501@gmail.com
-Status: Meeting Booked
-Notes: Custom website preview offered, no website currently, high interest, booked manager callback`;
+Example transcript:
+"Just got off the phone with Mitch from MS Auto Parts and Services. He's the owner and very interested in our website services. He said they don't have a website right now and want to grow their business online. I booked a demo for him on Tuesday, August 3 at 2:30 PM EDT. His number is +1 (786) 763-7501 and email is mitchsells7501@gmail.com. High interest, should be a good call."`;
     }
     
     const preview = DOM.get('importPreview');
@@ -1277,6 +1391,13 @@ Notes: Custom website preview offered, no website currently, high interest, book
     
     const summary = DOM.get('importSummary');
     if (summary) summary.style.display = 'none';
+    
+    // Update parse button text
+    const parseBtn = DOM.get('parseImportBtn');
+    if (parseBtn) {
+        parseBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Parse Transcript';
+        parseBtn.disabled = false;
+    }
 }
 
 /**
@@ -1287,10 +1408,11 @@ function closeSmartImportEnhanced() {
     if (modal) modal.style.display = 'none';
     AppState.importRecords = [];
     AppState.importProcessing = false;
+    SmartImportState.isParsing = false;
 }
 
 /**
- * Parse and preview import
+ * AI-Powered parse and preview import
  */
 function parseAndPreviewImportEnhanced() {
     const textArea = DOM.get('importTextArea');
@@ -1298,7 +1420,7 @@ function parseAndPreviewImportEnhanced() {
     
     const text = textArea.value;
     if (!text.trim()) {
-        showToast('Please paste some text to parse', 'warning');
+        showToast('Please paste a transcript to parse', 'warning');
         return;
     }
     
@@ -1308,33 +1430,54 @@ function parseAndPreviewImportEnhanced() {
     const progressContainer = DOM.get('importProgressContainer');
     if (progressContainer) progressContainer.style.display = 'block';
     AppState.importProcessing = true;
+    SmartImportState.isParsing = true;
     AppState.importProgress = 0;
-    updateImportProgress(5, 'Splitting appointments...');
+    SmartImportState.parseStartTime = Date.now();
+    
+    // Update parse button
+    const parseBtn = DOM.get('parseImportBtn');
+    if (parseBtn) {
+        parseBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
+        parseBtn.disabled = true;
+    }
+    
+    updateImportProgress(5, '🧠 AI analyzing transcript...');
     
     setTimeout(() => {
         try {
             const engine = new SmartImportEnhanced();
+            
+            // Step 1: Split into appointments
+            updateImportProgress(15, '📋 Identifying appointments...');
             const appointments = engine.splitAppointments(text);
             
             const total = appointments.length;
-            AppState.importProgress = 15;
-            updateImportProgress(15, `Found ${total} appointment(s). Parsing...`);
+            AppState.importProgress = 20;
             
             if (total === 0) {
-                showToast('No appointments detected in the text', 'warning');
+                showToast('No appointments detected in the transcript', 'warning');
                 AppState.importProcessing = false;
+                SmartImportState.isParsing = false;
                 if (progressContainer) progressContainer.style.display = 'none';
+                if (parseBtn) {
+                    parseBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Parse Transcript';
+                    parseBtn.disabled = false;
+                }
                 return;
             }
+            
+            updateImportProgress(25, `🔍 Found ${total} appointment(s). Extracting data...`);
             
             const parsedResults = [];
             const existingAppointments = Data.getAllAppointments();
             let validCount = 0;
             let invalidCount = 0;
+            let totalConfidence = 0;
             
+            // Step 2: Parse each appointment
             appointments.forEach((apptText, index) => {
-                const progress = 15 + ((index + 1) / total) * 50;
-                updateImportProgress(progress, `Processing appointment ${index + 1} of ${total}...`);
+                const progress = 25 + ((index + 1) / total) * 45;
+                updateImportProgress(progress, `🧠 Processing appointment ${index + 1} of ${total}...`);
                 
                 const parsed = engine.parseTranscript(apptText, { defaultDate });
                 const duplicates = engine.checkDuplicates(parsed, existingAppointments);
@@ -1342,6 +1485,11 @@ function parseAndPreviewImportEnhanced() {
                 
                 if (parsed.isValid) validCount++;
                 else invalidCount++;
+                
+                // Calculate average confidence
+                const confValues = Object.values(parsed.confidence || {});
+                const avgConf = confValues.length > 0 ? confValues.reduce((a, b) => a + b, 0) / confValues.length : 0;
+                totalConfidence += avgConf;
                 
                 parsedResults.push({
                     index: index + 1,
@@ -1353,40 +1501,61 @@ function parseAndPreviewImportEnhanced() {
                     isValid: parsed.isValid || false,
                     errors: parsed.errors || [],
                     warnings: parsed.warnings || [],
+                    uncertainFields: parsed.uncertainFields || [],
                     hasDuplicate: hasSignificantDuplicate,
-                    duplicates: duplicates
+                    duplicates: duplicates,
+                    avgConfidence: avgConf
                 });
             });
             
-            AppState.importRecords = parsedResults;
-            AppState.importProgress = 80;
-            updateImportProgress(80, 'Generating preview...');
+            const avgOverallConfidence = parsedResults.length > 0 ? 
+                Math.round((totalConfidence / parsedResults.length) * 100) : 0;
             
+            AppState.importRecords = parsedResults;
+            AppState.importProgress = 85;
+            SmartImportState.parseEndTime = Date.now();
+            const parseTime = ((SmartImportState.parseEndTime - SmartImportState.parseStartTime) / 1000).toFixed(1);
+            
+            updateImportProgress(85, `✅ Analysis complete! (${parseTime}s)`);
+            
+            // Step 3: Render results
             setTimeout(() => {
-                renderImportResults(parsedResults);
+                renderImportResults(parsedResults, avgOverallConfidence, parseTime);
                 AppState.importProcessing = false;
-                updateImportProgress(100, 'Complete!');
+                SmartImportState.isParsing = false;
+                updateImportProgress(100, '✨ Ready! Review and save.');
                 
                 setTimeout(() => {
                     if (progressContainer) progressContainer.style.display = 'none';
                 }, 1500);
                 
-                showToast(`Parsed ${parsedResults.length} appointment(s)! ${validCount} valid, ${invalidCount} need review`, 'info');
-            }, 300);
+                // Reset parse button
+                if (parseBtn) {
+                    parseBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Parse Transcript';
+                    parseBtn.disabled = false;
+                }
+                
+                showToast(`✅ Parsed ${parsedResults.length} appointment(s) in ${parseTime}s! ${validCount} valid, ${invalidCount} need review`, 'info');
+            }, 400);
             
         } catch (error) {
             console.error('Smart Import parse error:', error);
-            showToast('Error parsing text: ' + error.message, 'error');
+            showToast('Error parsing transcript: ' + error.message, 'error');
             AppState.importProcessing = false;
+            SmartImportState.isParsing = false;
             if (progressContainer) progressContainer.style.display = 'none';
+            if (parseBtn) {
+                parseBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Parse Transcript';
+                parseBtn.disabled = false;
+            }
         }
     }, 300);
 }
 
 /**
- * Render import results
+ * Render import results with AI analysis summary
  */
-function renderImportResults(records) {
+function renderImportResults(records, avgConfidence, parseTime) {
     const preview = DOM.get('importPreview');
     const resultsContainer = DOM.get('importResultsContainer');
     const saveBtn = DOM.get('saveImportBtn');
@@ -1406,11 +1575,15 @@ function renderImportResults(records) {
         const valid = records.filter(r => r.isValid).length;
         const invalid = records.filter(r => !r.isValid).length;
         const duplicates = records.filter(r => r.hasDuplicate).length;
+        const uncertain = records.filter(r => r.uncertainFields && r.uncertainFields.length > 0).length;
+        
+        const confidenceLabel = avgConfidence >= 80 ? 'High' : (avgConfidence >= 60 ? 'Medium' : 'Low');
+        const confidenceColor = avgConfidence >= 80 ? 'success' : (avgConfidence >= 60 ? 'warning' : 'danger');
         
         summary.style.display = 'block';
         summary.innerHTML = `
             <div class="import-summary-grid">
-                <div class="import-stat ${valid > 0 ? 'success' : ''}">
+                <div class="import-stat success">
                     <span class="stat-number">${valid}</span>
                     <span class="stat-label">✅ Valid</span>
                 </div>
@@ -1420,11 +1593,19 @@ function renderImportResults(records) {
                 </div>
                 <div class="import-stat ${duplicates > 0 ? 'warning' : ''}">
                     <span class="stat-number">${duplicates}</span>
-                    <span class="stat-label">🔄 Potential Duplicates</span>
+                    <span class="stat-label">🔄 Duplicates</span>
                 </div>
-                <div class="import-stat">
-                    <span class="stat-number">${total}</span>
-                    <span class="stat-label">📋 Total</span>
+                <div class="import-stat ${uncertain > 0 ? 'warning' : ''}">
+                    <span class="stat-number">${uncertain}</span>
+                    <span class="stat-label">❓ Uncertain Fields</span>
+                </div>
+                <div class="import-stat" style="grid-column: span 1;">
+                    <span class="stat-number" style="color: var(--${confidenceColor});">${avgConfidence}%</span>
+                    <span class="stat-label">🧠 AI Confidence (${confidenceLabel})</span>
+                </div>
+                <div class="import-stat" style="grid-column: span 1;">
+                    <span class="stat-number">${parseTime || '0.0'}s</span>
+                    <span class="stat-label">⏱️ Parse Time</span>
                 </div>
             </div>
         `;
@@ -1436,6 +1617,7 @@ function renderImportResults(records) {
         const hasDuplicate = record.hasDuplicate;
         const hasWarnings = record.warnings && record.warnings.length > 0;
         const hasErrors = record.errors && record.errors.length > 0;
+        const hasUncertain = record.uncertainFields && record.uncertainFields.length > 0;
         
         const confValues = Object.values(record.confidence || {});
         const avgConf = confValues.length > 0 ? confValues.reduce((a, b) => a + b, 0) / confValues.length : 0;
@@ -1444,8 +1626,8 @@ function renderImportResults(records) {
         const data = record.validated || record.parsed || {};
         
         const fields = [
-            { key: 'business', label: '🏢 Business', value: data.business },
-            { key: 'name', label: '👤 Name', value: data.name },
+            { key: 'business', label: '🏢 Business', value: data.business, required: true },
+            { key: 'name', label: '👤 Name', value: data.name, required: true },
             { key: 'role', label: '💼 Role', value: data.role },
             { key: 'phone', label: '📞 Phone', value: data.phone },
             { key: 'email', label: '✉️ Email', value: data.email },
@@ -1462,18 +1644,21 @@ function renderImportResults(records) {
                 const conf = record.confidence[f.key] || 0.5;
                 const confClass = conf >= 0.7 ? 'high' : conf >= 0.4 ? 'medium' : 'low';
                 const isDate = f.key === 'date' || f.key === 'time';
+                const isUncertain = record.uncertainFields && record.uncertainFields.some(u => u.field === f.key);
                 const valueDisplay = isDate && f.key === 'date' ? Utils.formatDate(f.value) : Utils.escapeHtml(f.value);
+                const requiredClass = f.required ? 'required' : '';
                 return `
-                    <div class="field-row ${isDate ? 'date-field' : ''}">
+                    <div class="field-row ${isDate ? 'date-field' : ''} ${isUncertain ? 'uncertain' : ''} ${requiredClass}">
                         <span class="field-label">${f.label}</span>
                         <span class="field-value">${valueDisplay}</span>
                         <span class="field-confidence ${confClass}">${Math.round(conf * 100)}%</span>
+                        ${isUncertain ? '<span class="field-warning">⚠️</span>' : ''}
                     </div>
                 `;
             }).join('');
         
         resultsHtml += `
-            <div class="import-record ${statusClass} ${hasDuplicate ? 'duplicate' : ''}">
+            <div class="import-record ${statusClass} ${hasDuplicate ? 'duplicate' : ''} ${hasUncertain ? 'uncertain' : ''}">
                 <div class="record-header" onclick="window.toggleImportRecord(this)">
                     <div class="record-status">
                         <span class="status-icon">${record.isValid ? '✅' : '⚠️'}</span>
@@ -1487,6 +1672,7 @@ function renderImportResults(records) {
                     </div>
                     <div class="record-badges">
                         ${hasDuplicate ? '<span class="badge duplicate">🔄 Duplicate</span>' : ''}
+                        ${hasUncertain ? `<span class="badge warning">❓ ${record.uncertainFields.length}</span>` : ''}
                         ${hasWarnings ? `<span class="badge warning">⚠️ ${record.warnings.length}</span>` : ''}
                         ${hasErrors ? `<span class="badge error">❌ ${record.errors.length}</span>` : ''}
                         <span class="badge confidence ${confColor}">${Math.round(avgConf * 100)}%</span>
@@ -1497,6 +1683,14 @@ function renderImportResults(records) {
                     <div class="record-fields">
                         ${fieldRows}
                     </div>
+                    
+                    ${hasUncertain ? `
+                        <div class="record-uncertain">
+                            <strong>❓ Uncertain Fields:</strong>
+                            <ul>${record.uncertainFields.map(u => `<li>${u.field}: ${u.message}</li>`).join('')}</ul>
+                            <span style="font-size:0.7rem; color:var(--text-muted);">Please review these fields before saving.</span>
+                        </div>
+                    ` : ''}
                     
                     ${record.warnings && record.warnings.length > 0 ? `
                         <div class="record-warnings">
@@ -1553,11 +1747,12 @@ function saveAllImportedAppointments() {
         return;
     }
     
+    // Check for high-confidence duplicates
     const highConfidenceDuplicates = validRecords.filter(r => 
         r.duplicates && r.duplicates.some(d => d.confidence >= 80)
     );
     
-    let confirmMsg = `Save ${validRecords.length} appointment(s)?`;
+    let confirmMsg = `💾 Save ${validRecords.length} appointment(s)?`;
     if (highConfidenceDuplicates.length > 0) {
         confirmMsg += `\n\n⚠️ ${highConfidenceDuplicates.length} of these appear to be high-confidence duplicates.`;
     }
@@ -1570,6 +1765,7 @@ function saveAllImportedAppointments() {
     validRecords.forEach(record => {
         const data = record.validated || record.parsed;
         
+        // Skip high-confidence duplicates unless user confirms
         const highDuplicate = record.duplicates && record.duplicates.find(d => d.confidence >= 85);
         if (highDuplicate) {
             if (!confirm(`"${data.business}" appears to be a duplicate (${highDuplicate.confidence}% match with ${highDuplicate.existing.business}). Save anyway?`)) {
@@ -1578,6 +1774,7 @@ function saveAllImportedAppointments() {
             }
         }
         
+        // Add appointment using the centralized Data layer
         const result = Data.addAppointment(
             data.date || Utils.getTodayStr(),
             data.business,
@@ -1588,7 +1785,7 @@ function saveAllImportedAppointments() {
             data.notes || '',
             data.assigned || 'Daniel',
             null,
-            data.status || 'Pending',
+            data.status || 'Meeting Booked',
             '',
             data.tags || []
         );
@@ -1679,7 +1876,7 @@ Phone Number: [Enter Phone Number]
 Email: [Enter Email Address]
 Demo Time & Date: ${formattedDate} at [Time] [Timezone]
 
-Status: [Pending/Hot Transfer/Warm Callback/Meeting Booked/Completed/Canceled]
+Status: [Pending/Hot Transfer/Warm Callback/Meeting Booked/Completed/Canceled/No Show/Rescheduled]
 
 Notes: [Enter notes about the conversation, interest level, and next steps]
 - Custom website preview offered
@@ -1799,6 +1996,10 @@ const SMART_IMPORT_STYLES = `
 }
 
 .import-record.duplicate {
+    border-left: 4px solid var(--warning);
+}
+
+.import-record.uncertain {
     border-left: 4px solid var(--warning);
 }
 
@@ -1940,6 +2141,16 @@ const SMART_IMPORT_STYLES = `
     padding: 4px 8px;
     background: var(--bg-primary);
     border-radius: 6px;
+    position: relative;
+}
+
+.field-row.required {
+    border-left: 2px solid var(--primary);
+}
+
+.field-row.uncertain {
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.2);
 }
 
 .field-row.date-field {
@@ -1982,9 +2193,15 @@ const SMART_IMPORT_STYLES = `
     color: white;
 }
 
+.field-warning {
+    font-size: 0.7rem;
+    margin-left: 2px;
+}
+
 .record-warnings,
 .record-errors,
-.record-duplicates {
+.record-duplicates,
+.record-uncertain {
     padding: 8px 12px;
     border-radius: 8px;
     margin: 4px 0;
@@ -2005,9 +2222,15 @@ const SMART_IMPORT_STYLES = `
     border-left: 3px solid var(--warning);
 }
 
+.record-uncertain {
+    background: rgba(245, 158, 11, 0.08);
+    border-left: 3px solid var(--warning);
+}
+
 .record-warnings ul,
 .record-errors ul,
-.record-duplicates ul {
+.record-duplicates ul,
+.record-uncertain ul {
     margin: 4px 0 0 16px;
     font-size: 0.8rem;
 }
@@ -2021,6 +2244,10 @@ const SMART_IMPORT_STYLES = `
 }
 
 .record-duplicates li {
+    color: var(--warning);
+}
+
+.record-uncertain li {
     color: var(--warning);
 }
 
@@ -2176,6 +2403,79 @@ const SMART_IMPORT_STYLES = `
 .import-empty p {
     font-size: 0.85rem;
 }
+
+/* AI Analysis badge */
+.ai-analysis-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--primary);
+    color: white;
+    padding: 2px 12px;
+    border-radius: 20px;
+    font-size: 0.65rem;
+    font-weight: 600;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .import-summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .import-date-selector {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .import-date-selector input[type="date"] {
+        width: 100%;
+    }
+    
+    .record-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .record-badges {
+        justify-content: flex-start;
+    }
+    
+    .record-summary {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+}
+
+@media (max-width: 480px) {
+    .import-summary-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    
+    .import-stat {
+        padding: 8px 12px;
+    }
+    
+    .import-stat .stat-number {
+        font-size: 1.2rem;
+    }
+    
+    .field-row {
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+    
+    .field-label {
+        min-width: 50px;
+        font-size: 0.65rem;
+    }
+    
+    .field-value {
+        font-size: 0.75rem;
+    }
+}
 `;
 
 // ================================================================
@@ -2189,7 +2489,13 @@ document.addEventListener('DOMContentLoaded', function() {
     styleEl.textContent = SMART_IMPORT_STYLES;
     document.head.appendChild(styleEl);
     
-    // Expose functions globally if not already exposed by app.js
+    // Ensure the parse button uses the AI icon
+    const parseBtn = DOM.get('parseImportBtn');
+    if (parseBtn) {
+        parseBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Parse Transcript';
+    }
+    
+    // Expose functions globally
     if (typeof window.openSmartImportEnhanced === 'undefined') {
         window.openSmartImportEnhanced = openSmartImportEnhanced;
         window.closeSmartImportEnhanced = closeSmartImportEnhanced;
@@ -2217,6 +2523,7 @@ window.smartImportEnhanced = smartImportEnhanced;
 window.SMART_IMPORT = SMART_IMPORT;
 window.SmartImportState = SmartImportState;
 
-console.log('📥 Smart Import Enhanced loaded successfully');
-console.log('📥 Use smartImportEnhanced.parseTranscript() for advanced parsing');
-console.log('📥 Use smartImportEnhanced.checkDuplicates() for duplicate detection');
+console.log('🧠 Smart Import AI Enhanced loaded successfully');
+console.log('🧠 Use smartImportEnhanced.parseTranscript() for AI-powered parsing');
+console.log('🧠 Use smartImportEnhanced.checkDuplicates() for smart duplicate detection');
+console.log('🧠 Click the "Parse Transcript" button to analyze your transcript');
