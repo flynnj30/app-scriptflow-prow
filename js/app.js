@@ -1578,6 +1578,280 @@ const Data = {
 };
 
 // ================================================================
+// ANALYTICS ENGINE - Meeting Performance Dashboard
+// ================================================================
+
+const AnalyticsEngine = {
+    getFilteredAppointments() {
+        const filters = AppState.analyticsFilters || {};
+        let appointments = Data.getAllAppointments();
+        
+        if (filters.timeRange && filters.timeRange !== 'custom') {
+            const range = Utils.getDateRange(filters.timeRange);
+            appointments = appointments.filter(appt => {
+                const date = new Date(appt.date);
+                const start = new Date(range.start);
+                const end = new Date(range.end);
+                end.setHours(23, 59, 59, 999);
+                return date >= start && date <= end;
+            });
+        } else if (filters.timeRange === 'custom' && filters.startDate && filters.endDate) {
+            appointments = appointments.filter(appt => {
+                const date = new Date(appt.date);
+                const start = new Date(filters.startDate);
+                const end = new Date(filters.endDate);
+                end.setHours(23, 59, 59, 999);
+                return date >= start && date <= end;
+            });
+        }
+        
+        if (filters.setter && filters.setter !== 'all') {
+            appointments = appointments.filter(appt => 
+                appt.assigned === filters.setter || 
+                appt.setter === filters.setter
+            );
+        }
+        
+        if (filters.campaign && filters.campaign !== 'all') {
+            appointments = appointments.filter(appt => appt.campaign === filters.campaign);
+        }
+        
+        return appointments;
+    },
+
+    calculateMetrics(appointments) {
+        let meetingsBooked = 0;
+        let meetingsHeld = 0;
+        let noShows = 0;
+        let cancelled = 0;
+        let rescheduled = 0;
+        let pending = 0;
+        let completed = 0;
+        let totalQualityScore = 0;
+        let scoredMeetings = 0;
+        let totalCalls = appointments.length;
+        let lowQualityCount = 0;
+        let highQualityCount = 0;
+        let statusDistribution = {};
+        let dailyBookings = {};
+        let dailyShowRate = {};
+        let qualityDistribution = { '0-2': 0, '3-4': 0, '5-6': 0, '7-8': 0, '9-10': 0 };
+        let appointmentsBySetter = {};
+        let appointmentsByCampaign = {};
+        let emailValidCount = 0;
+        let emailBouncedCount = 0;
+        let emailInvalidCount = 0;
+
+        appointments.forEach(appt => {
+            const status = Utils.getStatus(appt);
+            const qualityScore = Utils.calculateQualityScore(appt);
+            
+            if (status === 'Meeting Booked') {
+                meetingsBooked++;
+            }
+            if (status === 'Held') {
+                meetingsHeld++;
+            }
+            if (status === 'Canceled' && appt.notes && appt.notes.toLowerCase().includes('no show')) {
+                noShows++;
+            }
+            if (status === 'Canceled' && !(appt.notes && appt.notes.toLowerCase().includes('no show'))) {
+                cancelled++;
+            }
+            if (status === 'Rescheduled') {
+                rescheduled++;
+            }
+            if (status === 'Pending') {
+                pending++;
+            }
+            if (status === 'Completed') {
+                completed++;
+            }
+            
+            if (qualityScore !== null && qualityScore !== undefined) {
+                totalQualityScore += qualityScore;
+                scoredMeetings++;
+                
+                if (qualityScore < 5) lowQualityCount++;
+                if (qualityScore >= 8) highQualityCount++;
+                
+                if (qualityScore <= 2) qualityDistribution['0-2']++;
+                else if (qualityScore <= 4) qualityDistribution['3-4']++;
+                else if (qualityScore <= 6) qualityDistribution['5-6']++;
+                else if (qualityScore <= 8) qualityDistribution['7-8']++;
+                else qualityDistribution['9-10']++;
+            }
+            
+            statusDistribution[status] = (statusDistribution[status] || 0) + 1;
+            
+            if (status === 'Meeting Booked' && appt.date) {
+                dailyBookings[appt.date] = (dailyBookings[appt.date] || 0) + 1;
+            }
+            
+            if (appt.date) {
+                if (!dailyShowRate[appt.date]) {
+                    dailyShowRate[appt.date] = { booked: 0, held: 0 };
+                }
+                if (status === 'Meeting Booked') {
+                    dailyShowRate[appt.date].booked++;
+                }
+                if (status === 'Held') {
+                    dailyShowRate[appt.date].held++;
+                }
+            }
+            
+            const setter = appt.assigned || appt.setter || 'Unassigned';
+            appointmentsBySetter[setter] = (appointmentsBySetter[setter] || 0) + 1;
+            
+            const campaign = appt.campaign || 'Uncategorized';
+            appointmentsByCampaign[campaign] = (appointmentsByCampaign[campaign] || 0) + 1;
+            
+            if (appt.email) {
+                const emailStatus = Utils.getEmailStatus(appt.email);
+                if (emailStatus === 'valid') emailValidCount++;
+                else if (emailStatus === 'bounced') emailBouncedCount++;
+                else emailInvalidCount++;
+            }
+        });
+
+        const avgQualityScore = scoredMeetings > 0 ? (totalQualityScore / scoredMeetings) : 0;
+        const per100Calls = totalCalls > 0 ? (meetingsBooked / totalCalls) * 100 : 0;
+        const showRate = meetingsBooked > 0 ? (meetingsHeld / meetingsBooked) * 100 : 0;
+        const noShowRate = meetingsBooked > 0 ? (noShows / meetingsBooked) * 100 : 0;
+        const rescheduleRate = meetingsBooked > 0 ? (rescheduled / meetingsBooked) * 100 : 0;
+        const completionRate = meetingsBooked > 0 ? (completed / meetingsBooked) * 100 : 0;
+
+        const dailyShowRates = {};
+        Object.keys(dailyShowRate).forEach(date => {
+            const data = dailyShowRate[date];
+            dailyShowRates[date] = data.booked > 0 ? (data.held / data.booked) * 100 : 0;
+        });
+
+        return {
+            meetingsBooked,
+            meetingsHeld,
+            noShows,
+            cancelled,
+            rescheduled,
+            pending,
+            completed,
+            avgQualityScore: Math.round(avgQualityScore * 10) / 10,
+            scoredMeetings,
+            per100Calls: Math.round(per100Calls * 10) / 10,
+            showRate: Math.round(showRate * 10) / 10,
+            noShowRate: Math.round(noShowRate * 10) / 10,
+            rescheduleRate: Math.round(rescheduleRate * 10) / 10,
+            completionRate: Math.round(completionRate * 10) / 10,
+            totalCalls,
+            lowQualityCount,
+            highQualityCount,
+            statusDistribution,
+            dailyBookings,
+            dailyShowRates,
+            qualityDistribution,
+            appointmentsBySetter,
+            appointmentsByCampaign,
+            emailValidCount,
+            emailBouncedCount,
+            emailInvalidCount,
+            totalEmailCount: emailValidCount + emailBouncedCount + emailInvalidCount
+        };
+    },
+
+    getDrillDownData(metric, appointments) {
+        const filtered = appointments.filter(appt => {
+            const status = Utils.getStatus(appt);
+            const qualityScore = Utils.calculateQualityScore(appt);
+            
+            switch(metric) {
+                case 'meetingsBooked':
+                    return status === 'Meeting Booked';
+                case 'meetingsHeld':
+                    return status === 'Held';
+                case 'noShows':
+                    return status === 'Canceled' && appt.notes && appt.notes.toLowerCase().includes('no show');
+                case 'cancelled':
+                    return status === 'Canceled' && !(appt.notes && appt.notes.toLowerCase().includes('no show'));
+                case 'rescheduled':
+                    return status === 'Rescheduled';
+                case 'pending':
+                    return status === 'Pending';
+                case 'completed':
+                    return status === 'Completed';
+                case 'lowQuality':
+                    return qualityScore !== null && qualityScore < 5;
+                case 'highQuality':
+                    return qualityScore !== null && qualityScore >= 8;
+                case 'emailValid':
+                    return appt.email && Utils.isValidEmail(appt.email);
+                case 'emailBounced':
+                    return appt.email && Utils.isEmailBounced(appt.email);
+                case 'emailInvalid':
+                    return appt.email && !Utils.isValidEmail(appt.email) && !Utils.isEmailBounced(appt.email);
+                default:
+                    return false;
+            }
+        });
+        return filtered;
+    },
+
+    getStatusChartData(appointments) {
+        const metrics = this.calculateMetrics(appointments);
+        const labels = [];
+        const data = [];
+        const colors = [];
+        
+        const statusMap = {
+            'Meeting Booked': '#3b82f6',
+            'Held': '#10b981',
+            'Rescheduled': '#f97316',
+            'Canceled': '#ef4444',
+            'Pending': '#94a3b8',
+            'Completed': '#06b6d4'
+        };
+        
+        Object.keys(metrics.statusDistribution).forEach(status => {
+            if (metrics.statusDistribution[status] > 0) {
+                labels.push(status);
+                data.push(metrics.statusDistribution[status]);
+                colors.push(statusMap[status] || '#64748b');
+            }
+        });
+        
+        return { labels, data, colors };
+    },
+
+    getWeeklyTrendData(appointments) {
+        const metrics = this.calculateMetrics(appointments);
+        const dates = Object.keys(metrics.dailyBookings).sort();
+        const last7Days = dates.slice(-7);
+        const data = last7Days.map(date => metrics.dailyBookings[date] || 0);
+        const labels = last7Days.map(date => Utils.formatDate(date));
+        
+        return { labels, data };
+    },
+
+    getDailyShowRateData(appointments) {
+        const metrics = this.calculateMetrics(appointments);
+        const dates = Object.keys(metrics.dailyShowRates).sort();
+        const last7Days = dates.slice(-7);
+        const data = last7Days.map(date => Math.round(metrics.dailyShowRates[date]));
+        const labels = last7Days.map(date => Utils.formatDate(date));
+        
+        return { labels, data };
+    },
+
+    getQualityDistributionData(appointments) {
+        const metrics = this.calculateMetrics(appointments);
+        const labels = ['0-2', '3-4', '5-6', '7-8', '9-10'];
+        const data = labels.map(label => metrics.qualityDistribution[label] || 0);
+        const colors = ['#ef4444', '#f97316', '#f59e0b', '#3b82f6', '#10b981'];
+        
+        return { labels, data, colors };
+    }
+};
+
+// ================================================================
 // SCRIPTS MODULE
 // ================================================================
 
@@ -2061,208 +2335,6 @@ const Scripts = {
 };
 
 // ================================================================
-// GLOBAL FUNCTIONS
-// ================================================================
-
-// These functions are needed for the app to work
-// They are defined here but may be overridden by smart-import.js
-
-function openSmartImportEnhanced() {
-    showToast('Smart Import loading...', 'info');
-    // This will be overridden by smart-import.js
-}
-
-function parseAndPreviewImportEnhanced() {
-    showToast('Parsing transcript...', 'info');
-}
-
-function saveAllImportedAppointments() {
-    showToast('Saving appointments...', 'info');
-}
-
-function closeSmartImportEnhanced() {
-    const modal = DOM.get('smartImportModal');
-    if (modal) modal.style.display = 'none';
-}
-
-function generateImportTemplate() {
-    showToast('Template generated!', 'success');
-}
-
-function quickImportFromClipboard() {
-    showToast('Pasting from clipboard...', 'info');
-}
-
-function clearExtractedData() {
-    showToast('Cleared extracted data', 'info');
-}
-
-function toggleImportRecord(header) {
-    const body = header.nextElementSibling;
-    if (body) {
-        const isVisible = body.style.display !== 'none';
-        body.style.display = isVisible ? 'none' : 'block';
-        const toggle = header.querySelector('.record-toggle');
-        if (toggle) {
-            toggle.textContent = isVisible ? '▶' : '▼';
-        }
-    }
-}
-
-function expandAllRecords() {
-    document.querySelectorAll('.import-record .record-body').forEach(body => {
-        body.style.display = 'block';
-    });
-    document.querySelectorAll('.import-record .record-toggle').forEach(toggle => {
-        toggle.textContent = '▼';
-    });
-}
-
-function collapseAllRecords() {
-    document.querySelectorAll('.import-record .record-body').forEach(body => {
-        body.style.display = 'none';
-    });
-    document.querySelectorAll('.import-record .record-toggle').forEach(toggle => {
-        toggle.textContent = '▶';
-    });
-}
-
-function updateImportProgress(percent, message) {
-    const progressBar = DOM.get('importProgressBar');
-    const progressStatus = DOM.get('importProgressStatus');
-    
-    if (progressBar) {
-        progressBar.style.width = Math.min(percent, 100) + '%';
-    }
-    if (progressStatus && message) {
-        progressStatus.textContent = message;
-    }
-}
-
-function renderImportResults(records, avgConfidence, parseTime) {
-    const container = DOM.get('importResultsContainer');
-    if (!container) return;
-    
-    let html = `<div class="import-records-list">`;
-    records.forEach((record, idx) => {
-        const data = record.validated || record.parsed || {};
-        html += `
-            <div class="import-record ${record.isValid ? 'valid' : 'invalid'}">
-                <div class="record-header" onclick="window.toggleImportRecord(this)">
-                    <div class="record-status">
-                        <span class="status-icon">${record.isValid ? '✅' : '⚠️'}</span>
-                        <span class="record-index">#${record.index}</span>
-                    </div>
-                    <div class="record-summary">
-                        <span class="record-name">${Utils.escapeHtml(data.name || 'Unknown')}</span>
-                        <span class="record-business">${Utils.escapeHtml(data.business || 'Unknown Business')}</span>
-                    </div>
-                    <span class="record-toggle">▼</span>
-                </div>
-                <div class="record-body" style="display:none;">
-                    <div class="record-fields">
-                        ${Object.entries(data).map(([key, value]) => `
-                            <div class="field-row">
-                                <span class="field-label">${key}</span>
-                                <span class="field-value">${Utils.escapeHtml(value)}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-    html += `</div>`;
-    container.innerHTML = html;
-    
-    const saveBtn = DOM.get('saveImportBtn');
-    if (saveBtn) {
-        const validRecords = records.filter(r => r.isValid);
-        if (validRecords.length > 0) {
-            saveBtn.style.display = 'inline-flex';
-            saveBtn.textContent = `💾 Import ${validRecords.length} Appointment(s)`;
-        } else {
-            saveBtn.style.display = 'none';
-        }
-    }
-}
-
-// ================================================================
-// CALENDAR VIEW
-// ================================================================
-
-const CalendarView = {
-    render: function(container) {
-        if (!container) return;
-        container.innerHTML = `
-            <div class="calendar-full-container fade-in">
-                <div class="calendar-toolbar">
-                    <div class="calendar-toolbar-left">
-                        <div class="view-selector">
-                            <button class="view-btn active" data-view="month">Month</button>
-                            <button class="view-btn" data-view="week">Week</button>
-                            <button class="view-btn" data-view="day">Day</button>
-                            <button class="view-btn" data-view="list">List</button>
-                        </div>
-                        <div class="calendar-nav-group">
-                            <button class="btn-icon" id="calPrevBtn"><i class="fas fa-chevron-left"></i></button>
-                            <button class="btn-icon" id="calTodayBtn">Today</button>
-                            <button class="btn-icon" id="calNextBtn"><i class="fas fa-chevron-right"></i></button>
-                        </div>
-                        <span class="calendar-current-month">${new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
-                    </div>
-                    <div class="calendar-toolbar-right">
-                        <button class="btn-icon" id="calendarAddEventBtn"><i class="fas fa-plus"></i> Add</button>
-                    </div>
-                </div>
-                <div class="calendar-body">
-                    <div class="calendar-month-grid">
-                        ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => `<div class="calendar-day-header">${d}</div>`).join('')}
-                        ${Array.from({length: 42}, (_, i) => {
-                            const day = i - new Date().getDate() + 1;
-                            const isToday = day === 0;
-                            return `<div class="calendar-day ${isToday ? 'today' : ''}"><span class="day-number">${day + 1}</span></div>`;
-                        }).join('')}
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        // Add event listeners
-        const prevBtn = container.querySelector('#calPrevBtn');
-        const nextBtn = container.querySelector('#calNextBtn');
-        const todayBtn = container.querySelector('#calTodayBtn');
-        const addBtn = container.querySelector('#calendarAddEventBtn');
-        
-        if (prevBtn) prevBtn.addEventListener('click', () => showToast('Previous month', 'info'));
-        if (nextBtn) nextBtn.addEventListener('click', () => showToast('Next month', 'info'));
-        if (todayBtn) todayBtn.addEventListener('click', () => showToast('Today', 'info'));
-        if (addBtn) addBtn.addEventListener('click', () => {
-            if (typeof FeaturePanel !== 'undefined') {
-                FeaturePanel.openQuickAdd(Utils.getTodayStr());
-            }
-        });
-        
-        container.querySelectorAll('.view-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                container.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                showToast(`Switched to ${this.textContent} view`, 'info');
-            });
-        });
-        
-        container.querySelectorAll('.calendar-day').forEach(day => {
-            day.addEventListener('dblclick', () => {
-                const date = day.getAttribute('data-date') || Utils.getTodayStr();
-                if (typeof FeaturePanel !== 'undefined') {
-                    FeaturePanel.openQuickAdd(date);
-                }
-            });
-        });
-    }
-};
-
-// ================================================================
 // FEATURE PANEL
 // ================================================================
 
@@ -2549,6 +2621,7 @@ const FeaturePanel = {
                             ${prospects.map(prospect => {
                                 const score = prospect.leadScore || 0;
                                 const scoreClass = score >= 70 ? 'score-hot' : score >= 40 ? 'score-warm' : 'score-cold';
+                                const statusClass = Utils.getStatusClass(prospect.status);
                                 return `
                                     <div class="prospect-card" data-id="${prospect.id}" onclick="window.viewProspect && window.viewProspect('${prospect.id}')">
                                         <div class="prospect-card-header">
@@ -2557,7 +2630,7 @@ const FeaturePanel = {
                                                 <span class="prospect-name">${Utils.escapeHtml(prospect.name)}</span>
                                             </div>
                                             <div class="prospect-card-badges">
-                                                ${prospect.status ? `<span class="status-tag ${Utils.getStatusClass(prospect.status)}">${Utils.escapeHtml(prospect.status)}</span>` : ''}
+                                                ${prospect.status ? `<span class="status-tag ${statusClass}">${Utils.escapeHtml(prospect.status)}</span>` : ''}
                                                 <span class="score-badge ${scoreClass}">${score} Pts</span>
                                             </div>
                                         </div>
@@ -2604,43 +2677,113 @@ const FeaturePanel = {
     renderAnalytics: function(container) {
         if (!container) return;
         
-        let total = 0, completed = 0, hTransfers = 0, wCallbacks = 0;
+        // Use AnalyticsEngine to get data
+        const filteredAppointments = AnalyticsEngine.getFilteredAppointments();
+        const metrics = AnalyticsEngine.calculateMetrics(filteredAppointments);
+        const statusData = AnalyticsEngine.getStatusChartData(filteredAppointments);
+        
+        // Calculate totals
+        let total = filteredAppointments.length;
+        let completed = 0, hTransfers = 0, wCallbacks = 0;
         let statusCounts = {};
+        
+        filteredAppointments.forEach(appt => {
+            const status = Utils.getStatus(appt);
+            const primaryStatus = Utils.getPrimaryStatus(status);
+            statusCounts[primaryStatus] = (statusCounts[primaryStatus] || 0) + 1;
+            if (primaryStatus === 'Completed') completed++;
+            if (primaryStatus === 'Hot Transfer') hTransfers++;
+            if (primaryStatus === 'Warm Callback') wCallbacks++;
+        });
 
-        for (let date in AppState.appointments) {
-            if (AppState.appointments[date].reports) {
-                AppState.appointments[date].reports.forEach(a => {
-                    total++;
-                    const status = Utils.getStatus(a);
-                    const primaryStatus = Utils.getPrimaryStatus(status);
-                    statusCounts[primaryStatus] = (statusCounts[primaryStatus] || 0) + 1;
-                    if (primaryStatus === 'Completed') completed++;
-                    if (primaryStatus === 'Hot Transfer') hTransfers++;
-                    if (primaryStatus === 'Warm Callback') wCallbacks++;
-                });
-            }
-        }
+        const totalStatuses = Object.keys(statusCounts).length;
+        const hasData = total > 0;
 
         container.innerHTML = `
             <div class="analytics-container fade-in">
-                <h3><i class="fas fa-chart-pie"></i> Analytics Dashboard</h3>
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:12px;">
+                    <h3><i class="fas fa-chart-pie"></i> Analytics Dashboard</h3>
+                    <span class="version-chip"><i class="fas fa-database"></i> ${total} Records</span>
+                </div>
+                
                 <div class="report-metrics scale-in">
                     <div class="metric-card"><div class="metric-value">${total}</div><div class="metric-label">Total Appointments</div></div>
                     <div class="metric-card"><div class="metric-value" style="color:var(--success);">${completed}</div><div class="metric-label">✅ Completed</div></div>
                     <div class="metric-card"><div class="metric-value" style="color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
                     <div class="metric-card"><div class="metric-value" style="color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
+                    <div class="metric-card"><div class="metric-value" style="color:#8b5cf6;">${metrics.showRate}%</div><div class="metric-label">📊 Show Rate</div></div>
+                    <div class="metric-card"><div class="metric-value" style="color:#f59e0b;">${metrics.avgQualityScore}</div><div class="metric-label">⭐ Avg Quality Score</div></div>
                 </div>
-                <div class="feature-card">
-                    <h4>📊 Status Distribution</h4>
-                    ${Object.entries(statusCounts).map(([status, count]) => `
-                        <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px; margin:4px 0;">
-                            <span>${status}</span>
-                            <span style="font-weight:600;">${count}</span>
+                
+                ${hasData ? `
+                    <div class="feature-card">
+                        <h4>📊 Status Distribution</h4>
+                        ${Object.entries(statusCounts).map(([status, count]) => `
+                            <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px; margin:4px 0;">
+                                <span>${status}</span>
+                                <span style="font-weight:600;">${count} (${Math.round((count/total)*100)}%)</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    
+                    ${statusData.labels && statusData.labels.length > 0 ? `
+                        <div class="feature-card" style="margin-top:8px;">
+                            <h4>📈 Status Chart</h4>
+                            <div class="chart-container-sm" style="height:180px;">
+                                <canvas id="analyticsStatusChart"></canvas>
+                            </div>
                         </div>
-                    `).join('')}
-                </div>
+                    ` : ''}
+                ` : `
+                    <div class="empty-state">
+                        <i class="fas fa-chart-pie"></i>
+                        <p>No data available for the selected filters</p>
+                        <span style="font-size:0.8rem; color:var(--text-muted);">Try adjusting your date range or filters</span>
+                    </div>
+                `}
             </div>
         `;
+        
+        // Initialize chart if there's data
+        if (hasData && statusData.labels && statusData.labels.length > 0) {
+            setTimeout(() => {
+                const ctx = document.getElementById('analyticsStatusChart');
+                if (ctx) {
+                    // Destroy existing chart if any
+                    if (window._analyticsChart) {
+                        window._analyticsChart.destroy();
+                    }
+                    
+                    window._analyticsChart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: statusData.labels,
+                            datasets: [{
+                                data: statusData.data,
+                                backgroundColor: statusData.colors || ['#3b82f6', '#10b981', '#f97316', '#ef4444', '#94a3b8', '#06b6d4'],
+                                borderWidth: 2,
+                                borderColor: 'var(--bg-card)'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        boxWidth: 12,
+                                        padding: 8,
+                                        font: { size: 10, color: 'var(--text-secondary)' }
+                                    }
+                                }
+                            },
+                            cutout: '60%'
+                        }
+                    });
+                }
+            }, 300);
+        }
     },
 
     renderShortcuts: function(container) {
@@ -2659,14 +2802,16 @@ const FeaturePanel = {
         `;
 
         for (const [action, shortcut] of Object.entries(shortcuts)) {
+            const conflict = Utils.checkShortcutConflict(shortcut.keys, action, shortcuts);
             html += `
-                <div class="shortcut-item">
+                <div class="shortcut-item ${conflict.length > 0 ? 'conflict' : ''}">
                     <div class="shortcut-info">
                         <div class="shortcut-name">${action}</div>
                         <div class="shortcut-description">${shortcut.description || ''}</div>
                     </div>
                     <div class="shortcut-keys">
                         ${shortcut.keys.map(k => `<kbd>${k}</kbd>`).join(' <span class="shortcut-separator">+</span> ')}
+                        ${conflict.length > 0 ? ` <span class="shortcut-conflict">⚠️ Conflict: ${conflict.join(', ')}</span>` : ''}
                         <i class="fas fa-pen shortcut-edit" onclick="window.openShortcutEdit && window.openShortcutEdit('${action}')" title="Edit shortcut"></i>
                     </div>
                 </div>
@@ -2745,6 +2890,279 @@ const FeaturePanel = {
 
         modal.addEventListener('click', (e) => {
             if (e.target === modal) modal.style.display = 'none';
+        });
+    }
+};
+
+// ================================================================
+// CALENDAR VIEW
+// ================================================================
+
+const CalendarView = {
+    render: function(container) {
+        if (!container) return;
+        
+        const currentDate = AppState.calendarCurrentDate || new Date();
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const today = new Date();
+        const todayStr = Utils.getTodayStr();
+        
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const daysInPrevMonth = new Date(year, month, 0).getDate();
+        
+        // Get appointments for this month
+        const monthAppointments = this.getAppointmentsForMonth(year, month);
+        const filteredAppointments = this.filterAppointments(monthAppointments);
+        
+        const appointmentsByDate = {};
+        filteredAppointments.forEach(appt => {
+            if (!appointmentsByDate[appt.date]) {
+                appointmentsByDate[appt.date] = [];
+            }
+            appointmentsByDate[appt.date].push(appt);
+        });
+        
+        let html = `
+            <div class="calendar-full-container fade-in">
+                <div class="calendar-toolbar">
+                    <div class="calendar-toolbar-left">
+                        <div class="view-selector">
+                            <button class="view-btn ${AppState.calendarViewMode === 'month' ? 'active' : ''}" data-view="month">Month</button>
+                            <button class="view-btn ${AppState.calendarViewMode === 'week' ? 'active' : ''}" data-view="week">Week</button>
+                            <button class="view-btn ${AppState.calendarViewMode === 'day' ? 'active' : ''}" data-view="day">Day</button>
+                            <button class="view-btn ${AppState.calendarViewMode === 'list' ? 'active' : ''}" data-view="list">List</button>
+                        </div>
+                        <div class="calendar-nav-group">
+                            <button class="btn-icon" id="calPrevBtn"><i class="fas fa-chevron-left"></i></button>
+                            <button class="btn-icon" id="calTodayBtn">Today</button>
+                            <button class="btn-icon" id="calNextBtn"><i class="fas fa-chevron-right"></i></button>
+                        </div>
+                        <span class="calendar-current-month">${new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
+                    </div>
+                    <div class="calendar-toolbar-right">
+                        <div class="search-wrapper">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="calendarSearchInput" placeholder="Search contact..." value="${AppState.calendarSearchTerm || ''}" />
+                        </div>
+                        <button class="btn-icon" id="calendarAddEventBtn"><i class="fas fa-plus"></i> Add</button>
+                    </div>
+                </div>
+                <div class="calendar-filter-chips">
+                    <button class="filter-chip ${AppState.calendarFilters.meetings ? 'active' : ''}" data-filter="meetings">
+                        <span class="filter-dot" style="background:#3b82f6;"></span> Meetings
+                    </button>
+                    <button class="filter-chip ${AppState.calendarFilters.callbacks ? 'active' : ''}" data-filter="callbacks">
+                        <span class="filter-dot" style="background:#f59e0b;"></span> Callbacks
+                    </button>
+                    <button class="filter-chip ${AppState.calendarFilters.followups ? 'active' : ''}" data-filter="followups">
+                        <span class="filter-dot" style="background:#10b981;"></span> Follow-ups
+                    </button>
+                </div>
+                <div class="calendar-body">
+                    <div class="calendar-month-grid">
+                        ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => `<div class="calendar-day-header">${d}</div>`).join('')}
+        `;
+        
+        // Previous month days
+        const startDay = firstDay;
+        for (let i = startDay - 1; i >= 0; i--) {
+            const day = daysInPrevMonth - i;
+            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const isToday = dateStr === todayStr;
+            const hasEvents = appointmentsByDate[dateStr] && appointmentsByDate[dateStr].length > 0;
+            html += `
+                <div class="calendar-day other-month ${isToday ? 'today' : ''}" data-date="${dateStr}">
+                    <span class="day-number">${day}</span>
+                    ${hasEvents ? `<span class="day-event-indicator">${appointmentsByDate[dateStr].length}</span>` : ''}
+                </div>
+            `;
+        }
+        
+        // Current month days
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const isToday = dateStr === todayStr;
+            const hasEvents = appointmentsByDate[dateStr] && appointmentsByDate[dateStr].length > 0;
+            const events = appointmentsByDate[dateStr] || [];
+            
+            let eventsHtml = '';
+            if (hasEvents) {
+                eventsHtml = `
+                    <div class="day-events">
+                        ${events.slice(0, 2).map(event => {
+                            const color = Utils.getStatusColor(Utils.getStatus(event));
+                            return `
+                                <div class="day-event" style="border-left-color: ${color};" data-id="${event.id}" onclick="window.showAppointmentDetail && window.showAppointmentDetail('${event.id}')">
+                                    <span class="event-time">${event.time || 'No time'}</span>
+                                    <span class="event-title">${Utils.escapeHtml(event.business)}</span>
+                                </div>
+                            `;
+                        }).join('')}
+                        ${events.length > 2 ? `<div class="day-event-more">+${events.length - 2} more</div>` : ''}
+                    </div>
+                `;
+            }
+            
+            html += `
+                <div class="calendar-day ${isToday ? 'today' : ''} ${hasEvents ? 'has-events' : ''}" data-date="${dateStr}">
+                    <span class="day-number">${d}</span>
+                    ${eventsHtml}
+                </div>
+            `;
+        }
+        
+        // Next month days
+        const totalDays = startDay + daysInMonth;
+        const remainingDays = (7 - (totalDays % 7)) % 7;
+        for (let d = 1; d <= remainingDays; d++) {
+            const dateStr = `${year}-${String(month + 2).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            html += `
+                <div class="calendar-day other-month" data-date="${dateStr}">
+                    <span class="day-number">${d}</span>
+                </div>
+            `;
+        }
+        
+        html += `
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML = html;
+        
+        // Attach event listeners
+        this.attachEvents(container);
+    },
+    
+    getAppointmentsForMonth: function(year, month) {
+        const result = [];
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            if (AppState.appointments[dateStr]?.reports) {
+                result.push(...AppState.appointments[dateStr].reports);
+            }
+        }
+        return result;
+    },
+    
+    filterAppointments: function(appointments) {
+        const filters = AppState.calendarFilters;
+        return appointments.filter(appt => {
+            const status = Utils.getStatus(appt);
+            const isMeeting = ['Hot Transfer', 'Meeting Booked', 'Held'].includes(status);
+            const isCallback = status === 'Warm Callback';
+            const isFollowup = ['Pending', 'Rescheduled'].includes(status);
+            
+            const showMeeting = filters.meetings && isMeeting;
+            const showCallback = filters.callbacks && isCallback;
+            const showFollowup = filters.followups && isFollowup;
+            
+            if (!filters.meetings && !filters.callbacks && !filters.followups) return true;
+            return showMeeting || showCallback || showFollowup;
+        });
+    },
+    
+    attachEvents: function(container) {
+        // View buttons
+        container.querySelectorAll('.view-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.getAttribute('data-view');
+                AppState.calendarViewMode = view;
+                // Re-render with new view
+                const body = DOM.get('featurePanelBody');
+                if (body && AppState.currentView === 'calendar') {
+                    CalendarView.render(body);
+                }
+                showToast(`Switched to ${view} view`, 'info');
+            });
+        });
+        
+        // Navigation
+        const prevBtn = container.querySelector('#calPrevBtn');
+        const nextBtn = container.querySelector('#calNextBtn');
+        const todayBtn = container.querySelector('#calTodayBtn');
+        
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                const current = AppState.calendarCurrentDate || new Date();
+                if (AppState.calendarViewMode === 'month') {
+                    current.setMonth(current.getMonth() - 1);
+                } else if (AppState.calendarViewMode === 'week') {
+                    current.setDate(current.getDate() - 7);
+                } else if (AppState.calendarViewMode === 'day') {
+                    current.setDate(current.getDate() - 1);
+                }
+                AppState.calendarCurrentDate = current;
+                const body = DOM.get('featurePanelBody');
+                if (body && AppState.currentView === 'calendar') {
+                    CalendarView.render(body);
+                }
+            });
+        }
+        
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                const current = AppState.calendarCurrentDate || new Date();
+                if (AppState.calendarViewMode === 'month') {
+                    current.setMonth(current.getMonth() + 1);
+                } else if (AppState.calendarViewMode === 'week') {
+                    current.setDate(current.getDate() + 7);
+                } else if (AppState.calendarViewMode === 'day') {
+                    current.setDate(current.getDate() + 1);
+                }
+                AppState.calendarCurrentDate = current;
+                const body = DOM.get('featurePanelBody');
+                if (body && AppState.currentView === 'calendar') {
+                    CalendarView.render(body);
+                }
+            });
+        }
+        
+        if (todayBtn) {
+            todayBtn.addEventListener('click', () => {
+                AppState.calendarCurrentDate = new Date();
+                const body = DOM.get('featurePanelBody');
+                if (body && AppState.currentView === 'calendar') {
+                    CalendarView.render(body);
+                }
+                showToast('Today', 'info');
+            });
+        }
+        
+        // Filter chips
+        container.querySelectorAll('.filter-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const filter = chip.getAttribute('data-filter');
+                AppState.calendarFilters[filter] = !AppState.calendarFilters[filter];
+                const body = DOM.get('featurePanelBody');
+                if (body && AppState.currentView === 'calendar') {
+                    CalendarView.render(body);
+                }
+            });
+        });
+        
+        // Add event button
+        const addBtn = container.querySelector('#calendarAddEventBtn');
+        if (addBtn) {
+            addBtn.addEventListener('click', () => {
+                if (typeof FeaturePanel !== 'undefined') {
+                    FeaturePanel.openQuickAdd(Utils.getTodayStr());
+                }
+            });
+        }
+        
+        // Day double-click to add appointment
+        container.querySelectorAll('.calendar-day').forEach(day => {
+            day.addEventListener('dblclick', () => {
+                const date = day.getAttribute('data-date');
+                if (date && typeof FeaturePanel !== 'undefined') {
+                    FeaturePanel.openQuickAdd(date);
+                }
+            });
         });
     }
 };
@@ -2871,11 +3289,144 @@ function performGlobalSearch(query) {
 }
 
 function openBulkActions() {
-    showToast('Bulk Actions feature coming soon!', 'info');
+    const modal = DOM.get('bulkActionsModal');
+    const container = DOM.get('bulkSelectionContainer');
+    if (!modal || !container) return;
+    modal.style.display = 'flex';
+    AppState.selectedAppointments = new Set();
+
+    let html = '';
+    for (let date in AppState.appointments) {
+        if (AppState.appointments[date].reports) {
+            AppState.appointments[date].reports.forEach(appt => {
+                html += `
+                    <div class="bulk-item">
+                        <input type="checkbox" class="bulk-checkbox" value="${appt.id}" data-date="${date}" />
+                        <span><strong>${Utils.escapeHtml(appt.business)}</strong> - ${Utils.escapeHtml(appt.contactName)} (${Utils.getStatus(appt)})</span>
+                    </div>
+                `;
+            });
+        }
+    }
+    container.innerHTML = html || '<p style="color:var(--text-muted);">No appointments found</p>';
+
+    container.querySelectorAll('.bulk-checkbox').forEach(cb => {
+        cb.addEventListener('change', () => {
+            if (cb.checked) AppState.selectedAppointments.add(cb.value);
+            else AppState.selectedAppointments.delete(cb.value);
+        });
+    });
 }
 
 function executeBulkAction() {
-    showToast('Executing bulk action...', 'info');
+    const action = DOM.get('bulkActionSelect')?.value || 'status';
+    const selected = Array.from(AppState.selectedAppointments);
+
+    if (selected.length === 0) { showToast('Please select at least one appointment', 'warning'); return; }
+
+    if (action === 'delete') {
+        if (!confirm(`Delete ${selected.length} appointment(s)?`)) return;
+        selected.forEach(id => {
+            for (let date in AppState.appointments) {
+                if (AppState.appointments[date].reports) {
+                    const found = AppState.appointments[date].reports.find(r => r.id === id);
+                    if (found) { Data.deleteAppointment(date, id); break; }
+                }
+            }
+        });
+        showToast(`${selected.length} appointment(s) deleted`, 'success');
+    } else if (action === 'status') {
+        const statusSelect = DOM.get('bulkStatusSelect');
+        const newStatus = statusSelect?.value || 'Pending';
+        selected.forEach(id => {
+            for (let date in AppState.appointments) {
+                if (AppState.appointments[date].reports) {
+                    const found = AppState.appointments[date].reports.find(r => r.id === id);
+                    if (found) { Data.updateAppointment(date, id, { status: newStatus }); break; }
+                }
+            }
+        });
+        showToast(`${selected.length} appointment(s) updated to ${newStatus}`, 'success');
+    } else if (action === 'tag') {
+        const tagSelect = DOM.get('bulkTagSelect');
+        const tag = tagSelect?.value || '';
+        selected.forEach(id => {
+            for (let date in AppState.appointments) {
+                if (AppState.appointments[date].reports) {
+                    const found = AppState.appointments[date].reports.find(r => r.id === id);
+                    if (found) {
+                        const tags = found.tags || [];
+                        if (!tags.includes(tag)) { tags.push(tag); Data.updateAppointment(date, id, { tags }); }
+                        break;
+                    }
+                }
+            }
+        });
+        showToast(`Tag added to ${selected.length} appointment(s)`, 'success');
+    } else if (action === 'export') {
+        Data.exportToCSV(selected);
+    }
+
+    const modal = DOM.get('bulkActionsModal');
+    if (modal) modal.style.display = 'none';
+    if (typeof FeaturePanel !== 'undefined') {
+        FeaturePanel.refreshCurrentView();
+    }
+}
+
+function handleEscapeKey() {
+    if (AppState.isEditing) {
+        Scripts.cancelEdit();
+        return true;
+    }
+
+    const featurePanel = DOM.get('featurePanel');
+    if (featurePanel && featurePanel.style.display !== 'none') {
+        if (typeof FeaturePanel !== 'undefined') {
+            FeaturePanel.hide();
+        }
+        Scripts.loadScript('opening');
+        showToast('Returned to Opening Script', 'info');
+        return true;
+    }
+
+    const openModals = document.querySelectorAll('.modal-overlay');
+    openModals.forEach(modal => {
+        if (modal.style.display !== 'none') {
+            modal.style.display = 'none';
+        }
+    });
+    return true;
+}
+
+function openShortcutEdit(action) {
+    const currentKeys = AppState.shortcuts[action]?.keys || [];
+    const keysString = currentKeys.join('+');
+    const newKeysString = prompt(`Enter new shortcut for "${action}" (e.g., Ctrl+Shift+I):`, keysString);
+
+    if (newKeysString && newKeysString !== keysString) {
+        const newKeys = newKeysString.split('+').map(k => k.trim());
+        const conflicts = Utils.checkShortcutConflict(newKeys, action, AppState.shortcuts);
+
+        if (conflicts.length > 0) {
+            showToast(`Conflict with: ${conflicts.join(', ')}`, 'warning');
+            return false;
+        }
+
+        if (AppState.shortcuts[action]) {
+            AppState.shortcuts[action].keys = newKeys;
+            AppState.customShortcuts[action] = AppState.shortcuts[action];
+            localStorage.setItem('customShortcuts', JSON.stringify(AppState.customShortcuts));
+            showToast(`Shortcut updated for ${action}`, 'success');
+
+            const body = DOM.get('featurePanelBody');
+            if (body && AppState.currentView === 'shortcuts' && typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.renderShortcuts(body);
+            }
+            return true;
+        }
+    }
+    return false;
 }
 
 function handleShortcutAction(action) {
@@ -2945,46 +3496,21 @@ function handleShortcutAction(action) {
     }
 }
 
-function handleEscapeKey() {
-    if (AppState.isEditing) {
-        Scripts.cancelEdit();
-        return true;
-    }
-
-    const featurePanel = DOM.get('featurePanel');
-    if (featurePanel && featurePanel.style.display !== 'none') {
-        if (typeof FeaturePanel !== 'undefined') {
-            FeaturePanel.hide();
-        }
-        Scripts.loadScript('opening');
-        showToast('Returned to Opening Script', 'info');
-        return true;
-    }
-
-    const openModals = document.querySelectorAll('.modal-overlay');
-    openModals.forEach(modal => {
-        if (modal.style.display !== 'none') {
-            modal.style.display = 'none';
-        }
-    });
-    return true;
-}
-
-function openShortcutEdit(action) {
-    showToast(`Edit shortcut for ${action}`, 'info');
-}
-
-function showAppointmentDetail(id) {
-    const appt = Data.getAppointmentById(id);
+function showAppointmentDetail(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
     if (!appt) { showToast('Appointment not found', 'error'); return; }
-    AppState.currentAppointmentId = id;
-    
+    AppState.currentAppointmentId = appointmentId;
+
     const modal = DOM.get('appointmentDetailModal');
     if (!modal) return;
-    
+
     const status = Utils.getStatus(appt);
     const score = Utils.calculateLeadScore(appt);
     const qualityScore = Utils.calculateQualityScore(appt);
+    const emailStatus = Utils.getEmailStatus(appt.email);
+    const emailStatusLabel = emailStatus === 'valid' ? '✅ Valid' : 
+                           emailStatus === 'bounced' ? '⚠️ Bounced' : 
+                           emailStatus === 'invalid' ? '❌ Invalid' : '❓ Unknown';
 
     const titleEl = DOM.get('appointmentDetailTitle');
     if (titleEl) titleEl.textContent = `📋 ${appt.business} - ${appt.contactName}`;
@@ -3006,6 +3532,7 @@ function showAppointmentDetail(id) {
                         ` : ''}
                     </div>
                 </div>
+
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                     <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
                         <div style="font-size:0.7rem; color:var(--text-muted);">📞 Phone</div>
@@ -3014,6 +3541,7 @@ function showAppointmentDetail(id) {
                     <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
                         <div style="font-size:0.7rem; color:var(--text-muted);">✉️ Email</div>
                         <div style="font-weight:500;">${Utils.escapeHtml(appt.email || 'N/A')}</div>
+                        ${appt.email ? `<div style="font-size:0.6rem; color:${emailStatus === 'valid' ? 'var(--success)' : 'var(--danger)'};">${emailStatusLabel}</div>` : ''}
                     </div>
                     <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
                         <div style="font-size:0.7rem; color:var(--text-muted);">📅 Date</div>
@@ -3024,12 +3552,39 @@ function showAppointmentDetail(id) {
                         <div style="font-weight:500;">${Utils.escapeHtml(appt.time || 'N/A')}</div>
                     </div>
                 </div>
+
+                <div style="display:flex; gap:16px; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--border-color);">
+                    <div><span style="color:var(--text-muted);">👤 Assigned:</span> <strong>${Utils.escapeHtml(appt.assigned || 'Daniel')}</strong></div>
+                    <div><span style="color:var(--text-muted);">💼 Role:</span> <strong>${Utils.escapeHtml(appt.role || 'Owner')}</strong></div>
+                    ${appt.tags && appt.tags.length > 0 ? `
+                        <div><span style="color:var(--text-muted);">🏷️ Tags:</span> ${appt.tags.map(t => `<span class="status-tag" style="background:var(--bg-primary);">#${t}</span>`).join(' ')}</div>
+                    ` : ''}
+                    ${qualityScore !== null && qualityScore !== undefined ? `
+                        <div><span style="color:var(--text-muted);">⭐ Quality Score:</span> <strong>${qualityScore.toFixed(1)} / 10</strong></div>
+                    ` : ''}
+                </div>
+
                 ${appt.notes ? `
                     <div style="background:var(--bg-primary); border-radius:8px; padding:12px; margin-top:4px;">
                         <div style="font-size:0.7rem; color:var(--text-muted);">📝 Notes</div>
                         <div style="white-space:pre-wrap; margin-top:4px;">${Utils.escapeHtml(appt.notes)}</div>
                     </div>
                 ` : ''}
+
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; padding-top:12px; border-top:2px solid var(--border-color);">
+                    <button class="btn-icon" onclick="window.editAppointment && window.editAppointment('${appt.id}')" style="background:var(--warning); color:#1e293b;">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn-icon" onclick="window.rescheduleAppointment && window.rescheduleAppointment('${appt.id}')" style="background:var(--secondary); color:white;">
+                        <i class="fas fa-calendar-alt"></i> Reschedule
+                    </button>
+                    <button class="btn-icon" onclick="window.completeAppointment && window.completeAppointment('${appt.id}')" style="background:var(--success); color:white;">
+                        <i class="fas fa-check"></i> Complete
+                    </button>
+                    <button class="btn-icon" onclick="window.cancelAppointment && window.cancelAppointment('${appt.id}')" style="background:var(--danger); color:white;">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
             </div>
         `;
     }
@@ -3043,17 +3598,60 @@ function closeAppointmentDetail() {
     AppState.currentAppointmentId = null;
 }
 
-function editAppointment(id) {
-    showToast('Edit appointment feature', 'info');
-}
-
-function rescheduleAppointment(id) {
-    showToast('Reschedule appointment feature', 'info');
-}
-
-function completeAppointment(id) {
-    const appt = Data.getAppointmentById(id);
+function editAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
     if (!appt) { showToast('Appointment not found', 'error'); return; }
+    
+    closeAppointmentDetail();
+    if (typeof FeaturePanel !== 'undefined') {
+        FeaturePanel.openQuickAdd(appt.date);
+    }
+    setTimeout(() => {
+        const businessInput = DOM.get('newApptBusiness');
+        const contactInput = DOM.get('newApptContact');
+        const phoneInput = DOM.get('newApptPhone');
+        const emailInput = DOM.get('newApptEmail');
+        const timeInput = DOM.get('newApptTime');
+        const statusSelect = DOM.get('newApptStatus');
+        const notesInput = DOM.get('newApptNotes');
+        const assignedSelect = DOM.get('newApptAssigned');
+        
+        if (businessInput) businessInput.value = appt.business;
+        if (contactInput) contactInput.value = appt.contactName;
+        if (phoneInput) phoneInput.value = appt.phone || '';
+        if (emailInput) emailInput.value = appt.email || '';
+        if (timeInput) timeInput.value = appt.time || '';
+        if (statusSelect) statusSelect.value = Utils.getStatus(appt);
+        if (notesInput) notesInput.value = appt.notes || '';
+        if (assignedSelect) {
+            const member = AppState.teamMembers.find(m => m.name === appt.assigned);
+            if (member) assignedSelect.value = member.id;
+        }
+        Data.deleteAppointment(appt.date, appt.id);
+    }, 100);
+}
+
+function rescheduleAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    
+    const newDate = prompt('Enter new date (YYYY-MM-DD):', appt.date);
+    if (newDate && newDate.trim()) {
+        const newTime = prompt('Enter new time (e.g., 2:30 PM):', appt.time || '');
+        Data.updateAppointment(appt.date, appt.id, { 
+            date: newDate.trim(),
+            time: newTime || appt.time,
+            status: 'Rescheduled'
+        });
+        closeAppointmentDetail();
+        showToast(`Appointment rescheduled to ${Utils.formatDate(newDate)}`, 'success');
+    }
+}
+
+function completeAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    
     if (confirm(`Mark "${appt.business}" as Completed?`)) {
         Data.updateAppointment(appt.date, appt.id, { status: 'Completed' });
         closeAppointmentDetail();
@@ -3061,9 +3659,10 @@ function completeAppointment(id) {
     }
 }
 
-function cancelAppointment(id) {
-    const appt = Data.getAppointmentById(id);
+function cancelAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
     if (!appt) { showToast('Appointment not found', 'error'); return; }
+    
     if (confirm(`Cancel appointment with ${appt.business}?`)) {
         Data.updateAppointment(appt.date, appt.id, { status: 'Canceled' });
         closeAppointmentDetail();
@@ -3097,12 +3696,18 @@ function initApp() {
         
         window.__FIREBASE_READY__ = AppState.isFirebaseReady;
         
+        // Log Analytics Engine status
+        if (typeof AnalyticsEngine !== 'undefined') {
+            console.log('📊 Analytics Engine loaded');
+        }
+        
     } catch (e) {
         console.warn('⚠️ Initialization check error:', e);
         AppState.isFirebaseReady = false;
         AppState.isAIAvailable = false;
     }
 
+    // Check if Firebase is not ready but SDK is loaded
     if (!AppState.isFirebaseReady && typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0) {
         console.warn('⚠️ Firebase SDK loaded but not ready, attempting re-initialization...');
         if (typeof initializeFirebase === 'function') {
@@ -3121,11 +3726,12 @@ function initApp() {
     }
     updateLoadingProgress(35, 'Connecting to services...');
 
-    // Load custom shortcuts
+    // Load custom shortcuts from localStorage
     AppState.customShortcuts = JSON.parse(localStorage.getItem(STORAGE_KEYS.customShortcuts) || '{}');
     AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS, ...AppState.customShortcuts };
     AppState.scriptFavorites = JSON.parse(localStorage.getItem(STORAGE_KEYS.scriptFavorites) || '[]');
 
+    // Load analytics filters from localStorage
     const savedFilters = localStorage.getItem(STORAGE_KEYS.analyticsFilters);
     if (savedFilters) {
         try {
@@ -3161,6 +3767,7 @@ function initApp() {
         });
     }
 
+    // Escape key handler
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') handleEscapeKey();
     });
@@ -3231,7 +3838,7 @@ function initApp() {
     if (resetScriptBtn) resetScriptBtn.addEventListener('click', () => Scripts.resetScript());
     if (favoriteScriptBtn) favoriteScriptBtn.addEventListener('click', () => Scripts.toggleFavorite(AppState.currentScriptId));
 
-    // Smart Import buttons - these will be overridden by smart-import.js if loaded
+    // Smart Import buttons
     const quickReportBtn = DOM.get('quickReportBtn');
     const parseBtn = DOM.get('parseImportBtn');
     const saveImportBtn = DOM.get('saveImportBtn');
@@ -3460,6 +4067,7 @@ function initApp() {
         setTimeout(hideLoadingScreen, 400);
     }
 
+    // Click outside modal to close
     document.addEventListener('click', (e) => {
         if (e.target.classList.contains('modal-overlay')) {
             e.target.style.display = 'none';
