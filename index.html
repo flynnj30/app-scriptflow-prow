@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,32 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>ScriptFlow Pro · Smart CRM</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%233b82f6'/%3E%3Ctext x='50' y='68' font-size='48' text-anchor='middle' fill='white' font-family='Arial'%3E🎯%3C/text%3E%3C/svg%3E" />
-    
-    <!-- Google Fonts with CORS fix - using crossorigin attribute and fallback -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800&display=swap" rel="stylesheet" crossorigin="anonymous" />
-    
-    <!-- Fallback: System fonts if Google Fonts fail to load -->
-    <style>
-        /* Fallback font stack */
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-        }
-        
-        /* Ensure script content uses fallback fonts */
-        .script-display, .edit-textarea, .script-item .script-name {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-        }
-    </style>
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js" crossorigin="anonymous"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" crossorigin="anonymous"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" crossorigin="anonymous"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" crossorigin="anonymous"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body class="dark">
@@ -81,7 +64,6 @@
                     <div class="tool-item" data-tool="theme"><i class="fas fa-moon"></i> <span>Light/Dark</span></div>
                     <div class="tool-item" data-tool="prospects"><i class="fas fa-users"></i> <span>Prospects</span></div>
                     <div class="tool-item" data-tool="objections"><i class="fas fa-shield-alt"></i> <span>Objections</span></div>
-                    <div class="tool-item" data-tool="releases"><i class="fas fa-whats-new"></i> <span>What's New</span></div>
                     <div class="tool-item" id="signOutBtn"><i class="fas fa-sign-out-alt"></i> <span>Sign Out</span></div>
                 </div>
             </div>
@@ -102,10 +84,6 @@
                     <button class="btn-icon" id="addProspectBtn"><i class="fas fa-user-plus"></i> Add Prospect</button>
                     <button class="btn-icon" id="searchGlobalBtn"><i class="fas fa-search"></i> Search</button>
                     <button class="btn-icon" id="refreshBtn"><i class="fas fa-sync-alt"></i></button>
-                    <button class="btn-icon" id="whatsNewBtn" style="position:relative;">
-                        <i class="fas fa-whats-new"></i> What's New
-                        <span id="whatsNewBadge" class="notification-badge" style="display:none;">0</span>
-                    </button>
                     <span class="badge-auto" id="saveStatus"><i class="fas fa-save"></i> Auto</span>
                 </div>
             </div>
@@ -142,118 +120,6 @@
         </div>
     </div>
 
-    <!-- ================================================================ -->
-    <!-- MODALS -->
-    <!-- ================================================================ -->
-
-    <!-- What's New Modal -->
-    <div id="whatsNewModal" class="modal-overlay" style="display:none;">
-        <div class="modal-card" style="max-width: 800px;">
-            <div class="whats-new-header">
-                <h3><i class="fas fa-whats-new"></i> What's New</h3>
-                <div class="whats-new-actions">
-                    <button id="markAllReadBtn" class="btn-icon" style="font-size:0.7rem; padding:4px 12px;">Mark All Read</button>
-                    <button id="closeWhatsNewBtn" class="btn-icon"><i class="fas fa-times"></i></button>
-                </div>
-            </div>
-            <div class="whats-new-filters">
-                <input type="text" id="releaseSearchInput" placeholder="🔍 Search releases..." />
-                <select id="releaseCategoryFilter">
-                    <option value="all">All Categories</option>
-                    <option value="New Feature">✨ New Feature</option>
-                    <option value="Improvement">⬆️ Improvement</option>
-                    <option value="Bug Fix">🐛 Bug Fix</option>
-                    <option value="Performance">⚡ Performance</option>
-                    <option value="Security">🔒 Security</option>
-                    <option value="UI/UX">🎨 UI/UX</option>
-                    <option value="Documentation">📚 Documentation</option>
-                </select>
-            </div>
-            <div id="releaseListContainer" class="release-list"></div>
-            <div class="whats-new-footer">
-                <span id="releaseCount" class="release-count">0 releases</span>
-                <span id="unreadCount" class="unread-count">0 unread</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Release Manager Modal (Admin Only) -->
-    <div id="releaseManagerModal" class="modal-overlay" style="display:none;">
-        <div class="modal-card" style="max-width: 900px;">
-            <div class="release-manager-header-title">
-                <h3><i class="fas fa-edit"></i> Release Manager</h3>
-                <div class="release-manager-actions">
-                    <button id="newReleaseBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> New Release</button>
-                    <button id="closeReleaseManagerBtn" class="btn-icon"><i class="fas fa-times"></i></button>
-                </div>
-            </div>
-            <div id="releaseManagerContainer" class="release-manager-list"></div>
-        </div>
-    </div>
-
-    <!-- Release Form Modal -->
-    <div id="releaseFormModal" class="modal-overlay" style="display:none;">
-        <div class="modal-card" style="max-width: 600px;">
-            <h3 id="releaseFormTitle"><i class="fas fa-plus"></i> New Release</h3>
-            <form id="releaseForm">
-                <div class="form-group">
-                    <label>Version *</label>
-                    <input type="text" id="releaseVersion" placeholder="e.g., v2.1.0" required />
-                </div>
-                <div class="form-group">
-                    <label>Release Date *</label>
-                    <input type="date" id="releaseDate" required />
-                </div>
-                <div class="form-group">
-                    <label>Category *</label>
-                    <select id="releaseCategory" required>
-                        <option value="New Feature">✨ New Feature</option>
-                        <option value="Improvement">⬆️ Improvement</option>
-                        <option value="Bug Fix">🐛 Bug Fix</option>
-                        <option value="Performance">⚡ Performance</option>
-                        <option value="Security">🔒 Security</option>
-                        <option value="UI/UX">🎨 UI/UX</option>
-                        <option value="Documentation">📚 Documentation</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Title *</label>
-                    <input type="text" id="releaseTitle" placeholder="Release title" required />
-                </div>
-                <div class="form-group">
-                    <label>Description *</label>
-                    <textarea id="releaseDescription" rows="4" placeholder="Detailed description of the release..." required></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Badges (comma separated)</label>
-                    <input type="text" id="releaseBadges" placeholder="e.g., New, Improved, Fixed, Beta" />
-                </div>
-                <div class="form-group">
-                    <label>Attachments (comma separated URLs)</label>
-                    <input type="text" id="releaseAttachments" placeholder="e.g., https://example.com/image.png, https://example.com/video.mp4" />
-                </div>
-                <div class="form-group">
-                    <label>Link</label>
-                    <input type="url" id="releaseLink" placeholder="https://example.com/release-docs" />
-                </div>
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="releasePinned" /> Pin this release
-                    </label>
-                </div>
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="releasePublished" checked /> Published
-                    </label>
-                </div>
-                <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
-                    <button type="button" id="cancelReleaseBtn" class="btn-icon">Cancel</button>
-                    <button type="submit" id="saveReleaseBtn" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-save"></i> Save</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <!-- Smart Import Modal -->
     <div id="smartImportModal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
@@ -275,9 +141,6 @@
             <div id="importPreview" style="display:none;">
                 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
                     <span><i class="fas fa-list"></i> <span id="importRecordCount">0</span> records</span>
-                    <span id="meetingDetectedCount" style="display:none; background:var(--primary); color:white; padding:2px 12px; border-radius:20px; font-size:0.75rem;">
-                        📅 <span id="meetingCountNum">0</span> meetings detected
-                    </span>
                     <div style="display:flex; gap:6px;">
                         <button class="btn-icon" onclick="window.expandAllRecords && window.expandAllRecords()" style="font-size:0.7rem; padding:4px 10px;">Expand All</button>
                         <button class="btn-icon" onclick="window.collapseAllRecords && window.collapseAllRecords()" style="font-size:0.7rem; padding:4px 10px;">Collapse All</button>
@@ -394,9 +257,7 @@
         </div>
     </div>
 
-    <!-- ================================================================ -->
-    <!-- SCRIPTS - Load in correct order -->
-    <!-- ================================================================ -->
+    <!-- Script Loading Order -->
     <script src="js/firebase-config.js"></script>
     <script src="js/app.js"></script>
     <script src="js/smart-import.js"></script>

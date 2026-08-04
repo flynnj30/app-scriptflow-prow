@@ -28,10 +28,10 @@ const CONFIG = {
         { id: 'negligent_warm_callback', name: 'Negligent Warm Callback', color: '#ef4444' }
     ],
     DEFAULT_TEAM_MEMBERS: [
-        { id: 'kailan', name: 'Kailan', role: 'Closer', email: 'kailan@company.com', phone: '+1-555-0101', avatar: '👨‍💼', color: '#3b82f6', active: true },
-        { id: 'seif', name: 'Seif', role: 'Closer', email: 'seif@company.com', phone: '+1-555-0102', avatar: '👩‍💼', color: '#8b5cf6', active: true },
-        { id: 'daniel', name: 'Daniel', role: 'Team Lead', email: 'daniel@company.com', phone: '+1-555-0103', avatar: '👨‍💻', color: '#10b981', active: true },
-        { id: 'sarah', name: 'Sarah', role: 'Senior Agent', email: 'sarah@company.com', phone: '+1-555-0104', avatar: '👩‍💻', color: '#f59e0b', active: true }
+        { id: 'kailan', name: 'Kailan', role: 'Closer', email: 'kailan@company.com', phone: '+1-555-0101', avatar: 'ðŸ‘¨â€ðŸ’¼', color: '#3b82f6', active: true },
+        { id: 'seif', name: 'Seif', role: 'Closer', email: 'seif@company.com', phone: '+1-555-0102', avatar: 'ðŸ‘©â€ðŸ’¼', color: '#8b5cf6', active: true },
+        { id: 'daniel', name: 'Daniel', role: 'Team Lead', email: 'daniel@company.com', phone: '+1-555-0103', avatar: 'ðŸ‘¨â€ðŸ’»', color: '#10b981', active: true },
+        { id: 'sarah', name: 'Sarah', role: 'Senior Agent', email: 'sarah@company.com', phone: '+1-555-0104', avatar: 'ðŸ‘©â€ðŸ’»', color: '#f59e0b', active: true }
     ],
     FIELD_MAPPINGS: {
         'business': ['business', 'company', 'organization', 'org', 'firm', 'brand', 'store', 'business name', 'company name'],
@@ -284,8 +284,6 @@ const Utils = {
             if (appt.notes && appt.notes.length > 20) score += 0.5;
         } else if (status === 'Meeting Booked') {
             score = 7;
-            if (appt.meetingLink) score += 0.5;
-            if (appt.meetingAgenda) score += 0.5;
         } else if (status === 'Rescheduled') {
             score = 4;
         } else if (status === 'Canceled') {
@@ -433,37 +431,6 @@ const Utils = {
             start: Utils.formatDateForCompare(startDate),
             end: Utils.formatDateForCompare(endDate)
         };
-    },
-
-    parseNaturalLanguageDateTime(text) {
-        if (!text) return null;
-        const result = { date: null, time: null, timezone: null };
-        
-        const dayMatch = text.match(/(?:next|this)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i);
-        if (dayMatch) {
-            const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-            const targetDay = days.indexOf(dayMatch[1].toLowerCase());
-            const today = new Date();
-            const todayDay = today.getDay();
-            let daysToAdd = targetDay - todayDay;
-            if (daysToAdd <= 0) daysToAdd += 7;
-            if (dayMatch[0].toLowerCase().startsWith('this') && daysToAdd === 7) daysToAdd = 0;
-            const date = new Date(today);
-            date.setDate(date.getDate() + daysToAdd);
-            result.date = Utils.formatDateForCompare(date);
-        }
-        
-        const timeMatch = text.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
-        if (timeMatch) {
-            result.time = timeMatch[1].trim();
-        }
-        
-        const tzMatch = text.match(/(?:EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC)/i);
-        if (tzMatch) {
-            result.timezone = tzMatch[0];
-        }
-        
-        return result;
     }
 };
 
@@ -516,8 +483,8 @@ function showToast(message, type = 'success') {
 
     const toast = document.createElement('div');
     toast.className = `toast ${type === 'error' ? 'error' : type === 'warning' ? 'warning' : type === 'info' ? 'info' : ''}`;
-    const icons = { success: '✓', error: '⚠️', warning: '⚠️', info: 'ℹ️' };
-    toast.innerHTML = `${icons[type] || '✓'} ${message}`;
+    const icons = { success: 'âœ“', error: 'âš ï¸', warning: 'âš ï¸', info: 'â„¹ï¸' };
+    toast.innerHTML = `${icons[type] || 'âœ“'} ${message}`;
     document.body.appendChild(toast);
 
     setTimeout(() => {
@@ -619,7 +586,7 @@ const Auth = {
                 AppState.currentUser = result.user;
                 this.updateUI();
                 await Data.loadUserData();
-                showToast('Welcome back! 👋', 'success');
+                showToast('Welcome back! ðŸ‘‹', 'success');
                 this.closeModal();
                 AppState.authInProgress = false;
                 return true;
@@ -651,7 +618,7 @@ const Auth = {
                     goals: { daily: 3, weekly: 15, monthly: 60 },
                     scriptOrder: ['opening']
                 });
-                showToast('Account created! 🎉', 'success');
+                showToast('Account created! ðŸŽ‰', 'success');
                 AppState.currentUser = result.user;
                 this.updateUI();
                 await Data.loadUserData();
@@ -675,7 +642,7 @@ const Auth = {
                 AppState.currentUser = result.user;
                 this.updateUI();
                 await Data.loadUserData();
-                showToast('Welcome back! 👋', 'success');
+                showToast('Welcome back! ðŸ‘‹', 'success');
                 this.closeModal();
                 AppState.authInProgress = false;
                 return true;
@@ -774,7 +741,7 @@ const Auth = {
                     <div class="auth-divider">or continue with email</div>
                 ` : `
                     <div style="padding:16px; background:var(--warning); border-radius:12px; margin-bottom:16px; color:#1e293b;">
-                        ⚠️ Offline Mode - Firebase connection unavailable
+                        âš ï¸ Offline Mode - Firebase connection unavailable
                     </div>
                 `}
                 <div id="authFormContainer">
@@ -784,17 +751,17 @@ const Auth = {
                     </div>
                     <div id="loginForm">
                         <div class="form-group"><label>Email</label><input type="email" id="loginEmailInput" placeholder="you@example.com" /></div>
-                        <div class="form-group"><label>Password</label><input type="password" id="loginPasswordInput" placeholder="••••••••" /></div>
+                        <div class="form-group"><label>Password</label><input type="password" id="loginPasswordInput" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" /></div>
                         <button id="loginBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--primary); color:white;" ${!AppState.isFirebaseReady ? 'disabled' : ''}><i class="fas fa-sign-in-alt"></i> Sign In</button>
                     </div>
                     <div id="signupForm" style="display:none;">
                         <div class="form-group"><label>Username</label><input type="text" id="signupUsernameInput" placeholder="Choose a username" /></div>
                         <div class="form-group"><label>Email</label><input type="email" id="signupEmailInput" placeholder="you@example.com" /></div>
-                        <div class="form-group"><label>Password</label><input type="password" id="signupPasswordInput" placeholder="•••••••• (min 6 chars)" /></div>
+                        <div class="form-group"><label>Password</label><input type="password" id="signupPasswordInput" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢ (min 6 chars)" /></div>
                         <button id="signupBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--success); color:white;" ${!AppState.isFirebaseReady ? 'disabled' : ''}><i class="fas fa-user-plus"></i> Create Account</button>
                     </div>
                 </div>
-                <div style="margin-top:16px; text-align:center; font-size:0.8rem; color:var(--text-muted);">🔒 Secure Cloud Data Integration</div>
+                <div style="margin-top:16px; text-align:center; font-size:0.8rem; color:var(--text-muted);">ðŸ”’ Secure Cloud Data Integration</div>
             </div>
         `;
         document.body.appendChild(modal);
@@ -923,24 +890,22 @@ const Stats = {
         let totalQualityScore = 0;
         let scoredMeetings = 0;
         let totalCalls = allAppointments.length;
-        let meetingsWithLink = 0;
-        let meetingsWithAgenda = 0;
 
         allAppointments.forEach(appt => {
             const status = Utils.getStatus(appt);
             
             if (status === 'Meeting Booked') {
                 meetingsBooked++;
-                if (appt.meetingLink) meetingsWithLink++;
-                if (appt.meetingAgenda) meetingsWithAgenda++;
             }
             if (status === 'Held') {
                 meetingsHeld++;
             }
-            if (status === 'Canceled' && appt.notes && appt.notes.toLowerCase().includes('no show')) {
-                noShows++;
-            } else if (status === 'Canceled') {
-                cancelled++;
+            if (status === 'Canceled' || status === 'Overdue') {
+                if (appt.notes && appt.notes.toLowerCase().includes('no show')) {
+                    noShows++;
+                } else if (status === 'Canceled') {
+                    cancelled++;
+                }
             }
             if (status === 'Rescheduled') {
                 rescheduled++;
@@ -979,9 +944,7 @@ const Stats = {
             showRate: Math.round(showRate * 10) / 10,
             noShowRate: Math.round(noShowRate * 10) / 10,
             rescheduleRate: Math.round(rescheduleRate * 10) / 10,
-            totalCalls,
-            meetingsWithLink,
-            meetingsWithAgenda
+            totalCalls
         };
     },
 
@@ -1132,7 +1095,7 @@ const Data = {
                 }
                 AppState.prospectManager = ProspectManager;
                 AppState.prospectManagerReady = true;
-                console.log('📋 Prospect Manager initialized successfully');
+                console.log('ðŸ“‹ Prospect Manager initialized successfully');
                 Stats.updateAll();
             } else {
                 if (!AppState.prospectManagerReady) {
@@ -1238,12 +1201,12 @@ const Data = {
     createDefaultScripts: async function() {
         if (!AppState.currentUser || !AppState.isFirebaseReady) return;
         const defaultScripts = {
-            "opening": { name: "🎯 Opening Script", content: '"Hey, is this [Company Name]?"\n\n"Awesome — this is Flynn. We created a free, modern preview version inspired by your current site. There\'s no cost or obligation. Would you be open to taking a quick look later today and sharing your thoughts?"' },
-            "owner_yes": { name: "👑 Owner - Yes", content: "Perfect! Kailan will call you shortly to showcase your preview concept. Is this the best number to connect with you?" },
-            "owner_no": { name: "🤤 Not Owner", content: "No worries! Who usually drives your design or advertising decisions? What is the best coordinate to reach them today?" },
-            "objection_website": { name: "💻 Objection - Website", content: "I completely understand your concern about the website. Our preview is designed to show you what's possible without any commitment." },
-            "objection_cost": { name: "💰 Objection - Cost", content: "Great question about pricing. The preview is completely free—there's no cost or obligation. We believe in showing value first." },
-            "closing": { name: "🤝 Closing Script", content: "Thank you for your time today! I'll have our team prepare the preview and reach out with next steps." }
+            "opening": { name: "ðŸŽ¯ Opening Script", content: '"Hey, is this [Company Name]?"\n\n"Awesome â€” this is Flynn. We created a free, modern preview version inspired by your current site. There\'s no cost or obligation. Would you be open to taking a quick look later today and sharing your thoughts?"' },
+            "owner_yes": { name: "ðŸ‘‘ Owner - Yes", content: "Perfect! Kailan will call you shortly to showcase your preview concept. Is this the best number to connect with you?" },
+            "owner_no": { name: "ðŸ¤¤ Not Owner", content: "No worries! Who usually drives your design or advertising decisions? What is the best coordinate to reach them today?" },
+            "objection_website": { name: "ðŸ’» Objection - Website", content: "I completely understand your concern about the website. Our preview is designed to show you what's possible without any commitment." },
+            "objection_cost": { name: "ðŸ’° Objection - Cost", content: "Great question about pricing. The preview is completely freeâ€”there's no cost or obligation. We believe in showing value first." },
+            "closing": { name: "ðŸ¤ Closing Script", content: "Thank you for your time today! I'll have our team prepare the preview and reach out with next steps." }
         };
         const batch = firebase.firestore().batch();
         const ref = firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts');
@@ -1288,25 +1251,6 @@ const Data = {
             assignedTo = meetingBookedCount % 2 === 0 ? 'Kailan' : 'Seif';
         }
         
-        let meetingLink = '';
-        let meetingDuration = '';
-        let meetingAgenda = '';
-        let timezone = '';
-        
-        if (notes) {
-            const linkMatch = notes.match(/(?:meeting link|zoom|join|https?:\/\/[^\s]+)/i);
-            if (linkMatch) meetingLink = linkMatch[0];
-            
-            const durationMatch = notes.match(/(\d+)\s*(?:min|minute|hour|hr)/i);
-            if (durationMatch) meetingDuration = durationMatch[0];
-            
-            const agendaMatch = notes.match(/agenda[:\s]+([^\n]+)/i);
-            if (agendaMatch) meetingAgenda = agendaMatch[1].trim();
-            
-            const tzMatch = notes.match(/(?:EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC)/i);
-            if (tzMatch) timezone = tzMatch[0];
-        }
-        
         const newAppt = {
             id: editId || Utils.generateId(),
             business: business || 'Unknown Business',
@@ -1333,11 +1277,7 @@ const Data = {
             rescheduled: status === 'Rescheduled',
             completed: status === 'Completed',
             createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            meetingLink: meetingLink || null,
-            meetingDuration: meetingDuration || null,
-            meetingAgenda: meetingAgenda || null,
-            timezone: timezone || null
+            updatedAt: new Date().toISOString()
         };
         
         if (status === 'Meeting Booked' || status === 'Held') {
@@ -1360,80 +1300,6 @@ const Data = {
             }
         }
         return count;
-    },
-
-    getMeetingStats: function() {
-        const allAppointments = this.getAllAppointments();
-        let meetingsBooked = 0;
-        let meetingsHeld = 0;
-        let noShows = 0;
-        let cancelled = 0;
-        let rescheduled = 0;
-        let pending = 0;
-        let completed = 0;
-        let totalQualityScore = 0;
-        let scoredMeetings = 0;
-        let totalCalls = allAppointments.length;
-        let meetingsWithLink = 0;
-        let meetingsWithAgenda = 0;
-
-        allAppointments.forEach(appt => {
-            const status = Utils.getStatus(appt);
-            
-            if (status === 'Meeting Booked') {
-                meetingsBooked++;
-                if (appt.meetingLink) meetingsWithLink++;
-                if (appt.meetingAgenda) meetingsWithAgenda++;
-            }
-            if (status === 'Held') {
-                meetingsHeld++;
-            }
-            if (status === 'Canceled' && appt.notes && appt.notes.toLowerCase().includes('no show')) {
-                noShows++;
-            } else if (status === 'Canceled') {
-                cancelled++;
-            }
-            if (status === 'Rescheduled') {
-                rescheduled++;
-            }
-            if (status === 'Pending') {
-                pending++;
-            }
-            if (status === 'Completed') {
-                completed++;
-            }
-            
-            const qualityScore = Utils.calculateQualityScore(appt);
-            if (qualityScore !== null && qualityScore !== undefined) {
-                totalQualityScore += qualityScore;
-                scoredMeetings++;
-            }
-        });
-
-        const avgQualityScore = scoredMeetings > 0 ? (totalQualityScore / scoredMeetings) : 0;
-        const per100Calls = totalCalls > 0 ? (meetingsBooked / totalCalls) * 100 : 0;
-        const showRate = meetingsBooked > 0 ? (meetingsHeld / meetingsBooked) * 100 : 0;
-        const noShowRate = meetingsBooked > 0 ? (noShows / meetingsBooked) * 100 : 0;
-        const rescheduleRate = meetingsBooked > 0 ? (rescheduled / meetingsBooked) * 100 : 0;
-
-        return {
-            meetingsBooked,
-            meetingsHeld,
-            noShows,
-            cancelled,
-            rescheduled,
-            pending,
-            completed,
-            avgQualityScore: Math.round(avgQualityScore * 10) / 10,
-            scoredMeetings,
-            per100Calls: Math.round(per100Calls * 10) / 10,
-            showRate: Math.round(showRate * 10) / 10,
-            noShowRate: Math.round(noShowRate * 10) / 10,
-            rescheduleRate: Math.round(rescheduleRate * 10) / 10,
-            totalCalls,
-            meetingsWithLink,
-            meetingsWithAgenda
-        };
     },
 
     syncAppointment: async function(appointment) {
@@ -1622,7 +1488,7 @@ const Data = {
             role: member.role || 'Agent',
             email: member.email || '',
             phone: member.phone || '',
-            avatar: member.avatar || '👤',
+            avatar: member.avatar || 'ðŸ‘¤',
             color: member.color || '#3b82f6',
             active: true,
             createdAt: new Date().toISOString()
@@ -1752,8 +1618,6 @@ const AnalyticsEngine = {
         let emailValidCount = 0;
         let emailBouncedCount = 0;
         let emailInvalidCount = 0;
-        let meetingsWithLink = 0;
-        let meetingsWithAgenda = 0;
 
         appointments.forEach(appt => {
             const status = Utils.getStatus(appt);
@@ -1761,8 +1625,6 @@ const AnalyticsEngine = {
             
             if (status === 'Meeting Booked') {
                 meetingsBooked++;
-                if (appt.meetingLink) meetingsWithLink++;
-                if (appt.meetingAgenda) meetingsWithAgenda++;
             }
             if (status === 'Held') {
                 meetingsHeld++;
@@ -1869,9 +1731,7 @@ const AnalyticsEngine = {
             emailValidCount,
             emailBouncedCount,
             emailInvalidCount,
-            totalEmailCount: emailValidCount + emailBouncedCount + emailInvalidCount,
-            meetingsWithLink,
-            meetingsWithAgenda
+            totalEmailCount: emailValidCount + emailBouncedCount + emailInvalidCount
         };
     },
 
@@ -1965,698 +1825,3304 @@ const AnalyticsEngine = {
         const colors = ['#ef4444', '#f97316', '#f59e0b', '#3b82f6', '#10b981'];
         
         return { labels, data, colors };
-    },
-
-    getMeetingMetrics(appointments) {
-        const metrics = this.calculateMetrics(appointments);
-        return {
-            meetingsBooked: metrics.meetingsBooked,
-            meetingsHeld: metrics.meetingsHeld,
-            noShows: metrics.noShows,
-            cancelled: metrics.cancelled,
-            rescheduled: metrics.rescheduled,
-            pending: metrics.pending,
-            completed: metrics.completed,
-            avgQualityScore: metrics.avgQualityScore,
-            per100Calls: metrics.per100Calls,
-            showRate: metrics.showRate,
-            noShowRate: metrics.noShowRate,
-            rescheduleRate: metrics.rescheduleRate,
-            meetingsWithLink: metrics.meetingsWithLink,
-            meetingsWithAgenda: metrics.meetingsWithAgenda,
-            totalCalls: metrics.totalCalls
-        };
     }
 };
 
 // ================================================================
-// RELEASE MANAGER - Centralized Release Notes System
+// SMART IMPORT FUNCTIONS - MUST BE DEFINED BEFORE EVENT LISTENERS
 // ================================================================
 
-const ReleaseManager = {
-    releases: [],
-    unreadReleases: [],
-    readReleases: [],
-    currentFilters: {
-        search: '',
-        category: 'all'
-    },
-    isAdmin: false,
-    initialized: false,
-
-    categories: {
-        'New Feature': { icon: '✨', color: '#10b981' },
-        'Improvement': { icon: '⬆️', color: '#3b82f6' },
-        'Bug Fix': { icon: '🐛', color: '#ef4444' },
-        'Performance': { icon: '⚡', color: '#8b5cf6' },
-        'Security': { icon: '🔒', color: '#dc2626' },
-        'UI/UX': { icon: '🎨', color: '#f59e0b' },
-        'Documentation': { icon: '📚', color: '#06b6d4' }
-    },
-
-    badgeStyles: {
-        'New': { color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
-        'Improved': { color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
-        'Fixed': { color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-        'Beta': { color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)' },
-        'Hotfix': { color: '#f97316', bg: 'rgba(249,115,22,0.15)' },
-        'Deprecated': { color: '#94a3b8', bg: 'rgba(148,163,184,0.15)' }
-    },
-
-    init: function() {
-        if (this.initialized) return;
-        this.initialized = true;
-
-        this.loadReleases();
-        this.loadReadStatus();
-        this.checkForNewReleases();
-        this.setupEventListeners();
-
-        console.log(`📋 Release Manager initialized with ${this.releases.length} releases`);
-        console.log(`📋 ${this.unreadReleases.length} unread releases`);
-    },
-
-    loadReleases: function() {
-        try {
-            const stored = localStorage.getItem('scriptflow_releases');
-            if (stored) {
-                this.releases = JSON.parse(stored);
-            } else {
-                this.releases = this.getDefaultReleases();
-                this.saveReleases();
-            }
-        } catch (e) {
-            console.warn('Failed to load releases:', e);
-            this.releases = this.getDefaultReleases();
-        }
-    },
-
-    getDefaultReleases: function() {
-        const today = new Date().toISOString().split('T')[0];
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-        const lastWeek = new Date(Date.now() - 604800000).toISOString().split('T')[0];
-
-        return [
-            {
-                id: 'release_1',
-                version: 'v2.1.0',
-                date: today,
-                category: 'New Feature',
-                title: 'Meeting Performance Dashboard',
-                description: 'Added comprehensive Meeting Performance Dashboard with KPI cards, charts, and drill-down capabilities. Track meetings booked, show rates, no-show rates, and quality scores in real-time.',
-                badges: ['New', 'Improved'],
-                attachments: [],
-                link: '',
-                pinned: true,
-                published: true,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            },
-            {
-                id: 'release_2',
-                version: 'v2.0.5',
-                date: yesterday,
-                category: 'Improvement',
-                title: 'Smart Import Meeting Detection',
-                description: 'Enhanced Smart Import with automatic meeting detection. The system now intelligently identifies confirmed meetings, extracts booking details, and auto-assigns to closers (Kailan/Seif).',
-                badges: ['Improved'],
-                attachments: [],
-                link: '',
-                pinned: false,
-                published: true,
-                createdAt: new Date(Date.now() - 86400000).toISOString(),
-                updatedAt: new Date(Date.now() - 86400000).toISOString()
-            },
-            {
-                id: 'release_3',
-                version: 'v2.0.4',
-                date: lastWeek,
-                category: 'New Feature',
-                title: 'Email Validation & Quality Scoring',
-                description: 'Added email validation with bounce detection. Quality scores are now auto-calculated based on meeting status, email validity, and engagement metrics.',
-                badges: ['New', 'Improved'],
-                attachments: [],
-                link: '',
-                pinned: false,
-                published: true,
-                createdAt: new Date(Date.now() - 604800000).toISOString(),
-                updatedAt: new Date(Date.now() - 604800000).toISOString()
-            },
-            {
-                id: 'release_4',
-                version: 'v2.0.3',
-                date: new Date(Date.now() - 1209600000).toISOString().split('T')[0],
-                category: 'Bug Fix',
-                title: 'Calendar View Fixes',
-                description: 'Fixed calendar view toggle buttons for list and month views. Improved responsive layout for mobile devices.',
-                badges: ['Fixed'],
-                attachments: [],
-                link: '',
-                pinned: false,
-                published: true,
-                createdAt: new Date(Date.now() - 1209600000).toISOString(),
-                updatedAt: new Date(Date.now() - 1209600000).toISOString()
-            },
-            {
-                id: 'release_5',
-                version: 'v2.0.2',
-                date: new Date(Date.now() - 1814400000).toISOString().split('T')[0],
-                category: 'Performance',
-                title: 'Performance Optimization',
-                description: 'Optimized data loading and rendering performance. Reduced initial load time by 40%.',
-                badges: ['Improved', 'Performance'],
-                attachments: [],
-                link: '',
-                pinned: false,
-                published: true,
-                createdAt: new Date(Date.now() - 1814400000).toISOString(),
-                updatedAt: new Date(Date.now() - 1814400000).toISOString()
-            }
-        ];
-    },
-
-    saveReleases: function() {
-        try {
-            localStorage.setItem('scriptflow_releases', JSON.stringify(this.releases));
-        } catch (e) {
-            console.warn('Failed to save releases:', e);
-        }
-    },
-
-    loadReadStatus: function() {
-        try {
-            const stored = localStorage.getItem('scriptflow_read_releases');
-            if (stored) {
-                this.readReleases = JSON.parse(stored);
-            }
-            this.updateUnreadReleases();
-        } catch (e) {
-            console.warn('Failed to load read status:', e);
-            this.readReleases = [];
-        }
-    },
-
-    saveReadStatus: function() {
-        try {
-            localStorage.setItem('scriptflow_read_releases', JSON.stringify(this.readReleases));
-        } catch (e) {
-            console.warn('Failed to save read status:', e);
-        }
-    },
-
-    updateUnreadReleases: function() {
-        this.unreadReleases = this.releases.filter(r => 
-            r.published && 
-            !this.readReleases.includes(r.id)
-        );
-        this.updateBadge();
-    },
-
-    checkForNewReleases: function() {
-        const lastVisit = localStorage.getItem('scriptflow_last_release_check');
-        const now = new Date().toISOString();
+/**
+ * Open the Smart Import modal
+ */
+function openSmartImportEnhanced() {
+    const modal = DOM.get('smartImportModal');
+    if (!modal) return;
+    
+    modal.style.display = 'flex';
+    
+    AppState.importRecords = [];
+    AppState.importProcessing = false;
+    AppState.importProgress = 0;
+    
+    const dateInput = DOM.get('importDefaultDate');
+    if (dateInput) {
+        dateInput.value = Utils.getTodayStr();
+    }
+    
+    const textArea = DOM.get('importTextArea');
+    if (textArea) {
+        textArea.value = '';
+        textArea.placeholder = `Paste appointment details here. The system will intelligently parse:
         
-        this.updateUnreadReleases();
+Example:
+Business Name/Company : Correa and Son's Landscaping LLC
+Name : Kelvin
+Role : Owner
+Phone Number: +12678808990
+Best Time for Warm Callback: Tomorrow at 1pm EDT
+Notes: Custom website preview offered + no website currently + high interest, positive and booked a manager callback to review the website.`;
+    }
+    
+    const preview = DOM.get('importPreview');
+    if (preview) preview.style.display = 'none';
+    
+    const saveBtn = DOM.get('saveImportBtn');
+    if (saveBtn) saveBtn.style.display = 'none';
+    
+    const resultsContainer = DOM.get('importResultsContainer');
+    if (resultsContainer) resultsContainer.innerHTML = '';
+    
+    const progressContainer = DOM.get('importProgressContainer');
+    if (progressContainer) progressContainer.style.display = 'none';
+    
+    const summary = DOM.get('importSummary');
+    if (summary) summary.style.display = 'none';
+}
+
+/**
+ * Close the Smart Import modal
+ */
+function closeSmartImportEnhanced() {
+    const modal = DOM.get('smartImportModal');
+    if (modal) modal.style.display = 'none';
+    AppState.importRecords = [];
+    AppState.importProcessing = false;
+}
+
+/**
+ * Parse and preview import
+ */
+function parseAndPreviewImportEnhanced() {
+    const textArea = DOM.get('importTextArea');
+    if (!textArea) return;
+    
+    const text = textArea.value;
+    if (!text.trim()) {
+        showToast('Please paste some text to parse', 'warning');
+        return;
+    }
+    
+    const dateInput = DOM.get('importDefaultDate');
+    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
+    
+    const progressContainer = DOM.get('importProgressContainer');
+    if (progressContainer) progressContainer.style.display = 'block';
+    AppState.importProcessing = true;
+    AppState.importProgress = 0;
+    updateImportProgress(5, 'Splitting appointments...');
+    
+    setTimeout(() => {
+        let appointments = [];
+        let parsedResults = [];
         
-        if (this.unreadReleases.length > 0) {
+        // Use centralized engine if available
+        if (typeof window.smartImportEngine !== 'undefined' && window.smartImportEngine) {
+            try {
+                if (typeof window.smartImportEngine.splitAppointments === 'function') {
+                    appointments = window.smartImportEngine.splitAppointments(text);
+                } else {
+                    appointments = splitAppointmentsFallback(text);
+                }
+                
+                const total = appointments.length;
+                AppState.importProgress = 15;
+                updateImportProgress(15, `Found ${total} appointment(s). Parsing...`);
+                
+                if (total === 0) {
+                    showToast('No appointments detected in the text', 'warning');
+                    AppState.importProcessing = false;
+                    if (progressContainer) progressContainer.style.display = 'none';
+                    return;
+                }
+                
+                let validCount = 0;
+                let invalidCount = 0;
+                let duplicateCount = 0;
+                const existingAppointments = Data.getAllAppointments();
+                
+                appointments.forEach((apptText, index) => {
+                    const progress = 15 + ((index + 1) / total) * 50;
+                    updateImportProgress(progress, `Processing appointment ${index + 1} of ${total}...`);
+                    
+                    let parsed;
+                    if (typeof window.smartImportEngine.parseText === 'function') {
+                        parsed = window.smartImportEngine.parseText(apptText, { defaultDate });
+                    } else {
+                        const { result, confidence, context } = parseAppointmentTextFallback(apptText, defaultDate);
+                        parsed = {
+                            result,
+                            confidence,
+                            context,
+                            isValid: validateAppointmentDataFallback(result).isValid,
+                            errors: validateAppointmentDataFallback(result).errors,
+                            warnings: validateAppointmentDataFallback(result).warnings
+                        };
+                    }
+                    
+                    let duplicates = [];
+                    if (typeof window.smartImportEngine !== 'undefined' && 
+                        typeof window.smartImportEngine.checkDuplicates === 'function') {
+                        duplicates = window.smartImportEngine.checkDuplicates(parsed, existingAppointments);
+                    } else {
+                        duplicates = checkDuplicatesFallback(parsed.result, existingAppointments);
+                    }
+                    
+                    const hasSignificantDuplicate = duplicates.some(d => d.confidence >= 70);
+                    if (hasSignificantDuplicate) duplicateCount++;
+                    
+                    if (parsed.isValid) validCount++;
+                    else invalidCount++;
+                    
+                    parsedResults.push({
+                        index: index + 1,
+                        raw: apptText,
+                        parsed: parsed.result || {},
+                        confidence: parsed.confidence || {},
+                        context: parsed.context || {},
+                        validated: parsed.result || {},
+                        isValid: parsed.isValid || false,
+                        errors: parsed.errors || [],
+                        warnings: parsed.warnings || [],
+                        hasDuplicate: hasSignificantDuplicate,
+                        duplicates: duplicates
+                    });
+                });
+                
+                AppState.importRecords = parsedResults;
+                AppState.importProgress = 80;
+                updateImportProgress(80, 'Generating preview...');
+                
+                setTimeout(() => {
+                    renderImportResults(parsedResults);
+                    AppState.importProcessing = false;
+                    updateImportProgress(100, 'Complete!');
+                    
+                    setTimeout(() => {
+                        if (progressContainer) progressContainer.style.display = 'none';
+                    }, 1500);
+                    
+                    showToast(`Parsed ${parsedResults.length} appointment(s)! ${validCount} valid, ${invalidCount} need review`, 'info');
+                }, 300);
+            } catch (error) {
+                console.error('Smart Import parse error:', error);
+                showToast('Error parsing text: ' + error.message, 'error');
+                AppState.importProcessing = false;
+                if (progressContainer) progressContainer.style.display = 'none';
+            }
+        } else {
+            // Fallback parsing
+            appointments = splitAppointmentsFallback(text);
+            const total = appointments.length;
+            AppState.importProgress = 15;
+            updateImportProgress(15, `Found ${total} appointment(s). Parsing...`);
+            
+            if (total === 0) {
+                showToast('No appointments detected in the text', 'warning');
+                AppState.importProcessing = false;
+                if (progressContainer) progressContainer.style.display = 'none';
+                return;
+            }
+            
+            let validCount = 0;
+            let invalidCount = 0;
+            let duplicateCount = 0;
+            const existingAppointments = Data.getAllAppointments();
+            
+            appointments.forEach((apptText, index) => {
+                const progress = 15 + ((index + 1) / total) * 50;
+                updateImportProgress(progress, `Processing appointment ${index + 1} of ${total}...`);
+                
+                const { result, confidence, context } = parseAppointmentTextFallback(apptText, defaultDate);
+                const validationResult = validateAppointmentDataFallback(result);
+                const duplicates = checkDuplicatesFallback(result, existingAppointments);
+                const hasSignificantDuplicate = duplicates.some(d => d.confidence >= 70);
+                if (hasSignificantDuplicate) duplicateCount++;
+                
+                if (validationResult.isValid) validCount++;
+                else invalidCount++;
+                
+                parsedResults.push({
+                    index: index + 1,
+                    raw: apptText,
+                    parsed: result,
+                    confidence: confidence,
+                    context: context,
+                    validated: validationResult.validated,
+                    isValid: validationResult.isValid,
+                    errors: validationResult.errors,
+                    warnings: validationResult.warnings,
+                    hasDuplicate: hasSignificantDuplicate,
+                    duplicates: duplicates
+                });
+            });
+            
+            AppState.importRecords = parsedResults;
+            AppState.importProgress = 80;
+            updateImportProgress(80, 'Generating preview...');
+            
             setTimeout(() => {
-                showToast(`📋 ${this.unreadReleases.length} new update${this.unreadReleases.length > 1 ? 's' : ''} available! Click "What's New" to view.`, 'info');
-            }, 3000);
+                renderImportResults(parsedResults);
+                AppState.importProcessing = false;
+                updateImportProgress(100, 'Complete!');
+                
+                setTimeout(() => {
+                    if (progressContainer) progressContainer.style.display = 'none';
+                }, 1500);
+                
+                showToast(`Parsed ${parsedResults.length} appointment(s)! ${validCount} valid, ${invalidCount} need review`, 'info');
+            }, 300);
+        }
+    }, 300);
+}
+
+// ================================================================
+// FALLBACK PARSE FUNCTIONS (when smart-import.js is not loaded)
+// ================================================================
+
+function splitAppointmentsFallback(text) {
+    const appointments = [];
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+    let currentAppointment = [];
+    let inAppointment = false;
+    
+    for (const line of lines) {
+        const isNewAppointment = 
+            line.match(/^[A-Z][a-zA-Z]+\s+(?:Company|Corp|Inc|LLC|Ltd|Agency|Studio|Designs|Solutions|Services|Consulting|Group|Partners|&|Associates)/) ||
+            line.match(/^---+\s*$/) ||
+            line.match(/^={3,}\s*$/) ||
+            line.match(/^Appointment\s+#\d+/) ||
+            line.match(/^\d+\.\s*[A-Z]/);
+        
+        if (isNewAppointment && currentAppointment.length > 0) {
+            appointments.push(currentAppointment.join('\n'));
+            currentAppointment = [];
+            inAppointment = false;
         }
         
-        localStorage.setItem('scriptflow_last_release_check', now);
-    },
-
-    updateBadge: function() {
-        const badge = document.getElementById('whatsNewBadge');
-        if (badge) {
-            const count = this.unreadReleases.length;
-            if (count > 0) {
-                badge.style.display = 'inline-block';
-                badge.textContent = count;
-            } else {
-                badge.style.display = 'none';
+        if (line.includes(':') && line.split(':')[0].trim().length > 0 && line.split(':')[0].trim().length < 30) {
+            const key = line.split(':')[0].trim().toLowerCase();
+            const isField = CONFIG.FIELD_MAPPINGS && Object.keys(CONFIG.FIELD_MAPPINGS).some(f => 
+                CONFIG.FIELD_MAPPINGS[f] && CONFIG.FIELD_MAPPINGS[f].includes(key)
+            );
+            if (isField && currentAppointment.length === 0 && !inAppointment) {
+                inAppointment = true;
             }
         }
-    },
+        
+        currentAppointment.push(line);
+    }
+    
+    if (currentAppointment.length > 0) {
+        appointments.push(currentAppointment.join('\n'));
+    }
+    
+    if (appointments.length === 0 && text.trim()) {
+        appointments.push(text.trim());
+    }
+    
+    return appointments;
+}
 
-    markAsRead: function(releaseId) {
-        if (!this.readReleases.includes(releaseId)) {
-            this.readReleases.push(releaseId);
-            this.saveReadStatus();
-            this.updateUnreadReleases();
+function parseAppointmentTextFallback(text, defaultDate = null) {
+    const result = {};
+    const confidence = {};
+    
+    const cleanText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = cleanText.split('\n').filter(line => line.trim());
+    const fullText = lines.join(' ');
+    
+    const fieldPatterns = {
+        business: /(?:business|company|organization|org|firm|brand|store)[:\s]+([^\n]+)/i,
+        name: /(?:name|contact|client|customer|person)[:\s]+([^\n]+)/i,
+        role: /(?:role|title|position|job title)[:\s]+([^\n]+)/i,
+        phone: /(?:phone|mobile|cell|telephone|number)[:\s]+([^\n]+)/i,
+        email: /(?:email|e-mail|mail)[:\s]+([^\n]+)/i,
+        date: /(?:date|appointment date|schedule date|meeting date|call date)[:\s]+([^\n]+)/i,
+        time: /(?:time|appointment time|schedule time|meeting time|call time)[:\s]+([^\n]+)/i,
+        status: /(?:status|state|stage|lead status)[:\s]+([^\n]+)/i,
+        notes: /(?:notes|note|comment|remarks|additional notes)[:\s]+([^\n]+)/i,
+        assigned: /(?:assigned|assigned to|owner|agent|representative)[:\s]+([^\n]+)/i
+    };
+    
+    for (const [field, pattern] of Object.entries(fieldPatterns)) {
+        const match = fullText.match(pattern);
+        if (match && match[1]) {
+            result[field] = match[1].trim();
+            confidence[field] = 0.8;
         }
-    },
+    }
+    
+    if (Object.keys(result).length === 0) {
+        result.notes = fullText;
+        confidence.notes = 0.3;
+    }
+    
+    if (!result.date && defaultDate) {
+        result.date = defaultDate;
+        confidence.date = 1.0;
+    }
+    
+    if (result.phone) {
+        result.phone = result.phone.replace(/[^\d+]/g, '');
+        if (result.phone.length === 10 && /^\d{10}$/.test(result.phone)) {
+            result.phone = `(${result.phone.substring(0, 3)}) ${result.phone.substring(3, 6)}-${result.phone.substring(6)}`;
+        }
+    }
+    
+    return { result, confidence, context: { detectedFormat: 'fallback' } };
+}
 
-    markAllAsRead: function() {
-        this.releases.forEach(r => {
-            if (r.published && !this.readReleases.includes(r.id)) {
-                this.readReleases.push(r.id);
+function validateAppointmentDataFallback(data) {
+    const errors = [];
+    const warnings = [];
+    const validated = {};
+    
+    if (!data.name || data.name.trim().length < 2) {
+        errors.push({ field: 'name', message: 'Contact name is required (minimum 2 characters)' });
+    } else {
+        validated.name = data.name.trim();
+    }
+    
+    if (!data.business || data.business.trim().length < 2) {
+        errors.push({ field: 'business', message: 'Business name is required (minimum 2 characters)' });
+    } else {
+        validated.business = data.business.trim();
+    }
+    
+    if (data.phone) {
+        const cleanPhone = data.phone.replace(/[^\d+]/g, '');
+        if (cleanPhone.length < 7 || cleanPhone.length > 15) {
+            warnings.push({ field: 'phone', message: 'Phone number seems invalid. Expected 7-15 digits.' });
+        }
+        validated.phone = cleanPhone;
+    }
+    
+    if (data.email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(data.email)) {
+            warnings.push({ field: 'email', message: 'Email format seems invalid.' });
+        }
+        validated.email = data.email.toLowerCase().trim();
+    }
+    
+    if (data.date) {
+        const parsedDate = Utils.parseDateString(data.date);
+        if (parsedDate) {
+            validated.date = parsedDate;
+        } else {
+            warnings.push({ field: 'date', message: 'Date format not recognized. Using today\'s date.' });
+            validated.date = Utils.getTodayStr();
+        }
+    } else {
+        validated.date = Utils.getTodayStr();
+    }
+    
+    if (data.status) {
+        const statusOptions = CONFIG.STATUS_OPTIONS || ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'];
+        const matchedStatus = statusOptions.find(s => 
+            s.toLowerCase() === data.status.toLowerCase() ||
+            s.toLowerCase().includes(data.status.toLowerCase()) ||
+            data.status.toLowerCase().includes(s.toLowerCase())
+        );
+        if (matchedStatus) {
+            validated.status = matchedStatus;
+        } else {
+            warnings.push({ field: 'status', message: `Status "${data.status}" not recognized. Using "Pending".` });
+            validated.status = 'Pending';
+        }
+    } else {
+        validated.status = 'Pending';
+    }
+    
+    ['assigned', 'role', 'notes', 'tags', 'email', 'time', 'phone'].forEach(field => {
+        if (data[field]) {
+            validated[field] = data[field];
+        }
+    });
+    
+    return {
+        validated,
+        errors,
+        warnings,
+        isValid: errors.length === 0
+    };
+}
+
+function checkDuplicatesFallback(newData, existingAppointments) {
+    const duplicates = [];
+    if (!existingAppointments || existingAppointments.length === 0) return duplicates;
+    
+    const newName = (newData.name || '').toLowerCase().trim();
+    const newBusiness = (newData.business || '').toLowerCase().trim();
+    const newPhone = (newData.phone || '').replace(/[^\d+]/g, '');
+    const newEmail = (newData.email || '').toLowerCase().trim();
+    
+    for (const existing of existingAppointments) {
+        let score = 0;
+        let matchedFields = [];
+        let totalChecks = 0;
+        
+        if (newName && existing.contactName) {
+            totalChecks++;
+            const existingName = existing.contactName.toLowerCase().trim();
+            if (newName === existingName) {
+                score += 0.6;
+                matchedFields.push('name');
+            } else if (newName.includes(existingName) || existingName.includes(newName)) {
+                score += 0.3;
+                matchedFields.push('name_partial');
+            }
+        }
+        
+        if (newBusiness && existing.business) {
+            totalChecks++;
+            const existingBusiness = existing.business.toLowerCase().trim();
+            if (newBusiness === existingBusiness) {
+                score += 0.5;
+                matchedFields.push('business');
+            } else if (newBusiness.includes(existingBusiness) || existingBusiness.includes(newBusiness)) {
+                score += 0.25;
+                matchedFields.push('business_partial');
+            }
+        }
+        
+        if (newPhone && existing.phone) {
+            totalChecks++;
+            const existingPhone = existing.phone.replace(/[^\d+]/g, '');
+            if (newPhone === existingPhone) {
+                score += 0.7;
+                matchedFields.push('phone');
+            } else if (newPhone.includes(existingPhone) || existingPhone.includes(newPhone)) {
+                score += 0.3;
+                matchedFields.push('phone_partial');
+            }
+        }
+        
+        if (newEmail && existing.email) {
+            totalChecks++;
+            const existingEmail = existing.email.toLowerCase().trim();
+            if (newEmail === existingEmail) {
+                score += 0.8;
+                matchedFields.push('email');
+            }
+        }
+        
+        const confidence = totalChecks > 0 ? Math.min(score + (totalChecks - 1) * 0.1, 1) : 0;
+        if (confidence >= 0.5) {
+            duplicates.push({
+                existing: existing,
+                confidence: Math.round(confidence * 100),
+                matchedFields: matchedFields,
+                score: score
+            });
+        }
+    }
+    
+    duplicates.sort((a, b) => b.confidence - a.confidence);
+    return duplicates;
+}
+
+function updateImportProgress(percent, message) {
+    const progressBar = DOM.get('importProgressBar');
+    const progressStatus = DOM.get('importProgressStatus');
+    
+    if (progressBar) {
+        progressBar.style.width = Math.min(percent, 100) + '%';
+    }
+    if (progressStatus && message) {
+        progressStatus.textContent = message;
+    }
+}
+
+function renderImportResults(records) {
+    const preview = DOM.get('importPreview');
+    const resultsContainer = DOM.get('importResultsContainer');
+    const saveBtn = DOM.get('saveImportBtn');
+    const summary = DOM.get('importSummary');
+    const recordCount = DOM.get('importRecordCount');
+    
+    if (!preview || !resultsContainer) return;
+    
+    preview.style.display = 'block';
+    
+    if (recordCount) {
+        recordCount.textContent = records.length;
+    }
+    
+    if (summary) {
+        const total = records.length;
+        const valid = records.filter(r => r.isValid).length;
+        const invalid = records.filter(r => !r.isValid).length;
+        const duplicates = records.filter(r => r.hasDuplicate).length;
+        
+        summary.style.display = 'block';
+        summary.innerHTML = `
+            <div class="import-summary-grid">
+                <div class="import-stat ${valid > 0 ? 'success' : ''}">
+                    <span class="stat-number">${valid}</span>
+                    <span class="stat-label">âœ… Valid</span>
+                </div>
+                <div class="import-stat ${invalid > 0 ? 'warning' : ''}">
+                    <span class="stat-number">${invalid}</span>
+                    <span class="stat-label">âš ï¸ Needs Review</span>
+                </div>
+                <div class="import-stat ${duplicates > 0 ? 'warning' : ''}">
+                    <span class="stat-number">${duplicates}</span>
+                    <span class="stat-label">ðŸ”„ Potential Duplicates</span>
+                </div>
+                <div class="import-stat">
+                    <span class="stat-number">${total}</span>
+                    <span class="stat-label">ðŸ“‹ Total</span>
+                </div>
+            </div>
+        `;
+    }
+    
+    let resultsHtml = '';
+    records.forEach((record, idx) => {
+        const statusClass = record.isValid ? 'valid' : 'invalid';
+        const hasDuplicate = record.hasDuplicate;
+        const hasWarnings = record.warnings && record.warnings.length > 0;
+        
+        const confValues = Object.values(record.confidence || {});
+        const avgConf = confValues.length > 0 ? confValues.reduce((a, b) => a + b, 0) / confValues.length : 0;
+        const confColor = avgConf >= 0.7 ? 'high' : avgConf >= 0.4 ? 'medium' : 'low';
+        
+        resultsHtml += `
+            <div class="import-record ${statusClass} ${hasDuplicate ? 'duplicate' : ''}">
+                <div class="record-header" onclick="window.toggleImportRecord(this)">
+                    <div class="record-status">
+                        <span class="status-icon">${record.isValid ? 'âœ…' : 'âš ï¸'}</span>
+                        <span class="record-index">#${record.index}</span>
+                    </div>
+                    <div class="record-summary">
+                        <span class="record-name">${Utils.escapeHtml(record.validated.name || record.parsed.name || 'Unknown')}</span>
+                        <span class="record-business">${Utils.escapeHtml(record.validated.business || record.parsed.business || 'Unknown Business')}</span>
+                        ${record.parsed.date ? `<span class="record-date">ðŸ“… ${Utils.escapeHtml(record.parsed.date)}</span>` : ''}
+                    </div>
+                    <div class="record-badges">
+                        ${hasDuplicate ? '<span class="badge duplicate">ðŸ”„ Duplicate</span>' : ''}
+                        ${hasWarnings ? `<span class="badge warning">âš ï¸ ${record.warnings.length}</span>` : ''}
+                        ${!record.isValid ? `<span class="badge error">âŒ ${record.errors.length}</span>` : ''}
+                        <span class="badge confidence ${confColor}">${Math.round(avgConf * 100)}%</span>
+                    </div>
+                    <span class="record-toggle">â–¼</span>
+                </div>
+                <div class="record-body" style="display:none;">
+                    <div class="record-fields">
+                        ${renderRecordFields(record)}
+                    </div>
+                    
+                    ${record.warnings && record.warnings.length > 0 ? `
+                        <div class="record-warnings">
+                            <strong>âš ï¸ Warnings:</strong>
+                            <ul>${record.warnings.map(w => `<li>${w.field}: ${w.message}</li>`).join('')}</ul>
+                        </div>
+                    ` : ''}
+                    
+                    ${!record.isValid ? `
+                        <div class="record-errors">
+                            <strong>âŒ Errors:</strong>
+                            <ul>${record.errors.map(e => `<li>${e.field}: ${e.message}</li>`).join('')}</ul>
+                        </div>
+                    ` : ''}
+                    
+                    ${record.hasDuplicate && record.duplicates.length > 0 ? `
+                        <div class="record-duplicates">
+                            <strong>ðŸ”„ Potential Duplicates:</strong>
+                            <ul>${record.duplicates.filter(d => d.confidence >= 60).map(d => 
+                                `<li>${Utils.escapeHtml(d.existing.business)} - ${Utils.escapeHtml(d.existing.contactName)} (${d.confidence}% match)</li>`
+                            ).join('')}</ul>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    });
+    
+    resultsContainer.innerHTML = resultsHtml;
+    
+    const validRecords = records.filter(r => r.isValid);
+    if (saveBtn && validRecords.length > 0) {
+        saveBtn.style.display = 'inline-flex';
+        saveBtn.textContent = `ðŸ’¾ Save ${validRecords.length} Record(s)`;
+        saveBtn.onclick = () => saveAllImportedAppointments();
+    } else if (saveBtn) {
+        saveBtn.style.display = 'none';
+    }
+}
+
+function renderRecordFields(record) {
+    const fields = record.validated || record.parsed || {};
+    const confidence = record.confidence || {};
+    
+    const fieldLabels = {
+        name: 'ðŸ‘¤ Name',
+        business: 'ðŸ¢ Business',
+        phone: 'ðŸ“ž Phone',
+        email: 'âœ‰ï¸ Email',
+        date: 'ðŸ“… Date',
+        time: 'ðŸ• Time',
+        status: 'ðŸ“Š Status',
+        assigned: 'ðŸ‘¤ Assigned',
+        role: 'ðŸ’¼ Role',
+        notes: 'ðŸ“ Notes'
+    };
+    
+    const fieldOrder = ['name', 'business', 'phone', 'email', 'date', 'time', 'status', 'assigned', 'role', 'notes'];
+    
+    let html = '';
+    for (const field of fieldOrder) {
+        if (fields[field]) {
+            const conf = confidence[field] || 0.5;
+            const confClass = conf >= 0.7 ? 'high' : (conf >= 0.4 ? 'medium' : 'low');
+            const isDate = field === 'date';
+            const valueDisplay = isDate ? Utils.formatDate(fields[field]) : Utils.escapeHtml(fields[field]);
+            html += `
+                <div class="field-row ${isDate ? 'date-field' : ''}">
+                    <span class="field-label">${fieldLabels[field] || field}</span>
+                    <span class="field-value">${valueDisplay}</span>
+                    <span class="field-confidence ${confClass}">${Math.round(conf * 100)}%</span>
+                </div>
+            `;
+        }
+    }
+    
+    return html;
+}
+
+function toggleImportRecord(header) {
+    const body = header.nextElementSibling;
+    if (body) {
+        const isVisible = body.style.display !== 'none';
+        body.style.display = isVisible ? 'none' : 'block';
+        const toggle = header.querySelector('.record-toggle');
+        if (toggle) {
+            toggle.textContent = isVisible ? 'â–¶' : 'â–¼';
+        }
+    }
+}
+
+function saveAllImportedAppointments() {
+    const validRecords = AppState.importRecords.filter(r => r.isValid);
+    
+    if (validRecords.length === 0) {
+        showToast('No valid records to save', 'warning');
+        return;
+    }
+    
+    if (!AppState.currentUser) {
+        showToast('Please sign in first', 'error');
+        return;
+    }
+    
+    const highConfidenceDuplicates = validRecords.filter(r => 
+        r.duplicates && r.duplicates.some(d => d.confidence >= 80)
+    );
+    
+    let confirmMsg = `Save ${validRecords.length} appointment(s)?`;
+    if (highConfidenceDuplicates.length > 0) {
+        confirmMsg += `\n\nâš ï¸ ${highConfidenceDuplicates.length} of these appear to be high-confidence duplicates.`;
+    }
+    
+    if (!confirm(confirmMsg)) return;
+    
+    let savedCount = 0;
+    let skippedCount = 0;
+    
+    validRecords.forEach(record => {
+        const data = record.validated || record.parsed;
+        
+        const hasHighDuplicate = record.duplicates && record.duplicates.some(d => d.confidence >= 85);
+        if (hasHighDuplicate) {
+            const duplicate = record.duplicates.find(d => d.confidence >= 85);
+            if (duplicate && !confirm(`"${data.business}" appears to be a duplicate (${duplicate.confidence}% match with ${duplicate.existing.business}). Save anyway?`)) {
+                skippedCount++;
+                return;
+            }
+        }
+        
+        const result = Data.addAppointment(
+            data.date || Utils.getTodayStr(),
+            data.business,
+            data.name,
+            data.role || 'Owner',
+            data.phone || '',
+            data.time || '',
+            data.notes || '',
+            data.assigned || 'Daniel',
+            null,
+            data.status || 'Pending',
+            '',
+            data.tags || []
+        );
+        
+        if (result) {
+            savedCount++;
+        }
+    });
+    
+    showToast(`âœ… Saved ${savedCount} appointment(s)! ${skippedCount > 0 ? `â­ï¸ Skipped ${skippedCount} duplicates.` : ''}`, 'success');
+    
+    closeSmartImportEnhanced();
+    if (typeof FeaturePanel !== 'undefined') {
+        FeaturePanel.refreshCurrentView();
+    }
+    Stats.updateAll();
+}
+
+function expandAllRecords() {
+    document.querySelectorAll('.import-record .record-body').forEach(body => {
+        body.style.display = 'block';
+    });
+    document.querySelectorAll('.import-record .record-toggle').forEach(toggle => {
+        toggle.textContent = 'â–¼';
+    });
+}
+
+function collapseAllRecords() {
+    document.querySelectorAll('.import-record .record-body').forEach(body => {
+        body.style.display = 'none';
+    });
+    document.querySelectorAll('.import-record .record-toggle').forEach(toggle => {
+        toggle.textContent = 'â–¶';
+    });
+}
+
+function generateImportTemplate() {
+    const dateInput = DOM.get('importDefaultDate');
+    const defaultDate = dateInput ? dateInput.value : Utils.getTodayStr();
+    const formattedDate = defaultDate ? Utils.formatDate(defaultDate) : 'Today';
+    
+    const textArea = DOM.get('importTextArea');
+    if (!textArea) return;
+    
+    const template = `Business Name/Company : [Enter Business Name]
+Name : [Enter Contact Name]
+Role : [Owner/Manager/Decision Maker]
+Phone Number: [Enter Phone Number]
+Email: [Enter Email Address]
+Best Time for Warm Callback: ${formattedDate} at [Time] [Timezone]
+
+Notes: [Enter notes about the conversation, interest level, and next steps]`;
+    
+    if (textArea.value) {
+        if (!confirm('This will replace your current text. Continue?')) return;
+    }
+    textArea.value = template;
+    showToast('ðŸ“‹ Template inserted! Fill in the details and click Parse.', 'success');
+}
+
+async function quickImportFromClipboard() {
+    try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+            openSmartImportEnhanced();
+            const textArea = DOM.get('importTextArea');
+            if (textArea) {
+                textArea.value = text;
+            }
+            setTimeout(() => {
+                parseAndPreviewImportEnhanced();
+            }, 500);
+        } else {
+            showToast('Clipboard is empty', 'warning');
+        }
+    } catch (error) {
+        showToast('Unable to read clipboard. Please paste manually.', 'error');
+    }
+}
+
+// ================================================================
+// PROSPECT MANAGER INTEGRATION FUNCTIONS
+// ================================================================
+
+function openProspectManager() {
+    const container = DOM.get('featurePanelBody');
+    if (!container) return;
+    
+    if (typeof FeaturePanel === 'undefined') {
+        showToast('Feature panel not available', 'error');
+        return;
+    }
+    
+    FeaturePanel.show('prospects', 'ðŸ‘¥ Prospect Manager');
+}
+
+function openAddProspect() {
+    const container = DOM.get('prospectFormContainer');
+    if (!container) {
+        showToast('Prospect form container not found', 'error');
+        return;
+    }
+    
+    container.style.display = 'flex';
+    
+    if (typeof ProspectUI !== 'undefined' && ProspectUI.renderForm) {
+        ProspectUI.renderForm(container, null, {
+            title: 'New Prospect',
+            submitLabel: 'Create Prospect',
+            onSave: async (data) => {
+                try {
+                    if (AppState.prospectManagerReady && AppState.prospectManager) {
+                        const result = await AppState.prospectManager.create(data);
+                        showToast(`Prospect "${result.business}" created! ðŸŽ‰`, 'success');
+                        container.style.display = 'none';
+                        Stats.updateAll();
+                        if (AppState.currentView === 'prospects') {
+                            openProspectManager();
+                        }
+                    } else {
+                        showToast('Prospect Manager not initialized', 'error');
+                    }
+                } catch (error) {
+                    showToast(error.message || 'Failed to create prospect', 'error');
+                }
+            },
+            onCancel: () => {
+                container.style.display = 'none';
             }
         });
-        this.saveReadStatus();
-        this.updateUnreadReleases();
-        showToast('All releases marked as read', 'success');
-        this.renderReleases();
-    },
+    } else {
+        showToast('Prospect UI not loaded', 'error');
+        container.style.display = 'none';
+    }
+}
 
-    getPublishedReleases: function() {
-        return this.releases
-            .filter(r => r.published)
-            .sort((a, b) => {
-                if (a.pinned && !b.pinned) return -1;
-                if (!a.pinned && b.pinned) return 1;
-                return new Date(b.date) - new Date(a.date);
+function viewProspect(id) {
+    if (!AppState.prospectManagerReady || !AppState.prospectManager) {
+        showToast('Prospect Manager not initialized', 'error');
+        return;
+    }
+    
+    const prospect = AppState.prospectManager.get(id);
+    if (!prospect) {
+        showToast('Prospect not found', 'error');
+        return;
+    }
+    
+    const container = DOM.get('prospectDetailContainer');
+    if (!container) return;
+    
+    container.style.display = 'flex';
+    
+    if (typeof ProspectUI !== 'undefined' && ProspectUI.renderDetail) {
+        ProspectUI.renderDetail(container, prospect);
+    } else {
+        showToast('Prospect UI not loaded', 'error');
+        container.style.display = 'none';
+    }
+}
+
+function editProspect(id) {
+    if (!AppState.prospectManagerReady || !AppState.prospectManager) {
+        showToast('Prospect Manager not initialized', 'error');
+        return;
+    }
+    
+    const prospect = AppState.prospectManager.get(id);
+    if (!prospect) {
+        showToast('Prospect not found', 'error');
+        return;
+    }
+    
+    const container = DOM.get('prospectFormContainer');
+    if (!container) {
+        showToast('Prospect form container not found', 'error');
+        return;
+    }
+    
+    container.style.display = 'flex';
+    
+    if (typeof ProspectUI !== 'undefined' && ProspectUI.renderForm) {
+        ProspectUI.renderForm(container, prospect, {
+            title: 'Edit Prospect',
+            submitLabel: 'Update Prospect',
+            onSave: async (data) => {
+                try {
+                    if (AppState.prospectManagerReady && AppState.prospectManager) {
+                        const result = await AppState.prospectManager.update(id, data);
+                        showToast(`Prospect "${result.business}" updated! âœ…`, 'success');
+                        container.style.display = 'none';
+                        Stats.updateAll();
+                        if (AppState.currentView === 'prospects') {
+                            openProspectManager();
+                        }
+                    } else {
+                        showToast('Prospect Manager not initialized', 'error');
+                    }
+                } catch (error) {
+                    showToast(error.message || 'Failed to update prospect', 'error');
+                }
+            },
+            onDelete: async () => {
+                if (confirm('Delete this prospect permanently?')) {
+                    try {
+                        if (AppState.prospectManagerReady && AppState.prospectManager) {
+                            await AppState.prospectManager.delete(id);
+                            showToast('Prospect deleted', 'info');
+                            container.style.display = 'none';
+                            Stats.updateAll();
+                            if (AppState.currentView === 'prospects') {
+                                openProspectManager();
+                            }
+                        }
+                    } catch (error) {
+                        showToast(error.message || 'Failed to delete prospect', 'error');
+                    }
+                }
+            },
+            onCancel: () => {
+                container.style.display = 'none';
+            }
+        });
+    } else {
+        showToast('Prospect UI not loaded', 'error');
+        container.style.display = 'none';
+    }
+}
+
+async function deleteProspect(id) {
+    if (!AppState.prospectManagerReady || !AppState.prospectManager) {
+        showToast('Prospect Manager not initialized', 'error');
+        return;
+    }
+    
+    if (!confirm('Delete this prospect permanently?')) return;
+    
+    try {
+        await AppState.prospectManager.delete(id);
+        showToast('Prospect deleted', 'info');
+        Stats.updateAll();
+        if (AppState.currentView === 'prospects') {
+            openProspectManager();
+        }
+    } catch (error) {
+        showToast(error.message || 'Failed to delete prospect', 'error');
+    }
+}
+
+// ================================================================
+// GLOBAL FUNCTIONS
+// ================================================================
+
+function openGlobalSearch() {
+    const modal = DOM.get('globalSearchModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    const input = DOM.get('globalSearchInput');
+    if (input) { input.value = ''; input.focus(); }
+    const results = DOM.get('globalSearchResults');
+    if (results) results.innerHTML = '';
+}
+
+function performGlobalSearch(query) {
+    const results = DOM.get('globalSearchResults');
+    if (!results) return;
+    if (!query || query.length < 2) {
+        results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">Type at least 2 characters to search...</p>';
+        return;
+    }
+
+    const searchResults = [];
+    const q = query.toLowerCase();
+
+    for (let date in AppState.appointments) {
+        if (AppState.appointments[date].reports) {
+            AppState.appointments[date].reports.forEach(appt => {
+                const searchable = `${appt.business} ${appt.contactName} ${appt.phone || ''} ${appt.email || ''} ${appt.notes || ''}`.toLowerCase();
+                if (searchable.includes(q)) {
+                    searchResults.push({ type: 'appointment', data: appt, date: date });
+                }
             });
+        }
+    }
+
+    AppState.tasks.forEach(task => {
+        if (task.description.toLowerCase().includes(q)) {
+            searchResults.push({ type: 'task', data: task });
+        }
+    });
+
+    for (const [id, script] of Object.entries(AppState.scripts)) {
+        if (script.name.toLowerCase().includes(q) || script.content.toLowerCase().includes(q)) {
+            searchResults.push({ type: 'script', data: { id, ...script } });
+        }
+    }
+
+    if (AppState.prospectManagerReady && AppState.prospectManager) {
+        try {
+            const prospects = AppState.prospectManager.search(q);
+            prospects.forEach(prospect => {
+                searchResults.push({ type: 'prospect', data: prospect });
+            });
+        } catch (e) {
+            console.warn('Error searching prospects:', e);
+        }
+    }
+
+    if (searchResults.length === 0) {
+        results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">No results found.</p>';
+        return;
+    }
+
+    let html = `<div style="display:flex; flex-direction:column; gap:8px;">`;
+    searchResults.slice(0, 20).forEach(result => {
+        if (result.type === 'appointment') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="window.showAppointmentDetail('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${Utils.escapeHtml(result.data.business)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">${Utils.formatDate(result.data.date)}</span>
+                    </div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary);">${Utils.escapeHtml(result.data.contactName)}</div>
+                    <div style="font-size:0.7rem; color:var(--text-muted);">Status: ${Utils.getStatus(result.data)}</div>
+                </div>
+            `;
+        } else if (result.type === 'task') {
+            html += `
+                <div class="list-item" style="padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${Utils.escapeHtml(result.data.description)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">${result.data.completed ? 'âœ… Done' : 'â³ Pending'}</span>
+                    </div>
+                </div>
+            `;
+        } else if (result.type === 'script') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="window.loadScript('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${Utils.escapeHtml(result.data.name)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">ðŸ“œ Script</span>
+                    </div>
+                </div>
+            `;
+        } else if (result.type === 'prospect') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="window.viewProspect('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${Utils.escapeHtml(result.data.business)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">ðŸ‘¤ ${Utils.escapeHtml(result.data.name)}</span>
+                    </div>
+                    <div style="font-size:0.7rem; color:var(--text-muted);">${result.data.status || 'Pending'} Â· ${result.data.leadScore || 0} Pts</div>
+                </div>
+            `;
+        }
+    });
+    html += `</div>`;
+    results.innerHTML = html;
+}
+
+function openBulkActions() {
+    const modal = DOM.get('bulkActionsModal');
+    const container = DOM.get('bulkSelectionContainer');
+    if (!modal || !container) return;
+    modal.style.display = 'flex';
+    AppState.selectedAppointments = new Set();
+
+    let html = '';
+    for (let date in AppState.appointments) {
+        if (AppState.appointments[date].reports) {
+            AppState.appointments[date].reports.forEach(appt => {
+                html += `
+                    <div class="bulk-item">
+                        <input type="checkbox" class="bulk-checkbox" value="${appt.id}" data-date="${date}" />
+                        <span><strong>${Utils.escapeHtml(appt.business)}</strong> - ${Utils.escapeHtml(appt.contactName)} (${Utils.getStatus(appt)})</span>
+                    </div>
+                `;
+            });
+        }
+    }
+    container.innerHTML = html || '<p style="color:var(--text-muted);">No appointments found</p>';
+
+    container.querySelectorAll('.bulk-checkbox').forEach(cb => {
+        cb.addEventListener('change', () => {
+            if (cb.checked) AppState.selectedAppointments.add(cb.value);
+            else AppState.selectedAppointments.delete(cb.value);
+        });
+    });
+}
+
+function executeBulkAction() {
+    const action = DOM.get('bulkActionSelect')?.value || 'status';
+    const selected = Array.from(AppState.selectedAppointments);
+
+    if (selected.length === 0) { showToast('Please select at least one appointment', 'warning'); return; }
+
+    if (action === 'delete') {
+        if (!confirm(`Delete ${selected.length} appointment(s)?`)) return;
+        selected.forEach(id => {
+            for (let date in AppState.appointments) {
+                if (AppState.appointments[date].reports) {
+                    const found = AppState.appointments[date].reports.find(r => r.id === id);
+                    if (found) { Data.deleteAppointment(date, id); break; }
+                }
+            }
+        });
+        showToast(`${selected.length} appointment(s) deleted`, 'success');
+    } else if (action === 'status') {
+        const statusSelect = DOM.get('bulkStatusSelect');
+        const newStatus = statusSelect?.value || 'Pending';
+        selected.forEach(id => {
+            for (let date in AppState.appointments) {
+                if (AppState.appointments[date].reports) {
+                    const found = AppState.appointments[date].reports.find(r => r.id === id);
+                    if (found) { Data.updateAppointment(date, id, { status: newStatus }); break; }
+                }
+            }
+        });
+        showToast(`${selected.length} appointment(s) updated to ${newStatus}`, 'success');
+    } else if (action === 'tag') {
+        const tagSelect = DOM.get('bulkTagSelect');
+        const tag = tagSelect?.value || '';
+        selected.forEach(id => {
+            for (let date in AppState.appointments) {
+                if (AppState.appointments[date].reports) {
+                    const found = AppState.appointments[date].reports.find(r => r.id === id);
+                    if (found) {
+                        const tags = found.tags || [];
+                        if (!tags.includes(tag)) { tags.push(tag); Data.updateAppointment(date, id, { tags }); }
+                        break;
+                    }
+                }
+            }
+        });
+        showToast(`Tag added to ${selected.length} appointment(s)`, 'success');
+    } else if (action === 'export') {
+        Data.exportToCSV(selected);
+    }
+
+    const modal = DOM.get('bulkActionsModal');
+    if (modal) modal.style.display = 'none';
+    if (typeof FeaturePanel !== 'undefined') {
+        FeaturePanel.refreshCurrentView();
+    }
+}
+
+function handleEscapeKey() {
+    if (AppState.isEditing) {
+        Scripts.cancelEdit();
+        return true;
+    }
+
+    const featurePanel = DOM.get('featurePanel');
+    if (featurePanel && featurePanel.style.display !== 'none') {
+        if (typeof FeaturePanel !== 'undefined') {
+            FeaturePanel.hide();
+        }
+        Scripts.loadScript('opening');
+        showToast('Returned to Opening Script', 'info');
+        return true;
+    }
+
+    const openModals = document.querySelectorAll('.modal-overlay');
+    openModals.forEach(modal => {
+        if (modal.style.display !== 'none') {
+            modal.style.display = 'none';
+        }
+    });
+    return true;
+}
+
+function openShortcutEdit(action) {
+    const currentKeys = AppState.shortcuts[action]?.keys || [];
+    const keysString = currentKeys.join('+');
+    const newKeysString = prompt(`Enter new shortcut for "${action}" (e.g., Ctrl+Shift+I):`, keysString);
+
+    if (newKeysString && newKeysString !== keysString) {
+        const newKeys = newKeysString.split('+').map(k => k.trim());
+        const conflicts = Utils.checkShortcutConflict(newKeys, action, AppState.shortcuts);
+
+        if (conflicts.length > 0) {
+            showToast(`Conflict with: ${conflicts.join(', ')}`, 'warning');
+            return false;
+        }
+
+        if (AppState.shortcuts[action]) {
+            AppState.shortcuts[action].keys = newKeys;
+            AppState.customShortcuts[action] = AppState.shortcuts[action];
+            localStorage.setItem('customShortcuts', JSON.stringify(AppState.customShortcuts));
+            showToast(`Shortcut updated for ${action}`, 'success');
+
+            const body = DOM.get('featurePanelBody');
+            if (body && AppState.currentView === 'shortcuts' && typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.renderShortcuts(body);
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+function handleShortcutAction(action) {
+    switch (action) {
+        case 'Smart Import': 
+            openSmartImportEnhanced();
+            break;
+        case 'Appointment Calendar': 
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.show('calendar', 'ðŸ“… Appointment & Handoff Calendar');
+            }
+            break;
+        case 'Call Scripts': 
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.hide();
+            }
+            Scripts.loadScript('opening'); 
+            break;
+        case 'Global Search': 
+            openGlobalSearch(); 
+            break;
+        case 'Quick Add Appointment': 
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.openQuickAdd(Utils.getTodayStr());
+            }
+            break;
+        case 'Analytics Hub': 
+            AppState.analyticsTab = 'meetings';
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.show('analytics', 'ðŸ“Š Analytics Hub');
+            }
+            break;
+        case 'Keyboard Shortcuts': 
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.show('shortcuts', 'âŒ¨ï¸ Keyboard Shortcuts');
+            }
+            break;
+        case 'Export to CSV': 
+            Data.exportToCSV(); 
+            break;
+        case 'Toggle Theme': 
+            document.body.classList.toggle('light'); 
+            showToast('Theme toggled', 'info'); 
+            break;
+        case 'Refresh Data': 
+            const btn = DOM.get('refreshBtn'); 
+            if (btn) btn.click(); 
+            break;
+        case 'Bulk Actions': 
+            openBulkActions(); 
+            break;
+        case 'Objection Handler':
+            if (window.ObjectionHandler) {
+                window.ObjectionHandler.toggle();
+            } else {
+                showToast('Objection Handler loading...', 'info');
+            }
+            break;
+        case 'Prospects':
+            openProspectManager();
+            break;
+        case 'Close Panel': 
+            handleEscapeKey(); 
+            break;
+        default: 
+            showToast(`Action: ${action}`, 'info');
+    }
+}
+
+// ================================================================
+// APPOINTMENT DETAIL FUNCTIONS
+// ================================================================
+
+function showAppointmentDetail(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    AppState.currentAppointmentId = appointmentId;
+
+    const modal = DOM.get('appointmentDetailModal');
+    if (!modal) return;
+
+    const status = Utils.getStatus(appt);
+    const score = Utils.calculateLeadScore(appt);
+    const qualityScore = Utils.calculateQualityScore(appt);
+    const emailStatus = Utils.getEmailStatus(appt.email);
+    const emailStatusLabel = emailStatus === 'valid' ? 'âœ… Valid' : 
+                           emailStatus === 'bounced' ? 'âš ï¸ Bounced' : 
+                           emailStatus === 'invalid' ? 'âŒ Invalid' : 'â“ Unknown';
+
+    const titleEl = DOM.get('appointmentDetailTitle');
+    if (titleEl) titleEl.textContent = `ðŸ“‹ ${appt.business} - ${appt.contactName}`;
+
+    const contentEl = DOM.get('appointmentDetailContent');
+    if (contentEl) {
+        contentEl.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding-bottom:12px; border-bottom:2px solid var(--border-color);">
+                    <div>
+                        <div style="font-size:1.1rem; font-weight:700;">${Utils.escapeHtml(appt.business)}</div>
+                        <div style="font-size:0.9rem; color:var(--text-secondary);">${Utils.escapeHtml(appt.contactName)}</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
+                        <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
+                        ${qualityScore !== null && qualityScore !== undefined ? `
+                            <span class="score-badge ${Utils.getScoreColorClass(qualityScore) === 'green' ? 'score-high' : Utils.getScoreColorClass(qualityScore) === 'yellow' ? 'score-medium' : 'score-low'}">â­ ${qualityScore.toFixed(1)}</span>
+                        ` : ''}
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">ðŸ“ž Phone</div>
+                        <div style="font-weight:500;">${Utils.escapeHtml(appt.phone || 'N/A')}</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">âœ‰ï¸ Email</div>
+                        <div style="font-weight:500;">${Utils.escapeHtml(appt.email || 'N/A')}</div>
+                        ${appt.email ? `<div style="font-size:0.6rem; color:${emailStatus === 'valid' ? 'var(--success)' : 'var(--danger)'};">${emailStatusLabel}</div>` : ''}
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">ðŸ“… Date</div>
+                        <div style="font-weight:500;">${Utils.formatDate(appt.date)}</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">ðŸ• Time</div>
+                        <div style="font-weight:500;">${Utils.escapeHtml(appt.time || 'N/A')}</div>
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:16px; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--border-color);">
+                    <div><span style="color:var(--text-muted);">ðŸ‘¤ Assigned:</span> <strong>${Utils.escapeHtml(appt.assigned || 'Daniel')}</strong></div>
+                    <div><span style="color:var(--text-muted);">ðŸ’¼ Role:</span> <strong>${Utils.escapeHtml(appt.role || 'Owner')}</strong></div>
+                    ${appt.tags && appt.tags.length > 0 ? `
+                        <div><span style="color:var(--text-muted);">ðŸ·ï¸ Tags:</span> ${appt.tags.map(t => `<span class="status-tag" style="background:var(--bg-primary);">#${t}</span>`).join(' ')}</div>
+                    ` : ''}
+                    ${qualityScore !== null && qualityScore !== undefined ? `
+                        <div><span style="color:var(--text-muted);">â­ Quality Score:</span> <strong>${qualityScore.toFixed(1)} / 10</strong></div>
+                    ` : ''}
+                </div>
+
+                ${appt.notes ? `
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px; margin-top:4px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">ðŸ“ Notes</div>
+                        <div style="white-space:pre-wrap; margin-top:4px;">${Utils.escapeHtml(appt.notes)}</div>
+                    </div>
+                ` : ''}
+
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; padding-top:12px; border-top:2px solid var(--border-color);">
+                    <button class="btn-icon" onclick="window.editAppointment('${appt.id}')" style="background:var(--warning); color:#1e293b;">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn-icon" onclick="window.rescheduleAppointment('${appt.id}')" style="background:var(--secondary); color:white;">
+                        <i class="fas fa-calendar-alt"></i> Reschedule
+                    </button>
+                    <button class="btn-icon" onclick="window.completeAppointment('${appt.id}')" style="background:var(--success); color:white;">
+                        <i class="fas fa-check"></i> Complete
+                    </button>
+                    <button class="btn-icon" onclick="window.cancelAppointment('${appt.id}')" style="background:var(--danger); color:white;">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    modal.style.display = 'flex';
+}
+
+function closeAppointmentDetail() {
+    const modal = DOM.get('appointmentDetailModal');
+    if (modal) modal.style.display = 'none';
+    AppState.currentAppointmentId = null;
+}
+
+function editAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    
+    closeAppointmentDetail();
+    if (typeof FeaturePanel !== 'undefined') {
+        FeaturePanel.openQuickAdd(appt.date);
+    }
+    setTimeout(() => {
+        const businessInput = DOM.get('newApptBusiness');
+        const contactInput = DOM.get('newApptContact');
+        const phoneInput = DOM.get('newApptPhone');
+        const emailInput = DOM.get('newApptEmail');
+        const timeInput = DOM.get('newApptTime');
+        const statusSelect = DOM.get('newApptStatus');
+        const notesInput = DOM.get('newApptNotes');
+        const assignedSelect = DOM.get('newApptAssigned');
+        
+        if (businessInput) businessInput.value = appt.business;
+        if (contactInput) contactInput.value = appt.contactName;
+        if (phoneInput) phoneInput.value = appt.phone || '';
+        if (emailInput) emailInput.value = appt.email || '';
+        if (timeInput) timeInput.value = appt.time || '';
+        if (statusSelect) statusSelect.value = Utils.getStatus(appt);
+        if (notesInput) notesInput.value = appt.notes || '';
+        if (assignedSelect) {
+            const member = AppState.teamMembers.find(m => m.name === appt.assigned);
+            if (member) assignedSelect.value = member.id;
+        }
+        Data.deleteAppointment(appt.date, appt.id);
+    }, 100);
+}
+
+function rescheduleAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    
+    const newDate = prompt('Enter new date (YYYY-MM-DD):', appt.date);
+    if (newDate && newDate.trim()) {
+        const newTime = prompt('Enter new time (e.g., 2:30 PM):', appt.time || '');
+        Data.updateAppointment(appt.date, appt.id, { 
+            date: newDate.trim(),
+            time: newTime || appt.time,
+            status: 'Rescheduled'
+        });
+        closeAppointmentDetail();
+        showToast(`Appointment rescheduled to ${Utils.formatDate(newDate)}`, 'success');
+    }
+}
+
+function completeAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    
+    if (confirm(`Mark "${appt.business}" as Completed?`)) {
+        Data.updateAppointment(appt.date, appt.id, { status: 'Completed' });
+        closeAppointmentDetail();
+        showToast('Appointment marked as Completed! ðŸŽ‰', 'success');
+    }
+}
+
+function cancelAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    
+    if (confirm(`Cancel appointment with ${appt.business}?`)) {
+        Data.updateAppointment(appt.date, appt.id, { status: 'Canceled' });
+        closeAppointmentDetail();
+        showToast('Appointment canceled', 'info');
+    }
+}
+
+// ================================================================
+// CALENDAR VIEW
+// ================================================================
+
+const CalendarView = {
+    render: function(container) {
+        if (!container) return;
+        
+        const mode = AppState.calendarViewMode || 'month';
+        
+        const headerHtml = this.buildHeader();
+        
+        let bodyHtml = '';
+        switch(mode) {
+            case 'month':
+                bodyHtml = this.renderMonthView();
+                break;
+            case 'week':
+                bodyHtml = this.renderWeekView();
+                break;
+            case 'day':
+                bodyHtml = this.renderDayView();
+                break;
+            case 'list':
+                bodyHtml = this.renderListView();
+                break;
+            default:
+                bodyHtml = this.renderMonthView();
+        }
+        
+        container.innerHTML = `
+            <div class="calendar-full-container fade-in">
+                ${headerHtml}
+                <div class="calendar-filter-chips">
+                    <button class="filter-chip ${AppState.calendarFilters.meetings ? 'active' : ''}" data-filter="meetings">
+                        <span class="filter-dot" style="background:#3b82f6;"></span> Meetings
+                    </button>
+                    <button class="filter-chip ${AppState.calendarFilters.callbacks ? 'active' : ''}" data-filter="callbacks">
+                        <span class="filter-dot" style="background:#f59e0b;"></span> Callbacks
+                    </button>
+                    <button class="filter-chip ${AppState.calendarFilters.followups ? 'active' : ''}" data-filter="followups">
+                        <span class="filter-dot" style="background:#10b981;"></span> Follow-ups
+                    </button>
+                </div>
+                <div class="calendar-body">
+                    ${bodyHtml}
+                </div>
+            </div>
+        `;
+        
+        this.attachEvents(container);
     },
-
-    getFilteredReleases: function() {
-        let releases = this.getPublishedReleases();
+    
+    buildHeader: function() {
+        const currentDate = AppState.calendarCurrentDate || new Date();
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const monthYear = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
         
-        if (this.currentFilters.search) {
-            const search = this.currentFilters.search.toLowerCase();
-            releases = releases.filter(r => 
-                r.version.toLowerCase().includes(search) ||
-                r.title.toLowerCase().includes(search) ||
-                r.description.toLowerCase().includes(search) ||
-                r.category.toLowerCase().includes(search)
-            );
-        }
-        
-        if (this.currentFilters.category !== 'all') {
-            releases = releases.filter(r => r.category === this.currentFilters.category);
-        }
-        
-        return releases;
+        return `
+            <div class="calendar-toolbar">
+                <div class="calendar-toolbar-left">
+                    <div class="view-selector">
+                        <button class="view-btn ${AppState.calendarViewMode === 'month' ? 'active' : ''}" data-view="month">Month</button>
+                        <button class="view-btn ${AppState.calendarViewMode === 'week' ? 'active' : ''}" data-view="week">Week</button>
+                        <button class="view-btn ${AppState.calendarViewMode === 'day' ? 'active' : ''}" data-view="day">Day</button>
+                        <button class="view-btn ${AppState.calendarViewMode === 'list' ? 'active' : ''}" data-view="list">List</button>
+                    </div>
+                    <div class="calendar-nav-group">
+                        <button class="btn-icon" id="calPrevBtn"><i class="fas fa-chevron-left"></i></button>
+                        <button class="btn-icon" id="calTodayBtn">Today</button>
+                        <button class="btn-icon" id="calNextBtn"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                    <span class="calendar-current-month">${monthYear}</span>
+                </div>
+                <div class="calendar-toolbar-right">
+                    <div class="search-wrapper">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="calendarSearchInput" placeholder="Search contact..." value="${AppState.calendarSearchTerm || ''}" />
+                    </div>
+                    <select id="calendarTimezoneSelect" class="timezone-select">
+                        <option value="Central CDT" ${AppState.calendarTimezone === 'Central CDT' ? 'selected' : ''}>Central (CDT)</option>
+                        <option value="Eastern EDT" ${AppState.calendarTimezone === 'Eastern EDT' ? 'selected' : ''}>Eastern (EDT)</option>
+                        <option value="Mountain MDT" ${AppState.calendarTimezone === 'Mountain MDT' ? 'selected' : ''}>Mountain (MDT)</option>
+                        <option value="Pacific PDT" ${AppState.calendarTimezone === 'Pacific PDT' ? 'selected' : ''}>Pacific (PDT)</option>
+                        <option value="UTC" ${AppState.calendarTimezone === 'UTC' ? 'selected' : ''}>UTC</option>
+                    </select>
+                    <button class="btn-icon" id="calendarAddEventBtn"><i class="fas fa-plus"></i> Add</button>
+                </div>
+            </div>
+        `;
     },
-
-    setupEventListeners: function() {
-        const whatsNewBtn = document.getElementById('whatsNewBtn');
-        if (whatsNewBtn) {
-            whatsNewBtn.addEventListener('click', () => this.openWhatsNew());
+    
+    renderMonthView: function() {
+        const currentDate = AppState.calendarCurrentDate || new Date();
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const today = new Date();
+        const todayStr = Utils.getTodayStr();
+        
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const daysInPrevMonth = new Date(year, month, 0).getDate();
+        
+        const monthAppointments = this.getAppointmentsForMonth(year, month);
+        const filteredAppointments = this.filterAppointments(monthAppointments);
+        
+        const appointmentsByDate = {};
+        filteredAppointments.forEach(appt => {
+            if (!appointmentsByDate[appt.date]) {
+                appointmentsByDate[appt.date] = [];
+            }
+            appointmentsByDate[appt.date].push(appt);
+        });
+        
+        let html = '<div class="calendar-month-grid">';
+        
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        dayNames.forEach(name => {
+            html += `<div class="calendar-day-header">${name}</div>`;
+        });
+        
+        const startDay = firstDay;
+        for (let i = startDay - 1; i >= 0; i--) {
+            const day = daysInPrevMonth - i;
+            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const isToday = dateStr === todayStr;
+            const hasEvents = appointmentsByDate[dateStr] && appointmentsByDate[dateStr].length > 0;
+            html += `
+                <div class="calendar-day other-month ${isToday ? 'today' : ''}" data-date="${dateStr}">
+                    <span class="day-number">${day}</span>
+                    ${hasEvents ? `<span class="day-event-indicator">${appointmentsByDate[dateStr].length}</span>` : ''}
+                </div>
+            `;
         }
-
-        const closeBtn = document.getElementById('closeWhatsNewBtn');
-        if (closeBtn) {
-            closeBtn.addEventListener('click', () => this.closeWhatsNew());
+        
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const isToday = dateStr === todayStr;
+            const hasEvents = appointmentsByDate[dateStr] && appointmentsByDate[dateStr].length > 0;
+            const events = appointmentsByDate[dateStr] || [];
+            
+            let eventsHtml = '';
+            if (hasEvents) {
+                eventsHtml = `
+                    <div class="day-events">
+                        ${events.slice(0, 3).map(event => {
+                            const status = Utils.getStatus(event);
+                            const color = this.getEventColor(event);
+                            return `
+                                <div class="day-event" style="border-left-color: ${color};" data-id="${event.id}" onclick="window.showAppointmentDetail('${event.id}')">
+                                    <span class="event-time">${event.time || 'No time'}</span>
+                                    <span class="event-title">${Utils.escapeHtml(event.business)}</span>
+                                </div>
+                            `;
+                        }).join('')}
+                        ${events.length > 3 ? `<div class="day-event-more">+${events.length - 3} more</div>` : ''}
+                    </div>
+                `;
+            }
+            
+            html += `
+                <div class="calendar-day ${isToday ? 'today' : ''} ${hasEvents ? 'has-events' : ''}" data-date="${dateStr}">
+                    <span class="day-number">${d}</span>
+                    ${eventsHtml}
+                </div>
+            `;
         }
-
-        const markAllBtn = document.getElementById('markAllReadBtn');
-        if (markAllBtn) {
-            markAllBtn.addEventListener('click', () => this.markAllAsRead());
+        
+        const totalDays = startDay + daysInMonth;
+        const remainingDays = (7 - (totalDays % 7)) % 7;
+        for (let d = 1; d <= remainingDays; d++) {
+            const dateStr = `${year}-${String(month + 2).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            html += `
+                <div class="calendar-day other-month" data-date="${dateStr}">
+                    <span class="day-number">${d}</span>
+                </div>
+            `;
         }
-
-        const searchInput = document.getElementById('releaseSearchInput');
+        
+        html += '</div>';
+        return html;
+    },
+    
+    renderWeekView: function() {
+        const currentDate = AppState.calendarCurrentDate || new Date();
+        const startOfWeek = new Date(currentDate);
+        startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
+        
+        const today = new Date();
+        const todayStr = Utils.getTodayStr();
+        
+        let html = `
+            <div class="calendar-week-view">
+                <div class="week-time-column">
+                    <div class="time-slot-header"></div>
+        `;
+        
+        for (let hour = 6; hour <= 22; hour++) {
+            const timeStr = hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`;
+            html += `<div class="time-slot-label">${timeStr}</div>`;
+        }
+        html += '</div>';
+        
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        for (let i = 0; i < 7; i++) {
+            const dayDate = new Date(startOfWeek);
+            dayDate.setDate(startOfWeek.getDate() + i);
+            const dateStr = Utils.formatDateForCompare(dayDate);
+            const isToday = dateStr === todayStr;
+            const isWeekend = i === 0 || i === 6;
+            
+            html += `
+                <div class="week-day-column ${isToday ? 'today' : ''} ${isWeekend ? 'weekend' : ''}" data-date="${dateStr}">
+                    <div class="week-day-header">
+                        <span class="week-day-name">${dayNames[i]}</span>
+                        <span class="week-day-number ${isToday ? 'today-number' : ''}">${dayDate.getDate()}</span>
+                    </div>
+                    <div class="week-day-body">
+            `;
+            
+            const dayAppointments = this.getAppointmentsForDate(dateStr);
+            const filtered = this.filterAppointments(dayAppointments);
+            
+            for (let hour = 6; hour <= 22; hour++) {
+                const hasAppointment = filtered.some(appt => {
+                    if (!appt.time) return false;
+                    const apptHour = parseInt(appt.time.split(':')[0]);
+                    const apptPeriod = appt.time.includes('PM') ? 12 : 0;
+                    const adjustedHour = apptHour + (apptPeriod === 12 && apptHour !== 12 ? 12 : 0);
+                    return adjustedHour === hour;
+                });
+                
+                if (hasAppointment) {
+                    const appts = filtered.filter(appt => {
+                        if (!appt.time) return false;
+                        const apptHour = parseInt(appt.time.split(':')[0]);
+                        const apptPeriod = appt.time.includes('PM') ? 12 : 0;
+                        const adjustedHour = apptHour + (apptPeriod === 12 && apptHour !== 12 ? 12 : 0);
+                        return adjustedHour === hour;
+                    });
+                    
+                    html += `
+                        <div class="week-time-slot has-event">
+                            ${appts.map(appt => {
+                                const color = this.getEventColor(appt);
+                                const status = Utils.getStatus(appt);
+                                return `
+                                    <div class="week-event" style="border-left-color: ${color};" data-id="${appt.id}" onclick="window.showAppointmentDetail('${appt.id}')">
+                                        <span class="event-time">${appt.time || ''}</span>
+                                        <span class="event-title">${Utils.escapeHtml(appt.business)}</span>
+                                        <span class="event-status ${Utils.getStatusClass(status)}">${status}</span>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                } else {
+                    html += `<div class="week-time-slot"></div>`;
+                }
+            }
+            
+            html += `
+                    </div>
+                </div>
+            `;
+        }
+        
+        html += '</div>';
+        return html;
+    },
+    
+    renderDayView: function() {
+        const currentDate = AppState.calendarCurrentDate || new Date();
+        const dateStr = Utils.formatDateForCompare(currentDate);
+        const todayStr = Utils.getTodayStr();
+        const isToday = dateStr === todayStr;
+        
+        const dayAppointments = this.getAppointmentsForDate(dateStr);
+        const filtered = this.filterAppointments(dayAppointments);
+        
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        
+        let html = `
+            <div class="calendar-day-view">
+                <div class="day-view-header">
+                    <h3>${dayNames[currentDate.getDay()]}, ${currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} ${isToday ? '<span class="today-badge">Today</span>' : ''}</h3>
+                    <span class="day-event-count">${filtered.length} events</span>
+                </div>
+                <div class="day-view-body">
+        `;
+        
+        const sortedAppointments = filtered.sort((a, b) => {
+            if (!a.time) return 1;
+            if (!b.time) return -1;
+            return a.time.localeCompare(b.time);
+        });
+        
+        if (sortedAppointments.length === 0) {
+            html += `<div class="empty-state"><i class="fas fa-calendar-day"></i><p>No appointments for this day</p></div>`;
+        } else {
+            sortedAppointments.forEach(appt => {
+                const color = this.getEventColor(appt);
+                const status = Utils.getStatus(appt);
+                html += `
+                    <div class="day-event-card" style="border-left: 4px solid ${color};" onclick="window.showAppointmentDetail('${appt.id}')">
+                        <div class="day-event-time">
+                            <i class="fas fa-clock"></i> ${appt.time || 'No time set'}
+                        </div>
+                        <div class="day-event-content">
+                            <div class="day-event-business">${Utils.escapeHtml(appt.business)}</div>
+                            <div class="day-event-contact">${Utils.escapeHtml(appt.contactName)}</div>
+                            <div class="day-event-meta">
+                                <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
+                                <span class="day-event-assigned">ðŸ‘¤ ${Utils.escapeHtml(appt.assigned || 'Unassigned')}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        
+        html += `
+                </div>
+            </div>
+        `;
+        
+        return html;
+    },
+    
+    renderListView: function() {
+        const allAppointments = Data.getAllAppointments();
+        const filtered = this.filterAppointments(allAppointments);
+        
+        const searchTerm = AppState.calendarSearchTerm || '';
+        const searched = searchTerm ? filtered.filter(appt => {
+            const searchable = `${appt.business} ${appt.contactName} ${appt.phone || ''} ${appt.email || ''}`.toLowerCase();
+            return searchable.includes(searchTerm.toLowerCase());
+        }) : filtered;
+        
+        const grouped = {};
+        searched.forEach(appt => {
+            if (!grouped[appt.date]) {
+                grouped[appt.date] = [];
+            }
+            grouped[appt.date].push(appt);
+        });
+        
+        const sortedDates = Object.keys(grouped).sort();
+        
+        let html = `
+            <div class="calendar-list-view">
+                <div class="list-view-stats">
+                    <span>${searched.length} appointments found</span>
+                    ${searchTerm ? `<span class="search-term">Search: "${searchTerm}"</span>` : ''}
+                </div>
+                <div class="list-view-items">
+        `;
+        
+        if (sortedDates.length === 0) {
+            html += `<div class="empty-state"><i class="fas fa-list"></i><p>No appointments found</p></div>`;
+        } else {
+            sortedDates.forEach(date => {
+                const dateObj = new Date(date);
+                const isToday = date === Utils.getTodayStr();
+                const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+                const monthDay = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                
+                html += `
+                    <div class="list-date-group">
+                        <div class="list-date-header ${isToday ? 'today' : ''}">
+                            <span class="list-date-label">${dayName} ${monthDay}</span>
+                            <span class="list-date-count">${grouped[date].length} events</span>
+                        </div>
+                        <div class="list-date-events">
+                `;
+                
+                grouped[date].sort((a, b) => {
+                    if (!a.time) return 1;
+                    if (!b.time) return -1;
+                    return a.time.localeCompare(b.time);
+                }).forEach(appt => {
+                    const color = this.getEventColor(appt);
+                    const status = Utils.getStatus(appt);
+                    html += `
+                        <div class="list-event-item" style="border-left-color: ${color};" onclick="window.showAppointmentDetail('${appt.id}')">
+                            <span class="list-event-time">${appt.time || 'No time'}</span>
+                            <span class="list-event-business">${Utils.escapeHtml(appt.business)}</span>
+                            <span class="list-event-contact">${Utils.escapeHtml(appt.contactName)}</span>
+                            <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
+                            <span class="list-event-actions">
+                                <button class="btn-icon-sm" onclick="event.stopPropagation(); window.showAppointmentDetail('${appt.id}')"><i class="fas fa-eye"></i></button>
+                            </span>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        
+        html += `
+                </div>
+            </div>
+        `;
+        
+        return html;
+    },
+    
+    getAppointmentsForMonth: function(year, month) {
+        const result = [];
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            if (AppState.appointments[dateStr]?.reports) {
+                result.push(...AppState.appointments[dateStr].reports);
+            }
+        }
+        return result;
+    },
+    
+    getAppointmentsForDate: function(dateStr) {
+        return AppState.appointments[dateStr]?.reports || [];
+    },
+    
+    filterAppointments: function(appointments) {
+        const filters = AppState.calendarFilters;
+        return appointments.filter(appt => {
+            const status = Utils.getStatus(appt);
+            const isMeeting = ['Hot Transfer', 'Meeting Booked', 'Held'].includes(status);
+            const isCallback = status === 'Warm Callback';
+            const isFollowup = ['Pending', 'Rescheduled'].includes(status);
+            
+            const showMeeting = filters.meetings && isMeeting;
+            const showCallback = filters.callbacks && isCallback;
+            const showFollowup = filters.followups && isFollowup;
+            
+            if (!filters.meetings && !filters.callbacks && !filters.followups) return true;
+            
+            return showMeeting || showCallback || showFollowup;
+        });
+    },
+    
+    getEventColor: function(appt) {
+        const status = Utils.getStatus(appt);
+        const colorMap = {
+            'Hot Transfer': '#dc2626',
+            'Meeting Booked': '#3b82f6',
+            'Held': '#06b6d4',
+            'Warm Callback': '#f59e0b',
+            'Pending': '#94a3b8',
+            'Rescheduled': '#f97316',
+            'Completed': '#10b981',
+            'Canceled': '#ef4444'
+        };
+        return colorMap[status] || '#94a3b8';
+    },
+    
+    attachEvents: function(container) {
+        container.querySelectorAll('.view-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.getAttribute('data-view');
+                AppState.calendarViewMode = view;
+                this.render(container);
+            });
+        });
+        
+        const prevBtn = container.querySelector('#calPrevBtn');
+        const nextBtn = container.querySelector('#calNextBtn');
+        const todayBtn = container.querySelector('#calTodayBtn');
+        
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                const current = AppState.calendarCurrentDate || new Date();
+                if (AppState.calendarViewMode === 'month') {
+                    current.setMonth(current.getMonth() - 1);
+                } else if (AppState.calendarViewMode === 'week') {
+                    current.setDate(current.getDate() - 7);
+                } else if (AppState.calendarViewMode === 'day') {
+                    current.setDate(current.getDate() - 1);
+                }
+                AppState.calendarCurrentDate = current;
+                this.render(container);
+            });
+        }
+        
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                const current = AppState.calendarCurrentDate || new Date();
+                if (AppState.calendarViewMode === 'month') {
+                    current.setMonth(current.getMonth() + 1);
+                } else if (AppState.calendarViewMode === 'week') {
+                    current.setDate(current.getDate() + 7);
+                } else if (AppState.calendarViewMode === 'day') {
+                    current.setDate(current.getDate() + 1);
+                }
+                AppState.calendarCurrentDate = current;
+                this.render(container);
+            });
+        }
+        
+        if (todayBtn) {
+            todayBtn.addEventListener('click', () => {
+                AppState.calendarCurrentDate = new Date();
+                this.render(container);
+            });
+        }
+        
+        container.querySelectorAll('.filter-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const filter = chip.getAttribute('data-filter');
+                AppState.calendarFilters[filter] = !AppState.calendarFilters[filter];
+                this.render(container);
+            });
+        });
+        
+        const searchInput = container.querySelector('#calendarSearchInput');
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
-                this.currentFilters.search = e.target.value;
-                this.renderReleases();
+                AppState.calendarSearchTerm = e.target.value;
+                if (AppState.calendarViewMode === 'list') {
+                    this.render(container);
+                }
             });
         }
-
-        const categoryFilter = document.getElementById('releaseCategoryFilter');
-        if (categoryFilter) {
-            categoryFilter.addEventListener('change', (e) => {
-                this.currentFilters.category = e.target.value;
-                this.renderReleases();
+        
+        const timezoneSelect = container.querySelector('#calendarTimezoneSelect');
+        if (timezoneSelect) {
+            timezoneSelect.addEventListener('change', (e) => {
+                AppState.calendarTimezone = e.target.value;
+                showToast(`Timezone changed to ${e.target.value}`, 'info');
             });
         }
-
-        document.addEventListener('click', (e) => {
-            const modal = document.getElementById('whatsNewModal');
-            if (modal && modal.style.display === 'flex' && e.target === modal) {
-                this.closeWhatsNew();
-            }
-            const managerModal = document.getElementById('releaseManagerModal');
-            if (managerModal && managerModal.style.display === 'flex' && e.target === managerModal) {
-                this.closeReleaseManager();
-            }
-            const formModal = document.getElementById('releaseFormModal');
-            if (formModal && formModal.style.display === 'flex' && e.target === formModal) {
-                this.closeReleaseForm();
-            }
-        });
-
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                if (document.getElementById('whatsNewModal')?.style.display === 'flex') {
-                    this.closeWhatsNew();
+        
+        const addBtn = container.querySelector('#calendarAddEventBtn');
+        if (addBtn) {
+            addBtn.addEventListener('click', () => {
+                if (typeof FeaturePanel !== 'undefined') {
+                    FeaturePanel.openQuickAdd(Utils.getTodayStr());
                 }
-                if (document.getElementById('releaseManagerModal')?.style.display === 'flex') {
-                    this.closeReleaseManager();
+            });
+        }
+        
+        container.querySelectorAll('.calendar-day').forEach(day => {
+            day.addEventListener('dblclick', () => {
+                const date = day.getAttribute('data-date');
+                if (date && typeof FeaturePanel !== 'undefined') {
+                    FeaturePanel.openQuickAdd(date);
                 }
-                if (document.getElementById('releaseFormModal')?.style.display === 'flex') {
-                    this.closeReleaseForm();
-                }
-            }
+            });
         });
-    },
-
-    openWhatsNew: function() {
-        const modal = document.getElementById('whatsNewModal');
-        if (!modal) return;
-        
-        modal.style.display = 'flex';
-        this.renderReleases();
-        
-        setTimeout(() => {
-            const visibleReleases = this.getFilteredReleases();
-            visibleReleases.forEach(r => this.markAsRead(r.id));
-        }, 1000);
-    },
-
-    closeWhatsNew: function() {
-        const modal = document.getElementById('whatsNewModal');
-        if (modal) modal.style.display = 'none';
-    },
-
-    openReleaseManager: function() {
-        if (!this.isAdmin) {
-            if (AppState.currentUser) {
-                this.isAdmin = true;
-            } else {
-                showToast('Please sign in to manage releases', 'warning');
-                return;
-            }
-        }
-        
-        const modal = document.getElementById('releaseManagerModal');
-        if (!modal) return;
-        
-        modal.style.display = 'flex';
-        this.renderReleaseManager();
-    },
-
-    closeReleaseManager: function() {
-        const modal = document.getElementById('releaseManagerModal');
-        if (modal) modal.style.display = 'none';
-    },
-
-    openReleaseForm: function(releaseId = null) {
-        const modal = document.getElementById('releaseFormModal');
-        const title = document.getElementById('releaseFormTitle');
-        const form = document.getElementById('releaseForm');
-        const submitBtn = document.getElementById('saveReleaseBtn');
-        
-        if (!modal) return;
-        
-        modal.style.display = 'flex';
-        
-        if (releaseId) {
-            const release = this.releases.find(r => r.id === releaseId);
-            if (!release) {
-                showToast('Release not found', 'error');
-                return;
-            }
-            title.textContent = '✏️ Edit Release';
-            submitBtn.textContent = 'Update Release';
-            document.getElementById('releaseVersion').value = release.version;
-            document.getElementById('releaseDate').value = release.date;
-            document.getElementById('releaseCategory').value = release.category;
-            document.getElementById('releaseTitle').value = release.title;
-            document.getElementById('releaseDescription').value = release.description;
-            document.getElementById('releaseBadges').value = release.badges ? release.badges.join(', ') : '';
-            document.getElementById('releaseAttachments').value = release.attachments ? release.attachments.join(', ') : '';
-            document.getElementById('releaseLink').value = release.link || '';
-            document.getElementById('releasePinned').checked = release.pinned || false;
-            document.getElementById('releasePublished').checked = release.published !== false;
-            form.dataset.editId = releaseId;
-        } else {
-            title.textContent = '📝 New Release';
-            submitBtn.textContent = 'Create Release';
-            form.reset();
-            document.getElementById('releaseDate').value = new Date().toISOString().split('T')[0];
-            document.getElementById('releasePublished').checked = true;
-            delete form.dataset.editId;
-        }
-    },
-
-    closeReleaseForm: function() {
-        const modal = document.getElementById('releaseFormModal');
-        if (modal) modal.style.display = 'none';
-    },
-
-    saveRelease: function(event) {
-        event.preventDefault();
-        
-        const form = document.getElementById('releaseForm');
-        const editId = form.dataset.editId;
-        
-        const releaseData = {
-            version: document.getElementById('releaseVersion').value.trim(),
-            date: document.getElementById('releaseDate').value,
-            category: document.getElementById('releaseCategory').value,
-            title: document.getElementById('releaseTitle').value.trim(),
-            description: document.getElementById('releaseDescription').value.trim(),
-            badges: document.getElementById('releaseBadges').value.split(',').map(b => b.trim()).filter(b => b),
-            attachments: document.getElementById('releaseAttachments').value.split(',').map(a => a.trim()).filter(a => a),
-            link: document.getElementById('releaseLink').value.trim(),
-            pinned: document.getElementById('releasePinned').checked,
-            published: document.getElementById('releasePublished').checked,
-            updatedAt: new Date().toISOString()
-        };
-        
-        if (editId) {
-            const index = this.releases.findIndex(r => r.id === editId);
-            if (index === -1) {
-                showToast('Release not found', 'error');
-                return;
-            }
-            this.releases[index] = { ...this.releases[index], ...releaseData };
-            showToast('Release updated successfully!', 'success');
-        } else {
-            releaseData.id = 'release_' + Utils.generateId();
-            releaseData.createdAt = new Date().toISOString();
-            this.releases.unshift(releaseData);
-            showToast('Release created successfully!', 'success');
-        }
-        
-        this.saveReleases();
-        this.updateUnreadReleases();
-        this.closeReleaseForm();
-        this.renderReleaseManager();
-        this.renderReleases();
-    },
-
-    deleteRelease: function(releaseId) {
-        if (!confirm('Delete this release permanently?')) return;
-        
-        this.releases = this.releases.filter(r => r.id !== releaseId);
-        this.saveReleases();
-        this.updateUnreadReleases();
-        this.renderReleaseManager();
-        this.renderReleases();
-        showToast('Release deleted', 'info');
-    },
-
-    togglePin: function(releaseId) {
-        const release = this.releases.find(r => r.id === releaseId);
-        if (!release) return;
-        
-        release.pinned = !release.pinned;
-        this.saveReleases();
-        this.renderReleaseManager();
-        this.renderReleases();
-        showToast(release.pinned ? 'Release pinned' : 'Release unpinned', 'info');
-    },
-
-    togglePublish: function(releaseId) {
-        const release = this.releases.find(r => r.id === releaseId);
-        if (!release) return;
-        
-        release.published = !release.published;
-        this.saveReleases();
-        this.updateUnreadReleases();
-        this.renderReleaseManager();
-        this.renderReleases();
-        showToast(release.published ? 'Release published' : 'Release unpublished', 'info');
-    },
-
-    renderReleases: function() {
-        const container = document.getElementById('releaseListContainer');
-        const countEl = document.getElementById('releaseCount');
-        const unreadEl = document.getElementById('unreadCount');
-        
-        if (!container) return;
-        
-        const releases = this.getFilteredReleases();
-        const total = releases.length;
-        
-        if (countEl) countEl.textContent = `${total} release${total !== 1 ? 's' : ''}`;
-        if (unreadEl) {
-            const unread = releases.filter(r => !this.readReleases.includes(r.id)).length;
-            unreadEl.textContent = `${unread} unread`;
-            unreadEl.style.color = unread > 0 ? 'var(--primary)' : 'var(--text-muted)';
-        }
-        
-        if (total === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-whats-new"></i>
-                    <p>No releases found matching your filters</p>
-                    <span style="font-size:0.8rem; color:var(--text-muted);">Try adjusting your search or category filter</span>
-                </div>
-            `;
-            return;
-        }
-        
-        let html = '<div class="release-list-items">';
-        
-        releases.forEach((release, index) => {
-            const isRead = this.readReleases.includes(release.id);
-            const categoryInfo = this.categories[release.category] || { icon: '📌', color: '#94a3b8' };
-            const isPinned = release.pinned;
-            
-            html += `
-                <div class="release-item ${isRead ? 'read' : 'unread'} ${isPinned ? 'pinned' : ''}" 
-                     data-id="${release.id}" 
-                     style="animation-delay: ${index * 0.05}s;">
-                    <div class="release-header" onclick="ReleaseManager.toggleReleaseDetails(this)">
-                        <div class="release-status">
-                            ${!isRead ? '<span class="unread-dot"></span>' : ''}
-                            ${isPinned ? '<span class="pinned-badge">📌</span>' : ''}
-                            <span class="release-category" style="color:${categoryInfo.color}">
-                                ${categoryInfo.icon} ${release.category}
-                            </span>
-                        </div>
-                        <div class="release-meta">
-                            <span class="release-version">${release.version}</span>
-                            <span class="release-date">${Utils.formatDate(release.date)}</span>
-                        </div>
-                    </div>
-                    <div class="release-body">
-                        <h4 class="release-title">${Utils.escapeHtml(release.title)}</h4>
-                        <p class="release-description">${Utils.escapeHtml(release.description)}</p>
-                        ${release.badges && release.badges.length > 0 ? `
-                            <div class="release-badges">
-                                ${release.badges.map(badge => {
-                                    const style = this.badgeStyles[badge] || { color: '#94a3b8', bg: 'rgba(148,163,184,0.15)' };
-                                    return `<span class="release-badge" style="color:${style.color}; background:${style.bg};">${badge}</span>`;
-                                }).join('')}
-                            </div>
-                        ` : ''}
-                        ${release.link ? `
-                            <div class="release-link">
-                                <a href="${Utils.escapeHtml(release.link)}" target="_blank">🔗 View Documentation</a>
-                            </div>
-                        ` : ''}
-                        ${release.attachments && release.attachments.length > 0 ? `
-                            <div class="release-attachments">
-                                ${release.attachments.map(att => {
-                                    const isImage = /\.(png|jpg|jpeg|gif|svg|webp)$/i.test(att);
-                                    const isVideo = /\.(mp4|webm|ogg)$/i.test(att);
-                                    if (isImage) {
-                                        return `<img src="${att}" alt="Release attachment" class="release-attachment-img" loading="lazy" />`;
-                                    } else if (isVideo) {
-                                        return `<video controls class="release-attachment-video"><source src="${att}" /></video>`;
-                                    } else {
-                                        return `<a href="${att}" target="_blank" class="release-attachment-link">📎 Attachment</a>`;
-                                    }
-                                }).join('')}
-                            </div>
-                        ` : ''}
-                    </div>
-                </div>
-            `;
-        });
-        
-        html += '</div>';
-        container.innerHTML = html;
-        
-        setTimeout(() => {
-            const visibleReleases = this.getFilteredReleases();
-            visibleReleases.forEach(r => this.markAsRead(r.id));
-        }, 2000);
-    },
-
-    toggleReleaseDetails: function(header) {
-        const item = header.closest('.release-item');
-        if (!item) return;
-        item.classList.toggle('expanded');
-    },
-
-    renderReleaseManager: function() {
-        const container = document.getElementById('releaseManagerContainer');
-        if (!container) return;
-        
-        const releases = this.releases
-            .sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
-        
-        if (releases.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-edit"></i>
-                    <p>No releases created yet</p>
-                    <span style="font-size:0.8rem; color:var(--text-muted);">Click "New Release" to create your first release note</span>
-                </div>
-            `;
-            return;
-        }
-        
-        let html = '<div class="release-manager-items">';
-        
-        releases.forEach(release => {
-            const categoryInfo = this.categories[release.category] || { icon: '📌', color: '#94a3b8' };
-            
-            html += `
-                <div class="release-manager-item ${release.published ? 'published' : 'draft'}">
-                    <div class="release-manager-header">
-                        <div class="release-manager-info">
-                            <span class="release-version">${release.version}</span>
-                            <span class="release-category" style="color:${categoryInfo.color}">
-                                ${categoryInfo.icon} ${release.category}
-                            </span>
-                            <span class="release-date">${Utils.formatDate(release.date)}</span>
-                            ${release.pinned ? '<span class="pinned-badge">📌 Pinned</span>' : ''}
-                            ${!release.published ? '<span class="draft-badge">📄 Draft</span>' : ''}
-                        </div>
-                        <div class="release-manager-actions">
-                            <button class="btn-icon" onclick="ReleaseManager.togglePin('${release.id}')" title="${release.pinned ? 'Unpin' : 'Pin'}">
-                                <i class="fas fa-thumbtack" style="color:${release.pinned ? 'var(--primary)' : 'var(--text-muted)'}"></i>
-                            </button>
-                            <button class="btn-icon" onclick="ReleaseManager.togglePublish('${release.id}')" title="${release.published ? 'Unpublish' : 'Publish'}">
-                                <i class="fas ${release.published ? 'fa-eye' : 'fa-eye-slash'}" style="color:${release.published ? 'var(--success)' : 'var(--text-muted)'}"></i>
-                            </button>
-                            <button class="btn-icon" onclick="ReleaseManager.openReleaseForm('${release.id}')" title="Edit">
-                                <i class="fas fa-edit" style="color:var(--primary);"></i>
-                            </button>
-                            <button class="btn-icon" onclick="ReleaseManager.deleteRelease('${release.id}')" title="Delete" style="color:var(--danger);">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="release-manager-body">
-                        <h4>${Utils.escapeHtml(release.title)}</h4>
-                        <p>${Utils.escapeHtml(release.description)}</p>
-                        ${release.badges && release.badges.length > 0 ? `
-                            <div class="release-badges">
-                                ${release.badges.map(badge => {
-                                    const style = this.badgeStyles[badge] || { color: '#94a3b8', bg: 'rgba(148,163,184,0.15)' };
-                                    return `<span class="release-badge" style="color:${style.color}; background:${style.bg};">${badge}</span>`;
-                                }).join('')}
-                            </div>
-                        ` : ''}
-                        <div class="release-manager-meta">
-                            <span>Created: ${Utils.formatDateTime(release.createdAt)}</span>
-                            ${release.updatedAt ? `<span>Updated: ${Utils.formatDateTime(release.updatedAt)}</span>` : ''}
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        
-        html += '</div>';
-        container.innerHTML = html;
     }
 };
 
 // ================================================================
-// EXPOSE RELEASE MANAGER GLOBALLY
+// FEATURE PANEL
 // ================================================================
 
-window.ReleaseManager = ReleaseManager;
-window.openWhatsNew = function() { ReleaseManager.openWhatsNew(); };
-window.openReleaseManager = function() { ReleaseManager.openReleaseManager(); };
+const FeaturePanel = {
+    show: function(featureType, title) {
+        const scriptPanel = DOM.get('scriptPanel');
+        const featurePanel = DOM.get('featurePanel');
+        const featureTitle = DOM.get('featurePanelTitle');
+        const featureBody = DOM.get('featurePanelBody');
+
+        if (!scriptPanel || !featurePanel) return;
+
+        AppState.currentView = featureType;
+        if (featureTitle) {
+            const iconMap = { 
+                'calendar': 'fa-calendar-alt', 
+                'tasks': 'fa-tasks', 
+                'analytics': 'fa-chart-pie', 
+                'shortcuts': 'fa-keyboard',
+                'prospects': 'fa-users'
+            };
+            featureTitle.innerHTML = `<i class="fas ${iconMap[featureType] || 'fa-sticky-note'}"></i> ${title}`;
+        }
+
+        const container = DOM.get('viewToggleContainer');
+        if (container) {
+            let html = '';
+            if (featureType === 'calendar') {
+                html = `
+                    <div class="view-toggle" id="calendarViewToggle">
+                        <button id="calendarViewBtn" class="view-btn active">ðŸ“… Calendar</button>
+                        <button id="listViewBtn" class="view-btn">ðŸ“‹ List</button>
+                    </div>
+                `;
+            } else if (featureType === 'analytics') {
+                html = `
+                    <div class="view-toggle" id="analyticsTabContainer">
+                        <button id="insightsTabBtn" class="view-btn ${AppState.analyticsTab === 'insights' ? 'active' : ''}">ðŸ“Š Insights</button>
+                        <button id="reportsTabBtn" class="view-btn ${AppState.analyticsTab === 'reports' ? 'active' : ''}">ðŸ“ˆ Reports</button>
+                        <button id="meetingsTabBtn" class="view-btn ${AppState.analyticsTab === 'meetings' ? 'active' : ''}">ðŸ“… Meetings</button>
+                    </div>
+                `;
+            } else if (featureType === 'tasks') {
+                html = `
+                    <div class="view-toggle" id="taskViewToggle">
+                        <button id="taskListViewBtn" class="view-btn active">ðŸ“‹ All</button>
+                        <button id="taskPendingBtn" class="view-btn">â³ Pending</button>
+                        <button id="taskTodayBtn" class="view-btn">ðŸ“… Today</button>
+                    </div>
+                `;
+            } else if (featureType === 'prospects') {
+                html = `
+                    <div class="view-toggle" id="prospectsViewToggle">
+                        <button id="prospectsListBtn" class="view-btn active">ðŸ“‹ List</button>
+                        <button id="prospectsStatsBtn" class="view-btn">ðŸ“Š Stats</button>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+            this.attachViewToggleEvents(featureType);
+        }
+
+        scriptPanel.style.display = 'none';
+        featurePanel.style.display = 'block';
+
+        if (featureBody) {
+            if (featureType === 'calendar') {
+                CalendarView.render(featureBody);
+            } else if (featureType === 'tasks') {
+                this.renderTasks(featureBody);
+            } else if (featureType === 'analytics') {
+                this.renderAnalytics(featureBody);
+            } else if (featureType === 'shortcuts') {
+                this.renderShortcuts(featureBody);
+            } else if (featureType === 'prospects') {
+                this.renderProspects(featureBody);
+            }
+        }
+    },
+
+    hide: function() {
+        const featurePanel = DOM.get('featurePanel');
+        const scriptPanel = DOM.get('scriptPanel');
+        if (featurePanel) featurePanel.style.display = 'none';
+        if (scriptPanel) scriptPanel.style.display = 'block';
+    },
+
+    refreshCurrentView: function() {
+        const body = DOM.get('featurePanelBody');
+        if (!body) return;
+        if (AppState.currentView === 'calendar') {
+            CalendarView.render(body);
+        } else if (AppState.currentView === 'tasks') {
+            this.renderTasks(body);
+        } else if (AppState.currentView === 'analytics') {
+            this.renderAnalytics(body);
+        } else if (AppState.currentView === 'shortcuts') {
+            this.renderShortcuts(body);
+        } else if (AppState.currentView === 'prospects') {
+            this.renderProspects(body);
+        }
+    },
+
+    attachViewToggleEvents: function(featureType) {
+        if (featureType === 'calendar') {
+            const calendarBtn = DOM.get('calendarViewBtn');
+            const listBtn = DOM.get('listViewBtn');
+            if (calendarBtn) calendarBtn.addEventListener('click', () => {
+                AppState.calendarView = 'calendar';
+                calendarBtn.classList.add('active');
+                if (listBtn) listBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+            if (listBtn) listBtn.addEventListener('click', () => {
+                AppState.calendarView = 'list';
+                listBtn.classList.add('active');
+                if (calendarBtn) calendarBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+        } else if (featureType === 'analytics') {
+            const insightsBtn = DOM.get('insightsTabBtn');
+            const reportsBtn = DOM.get('reportsTabBtn');
+            const meetingsBtn = DOM.get('meetingsTabBtn');
+            
+            if (insightsBtn) insightsBtn.addEventListener('click', () => {
+                AppState.analyticsTab = 'insights';
+                insightsBtn.classList.add('active');
+                if (reportsBtn) reportsBtn.classList.remove('active');
+                if (meetingsBtn) meetingsBtn.classList.remove('active');
+                this.renderAnalytics(DOM.get('featurePanelBody'));
+            });
+            if (reportsBtn) reportsBtn.addEventListener('click', () => {
+                AppState.analyticsTab = 'reports';
+                reportsBtn.classList.add('active');
+                if (insightsBtn) insightsBtn.classList.remove('active');
+                if (meetingsBtn) meetingsBtn.classList.remove('active');
+                this.renderAnalytics(DOM.get('featurePanelBody'));
+            });
+            if (meetingsBtn) meetingsBtn.addEventListener('click', () => {
+                AppState.analyticsTab = 'meetings';
+                meetingsBtn.classList.add('active');
+                if (insightsBtn) insightsBtn.classList.remove('active');
+                if (reportsBtn) reportsBtn.classList.remove('active');
+                this.renderAnalytics(DOM.get('featurePanelBody'));
+            });
+        } else if (featureType === 'tasks') {
+            const allBtn = DOM.get('taskListViewBtn');
+            const pendingBtn = DOM.get('taskPendingBtn');
+            const todayBtn = DOM.get('taskTodayBtn');
+
+            if (allBtn) allBtn.addEventListener('click', () => {
+                AppState.taskFilter = 'all';
+                allBtn.classList.add('active');
+                if (pendingBtn) pendingBtn.classList.remove('active');
+                if (todayBtn) todayBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+            if (pendingBtn) pendingBtn.addEventListener('click', () => {
+                AppState.taskFilter = 'pending';
+                pendingBtn.classList.add('active');
+                if (allBtn) allBtn.classList.remove('active');
+                if (todayBtn) todayBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+            if (todayBtn) todayBtn.addEventListener('click', () => {
+                AppState.taskFilter = 'today';
+                todayBtn.classList.add('active');
+                if (allBtn) allBtn.classList.remove('active');
+                if (pendingBtn) pendingBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+        } else if (featureType === 'prospects') {
+            const listBtn = DOM.get('prospectsListBtn');
+            const statsBtn = DOM.get('prospectsStatsBtn');
+            if (listBtn) listBtn.addEventListener('click', () => {
+                listBtn.classList.add('active');
+                if (statsBtn) statsBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+            if (statsBtn) statsBtn.addEventListener('click', () => {
+                statsBtn.classList.add('active');
+                if (listBtn) listBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+        }
+    },
+
+    renderTasks: function(container) {
+        if (!container) return;
+
+        const filteredTasks = AppState.taskFilter === 'all' ? AppState.tasks :
+            AppState.taskFilter === 'pending' ? AppState.tasks.filter(t => !t.completed) :
+            AppState.tasks.filter(t => t.dueDate === Utils.getTodayStr());
+
+        container.innerHTML = `
+            <div class="tasks-section fade-in">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                    <h3><i class="fas fa-tasks"></i> Follow-up Tasks</h3>
+                    <button id="addNewTaskBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> New</button>
+                </div>
+                <div class="tasks-list">
+                    ${filteredTasks.length === 0 ? '<div class="empty-state"><i class="fas fa-check-circle"></i><p>No tasks found</p></div>' :
+                    filteredTasks.map(t => `
+                        <div class="task-card ${t.completed ? 'task-completed' : ''}">
+                            <div class="task-row">
+                                <div class="task-title">
+                                    <input type="checkbox" ${t.completed ? 'checked' : ''} class="toggle-task-checkbox" data-id="${t.id}" />
+                                    <span>${Utils.escapeHtml(t.description)}</span>
+                                </div>
+                                <div class="task-actions">
+                                    <button class="delete-task-btn" data-id="${t.id}" title="Delete"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                            <div class="task-meta">
+                                ${t.dueDate ? `<span><i class="far fa-calendar"></i> Due: ${Utils.formatDate(t.dueDate)}</span>` : ''}
+                                <span class="task-priority-${t.priority || 'medium'}">${t.priority || 'Medium'}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        const addBtn = DOM.get('addNewTaskBtn');
+        if (addBtn) addBtn.addEventListener('click', () => {
+            const desc = prompt('Enter task description:');
+            if (desc && desc.trim()) {
+                const dueDate = prompt('Enter due date (YYYY-MM-DD) or leave blank:', Utils.getTodayStr());
+                Data.addTask(desc.trim(), dueDate || '', 'medium', null);
+                this.renderTasks(container);
+                showToast('Task added!', 'success');
+            }
+        });
+
+        container.querySelectorAll('.toggle-task-checkbox').forEach(cb => {
+            cb.addEventListener('change', () => {
+                Data.toggleTaskComplete(cb.getAttribute('data-id'));
+                setTimeout(() => this.renderTasks(container), 100);
+            });
+        });
+
+        container.querySelectorAll('.delete-task-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (confirm('Delete this task?')) {
+                    Data.deleteTask(btn.getAttribute('data-id'));
+                    this.renderTasks(container);
+                }
+            });
+        });
+    },
+
+    renderProspects: function(container) {
+        if (!container) return;
+        
+        const isStatsView = document.querySelector('#prospectsStatsBtn')?.classList.contains('active') || false;
+        
+        if (isStatsView) {
+            this.renderProspectStats(container);
+        } else {
+            this.renderProspectList(container);
+        }
+    },
+
+    renderProspectList: function(container) {
+        if (!container) return;
+        
+        let prospects = [];
+        if (AppState.prospectManagerReady && AppState.prospectManager) {
+            try {
+                prospects = AppState.prospectManager.getAll();
+            } catch (e) {
+                console.warn('Error getting prospects:', e);
+            }
+        }
+        
+        container.innerHTML = `
+            <div class="prospects-section fade-in">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
+                    <h3><i class="fas fa-users"></i> Prospects (${prospects.length})</h3>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button class="btn-icon" onclick="window.openAddProspect()" style="background:var(--primary); color:white;">
+                            <i class="fas fa-plus"></i> Add Prospect
+                        </button>
+                        <input type="text" id="prospectSearchInput" placeholder="ðŸ” Search prospects..." style="padding:8px 14px; border-radius:20px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:0.85rem; min-width:180px;" />
+                    </div>
+                </div>
+                <div id="prospectListContainer">
+                    ${prospects.length === 0 ? `
+                        <div class="empty-state">
+                            <i class="fas fa-users"></i>
+                            <p>No prospects yet</p>
+                            <span style="font-size:0.8rem; color:var(--text-muted);">Add your first prospect using Smart Import or the "Add Prospect" button</span>
+                        </div>
+                    ` : `
+                        <div class="prospect-grid">
+                            ${prospects.map(prospect => {
+                                const score = prospect.leadScore || 0;
+                                const scoreClass = score >= 70 ? 'score-hot' : score >= 40 ? 'score-warm' : 'score-cold';
+                                const statusClass = Utils.getStatusClass(prospect.status) || '';
+                                return `
+                                    <div class="prospect-card" data-id="${prospect.id}" onclick="window.viewProspect('${prospect.id}')">
+                                        <div class="prospect-card-header">
+                                            <div class="prospect-card-title">
+                                                <span class="prospect-business">${Utils.escapeHtml(prospect.business)}</span>
+                                                <span class="prospect-name">${Utils.escapeHtml(prospect.name)}</span>
+                                            </div>
+                                            <div class="prospect-card-badges">
+                                                ${prospect.status ? `<span class="status-tag ${statusClass}">${Utils.escapeHtml(prospect.status)}</span>` : ''}
+                                                <span class="score-badge ${scoreClass}">${score} Pts</span>
+                                            </div>
+                                        </div>
+                                        <div class="prospect-card-body">
+                                            <div class="prospect-details">
+                                                ${prospect.role ? `<span class="prospect-detail"><i class="fas fa-briefcase"></i> ${Utils.escapeHtml(prospect.role)}</span>` : ''}
+                                                ${prospect.phone ? `<span class="prospect-detail"><i class="fas fa-phone"></i> ${Utils.escapeHtml(prospect.phone)}</span>` : ''}
+                                                ${prospect.email ? `<span class="prospect-detail"><i class="fas fa-envelope"></i> ${Utils.escapeHtml(prospect.email)}</span>` : ''}
+                                                ${prospect.date ? `<span class="prospect-detail"><i class="fas fa-calendar"></i> ${Utils.formatDate(prospect.date)}</span>` : ''}
+                                            </div>
+                                            ${prospect.notes ? `<div class="prospect-notes">${Utils.escapeHtml(prospect.notes.substring(0, 100))}${prospect.notes.length > 100 ? '...' : ''}</div>` : ''}
+                                            ${prospect.tags && prospect.tags.length > 0 ? `
+                                                <div class="prospect-tags">
+                                                    ${prospect.tags.map(tag => `<span class="prospect-tag">#${Utils.escapeHtml(tag)}</span>`).join('')}
+                                                </div>
+                                            ` : ''}
+                                            <div class="prospect-meta">
+                                                <span class="prospect-source">${prospect.source || 'Manual'}</span>
+                                                <span class="prospect-date">${prospect.createdAt ? Utils.formatDate(prospect.createdAt) : ''}</span>
+                                            </div>
+                                        </div>
+                                        <div class="prospect-card-actions">
+                                            <button class="btn-icon prospect-edit-btn" onclick="event.stopPropagation(); window.editProspect('${prospect.id}')" title="Edit"><i class="fas fa-edit"></i></button>
+                                            <button class="btn-icon prospect-delete-btn" onclick="event.stopPropagation(); if(confirm('Delete this prospect?')){ window.deleteProspect('${prospect.id}') }" title="Delete" style="color:var(--danger);"><i class="fas fa-trash"></i></button>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+        
+        const searchInput = container.querySelector('#prospectSearchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value;
+                const cards = container.querySelectorAll('.prospect-card');
+                cards.forEach(card => {
+                    const text = card.textContent.toLowerCase();
+                    card.style.display = text.includes(query.toLowerCase()) ? '' : 'none';
+                });
+            });
+        }
+    },
+
+    renderProspectStats: function(container) {
+        if (!container) return;
+        
+        let stats = {
+            total: 0,
+            byStatus: {},
+            bySource: {},
+            byAssigned: {},
+            bySentiment: {},
+            avgScore: 0,
+            hotTransferCount: 0,
+            warmCallbackCount: 0,
+            completedCount: 0,
+            pendingCount: 0,
+            canceledCount: 0
+        };
+        
+        if (AppState.prospectManagerReady && AppState.prospectManager) {
+            try {
+                stats = AppState.prospectManager.getStats();
+            } catch (e) {
+                console.warn('Error getting prospect stats:', e);
+            }
+        }
+        
+        container.innerHTML = `
+            <div class="prospects-stats-section fade-in">
+                <h3><i class="fas fa-chart-bar"></i> Prospect Statistics</h3>
+                
+                <div class="prospect-stats-grid">
+                    <div class="prospect-stat-card">
+                        <div class="prospect-stat-value">${stats.total}</div>
+                        <div class="prospect-stat-label">Total Prospects</div>
+                    </div>
+                    <div class="prospect-stat-card">
+                        <div class="prospect-stat-value" style="color:#dc2626;">${stats.hotTransferCount}</div>
+                        <div class="prospect-stat-label">ðŸ”¥ Hot Transfers</div>
+                    </div>
+                    <div class="prospect-stat-card">
+                        <div class="prospect-stat-value" style="color:var(--warning);">${stats.warmCallbackCount}</div>
+                        <div class="prospect-stat-label">ðŸ“ž Warm Callbacks</div>
+                    </div>
+                    <div class="prospect-stat-card">
+                        <div class="prospect-stat-value" style="color:var(--success);">${stats.completedCount}</div>
+                        <div class="prospect-stat-label">âœ… Completed</div>
+                    </div>
+                    <div class="prospect-stat-card">
+                        <div class="prospect-stat-value" style="color:var(--text-muted);">${stats.pendingCount}</div>
+                        <div class="prospect-stat-label">â³ Pending</div>
+                    </div>
+                    <div class="prospect-stat-card">
+                        <div class="prospect-stat-value" style="color:var(--danger);">${stats.canceledCount}</div>
+                        <div class="prospect-stat-label">âŒ Canceled</div>
+                    </div>
+                    <div class="prospect-stat-card">
+                        <div class="prospect-stat-value" style="color:var(--primary);">${stats.avgScore}</div>
+                        <div class="prospect-stat-label">â­ Avg Score</div>
+                    </div>
+                </div>
+                
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px;">
+                    <div class="feature-card">
+                        <h4>ðŸ“Š Status Distribution</h4>
+                        <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">
+                            ${Object.entries(stats.byStatus).map(([status, count]) => `
+                                <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px;">
+                                    <span>${status}</span>
+                                    <span style="font-weight:600;">${count}</span>
+                                </div>
+                            `).join('')}
+                            ${Object.keys(stats.byStatus).length === 0 ? '<div style="color:var(--text-muted); padding:8px;">No data yet</div>' : ''}
+                        </div>
+                    </div>
+                    <div class="feature-card">
+                        <h4>ðŸ“¡ Sources</h4>
+                        <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">
+                            ${Object.entries(stats.bySource).map(([source, count]) => `
+                                <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px;">
+                                    <span>${source}</span>
+                                    <span style="font-weight:600;">${count}</span>
+                                </div>
+                            `).join('')}
+                            ${Object.keys(stats.bySource).length === 0 ? '<div style="color:var(--text-muted); padding:8px;">No data yet</div>' : ''}
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px;">
+                    <div class="feature-card">
+                        <h4>ðŸ‘¤ Assigned To</h4>
+                        <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">
+                            ${Object.entries(stats.byAssigned).map(([assigned, count]) => `
+                                <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px;">
+                                    <span>${assigned}</span>
+                                    <span style="font-weight:600;">${count}</span>
+                                </div>
+                            `).join('')}
+                            ${Object.keys(stats.byAssigned).length === 0 ? '<div style="color:var(--text-muted); padding:8px;">No data yet</div>' : ''}
+                        </div>
+                    </div>
+                    <div class="feature-card">
+                        <h4>ðŸ˜Š Sentiment</h4>
+                        <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">
+                            ${Object.entries(stats.bySentiment).map(([sentiment, count]) => `
+                                <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px;">
+                                    <span>${sentiment}</span>
+                                    <span style="font-weight:600;">${count}</span>
+                                </div>
+                            `).join('')}
+                            ${Object.keys(stats.bySentiment).length === 0 ? '<div style="color:var(--text-muted); padding:8px;">No data yet</div>' : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    renderAnalytics: function(container) {
+        if (!container) return;
+        
+        if (AppState.analyticsTab === 'insights') {
+            this.renderAnalyticsInsights(container);
+        } else if (AppState.analyticsTab === 'reports') {
+            this.renderAnalyticsReports(container);
+        } else if (AppState.analyticsTab === 'meetings') {
+            this.renderMeetingPerformance(container);
+        }
+    },
+
+    renderAnalyticsInsights: function(container) {
+        let total = 0, hTransfers = 0, wCallbacks = 0, completedCount = 0, pendingCount = 0, canceledCount = 0;
+        let statusCounts = {};
+        let dailyData = {};
+
+        for (let date in AppState.appointments) {
+            if (AppState.appointments[date].reports) {
+                AppState.appointments[date].reports.forEach(a => {
+                    total++;
+                    const status = Utils.getStatus(a);
+                    const primaryStatus = Utils.getPrimaryStatus(status);
+                    statusCounts[primaryStatus] = (statusCounts[primaryStatus] || 0) + 1;
+                    if (primaryStatus === 'Hot Transfer') hTransfers++;
+                    else if (primaryStatus === 'Warm Callback') wCallbacks++;
+                    else if (primaryStatus === 'Completed') completedCount++;
+                    else if (primaryStatus === 'Pending') pendingCount++;
+                    else if (primaryStatus === 'Canceled') canceledCount++;
+                    dailyData[a.date] = (dailyData[a.date] || 0) + 1;
+                });
+            }
+        }
+
+        const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+        const hotTransferRate = total > 0 ? Math.round((hTransfers / total) * 100) : 0;
+        const warmCallbackRate = total > 0 ? Math.round((wCallbacks / total) * 100) : 0;
+
+        container.innerHTML = `
+            <div class="analytics-container fade-in">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
+                    <h3><i class="fas fa-chart-pie"></i> Pipeline Insights Dashboard</h3>
+                    <span class="version-chip"><i class="fas fa-sync-alt"></i> Live Data</span>
+                </div>
+
+                <div class="report-metrics scale-in">
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">Total Pipeline</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">ðŸ”¥ Hot Transfers</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">ðŸ“ž Warm Callbacks</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">âœ… Completed</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--text-muted);">${pendingCount}</div><div class="metric-label">â³ Pending</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--danger);">${canceledCount}</div><div class="metric-label">âŒ Canceled</div></div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                    <div class="feature-card slide-up">
+                        <h4>ðŸ“Š Conversion Rates</h4>
+                        <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
+                            <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Completed Rate</span><span>${conversionRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--success); width:${conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
+                            <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Hot Transfer Rate</span><span>${hotTransferRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:#dc2626; width:${hotTransferRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
+                            <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Warm Callback Rate</span><span>${warmCallbackRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--warning); width:${warmCallbackRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
+                        </div>
+                    </div>
+
+                    <div class="feature-card slide-up">
+                        <h4>ðŸ“ˆ Status Distribution</h4>
+                        <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px; max-height:200px; overflow-y:auto;">
+                            ${Object.entries(statusCounts).map(([status, count]) => `
+                                <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px; transition:all 0.3s ease;">
+                                    <span>${status}</span>
+                                    <span style="font-weight:600;">${count} (${Math.round((count/total)*100)}%)</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="feature-card scale-in" style="margin-top:8px;">
+                    <h4>ðŸ“ˆ Appointment Trend</h4>
+                    <div class="chart-container" style="height:200px;">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;">
+                    <div class="feature-card scale-in">
+                        <h4>ðŸ© Status Distribution</h4>
+                        <div class="chart-container-sm" style="height:180px;">
+                            <canvas id="donutChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="feature-card scale-in">
+                        <h4>ðŸ“Š Weekly Performance</h4>
+                        <div class="chart-container-sm" style="height:180px;">
+                            <canvas id="barChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        setTimeout(() => {
+            this.initAnalyticsCharts(dailyData, statusCounts);
+        }, 200);
+    },
+
+    renderAnalyticsReports: function(container) {
+        let total = 0, completedCount = 0, hTransfers = 0, wCallbacks = 0;
+        let dailyData = {};
+        let assignedStats = {};
+
+        for (let date in AppState.appointments) {
+            if (AppState.appointments[date].reports) {
+                AppState.appointments[date].reports.forEach(a => {
+                    total++;
+                    const status = Utils.getStatus(a);
+                    const primaryStatus = Utils.getPrimaryStatus(status);
+                    if (primaryStatus === 'Completed') completedCount++;
+                    if (primaryStatus === 'Hot Transfer') hTransfers++;
+                    if (primaryStatus === 'Warm Callback') wCallbacks++;
+                    dailyData[a.date] = (dailyData[a.date] || 0) + 1;
+
+                    const assigned = a.assigned || 'Unassigned';
+                    assignedStats[assigned] = (assignedStats[assigned] || 0) + 1;
+                });
+            }
+        }
+
+        const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+        const avgScore = Stats.getAverageScore();
+
+        container.innerHTML = `
+            <div class="analytics-container fade-in">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
+                    <h3><i class="fas fa-chart-line"></i> Advanced Reports</h3>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button id="reportsExportCSV" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-file-csv"></i> Export CSV</button>
+                    </div>
+                </div>
+
+                <div class="report-metrics scale-in">
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">Total Appointments</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">âœ… Completed</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">ðŸ”¥ Hot Transfers</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">ðŸ“ž Warm Callbacks</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--primary);">${conversionRate}%</div><div class="metric-label">Conversion Rate</div></div>
+                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--secondary);">${avgScore}</div><div class="metric-label">Avg Lead Score</div></div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                    <div class="feature-card slide-up">
+                        <h4>ðŸ“ˆ Daily Trend</h4>
+                        <div class="chart-container" style="height:180px;">
+                            <canvas id="reportsTrendChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="feature-card slide-up">
+                        <h4>ðŸ‘¤ Assigned Distribution</h4>
+                        <div class="chart-container" style="height:180px;">
+                            <canvas id="reportsAssignedChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        setTimeout(() => {
+            const trendCtx = DOM.get('reportsTrendChart')?.getContext('2d');
+            if (trendCtx) {
+                const dates = Object.keys(dailyData).sort().slice(-7);
+                const values = dates.map(d => dailyData[d]);
+                new Chart(trendCtx, {
+                    type: 'line',
+                    data: {
+                        labels: dates.map(d => Utils.formatDate(d)),
+                        datasets: [{ label: 'Appointments', data: values, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+                });
+            }
+
+            const assignedCtx = DOM.get('reportsAssignedChart')?.getContext('2d');
+            if (assignedCtx) {
+                const labels = Object.keys(assignedStats);
+                const data = Object.values(assignedStats);
+                const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#f97316'];
+                new Chart(assignedCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{ label: 'Appointments', data: data, backgroundColor: colors.slice(0, labels.length), borderRadius: 4 }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+                });
+            }
+        }, 200);
+
+        const exportCSV = DOM.get('reportsExportCSV');
+        if (exportCSV) exportCSV.addEventListener('click', () => Data.exportToCSV());
+    },
+
+    renderMeetingPerformance: function(container) {
+        if (!container) return;
+
+        const appointments = AnalyticsEngine.getFilteredAppointments();
+        const metrics = AnalyticsEngine.calculateMetrics(appointments);
+
+        const statusChartData = AnalyticsEngine.getStatusChartData(appointments);
+        const weeklyTrend = AnalyticsEngine.getWeeklyTrendData(appointments);
+        const showRateData = AnalyticsEngine.getDailyShowRateData(appointments);
+        const qualityDistData = AnalyticsEngine.getQualityDistributionData(appointments);
+
+        const filterBar = this.buildAnalyticsFilters();
+
+        container.innerHTML = `
+            <div class="analytics-container fade-in">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+                    <h3><i class="fas fa-calendar-check"></i> Meeting Performance Dashboard</h3>
+                    <span class="version-chip"><i class="fas fa-database"></i> ${appointments.length} Records</span>
+                </div>
+
+                ${filterBar}
+
+                <div class="meeting-kpi-grid">
+                    <div class="kpi-card clickable" data-drilldown="meetingsBooked">
+                        <div class="kpi-value" style="color:#3b82f6;">${metrics.meetingsBooked}</div>
+                        <div class="kpi-label">ðŸ“… Meetings Booked</div>
+                    </div>
+                    <div class="kpi-card clickable" data-drilldown="meetingsHeld">
+                        <div class="kpi-value" style="color:#10b981;">${metrics.meetingsHeld}</div>
+                        <div class="kpi-label">âœ… Meetings Held</div>
+                    </div>
+                    <div class="kpi-card clickable" data-drilldown="per100Calls">
+                        <div class="kpi-value" style="color:#8b5cf6;">${metrics.per100Calls}</div>
+                        <div class="kpi-label">ðŸ“ž Per 100 Calls</div>
+                    </div>
+                    <div class="kpi-card clickable" data-drilldown="showRate">
+                        <div class="kpi-value" style="color:#f59e0b;">${metrics.showRate}%</div>
+                        <div class="kpi-label">ðŸ“Š Show Rate</div>
+                    </div>
+                    <div class="kpi-card clickable" data-drilldown="noShowRate">
+                        <div class="kpi-value" style="color:#ef4444;">${metrics.noShowRate}%</div>
+                        <div class="kpi-label">ðŸš« No-Show Rate</div>
+                    </div>
+                    <div class="kpi-card clickable" data-drilldown="rescheduleRate">
+                        <div class="kpi-value" style="color:#f97316;">${metrics.rescheduleRate}%</div>
+                        <div class="kpi-label">ðŸ”„ Reschedule Rate</div>
+                    </div>
+                    <div class="kpi-card clickable" data-drilldown="avgQuality">
+                        <div class="kpi-value" style="color:${metrics.avgQualityScore >= 8 ? '#10b981' : metrics.avgQualityScore >= 6 ? '#f59e0b' : '#ef4444'};">${metrics.avgQualityScore}</div>
+                        <div class="kpi-label">â­ Avg Quality Score</div>
+                    </div>
+                </div>
+
+                <div class="meeting-kpi-grid secondary">
+                    <div class="kpi-card clickable" data-drilldown="pending">
+                        <div class="kpi-value" style="color:#94a3b8;">${metrics.pending}</div>
+                        <div class="kpi-label">â³ Pending</div>
+                    </div>
+                    <div class="kpi-card clickable" data-drilldown="cancelled">
+                        <div class="kpi-value" style="color:#ef4444;">${metrics.cancelled}</div>
+                        <div class="kpi-label">âŒ Cancelled</div>
+                    </div>
+                    <div class="kpi-card clickable" data-drilldown="rescheduled">
+                        <div class="kpi-value" style="color:#f97316;">${metrics.rescheduled}</div>
+                        <div class="kpi-label">ðŸ”„ Rescheduled</div>
+                    </div>
+                    <div class="kpi-card clickable" data-drilldown="completed">
+                        <div class="kpi-value" style="color:#06b6d4;">${metrics.completed}</div>
+                        <div class="kpi-label">âœ… Completed</div>
+                    </div>
+                    <div class="kpi-card clickable" data-drilldown="lowQuality">
+                        <div class="kpi-value" style="color:#ef4444;">${metrics.lowQualityCount}</div>
+                        <div class="kpi-label">ðŸ“‰ Low Quality (<5)</div>
+                    </div>
+                    <div class="kpi-card clickable" data-drilldown="highQuality">
+                        <div class="kpi-value" style="color:#10b981;">${metrics.highQualityCount}</div>
+                        <div class="kpi-label">ðŸ“ˆ High Quality (â‰¥8)</div>
+                    </div>
+                    <div class="kpi-card clickable" data-drilldown="emailValid">
+                        <div class="kpi-value" style="color:#10b981;">${metrics.emailValidCount}</div>
+                        <div class="kpi-label">âœ… Valid Emails</div>
+                    </div>
+                    <div class="kpi-card clickable" data-drilldown="emailBounced">
+                        <div class="kpi-value" style="color:#ef4444;">${metrics.emailBouncedCount}</div>
+                        <div class="kpi-label">âš ï¸ Bounced Emails</div>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px;">
+                    <div class="feature-card">
+                        <h4>ðŸ“Š Meeting Status Distribution</h4>
+                        <div class="chart-container-sm" style="height:200px;">
+                            <canvas id="meetingStatusChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="feature-card">
+                        <h4>ðŸ“ˆ Weekly Booking Trend</h4>
+                        <div class="chart-container-sm" style="height:200px;">
+                            <canvas id="weeklyTrendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;">
+                    <div class="feature-card">
+                        <h4>ðŸ“Š Daily Show Rate Trend</h4>
+                        <div class="chart-container-sm" style="height:200px;">
+                            <canvas id="showRateTrendChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="feature-card">
+                        <h4>â­ Quality Score Distribution</h4>
+                        <div class="chart-container-sm" style="height:200px;">
+                            <canvas id="qualityDistChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        setTimeout(() => {
+            this.initMeetingCharts(statusChartData, weeklyTrend, showRateData, qualityDistData);
+        }, 300);
+
+        container.querySelectorAll('.kpi-card.clickable').forEach(card => {
+            card.addEventListener('click', () => {
+                const drilldown = card.dataset.drilldown;
+                this.showDrilldown(drilldown, appointments);
+            });
+        });
+
+        this.attachFilterEvents(container);
+    },
+
+    buildAnalyticsFilters: function() {
+        const filters = AppState.analyticsFilters || {};
+        const teamMembers = AppState.teamMembers || [];
+        
+        const timeRanges = [
+            { value: 'today', label: 'Today' },
+            { value: 'yesterday', label: 'Yesterday' },
+            { value: 'thisWeek', label: 'This Week' },
+            { value: 'lastWeek', label: 'Last Week' },
+            { value: 'thisMonth', label: 'This Month' },
+            { value: 'lastMonth', label: 'Last Month' },
+            { value: 'custom', label: 'Custom Range' }
+        ];
+
+        const setterOptions = teamMembers.map(m => 
+            `<option value="${m.id}">${m.name}</option>`
+        ).join('');
+
+        const allAppointments = Data.getAllAppointments();
+        const campaigns = new Set();
+        allAppointments.forEach(appt => {
+            if (appt.campaign) campaigns.add(appt.campaign);
+        });
+        const campaignOptions = Array.from(campaigns).map(c => 
+            `<option value="${c}">${c}</option>`
+        ).join('');
+
+        return `
+            <div class="analytics-filters">
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <label>Time Range:</label>
+                    <select id="analyticsTimeRange">
+                        ${timeRanges.map(range => `
+                            <option value="${range.value}" ${filters.timeRange === range.value ? 'selected' : ''}>${range.label}</option>
+                        `).join('')}
+                    </select>
+                </div>
+                <div id="customDateRange" style="display:${filters.timeRange === 'custom' ? 'flex' : 'none'}; align-items:center; gap:6px;">
+                    <input type="date" id="analyticsStartDate" value="${filters.startDate || ''}" />
+                    <span>to</span>
+                    <input type="date" id="analyticsEndDate" value="${filters.endDate || ''}" />
+                </div>
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <label>Setter:</label>
+                    <select id="analyticsSetter">
+                        <option value="all" ${filters.setter === 'all' ? 'selected' : ''}>All</option>
+                        ${setterOptions}
+                    </select>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <label>Campaign:</label>
+                    <select id="analyticsCampaign">
+                        <option value="all" ${filters.campaign === 'all' ? 'selected' : ''}>All</option>
+                        ${campaignOptions}
+                    </select>
+                </div>
+                <button id="analyticsRefreshBtn" class="btn-icon" style="padding:4px 16px; font-size:0.75rem; background:var(--primary); color:white;">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+        `;
+    },
+
+    attachFilterEvents: function(container) {
+        const timeRange = container.querySelector('#analyticsTimeRange');
+        const startDate = container.querySelector('#analyticsStartDate');
+        const endDate = container.querySelector('#analyticsEndDate');
+        const setter = container.querySelector('#analyticsSetter');
+        const campaign = container.querySelector('#analyticsCampaign');
+        const refreshBtn = container.querySelector('#analyticsRefreshBtn');
+        const customDateRange = container.querySelector('#customDateRange');
+
+        const updateFilters = () => {
+            AppState.analyticsFilters.timeRange = timeRange ? timeRange.value : 'today';
+            AppState.analyticsFilters.startDate = startDate ? startDate.value : null;
+            AppState.analyticsFilters.endDate = endDate ? endDate.value : null;
+            AppState.analyticsFilters.setter = setter ? setter.value : 'all';
+            AppState.analyticsFilters.campaign = campaign ? campaign.value : 'all';
+            
+            localStorage.setItem('analyticsFilters', JSON.stringify(AppState.analyticsFilters));
+            
+            const body = DOM.get('featurePanelBody');
+            if (body && AppState.currentView === 'analytics') {
+                this.renderMeetingPerformance(body);
+            }
+        };
+
+        if (timeRange) {
+            timeRange.addEventListener('change', () => {
+                if (customDateRange) {
+                    customDateRange.style.display = timeRange.value === 'custom' ? 'flex' : 'none';
+                }
+                updateFilters();
+            });
+        }
+
+        if (startDate) startDate.addEventListener('change', updateFilters);
+        if (endDate) endDate.addEventListener('change', updateFilters);
+        if (setter) setter.addEventListener('change', updateFilters);
+        if (campaign) campaign.addEventListener('change', updateFilters);
+        if (refreshBtn) refreshBtn.addEventListener('click', updateFilters);
+    },
+
+    showDrilldown: function(metric, appointments) {
+        const modal = document.getElementById('drilldownModal');
+        const title = document.getElementById('drilldownTitle');
+        const content = document.getElementById('drilldownContent');
+        
+        if (!modal || !title || !content) return;
+
+        const data = AnalyticsEngine.getDrillDownData(metric, appointments);
+        const metricLabels = {
+            meetingsBooked: 'ðŸ“… Meetings Booked',
+            meetingsHeld: 'âœ… Meetings Held',
+            noShows: 'ðŸš« No Shows',
+            cancelled: 'âŒ Cancelled',
+            rescheduled: 'ðŸ”„ Rescheduled',
+            pending: 'â³ Pending',
+            completed: 'âœ… Completed',
+            lowQuality: 'ðŸ“‰ Low Quality (<5)',
+            highQuality: 'ðŸ“ˆ High Quality (â‰¥8)',
+            emailValid: 'âœ… Valid Emails',
+            emailBounced: 'âš ï¸ Bounced Emails',
+            emailInvalid: 'âŒ Invalid Emails',
+            per100Calls: 'ðŸ“ž Per 100 Calls',
+            showRate: 'ðŸ“Š Show Rate',
+            noShowRate: 'ðŸš« No-Show Rate',
+            rescheduleRate: 'ðŸ”„ Reschedule Rate',
+            avgQuality: 'â­ Avg Quality Score'
+        };
+
+        title.textContent = `${metricLabels[metric] || metric} (${data.length} records)`;
+
+        if (data.length === 0) {
+            content.innerHTML = `<div class="empty-state"><i class="fas fa-inbox"></i><p>No records found for this metric</p></div>`;
+        } else {
+            let html = `
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; font-size:0.7rem; font-weight:600; color:var(--text-muted); padding:8px 12px; border-bottom:2px solid var(--border-color);">
+                    <span>Business</span>
+                    <span>Contact</span>
+                    <span>Status</span>
+                </div>
+            `;
+            data.slice(0, 50).forEach(appt => {
+                const status = Utils.getStatus(appt);
+                html += `
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; padding:8px 12px; border-bottom:1px solid var(--border-color); cursor:pointer; transition:var(--transition);" onclick="window.showAppointmentDetail('${appt.id}')">
+                        <span style="font-weight:500;">${Utils.escapeHtml(appt.business)}</span>
+                        <span style="color:var(--text-secondary);">${Utils.escapeHtml(appt.contactName)}</span>
+                        <span class="status-tag ${Utils.getStatusClass(status)}" style="font-size:0.65rem;">${status}</span>
+                    </div>
+                `;
+            });
+            if (data.length > 50) {
+                html += `<div style="padding:8px 12px; color:var(--text-muted); font-size:0.75rem;">Showing 50 of ${data.length} records</div>`;
+            }
+            content.innerHTML = html;
+        }
+
+        modal.style.display = 'flex';
+
+        const closeBtn = document.getElementById('drilldownCloseBtn');
+        if (closeBtn) {
+            closeBtn.onclick = () => { modal.style.display = 'none'; };
+        }
+
+        const exportBtn = document.getElementById('drilldownExportBtn');
+        if (exportBtn) {
+            exportBtn.onclick = () => {
+                let csv = 'Business,Contact,Phone,Email,Date,Time,Status,QualityScore,Notes,Assigned\n';
+                data.forEach(appt => {
+                    const status = Utils.getStatus(appt);
+                    const qualityScore = Utils.calculateQualityScore(appt) || '';
+                    csv += `"${appt.business || ''}","${appt.contactName || ''}","${appt.phone || ''}","${appt.email || ''}","${appt.date || ''}","${appt.time || ''}","${status}","${qualityScore}","${appt.notes || ''}","${appt.assigned || 'Daniel'}"\n`;
+                });
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `drilldown_${metric}_${Utils.getTodayStr()}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast(`Exported ${data.length} records!`, 'success');
+            };
+        }
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.style.display = 'none';
+        });
+    },
+
+    initMeetingCharts: function(statusData, weeklyTrend, showRateData, qualityDistData) {
+        Object.values(AppState.chartInstances).forEach(chart => { if (chart) chart.destroy(); });
+        AppState.chartInstances = {};
+
+        const statusCtx = DOM.get('meetingStatusChart')?.getContext('2d');
+        if (statusCtx && statusData.labels.length > 0) {
+            AppState.chartInstances.meetingStatus = new Chart(statusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: statusData.labels,
+                    datasets: [{
+                        data: statusData.data,
+                        backgroundColor: statusData.colors || ['#3b82f6', '#10b981', '#f97316', '#ef4444', '#94a3b8', '#06b6d4'],
+                        borderWidth: 2,
+                        borderColor: 'var(--bg-secondary)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { boxWidth: 12, padding: 8, font: { size: 10 } }
+                        }
+                    },
+                    cutout: '60%'
+                }
+            });
+        }
+
+        const trendCtx = DOM.get('weeklyTrendChart')?.getContext('2d');
+        if (trendCtx && weeklyTrend.labels.length > 0) {
+            AppState.chartInstances.weeklyTrend = new Chart(trendCtx, {
+                type: 'bar',
+                data: {
+                    labels: weeklyTrend.labels,
+                    datasets: [{
+                        label: 'Meetings Booked',
+                        data: weeklyTrend.data,
+                        backgroundColor: 'rgba(59,130,246,0.7)',
+                        borderColor: '#3b82f6',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                }
+            });
+        }
+
+        const showRateCtx = DOM.get('showRateTrendChart')?.getContext('2d');
+        if (showRateCtx && showRateData.labels.length > 0) {
+            AppState.chartInstances.showRateTrend = new Chart(showRateCtx, {
+                type: 'line',
+                data: {
+                    labels: showRateData.labels,
+                    datasets: [{
+                        label: 'Show Rate %',
+                        data: showRateData.data,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16,185,129,0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#10b981'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } }
+                }
+            });
+        }
+
+        const qualityCtx = DOM.get('qualityDistChart')?.getContext('2d');
+        if (qualityCtx) {
+            AppState.chartInstances.qualityDist = new Chart(qualityCtx, {
+                type: 'bar',
+                data: {
+                    labels: qualityDistData.labels || ['0-2', '3-4', '5-6', '7-8', '9-10'],
+                    datasets: [{
+                        label: 'Meetings',
+                        data: qualityDistData.data || [0, 0, 0, 0, 0],
+                        backgroundColor: qualityDistData.colors || ['#ef4444', '#f97316', '#f59e0b', '#3b82f6', '#10b981'],
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                }
+            });
+        }
+    },
+
+    initAnalyticsCharts: function(dailyData, statusCounts) {
+        Object.values(AppState.chartInstances).forEach(chart => { if (chart) chart.destroy(); });
+        AppState.chartInstances = {};
+        const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#f97316', '#06b6d4', '#ec4899'];
+
+        const trendCtx = DOM.get('trendChart')?.getContext('2d');
+        if (trendCtx) {
+            const dates = Object.keys(dailyData).sort();
+            const values = dates.map(d => dailyData[d]);
+            AppState.chartInstances.trend = new Chart(trendCtx, {
+                type: 'line',
+                data: { labels: dates.map(d => Utils.formatDate(d)), datasets: [{ label: 'Appointments', data: values, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            });
+        }
+
+        const donutCtx = DOM.get('donutChart')?.getContext('2d');
+        if (donutCtx) {
+            const labels = Object.keys(statusCounts);
+            const data = Object.values(statusCounts);
+            const backgroundColors = labels.map((_, i) => colors[i % colors.length]);
+            AppState.chartInstances.donut = new Chart(donutCtx, {
+                type: 'doughnut',
+                data: { labels, datasets: [{ data, backgroundColor: backgroundColors, borderWidth: 2, borderColor: 'var(--bg-secondary)' }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 10 } } } }, cutout: '60%' }
+            });
+        }
+
+        const barCtx = DOM.get('barChart')?.getContext('2d');
+        if (barCtx) {
+            const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            const weekData = weekDays.map(() => 0);
+            const now = new Date();
+            const startOfWeek = new Date(now);
+            startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+            for (let date in dailyData) {
+                const d = new Date(date);
+                const dayIndex = (d.getDay() + 6) % 7;
+                if (d >= startOfWeek && d <= now) weekData[dayIndex] += dailyData[date];
+            }
+            AppState.chartInstances.bar = new Chart(barCtx, {
+                type: 'bar',
+                data: { labels: weekDays, datasets: [{ label: 'This Week', data: weekData, backgroundColor: 'rgba(59,130,246,0.7)', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            });
+        }
+    },
+
+    renderShortcuts: function(container) {
+        if (!container) return;
+
+        const shortcuts = AppState.shortcuts;
+
+        let html = `
+            <div class="shortcuts-container fade-in">
+                <h3><i class="fas fa-keyboard"></i> Keyboard Shortcuts Manager</h3>
+                <p style="color:var(--text-muted); margin-bottom:16px;">View and customize keyboard shortcuts for quick access to features.</p>
+                <div style="margin-bottom:16px; display:flex; gap:8px; flex-wrap:wrap;">
+                    <button id="shortcutsResetDefaultsBtn" class="btn-icon" style="background:var(--warning); color:#1e293b;"><i class="fas fa-undo"></i> Reset Defaults</button>
+                    <span style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center;">âš ï¸ Conflicts are highlighted in red</span>
+                    <span style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center; margin-left:auto;">
+                        Shortcuts ${AppState.shortcutsEnabled ? 'ðŸŸ¢ Active' : 'ðŸ”´ Disabled (Editing)'}
+                    </span>
+                </div>
+                <div id="shortcutsListContainer" style="max-height:450px; overflow-y:auto;">
+        `;
+
+        for (const [action, shortcut] of Object.entries(shortcuts)) {
+            const isDefault = CONFIG.DEFAULT_SHORTCUTS[action] &&
+                JSON.stringify(CONFIG.DEFAULT_SHORTCUTS[action].keys) === JSON.stringify(shortcut.keys);
+            const conflict = Utils.checkShortcutConflict(shortcut.keys, action, shortcuts);
+
+            html += `
+                <div class="shortcut-item ${conflict.length > 0 ? 'conflict' : ''}">
+                    <div class="shortcut-info">
+                        <div class="shortcut-name">${action}</div>
+                        <div class="shortcut-description">${shortcut.description || ''}</div>
+                    </div>
+                    <div class="shortcut-keys">
+                        ${shortcut.keys.map(k => `<kbd>${k}</kbd>`).join(' <span class="shortcut-separator">+</span> ')}
+                        ${!isDefault ? ' <span style="font-size:0.65rem; color:var(--text-muted);">(custom)</span>' : ''}
+                        ${conflict.length > 0 ? ` <span class="shortcut-conflict">âš ï¸ Conflict: ${conflict.join(', ')}</span>` : ''}
+                        <i class="fas fa-pen shortcut-edit" onclick="window.openShortcutEdit('${action}')" title="Edit shortcut"></i>
+                    </div>
+                </div>
+            `;
+        }
+
+        html += `</div></div>`;
+        container.innerHTML = html;
+
+        const resetBtn = DOM.get('shortcutsResetDefaultsBtn');
+        if (resetBtn) resetBtn.addEventListener('click', () => {
+            if (confirm('Reset all keyboard shortcuts to default values?')) {
+                AppState.customShortcuts = {};
+                localStorage.removeItem('customShortcuts');
+                AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS };
+                showToast('Shortcuts reset to defaults', 'success');
+                this.renderShortcuts(container);
+            }
+        });
+    },
+
+    openQuickAdd: function(defaultDate) {
+        const modal = DOM.get('quickAddModal');
+        if (!modal) return;
+
+        modal.style.display = 'flex';
+        const dateInput = DOM.get('newApptDate');
+        if (dateInput) dateInput.value = defaultDate || Utils.getTodayStr();
+
+        const statusSelect = DOM.get('newApptStatus');
+        if (statusSelect) {
+            statusSelect.innerHTML = CONFIG.STATUS_OPTIONS.map(s =>
+                `<option value="${s}" ${s === 'Pending' ? 'selected' : ''}>${s}</option>`
+            ).join('');
+        }
+
+        const assignedSelect = DOM.get('newApptAssigned');
+        if (assignedSelect) {
+            assignedSelect.innerHTML = AppState.teamMembers.map(m =>
+                `<option value="${m.id}">${m.name}</option>`
+            ).join('');
+        }
+
+        const fields = ['newApptBusiness', 'newApptContact', 'newApptPhone', 'newApptEmail', 'newApptTime', 'newApptNotes'];
+        fields.forEach(id => { const el = DOM.get(id); if (el) el.value = ''; });
+
+        const saveBtn = DOM.get('saveQuickApptBtn');
+        const cancelBtn = DOM.get('cancelQuickApptBtn');
+
+        if (saveBtn) {
+            saveBtn.onclick = () => {
+                const date = DOM.get('newApptDate')?.value || '';
+                const bus = DOM.get('newApptBusiness')?.value?.trim() || '';
+                const contact = DOM.get('newApptContact')?.value?.trim() || '';
+                const phone = DOM.get('newApptPhone')?.value?.trim() || '';
+                const email = DOM.get('newApptEmail')?.value?.trim() || '';
+                const time = DOM.get('newApptTime')?.value || '';
+                const status = DOM.get('newApptStatus')?.value || 'Pending';
+                const assigned = DOM.get('newApptAssigned')?.value || 'daniel';
+                const notes = DOM.get('newApptNotes')?.value?.trim() || '';
+
+                if (!bus || !contact) {
+                    showToast('Please fill in all required fields', 'error');
+                    return;
+                }
+
+                const member = AppState.teamMembers.find(m => m.id === assigned);
+                Data.addAppointment(date, bus, contact, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), member ? member.name : 'Daniel', null, status);
+                modal.style.display = 'none';
+                showToast('Appointment added successfully! ðŸŽ‰', 'success');
+                FeaturePanel.refreshCurrentView();
+            };
+        }
+
+        if (cancelBtn) cancelBtn.onclick = () => { modal.style.display = 'none'; };
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.style.display = 'none';
+        });
+    }
+};
 
 // ================================================================
 // SCRIPTS MODULE
@@ -2891,7 +5357,7 @@ const Scripts = {
         const activeHint = DOM.get('activeShortcutHint');
         if (activeHint) {
             const idx = visible.indexOf(AppState.currentScriptId);
-            activeHint.textContent = (idx >= 0 && idx < 9) ? (idx + 1) : '—';
+            activeHint.textContent = (idx >= 0 && idx < 9) ? (idx + 1) : 'â€”';
         }
     },
 
@@ -2973,7 +5439,7 @@ const Scripts = {
                 this.saveScriptContent(content);
                 const indicator = document.querySelector('.auto-save-indicator');
                 if (indicator) {
-                    indicator.textContent = '✓ Auto-saved';
+                    indicator.textContent = 'âœ“ Auto-saved';
                     indicator.style.color = 'var(--success)';
                 }
             }, 1000);
@@ -3100,7 +5566,7 @@ const Scripts = {
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 })
                 .then(() => {
-                    showToast(`Script "${scriptName}" created! 🎉`, 'success');
+                    showToast(`Script "${scriptName}" created! ðŸŽ‰`, 'success');
                     Scripts.renderSidebar();
                     Scripts.loadScript(id);
                     Data.saveScriptOrder();
@@ -3116,7 +5582,7 @@ const Scripts = {
             fallback[id] = newScript;
             localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
             
-            showToast(`Script "${scriptName}" created! 🎉`, 'success');
+            showToast(`Script "${scriptName}" created! ðŸŽ‰`, 'success');
             Scripts.renderSidebar();
             Scripts.loadScript(id);
             Scripts.saveScriptOrder();
@@ -3143,224 +5609,11 @@ const Scripts = {
 };
 
 // ================================================================
-// SMART IMPORT FUNCTIONS
-// ================================================================
-
-// ... (Smart Import functions remain the same as in previous updates)
-
-// ================================================================
-// APPOINTMENT DETAIL FUNCTIONS - CRITICAL FIX
-// ================================================================
-
-function showAppointmentDetail(appointmentId) {
-    const appt = Data.getAppointmentById(appointmentId);
-    if (!appt) { 
-        console.warn('Appointment not found:', appointmentId);
-        showToast('Appointment not found', 'error'); 
-        return; 
-    }
-    AppState.currentAppointmentId = appointmentId;
-
-    const modal = DOM.get('appointmentDetailModal');
-    if (!modal) return;
-
-    const status = Utils.getStatus(appt);
-    const score = Utils.calculateLeadScore(appt);
-    const qualityScore = Utils.calculateQualityScore(appt);
-    const emailStatus = Utils.getEmailStatus(appt.email);
-    const emailStatusLabel = emailStatus === 'valid' ? '✅ Valid' : 
-                           emailStatus === 'bounced' ? '⚠️ Bounced' : 
-                           emailStatus === 'invalid' ? '❌ Invalid' : '❓ Unknown';
-
-    const titleEl = DOM.get('appointmentDetailTitle');
-    if (titleEl) titleEl.textContent = `📋 ${appt.business} - ${appt.contactName}`;
-
-    const contentEl = DOM.get('appointmentDetailContent');
-    if (contentEl) {
-        contentEl.innerHTML = `
-            <div style="display:flex; flex-direction:column; gap:12px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding-bottom:12px; border-bottom:2px solid var(--border-color);">
-                    <div>
-                        <div style="font-size:1.1rem; font-weight:700;">${Utils.escapeHtml(appt.business)}</div>
-                        <div style="font-size:0.9rem; color:var(--text-secondary);">${Utils.escapeHtml(appt.contactName)}</div>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                        <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
-                        <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
-                        ${qualityScore !== null && qualityScore !== undefined ? `
-                            <span class="score-badge ${Utils.getScoreColorClass(qualityScore) === 'green' ? 'score-high' : Utils.getScoreColorClass(qualityScore) === 'yellow' ? 'score-medium' : 'score-low'}">⭐ ${qualityScore.toFixed(1)}</span>
-                        ` : ''}
-                    </div>
-                </div>
-
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
-                        <div style="font-size:0.7rem; color:var(--text-muted);">📞 Phone</div>
-                        <div style="font-weight:500;">${Utils.escapeHtml(appt.phone || 'N/A')}</div>
-                    </div>
-                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
-                        <div style="font-size:0.7rem; color:var(--text-muted);">✉️ Email</div>
-                        <div style="font-weight:500;">${Utils.escapeHtml(appt.email || 'N/A')}</div>
-                        ${appt.email ? `<div style="font-size:0.6rem; color:${emailStatus === 'valid' ? 'var(--success)' : 'var(--danger)'};">${emailStatusLabel}</div>` : ''}
-                    </div>
-                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
-                        <div style="font-size:0.7rem; color:var(--text-muted);">📅 Date</div>
-                        <div style="font-weight:500;">${Utils.formatDate(appt.date)}</div>
-                    </div>
-                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
-                        <div style="font-size:0.7rem; color:var(--text-muted);">🕐 Time</div>
-                        <div style="font-weight:500;">${Utils.escapeHtml(appt.time || 'N/A')}</div>
-                    </div>
-                </div>
-
-                <div style="display:flex; gap:16px; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--border-color);">
-                    <div><span style="color:var(--text-muted);">👤 Assigned:</span> <strong>${Utils.escapeHtml(appt.assigned || 'Daniel')}</strong></div>
-                    <div><span style="color:var(--text-muted);">💼 Role:</span> <strong>${Utils.escapeHtml(appt.role || 'Owner')}</strong></div>
-                    ${appt.tags && appt.tags.length > 0 ? `
-                        <div><span style="color:var(--text-muted);">🏷️ Tags:</span> ${appt.tags.map(t => `<span class="status-tag" style="background:var(--bg-primary);">#${t}</span>`).join(' ')}</div>
-                    ` : ''}
-                    ${qualityScore !== null && qualityScore !== undefined ? `
-                        <div><span style="color:var(--text-muted);">⭐ Quality Score:</span> <strong>${qualityScore.toFixed(1)} / 10</strong></div>
-                    ` : ''}
-                    ${appt.meetingLink ? `
-                        <div><span style="color:var(--text-muted);">🔗 Meeting Link:</span> <strong><a href="${Utils.escapeHtml(appt.meetingLink)}" target="_blank" class="meeting-link">${Utils.escapeHtml(appt.meetingLink)}</a></strong></div>
-                    ` : ''}
-                    ${appt.meetingDuration ? `
-                        <div><span style="color:var(--text-muted);">⏱️ Duration:</span> <strong>${Utils.escapeHtml(appt.meetingDuration)}</strong></div>
-                    ` : ''}
-                    ${appt.timezone ? `
-                        <div><span style="color:var(--text-muted);">🕐 Timezone:</span> <strong>${Utils.escapeHtml(appt.timezone)}</strong></div>
-                    ` : ''}
-                </div>
-
-                ${appt.notes ? `
-                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px; margin-top:4px;">
-                        <div style="font-size:0.7rem; color:var(--text-muted);">📝 Notes</div>
-                        <div style="white-space:pre-wrap; margin-top:4px;">${Utils.escapeHtml(appt.notes)}</div>
-                    </div>
-                ` : ''}
-
-                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; padding-top:12px; border-top:2px solid var(--border-color);">
-                    <button class="btn-icon" onclick="window.editAppointment('${appt.id}')" style="background:var(--warning); color:#1e293b;">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="btn-icon" onclick="window.rescheduleAppointment('${appt.id}')" style="background:var(--secondary); color:white;">
-                        <i class="fas fa-calendar-alt"></i> Reschedule
-                    </button>
-                    <button class="btn-icon" onclick="window.completeAppointment('${appt.id}')" style="background:var(--success); color:white;">
-                        <i class="fas fa-check"></i> Complete
-                    </button>
-                    <button class="btn-icon" onclick="window.cancelAppointment('${appt.id}')" style="background:var(--danger); color:white;">
-                        <i class="fas fa-times"></i> Cancel
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-
-    modal.style.display = 'flex';
-}
-
-function closeAppointmentDetail() {
-    const modal = DOM.get('appointmentDetailModal');
-    if (modal) modal.style.display = 'none';
-    AppState.currentAppointmentId = null;
-}
-
-function editAppointment(appointmentId) {
-    const appt = Data.getAppointmentById(appointmentId);
-    if (!appt) { showToast('Appointment not found', 'error'); return; }
-    
-    closeAppointmentDetail();
-    if (typeof FeaturePanel !== 'undefined') {
-        FeaturePanel.openQuickAdd(appt.date);
-    }
-    setTimeout(() => {
-        const businessInput = DOM.get('newApptBusiness');
-        const contactInput = DOM.get('newApptContact');
-        const phoneInput = DOM.get('newApptPhone');
-        const emailInput = DOM.get('newApptEmail');
-        const timeInput = DOM.get('newApptTime');
-        const statusSelect = DOM.get('newApptStatus');
-        const notesInput = DOM.get('newApptNotes');
-        const assignedSelect = DOM.get('newApptAssigned');
-        
-        if (businessInput) businessInput.value = appt.business;
-        if (contactInput) contactInput.value = appt.contactName;
-        if (phoneInput) phoneInput.value = appt.phone || '';
-        if (emailInput) emailInput.value = appt.email || '';
-        if (timeInput) timeInput.value = appt.time || '';
-        if (statusSelect) statusSelect.value = Utils.getStatus(appt);
-        if (notesInput) notesInput.value = appt.notes || '';
-        if (assignedSelect) {
-            const member = AppState.teamMembers.find(m => m.name === appt.assigned);
-            if (member) assignedSelect.value = member.id;
-        }
-        Data.deleteAppointment(appt.date, appt.id);
-    }, 100);
-}
-
-function rescheduleAppointment(appointmentId) {
-    const appt = Data.getAppointmentById(appointmentId);
-    if (!appt) { showToast('Appointment not found', 'error'); return; }
-    
-    const newDate = prompt('Enter new date (YYYY-MM-DD):', appt.date);
-    if (newDate && newDate.trim()) {
-        const newTime = prompt('Enter new time (e.g., 2:30 PM):', appt.time || '');
-        Data.updateAppointment(appt.date, appt.id, { 
-            date: newDate.trim(),
-            time: newTime || appt.time,
-            status: 'Rescheduled'
-        });
-        closeAppointmentDetail();
-        showToast(`Appointment rescheduled to ${Utils.formatDate(newDate)}`, 'success');
-    }
-}
-
-function completeAppointment(appointmentId) {
-    const appt = Data.getAppointmentById(appointmentId);
-    if (!appt) { showToast('Appointment not found', 'error'); return; }
-    
-    if (confirm(`Mark "${appt.business}" as Completed?`)) {
-        Data.updateAppointment(appt.date, appt.id, { status: 'Completed' });
-        closeAppointmentDetail();
-        showToast('Appointment marked as Completed! 🎉', 'success');
-    }
-}
-
-function cancelAppointment(appointmentId) {
-    const appt = Data.getAppointmentById(appointmentId);
-    if (!appt) { showToast('Appointment not found', 'error'); return; }
-    
-    if (confirm(`Cancel appointment with ${appt.business}?`)) {
-        Data.updateAppointment(appt.date, appt.id, { status: 'Canceled' });
-        closeAppointmentDetail();
-        showToast('Appointment canceled', 'info');
-    }
-}
-
-// ================================================================
-// CALENDAR VIEW
-// ================================================================
-
-const CalendarView = {
-    // ... (CalendarView methods remain the same)
-};
-
-// ================================================================
-// FEATURE PANEL
-// ================================================================
-
-const FeaturePanel = {
-    // ... (FeaturePanel methods remain the same)
-};
-
-// ================================================================
 // INITIALIZATION
 // ================================================================
 
 function initApp() {
-    console.log('🚀 Starting ScriptFlow Pro...');
+    console.log('ðŸš€ Starting ScriptFlow Pro...');
     updateLoadingProgress(10, 'Initializing application...');
 
     try {
@@ -3370,7 +5623,7 @@ function initApp() {
     }
 
     if (!AppState.isFirebaseReady) {
-        console.warn('⚠️ Firebase not available - running in offline mode');
+        console.warn('âš ï¸ Firebase not available - running in offline mode');
         showToast('Offline mode - Some features may be limited', 'warning');
     }
     updateLoadingProgress(35, 'Connecting to services...');
@@ -3386,34 +5639,344 @@ function initApp() {
         } catch (e) {}
     }
 
-    // ... (rest of initialization code)
-    
-    // Initialize Release Manager
-    setTimeout(function() {
-        if (window.ReleaseManager) {
-            window.ReleaseManager.init();
-            console.log('📋 Release Manager initialized');
-        }
-    }, 1500);
+    const toolsHeader = DOM.get('toolsHeader');
+    const toolsMenu = DOM.get('toolsMenu');
+    const toolsChevron = DOM.get('toolsChevron');
+    const toolsOpen = localStorage.getItem('toolsMenuOpen') === 'true';
 
-    console.log('🚀 ScriptFlow Pro initialized successfully!');
-    console.log(`🔌 Firebase status: ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
+    if (toolsHeader && toolsMenu && toolsChevron) {
+        if (toolsOpen) { toolsMenu.classList.add('open'); toolsChevron.classList.add('rotated'); }
+        toolsHeader.addEventListener('click', () => {
+            const isOpen = toolsMenu.classList.toggle('open');
+            toolsChevron.classList.toggle('rotated');
+            localStorage.setItem('toolsMenuOpen', isOpen);
+        });
+    }
+    updateLoadingProgress(50, 'Setting up UI...');
+
+    const menuToggle = DOM.get('menuToggleBtn');
+    const sidebar = DOM.get('mainSidebar');
+    const mainContent = DOM.get('mainContent');
+
+    if (menuToggle && sidebar && mainContent) {
+        menuToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('closed');
+            mainContent.classList.toggle('expanded');
+        });
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') handleEscapeKey();
+    });
+    updateLoadingProgress(65, 'Loading features...');
+
+    document.querySelectorAll('.tool-item').forEach(item => {
+        item.addEventListener('click', function() {
+            const tool = this.getAttribute('data-tool');
+            if (tool === 'notepad') showToast('ðŸ“ Notes feature coming soon!', 'info');
+            else if (tool === 'calendar') FeaturePanel.show('calendar', 'ðŸ“… Appointment & Handoff Calendar');
+            else if (tool === 'tasks') FeaturePanel.show('tasks', 'ðŸ“‹ Follow-up Tasks Manager');
+            else if (tool === 'analytics') {
+                AppState.analyticsTab = 'meetings';
+                FeaturePanel.show('analytics', 'ðŸ“Š Analytics Hub');
+            } else if (tool === 'shortcuts') FeaturePanel.show('shortcuts', 'âŒ¨ï¸ Keyboard Shortcuts');
+            else if (tool === 'prospects') {
+                openProspectManager();
+            } else if (tool === 'objections') {
+                if (window.ObjectionHandler) {
+                    window.ObjectionHandler.toggle();
+                } else {
+                    showToast('Objection Handler loading...', 'info');
+                }
+            } else if (tool === 'theme') {
+                document.body.classList.toggle('light');
+                showToast('Theme toggled', 'info');
+            } else if (tool === 'help') {
+                showToast('Handoffs: Hot Transfer, Warm Callback, Completed (includes Meeting Booked, Rescheduled, Held), Pending, Canceled', 'info');
+            } else if (tool === 'reset') {
+                if (confirm('âš ï¸ This will clear all local data and reset the app. Continue?')) {
+                    localStorage.clear();
+                    if (AppState.currentUser && AppState.isFirebaseReady) {
+                        firebase.firestore().collection('users').doc(AppState.currentUser.uid).delete().catch(e => console.warn('Delete error:', e));
+                    }
+                    location.reload();
+                }
+            } else if (tool === 'export') Data.exportToCSV();
+            else if (tool === 'signOut') Auth.signOut();
+        });
+    });
+
+    const closeFeatureBtn = DOM.get('closeFeaturePanelBtn');
+    if (closeFeatureBtn) closeFeatureBtn.addEventListener('click', () => {
+        FeaturePanel.hide();
+        Scripts.loadScript('opening');
+    });
+
+    const editScriptBtn = DOM.get('editScriptBtn');
+    const saveScriptBtn = DOM.get('saveScriptBtn');
+    const cancelEditBtn = DOM.get('cancelEditBtn');
+    const copyScriptBtn = DOM.get('copyScriptBtn');
+    const resetScriptBtn = DOM.get('resetScriptBtn');
+    const favoriteScriptBtn = DOM.get('favoriteScriptBtn');
+
+    if (editScriptBtn) editScriptBtn.addEventListener('click', () => Scripts.startEdit());
+    if (saveScriptBtn) saveScriptBtn.addEventListener('click', () => {
+        const textarea = DOM.get('editTextarea');
+        if (textarea) { Scripts.saveScriptContent(textarea.value); Scripts.finishEdit(); }
+    });
+    if (cancelEditBtn) cancelEditBtn.addEventListener('click', () => Scripts.cancelEdit());
+    if (copyScriptBtn) copyScriptBtn.addEventListener('click', () => {
+        const script = AppState.scripts[AppState.currentScriptId];
+        if (script) copyToClipboard(script.content);
+    });
+    if (resetScriptBtn) resetScriptBtn.addEventListener('click', () => Scripts.resetScript());
+    if (favoriteScriptBtn) favoriteScriptBtn.addEventListener('click', () => Scripts.toggleFavorite(AppState.currentScriptId));
+
+    const quickReportBtn = DOM.get('quickReportBtn');
+    const parseBtn = DOM.get('parseImportBtn');
+    const saveImportBtn = DOM.get('saveImportBtn');
+    const closeImportBtn = DOM.get('closeImportBtn');
+    const templateBtn = DOM.get('quickTemplateBtn');
+    const clipboardBtn = DOM.get('clipboardImportBtn');
+
+    if (quickReportBtn) quickReportBtn.addEventListener('click', openSmartImportEnhanced);
+    if (parseBtn) parseBtn.addEventListener('click', parseAndPreviewImportEnhanced);
+    if (saveImportBtn) saveImportBtn.addEventListener('click', saveAllImportedAppointments);
+    if (closeImportBtn) closeImportBtn.addEventListener('click', closeSmartImportEnhanced);
+    if (templateBtn) templateBtn.addEventListener('click', generateImportTemplate);
+    if (clipboardBtn) clipboardBtn.addEventListener('click', quickImportFromClipboard);
+
+    const addProspectBtn = DOM.get('addProspectBtn');
+    if (addProspectBtn) addProspectBtn.addEventListener('click', openAddProspect);
+
+    const bulkActionsBtn = DOM.get('bulkActionsBtn');
+    const closeBulkBtn = DOM.get('closeBulkModalBtn');
+    const executeBulkBtn = DOM.get('executeBulkActionBtn');
+    const bulkActionSelect = DOM.get('bulkActionSelect');
+
+    if (bulkActionsBtn) bulkActionsBtn.addEventListener('click', openBulkActions);
+    if (closeBulkBtn) closeBulkBtn.addEventListener('click', () => {
+        const modal = DOM.get('bulkActionsModal');
+        if (modal) modal.style.display = 'none';
+    });
+    if (executeBulkBtn) executeBulkBtn.addEventListener('click', executeBulkAction);
+
+    if (bulkActionSelect) bulkActionSelect.addEventListener('change', () => {
+        const value = bulkActionSelect.value;
+        const statusGroup = DOM.get('bulkStatusGroup');
+        const tagGroup = DOM.get('bulkTagGroup');
+        const options = DOM.get('bulkActionOptions');
+        if (statusGroup) statusGroup.style.display = value === 'status' ? 'block' : 'none';
+        if (tagGroup) tagGroup.style.display = value === 'tag' ? 'block' : 'none';
+        if (options) options.style.display = (value === 'status' || value === 'tag') ? 'block' : 'none';
+    });
+
+    const signOutBtn = DOM.get('signOutBtn');
+    if (signOutBtn) signOutBtn.addEventListener('click', () => Auth.signOut());
+
+    const refreshBtn = DOM.get('refreshBtn');
+    if (refreshBtn) refreshBtn.addEventListener('click', async () => {
+        if (AppState.isRefreshing) return;
+        AppState.isRefreshing = true;
+        refreshBtn.classList.add('spinning');
+        refreshBtn.disabled = true;
+
+        try {
+            showToast('Refreshing data...', 'info');
+            await Data.loadUserData(true);
+            FeaturePanel.refreshCurrentView();
+            showToast('Data refreshed!', 'success');
+        } catch (error) { handleError(error, 'Refresh'); }
+        finally {
+            AppState.isRefreshing = false;
+            refreshBtn.classList.remove('spinning');
+            refreshBtn.disabled = false;
+        }
+    });
+
+    const addScriptBtn = DOM.get('addScriptBtnSide');
+    if (addScriptBtn) addScriptBtn.addEventListener('click', () => Scripts.createScript());
+
+    const scriptSearch = DOM.get('scriptSearch');
+    if (scriptSearch) scriptSearch.addEventListener('input', (e) => {
+        AppState.searchTerm = e.target.value.toLowerCase();
+        document.querySelectorAll('.script-item').forEach(item => {
+            const name = item.querySelector('.script-name')?.textContent?.toLowerCase() || '';
+            item.style.display = name.includes(AppState.searchTerm) ? 'flex' : 'none';
+        });
+    });
+
+    const searchGlobalBtn = DOM.get('searchGlobalBtn');
+    const globalSearchInput = DOM.get('globalSearchInput');
+    const globalSearchClose = DOM.get('globalSearchCloseBtn');
+
+    if (searchGlobalBtn) searchGlobalBtn.addEventListener('click', openGlobalSearch);
+    if (globalSearchInput) globalSearchInput.addEventListener('input', (e) => performGlobalSearch(e.target.value));
+    if (globalSearchClose) globalSearchClose.addEventListener('click', () => {
+        const modal = DOM.get('globalSearchModal');
+        if (modal) modal.style.display = 'none';
+    });
+
+    const csvFileInput = DOM.get('csvFileInput');
+    if (csvFileInput) csvFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const csvText = event.target.result;
+                    const lines = csvText.split('\n').filter(line => line.trim());
+                    if (lines.length > 0) {
+                        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                        let imported = 0;
+                        for (let i = 1; i < lines.length; i++) {
+                            const values = lines[i].split(',').map(v => v.trim());
+                            const data = {};
+                            headers.forEach((h, idx) => data[h] = values[idx] || '');
+                            if (data.name || data.business) {
+                                Data.addAppointment(
+                                    data.date || Utils.getTodayStr(),
+                                    data.business || data.company || 'Unknown Business',
+                                    data.name || data.contact || 'Unknown Contact',
+                                    'Owner',
+                                    data.phone || data.mobile || '',
+                                    data.time || '',
+                                    data.notes || '',
+                                    'Daniel',
+                                    null,
+                                    data.status || 'Pending'
+                                );
+                                imported++;
+                            }
+                        }
+                        showToast(`Imported ${imported} appointments from CSV!`, 'success');
+                        FeaturePanel.refreshCurrentView();
+                    }
+                } catch (err) { showToast('Error parsing CSV: ' + err.message, 'error'); }
+            };
+            reader.readAsText(file);
+        }
+        e.target.value = '';
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (!AppState.shortcutsEnabled || AppState.isEditing) {
+            if (e.key === 'Escape') {
+                handleEscapeKey();
+            }
+            return;
+        }
+
+        if (e.key >= '1' && e.key <= '9') {
+            const index = parseInt(e.key) - 1;
+            const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
+            if (index < visible.length) {
+                e.preventDefault();
+                Scripts.loadScript(visible[index]);
+                showToast(`Switched to: ${AppState.scripts[visible[index]]?.name}`, 'info');
+            }
+        }
+
+        for (const [action, shortcut] of Object.entries(AppState.shortcuts)) {
+            if (shortcut.keys && shortcut.keys.length > 0) {
+                const keys = shortcut.keys;
+                const ctrl = keys.includes('Ctrl');
+                const shift = keys.includes('Shift');
+                const alt = keys.includes('Alt');
+                const key = keys.find(k => !['Ctrl', 'Shift', 'Alt'].includes(k));
+                if (e.ctrlKey === ctrl && e.shiftKey === shift && e.altKey === alt && e.key === key) {
+                    e.preventDefault();
+                    handleShortcutAction(action);
+                }
+            }
+        }
+    });
+
+    Data.initProspectManager();
+
+    try {
+        if (AppState.isFirebaseReady) {
+            firebase.auth().onAuthStateChanged(async (user) => {
+                if (user) {
+                    AppState.currentUser = user;
+                    Auth.updateUI();
+                    await Data.loadUserData();
+                    updateLoadingProgress(85, 'Loading your data...');
+                } else {
+                    const localData = localStorage.getItem('userData_fallback');
+                    if (localData) {
+                        try {
+                            const data = JSON.parse(localData);
+                            AppState.scripts = data.scripts || {};
+                            AppState.scriptOrder = data.scriptOrder || [];
+                            AppState.appointments = data.appointments || {};
+                            AppState.tasks = data.tasks || {};
+                            AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
+                            Stats.updateAll();
+                            Scripts.renderSidebar();
+                            Scripts.loadScript('opening');
+                            showToast('Loaded offline data', 'info');
+                        } catch (e) {}
+                    }
+                    Auth.showModal();
+                }
+                updateLoadingProgress(100, 'Ready!');
+                setTimeout(hideLoadingScreen, 400);
+            });
+        } else {
+            const localData = localStorage.getItem('userData_fallback');
+            if (localData) {
+                try {
+                    const data = JSON.parse(localData);
+                    AppState.scripts = data.scripts || {};
+                    AppState.scriptOrder = data.scriptOrder || [];
+                    AppState.appointments = data.appointments || {};
+                    AppState.tasks = data.tasks || {};
+                    AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
+                    Stats.updateAll();
+                    Scripts.renderSidebar();
+                    Scripts.loadScript('opening');
+                } catch (e) {}
+            }
+            Auth.showModal();
+            updateLoadingProgress(100, 'Ready!');
+            setTimeout(hideLoadingScreen, 400);
+        }
+    } catch (error) {
+        console.warn('Auth setup error:', error);
+        Auth.showModal();
+        updateLoadingProgress(100, 'Ready!');
+        setTimeout(hideLoadingScreen, 400);
+    }
+
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-overlay')) {
+            e.target.style.display = 'none';
+        }
+    });
+
+    console.log('ðŸš€ ScriptFlow Pro initialized successfully!');
+    console.log(`ðŸ”Œ Firebase status: ${AppState.isFirebaseReady ? 'âœ… Connected' : 'âŒ Offline mode'}`);
+    console.log('ðŸ›¡ï¸ Objection Handler available via Ctrl+Shift+O or sidebar menu');
+    console.log('ðŸ“¥ Smart Import: Click the "Smart Import" button, paste text, click Parse, review, and Save!');
+    console.log('ðŸ‘¥ Prospect Manager: Manage all your prospects with the "Prospects" tool');
+    console.log('ðŸ“Š Meeting Performance Dashboard: Available in Analytics Hub > Meetings tab');
 }
 
 // ================================================================
-// GLOBAL EXPOSURE - FIXED: Ensure all functions are properly exposed
+// GLOBAL EXPOSURE
 // ================================================================
 
 window.showAppointmentDetail = showAppointmentDetail;
 window.closeAppointmentDetail = closeAppointmentDetail;
-window.editAppointment = editAppointment;
-window.rescheduleAppointment = rescheduleAppointment;
-window.completeAppointment = completeAppointment;
-window.cancelAppointment = cancelAppointment;
 window.loadScript = Scripts.loadScript;
 window.openShortcutEdit = openShortcutEdit;
 window.showToast = showToast;
 window.openGlobalSearch = openGlobalSearch;
+window.editAppointment = editAppointment;
+window.rescheduleAppointment = rescheduleAppointment;
+window.completeAppointment = completeAppointment;
+window.cancelAppointment = cancelAppointment;
 window.FeaturePanel = FeaturePanel;
 window.Data = Data;
 window.Stats = Stats;
@@ -3438,20 +6001,6 @@ window.viewProspect = viewProspect;
 window.editProspect = editProspect;
 window.deleteProspect = deleteProspect;
 window.AnalyticsEngine = AnalyticsEngine;
-window.ReleaseManager = ReleaseManager;
-window.openWhatsNew = function() { if (window.ReleaseManager) ReleaseManager.openWhatsNew(); };
-window.openReleaseManager = function() { if (window.ReleaseManager) ReleaseManager.openReleaseManager(); };
 
 // Start the app
-document.addEventListener('DOMContentLoaded', function() {
-    if (typeof initApp === 'function') {
-        initApp();
-    } else {
-        console.warn('initApp not found, check if app.js loaded correctly');
-        updateLoadingProgress(100, 'Ready!');
-        setTimeout(hideLoadingScreen, 400);
-    }
-});
-
-console.log('🚀 ScriptFlow Pro - Application loaded');
-console.log('📋 All features: Meeting Dashboard, Smart Import, Release Manager, Objection Handler, Prospect Manager');
+document.addEventListener('DOMContentLoaded', initApp);

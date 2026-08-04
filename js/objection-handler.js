@@ -7,265 +7,134 @@ const ObjectionHandler = {
     categories: {
         reflex: {
             name: 'Reflex Brush-offs',
-            icon: '🔄',
+            icon: 'ðŸ”„',
             description: 'Quick responses to initial resistance',
             objections: [
                 {
                     id: 'not_interested',
                     label: '"I\'m not interested."',
-                    response: 'I totally understand, I\'m not trying to sell you anything. The website is already built and it\'s yours to look at for free.',
-                    tags: ['reflex', 'initial']
+                    response: 'I totally understand, I\'m not trying to sell you anything. The website is already built and it\'s yours to look at for free.'
                 },
                 {
                     id: 'too_busy',
                     label: '"I\'m too busy."',
-                    response: 'Totally get it, I don\'t want to take up your time right now. I just wanted to show it to you another day, it would only take like 10 minutes.',
-                    tags: ['reflex', 'time']
+                    response: 'Totally get it, I don\'t want to take up your time right now. I just wanted to show it to you another day, it would only take like 10 minutes.'
                 },
                 {
                     id: 'send_info',
                     label: '"Just send me the info."',
-                    response: 'I could send you some info about the offer, but honestly you should take a look for yourself, the website looks great. It only takes 10 minutes.',
-                    tags: ['reflex', 'email']
+                    response: 'I could send you some info about the offer, but honestly you should take a look for yourself, the website looks great. It only takes 10 minutes.'
                 },
                 {
                     id: 'email_website',
                     label: '"Can you just email me the website?"',
-                    response: 'I\'d love to, but the website isn\'t online yet, right now it\'s just a file on our end. The only way to actually show it to you is to share my screen, and it only takes 10 minutes.',
-                    tags: ['reflex', 'email']
+                    response: 'I\'d love to, but the website isn\'t online yet, right now it\'s just a file on our end. The only way to actually show it to you is to share my screen, and it only takes 10 minutes.'
                 },
                 {
                     id: 'call_back_later',
                     label: '"Call me back later."',
-                    response: 'Sure. Just so I\'m not calling back and forth, can we lock in a specific time that works for you?',
-                    tags: ['reflex', 'follow-up']
+                    response: 'Sure. Just so I\'m not calling back and forth, can we lock in a specific time that works for you?'
                 }
             ]
         },
         we_dont_need: {
             name: '"We Don\'t Need It"',
-            icon: '🚫',
+            icon: 'ðŸš«',
             description: 'Responses when they say they\'re already sorted',
             objections: [
                 {
                     id: 'have_website',
                     label: '"We already have a website."',
-                    response: 'Oh nice, when was it last updated? We actually put together a modern version specifically for your business, might be worth a quick look to compare.',
-                    tags: ['website', 'comparison']
+                    response: 'Oh nice, when was it last updated? We actually put together a modern version specifically for your business, might be worth a quick look to compare.'
                 },
                 {
                     id: 'dont_need_website',
                     label: '"We don\'t need a website."',
-                    response: 'Totally fair, but it\'s not really about the website, it\'s about more jobs. A good site gets you found by more people and brings in more work. You\'re not saying no to more customers, right? And it\'s free to take a look.',
-                    tags: ['website', 'value']
+                    response: 'Totally fair, but it\'s not really about the website, it\'s about more jobs. A good site gets you found by more people and brings in more work. You\'re not saying no to more customers, right? And it\'s free to take a look.'
                 },
                 {
                     id: 'do_it_myself',
                     label: '"I\'ll do it myself."',
-                    response: 'That\'s great. How long have you been planning to? What if it was basically done for you by the end of this week?',
-                    tags: ['website', 'convenience']
+                    response: 'That\'s great. How long have you been planning to? What if it was basically done for you by the end of this week?'
                 },
                 {
                     id: 'have_web_designer',
                     label: '"We already have a web designer."',
-                    response: 'Right, isn\'t it better to have options? There\'s a big difference between just getting a website and getting one done well, and the look costs you nothing.',
-                    tags: ['website', 'comparison']
+                    response: 'Right, isn\'t it better to have options? There\'s a big difference between just getting a website and getting one done well, and the look costs you nothing.'
                 },
                 {
                     id: 'someone_working_on_it',
                     label: '"We have someone working on it."',
-                    response: 'Awesome, then you should definitely take a look. Worst case, you get some inspiration or get to compare the two. But I bet you\'re going to like ours better, and if you do, we can work together.',
-                    tags: ['website', 'comparison']
+                    response: 'Awesome, then you should definitely take a look. Worst case, you get some inspiration or get to compare the two. But I bet you\'re going to like ours better, and if you do, we can work together.'
                 },
                 {
                     id: 'word_of_mouth',
                     label: '"Word of mouth is enough."',
-                    response: 'Word of mouth is great, it means you do solid work. But it only reaches people who already know you. A website puts you in front of everyone searching for what you do right now, that\'s a whole stream of new jobs you\'re missing. And it\'s free to take a look.',
-                    tags: ['website', 'value']
+                    response: 'Word of mouth is great, it means you do solid work. But it only reaches people who already know you. A website puts you in front of everyone searching for what you do right now, that\'s a whole stream of new jobs you\'re missing. And it\'s free to take a look.'
                 },
                 {
                     id: 'too_small',
                     label: '"We\'re too small."',
-                    response: 'Honestly, smaller businesses are where a website makes the biggest difference. It makes you look just as professional as the big guys.',
-                    tags: ['website', 'value']
+                    response: 'Honestly, smaller businesses are where a website makes the biggest difference. It makes you look just as professional as the big guys.'
                 }
             ]
         },
         skeptical: {
             name: 'Skeptical Questions',
-            icon: '🤔',
+            icon: 'ðŸ¤”',
             description: 'Fair questions that need simple, relaxed answers',
             objections: [
                 {
                     id: 'how_much_cost',
                     label: '"How much is this going to cost?"',
-                    response: 'Great question. The walkthrough is completely free, there\'s no cost just to look at the website. The price does vary a little depending on the website, but I promise it\'s very affordable, and my colleague covers all the options on the call.',
-                    tags: ['pricing', 'value']
+                    response: 'Great question. The walkthrough is completely free, there\'s no cost just to look at the website. The price does vary a little depending on the website, but I promise it\'s very affordable, and my colleague covers all the options on the call.'
                 },
                 {
                     id: 'whats_catch',
                     label: '"What\'s the catch?"',
-                    response: 'No catch. If you love it, you pay us to fully flesh it out and get it online for you. If you don\'t like it, we just leave it at that, no hard feelings.',
-                    tags: ['trust', 'value']
+                    response: 'No catch. If you love it, you pay us to fully flesh it out and get it online for you. If you don\'t like it, we just leave it at that, no hard feelings.'
                 },
                 {
                     id: 'help_business',
                     label: '"Is this going to help my business?"',
-                    response: 'Of course it will. It\'ll make you way easier to find on Google, make you look more trustworthy and professional, and give customers an easy way to reach you and book you. A good website brings in business, that\'s the whole point.',
-                    tags: ['value', 'benefits']
+                    response: 'Of course it will. It\'ll make you way easier to find on Google, make you look more trustworthy and professional, and give customers an easy way to reach you and book you. A good website brings in business, that\'s the whole point.'
                 },
                 {
                     id: 'got_number',
                     label: '"How did you get my number?"',
-                    response: 'Your business shows up on Google, that\'s where we found you. We noticed you didn\'t have a website linked to your profile.',
-                    tags: ['trust', 'source']
+                    response: 'Your business shows up on Google, that\'s where we found you. We noticed you didn\'t have a website linked to your profile.'
                 },
                 {
                     id: 'are_you_local',
                     label: '"Are you local?"',
-                    response: 'We\'re based in Delaware, but we work with businesses like yours all over, and everything we do is focused on helping you show up better in your own area online.',
-                    tags: ['trust', 'location']
-                },
-                {
-                    id: 'not_interested_now',
-                    label: '"I\'m not interested right now."',
-                    response: 'That\'s totally fine. Can I ask what\'s holding you back? Is it the timing, or is there something specific you\'re unsure about?',
-                    tags: ['skeptical', 'objection']
+                    response: 'We\'re based in Delaware, but we work with businesses like yours all over, and everything we do is focused on helping you show up better in your own area online.'
                 }
             ]
         },
         gatekeepers: {
             name: 'Gatekeepers',
-            icon: '🚪',
+            icon: 'ðŸšª',
             description: 'Handling receptionists and employees',
             objections: [
                 {
                     id: 'owner_not_in',
                     label: '"The owner isn\'t in right now."',
-                    response: 'Alright, no problem, I can give them a call back. When will they be back in?',
-                    tags: ['gatekeeper', 'follow-up']
+                    response: 'Alright, no problem, I can give them a call back. When will they be back in?'
                 },
                 {
                     id: 'owner_unavailable',
                     label: '"The owner is unavailable."',
-                    response: 'No worries. Can I leave a message, or is there a better time to reach them? I\'d love to share a free preview I\'ve put together for their business.',
-                    tags: ['gatekeeper', 'message']
+                    response: 'No worries. Can I leave a message, or is there a better time to reach them? I\'d love to share a free preview I\'ve put together for their business.'
                 },
                 {
                     id: 'take_message',
                     label: '"I can take a message."',
-                    response: 'Great! Could you let them know that I\'ve put together a free modern preview of their website? I\'d love to show it to them when they\'re available. What\'s the best time to catch them?',
-                    tags: ['gatekeeper', 'message']
+                    response: 'Great! Could you let them know that I\'ve put together a free modern preview of their website? I\'d love to show it to them when they\'re available. What\'s the best time to catch them?'
                 },
                 {
                     id: 'send_email',
                     label: '"Just email the owner."',
-                    response: 'I can do that, but the preview isn\'t online yet. I\'d really like to personally walk them through it. Is there a time I could call back when they\'re available?',
-                    tags: ['gatekeeper', 'follow-up']
-                },
-                {
-                    id: 'not_decision_maker',
-                    label: '"I\'m not the decision maker."',
-                    response: 'That\'s fair. Who would be the right person to speak with about improving your online presence? Could you connect me with them?',
-                    tags: ['gatekeeper', 'decision']
-                }
-            ]
-        },
-        meeting: {
-            name: 'Meeting Objections',
-            icon: '📅',
-            description: 'Objections specific to scheduling and attending meetings',
-            objections: [
-                {
-                    id: 'meeting_not_sure',
-                    label: '"I\'m not sure if I need a meeting."',
-                    response: 'I completely understand. The meeting is just a quick 15-20 minute walkthrough to show you what we\'ve put together. No commitment, just a look. What do you think?',
-                    tags: ['meeting', 'objection']
-                },
-                {
-                    id: 'meeting_short_time',
-                    label: '"I only have 5 minutes."',
-                    response: 'That\'s fine! I can do a quick 5-minute overview and if you want to dive deeper, we can schedule a follow-up. Is now a good time?',
-                    tags: ['meeting', 'time']
-                },
-                {
-                    id: 'meeting_no_show',
-                    label: '"I might not make it."',
-                    response: 'No worries, life happens. Would you like me to send a calendar invite with a reminder, or would you prefer to reschedule now?',
-                    tags: ['meeting', 'follow-up']
-                },
-                {
-                    id: 'meeting_what_to_expect',
-                    label: '"What will we cover in the meeting?"',
-                    response: 'Great question! We\'ll do a quick walkthrough of the preview I\'ve created for your business, discuss what you like (or don\'t like), and see if there\'s a fit. No pressure, just a conversation.',
-                    tags: ['meeting', 'expectations']
-                },
-                {
-                    id: 'meeting_need_attendees',
-                    label: '"Who else needs to be on the call?"',
-                    response: 'Ideally, anyone who would be involved in the decision-making process. Usually that\'s the owner or manager, but feel free to bring whoever you think should see it.',
-                    tags: ['meeting', 'preparation']
-                },
-                {
-                    id: 'meeting_timezone',
-                    label: '"What timezone is this in?"',
-                    response: 'Great question! I\'m in Eastern Time (EDT). What timezone are you in? I want to make sure we\'re on the same page for timing.',
-                    tags: ['meeting', 'timezone']
-                },
-                {
-                    id: 'meeting_link_not_working',
-                    label: '"The meeting link isn\'t working."',
-                    response: 'Oh no, I\'m sorry about that! Let me send you a fresh link. I can also email it to you or send it via text if that\'s easier. What works best for you?',
-                    tags: ['meeting', 'technical']
-                },
-                {
-                    id: 'meeting_reschedule',
-                    label: '"Can we reschedule?"',
-                    response: 'Of course! I understand things come up. What day and time works better for you? I have availability [X day] at [Y time].',
-                    tags: ['meeting', 'reschedule']
-                }
-            ]
-        },
-        closing: {
-            name: 'Closing Objections',
-            icon: '🤝',
-            description: 'Final objections before closing the deal',
-            objections: [
-                {
-                    id: 'need_to_think',
-                    label: '"I need to think about it."',
-                    response: 'Of course, take your time. What specifically would you like to think about? I\'m happy to address any concerns you have right now.',
-                    tags: ['closing', 'objection']
-                },
-                {
-                    id: 'need_to_compare',
-                    label: '"I need to compare with others."',
-                    response: 'That\'s smart to compare. What are you looking for in a solution? I can help you understand what makes our approach different.',
-                    tags: ['closing', 'comparison']
-                },
-                {
-                    id: 'not_the_right_time',
-                    label: '"It\'s not the right time."',
-                    response: 'I understand timing is everything. When would be a better time to revisit this? Can we schedule a follow-up then?',
-                    tags: ['closing', 'timing']
-                },
-                {
-                    id: 'budget_constraints',
-                    label: '"We have budget constraints."',
-                    response: 'I completely understand budget is a factor. We have flexible options and we can work with you to find a solution that fits. What\'s your budget range, if you don\'t mind me asking?',
-                    tags: ['closing', 'pricing']
-                },
-                {
-                    id: 'need_partner_approval',
-                    label: '"I need to discuss with my partner."',
-                    response: 'That makes sense. Is there a time we could all get together to review the preview? I\'d be happy to present it to both of you together.',
-                    tags: ['closing', 'decision']
-                },
-                {
-                    id: 'need_to_sleep_on_it',
-                    label: '"Let me sleep on it."',
-                    response: 'Of course, that\'s completely fair. While it\'s fresh in your mind, is there anything specific you\'d like me to clarify before you make a decision?',
-                    tags: ['closing', 'decision']
+                    response: 'I can do that, but the preview isn\'t online yet. I\'d really like to personally walk them through it. Is there a time I could call back when they\'re available?'
                 }
             ]
         }
@@ -276,19 +145,16 @@ const ObjectionHandler = {
     activeCategory: 'reflex',
     searchTerm: '',
     favorites: JSON.parse(localStorage.getItem('objectionFavorites') || '[]'),
-    recentlyUsed: JSON.parse(localStorage.getItem('objectionRecentlyUsed') || '[]'),
 
     // DOM Elements
     elements: {},
 
     // Initialize
     init: function() {
-        if (this._initialized) return;
-        this._initialized = true;
         this.injectStyles();
         this.createPanel();
         this.setupEventListeners();
-        console.log('🛡️ Objection Handler initialized');
+        console.log('ðŸ›¡ï¸ Objection Handler initialized');
     },
 
     injectStyles: function() {
@@ -296,11 +162,6 @@ const ObjectionHandler = {
         style.id = 'objection-handler-styles';
         style.textContent = `
             /* Objection Toggle Button - Icon only in script header */
-            .objection-toggle-wrapper {
-                position: relative;
-                display: inline-flex;
-            }
-
             .objection-toggle-icon {
                 background: none;
                 border: none;
@@ -363,9 +224,9 @@ const ObjectionHandler = {
                 position: absolute;
                 top: calc(100% + 8px);
                 right: 0;
-                width: 580px;
+                width: 520px;
                 max-width: calc(100vw - 40px);
-                max-height: 580px;
+                max-height: 500px;
                 background: var(--bg-secondary);
                 border-radius: 16px;
                 border: 1px solid var(--border-color);
@@ -405,6 +266,10 @@ const ObjectionHandler = {
                 align-items: center;
                 gap: 8px;
                 margin: 0;
+            }
+
+            .objection-panel-header h4 .header-icon {
+                font-size: 1rem;
             }
 
             .objection-panel-header .header-sub {
@@ -522,7 +387,7 @@ const ObjectionHandler = {
                 overflow-y: auto;
                 padding: 8px 12px;
                 min-height: 120px;
-                max-height: 320px;
+                max-height: 280px;
             }
 
             .objection-list-integrated::-webkit-scrollbar {
@@ -572,23 +437,6 @@ const ObjectionHandler = {
                 display: none;
             }
 
-            .objection-item-int .obj-tags {
-                display: flex;
-                gap: 4px;
-                margin-top: 4px;
-                flex-wrap: wrap;
-            }
-
-            .objection-item-int .obj-tag {
-                font-size: 0.5rem;
-                padding: 1px 6px;
-                border-radius: 10px;
-                background: var(--bg-primary);
-                color: var(--text-muted);
-                text-transform: uppercase;
-                letter-spacing: 0.3px;
-            }
-
             .objection-item-int.expanded .obj-response {
                 display: block;
             }
@@ -634,15 +482,6 @@ const ObjectionHandler = {
                 color: var(--favorite-color);
             }
 
-            .objection-item-int .obj-actions .meeting-btn-int {
-                color: var(--primary);
-            }
-
-            .objection-item-int .obj-actions .meeting-btn-int:hover {
-                border-color: var(--primary);
-                background: rgba(59, 130, 246, 0.1);
-            }
-
             .objection-empty-int {
                 text-align: center;
                 padding: 30px 16px;
@@ -673,7 +512,7 @@ const ObjectionHandler = {
 
             .objection-panel-footer-int .footer-stats-int {
                 display: flex;
-                gap: 12px;
+                gap: 10px;
             }
 
             .objection-panel-footer-int .footer-stats-int span {
@@ -718,7 +557,7 @@ const ObjectionHandler = {
                 .objection-panel-integrated {
                     width: calc(100vw - 30px);
                     right: -10px;
-                    max-height: 480px;
+                    max-height: 420px;
                     top: calc(100% + 4px);
                 }
 
@@ -732,7 +571,7 @@ const ObjectionHandler = {
                 }
 
                 .objection-list-integrated {
-                    max-height: 240px;
+                    max-height: 200px;
                 }
 
                 .objection-item-int .obj-label {
@@ -748,28 +587,23 @@ const ObjectionHandler = {
                     font-size: 0.55rem;
                     padding: 2px 8px;
                 }
-
-                .objection-panel-footer-int {
-                    flex-wrap: wrap;
-                    gap: 4px;
-                }
             }
 
             @media (max-width: 480px) {
                 .objection-panel-integrated {
                     width: calc(100vw - 20px);
                     right: -5px;
-                    max-height: 420px;
+                    max-height: 380px;
                 }
 
                 .objection-list-integrated {
-                    max-height: 200px;
+                    max-height: 160px;
                 }
 
                 .objection-panel-footer-int {
                     flex-direction: column;
-                    align-items: flex-start;
                     gap: 4px;
+                    align-items: flex-start;
                 }
             }
         `;
@@ -823,7 +657,7 @@ const ObjectionHandler = {
         panel.innerHTML = `
             <div class="objection-panel-header">
                 <h4>
-                    <span class="header-icon">🛡️</span>
+                    <span class="header-icon">ðŸ›¡ï¸</span>
                     Objection Handler
                     <span class="header-sub">Senior Setter/Booker</span>
                 </h4>
@@ -832,16 +666,15 @@ const ObjectionHandler = {
                 </button>
             </div>
             <div class="objection-panel-search">
-                <span class="search-icon-pos">🔍</span>
+                <span class="search-icon-pos">ðŸ”</span>
                 <input type="text" id="objectionSearch" placeholder="Search objections..." />
             </div>
             <div class="objection-categories-integrated" id="objectionCategories"></div>
             <div class="objection-list-integrated" id="objectionList"></div>
             <div class="objection-panel-footer-int">
                 <div class="footer-stats-int">
-                    <span>📋 <span id="objCount">0</span></span>
-                    <span>⭐ <span id="favCount">0</span></span>
-                    <span>🕐 <span id="recentCount">0</span></span>
+                    <span>ðŸ“‹ <span id="objCount">0</span></span>
+                    <span>â­ <span id="favCount">0</span></span>
                 </div>
                 <span><kbd>Ctrl+Shift+O</kbd> toggle</span>
             </div>
@@ -868,7 +701,6 @@ const ObjectionHandler = {
         this.elements.listContainer = document.getElementById('objectionList');
         this.elements.countEl = document.getElementById('objCount');
         this.elements.favCountEl = document.getElementById('favCount');
-        this.elements.recentCountEl = document.getElementById('recentCount');
 
         // Render initial content
         this.renderCategories();
@@ -936,39 +768,19 @@ const ObjectionHandler = {
 
         let objections = category.objections;
 
-        // Filter by search term
         if (this.searchTerm) {
             objections = objections.filter(o =>
                 o.label.toLowerCase().includes(this.searchTerm) ||
-                o.response.toLowerCase().includes(this.searchTerm) ||
-                (o.tags && o.tags.some(t => t.toLowerCase().includes(this.searchTerm)))
+                o.response.toLowerCase().includes(this.searchTerm)
             );
         }
 
-        // Sort: favorites first, then recently used
-        objections.sort((a, b) => {
-            const aFav = this.favorites.includes(a.id);
-            const bFav = this.favorites.includes(b.id);
-            if (aFav && !bFav) return -1;
-            if (!aFav && bFav) return 1;
-            
-            const aRecent = this.recentlyUsed.includes(a.id);
-            const bRecent = this.recentlyUsed.includes(b.id);
-            if (aRecent && !bRecent) return -1;
-            if (!aRecent && bRecent) return 1;
-            
-            return 0;
-        });
-
-        // Update counts
         if (this.elements.countEl) {
             this.elements.countEl.textContent = objections.length;
         }
+
         if (this.elements.favCountEl) {
             this.elements.favCountEl.textContent = this.favorites.length;
-        }
-        if (this.elements.recentCountEl) {
-            this.elements.recentCountEl.textContent = this.recentlyUsed.length;
         }
 
         if (objections.length === 0) {
@@ -983,21 +795,10 @@ const ObjectionHandler = {
 
         container.innerHTML = objections.map(obj => {
             const isFavorite = this.favorites.includes(obj.id);
-            const isRecent = this.recentlyUsed.includes(obj.id);
-            const tags = obj.tags || [];
-            const isMeetingRelated = tags.some(t => t === 'meeting' || t === 'reschedule' || t === 'timezone' || t === 'technical');
-            
             return `
-                <div class="objection-item-int ${isRecent ? 'recent' : ''}" data-id="${obj.id}">
+                <div class="objection-item-int" data-id="${obj.id}">
                     <span class="obj-label">${obj.label}</span>
                     <div class="obj-response">${obj.response}</div>
-                    ${tags.length > 0 ? `
-                        <div class="obj-tags">
-                            ${tags.map(tag => `<span class="obj-tag">${tag}</span>`).join('')}
-                            ${isRecent ? `<span class="obj-tag" style="background:var(--primary);color:white;">recent</span>` : ''}
-                            ${isMeetingRelated ? `<span class="obj-tag" style="background:var(--primary);color:white;">📅</span>` : ''}
-                        </div>
-                    ` : ''}
                     <div class="obj-actions">
                         <button class="copy-btn-int" data-response="${obj.response.replace(/"/g, '&quot;')}">
                             <i class="fas fa-copy"></i> Copy
@@ -1008,11 +809,6 @@ const ObjectionHandler = {
                         <button class="fav-btn-int ${isFavorite ? 'active' : ''}" data-id="${obj.id}">
                             <i class="fas fa-star"></i>
                         </button>
-                        ${isMeetingRelated ? `
-                            <button class="meeting-btn-int" onclick="window.openMeetingScheduler && window.openMeetingScheduler()" title="Schedule Meeting">
-                                <i class="fas fa-calendar-plus"></i>
-                            </button>
-                        ` : ''}
                     </div>
                 </div>
             `;
@@ -1042,7 +838,6 @@ const ObjectionHandler = {
                     if (response) {
                         this.copyToClipboard(response);
                         this.showCopyToast('Response copied!');
-                        this.addToRecentlyUsed(item.dataset.id);
                     }
                 });
             }
@@ -1057,7 +852,7 @@ const ObjectionHandler = {
                 });
             }
 
-            // Click on item to expand/collapse and track usage
+            // Click on item to expand/collapse
             item.addEventListener('click', (e) => {
                 if (e.target.closest('.obj-actions')) return;
                 item.classList.toggle('expanded');
@@ -1070,8 +865,6 @@ const ObjectionHandler = {
                             : 'fas fa-chevron-down';
                     }
                 }
-                // Track usage
-                this.addToRecentlyUsed(item.dataset.id);
             });
         });
     },
@@ -1083,24 +876,9 @@ const ObjectionHandler = {
             if (window.showToast) showToast('Removed from favorites', 'info');
         } else {
             this.favorites.push(id);
-            if (window.showToast) showToast('Added to favorites ⭐', 'success');
+            if (window.showToast) showToast('Added to favorites â­', 'success');
         }
         localStorage.setItem('objectionFavorites', JSON.stringify(this.favorites));
-    },
-
-    addToRecentlyUsed: function(id) {
-        // Remove if already exists
-        const index = this.recentlyUsed.indexOf(id);
-        if (index > -1) {
-            this.recentlyUsed.splice(index, 1);
-        }
-        // Add to front
-        this.recentlyUsed.unshift(id);
-        // Keep only last 10
-        if (this.recentlyUsed.length > 10) {
-            this.recentlyUsed = this.recentlyUsed.slice(0, 10);
-        }
-        localStorage.setItem('objectionRecentlyUsed', JSON.stringify(this.recentlyUsed));
     },
 
     copyToClipboard: function(text) {
@@ -1136,7 +914,7 @@ const ObjectionHandler = {
 
         const toast = document.createElement('div');
         toast.className = 'copy-toast-int';
-        toast.textContent = '✅ ' + message;
+        toast.textContent = 'âœ… ' + message;
         document.body.appendChild(toast);
 
         setTimeout(() => {
@@ -1207,82 +985,17 @@ const ObjectionHandler = {
 
     // Called when script is loaded - update badge
     onScriptLoaded: function() {
+        // Re-create panel if needed (when script content changes)
         const existingWrapper = document.querySelector('.objection-toggle-wrapper');
         if (!existingWrapper) {
             this.createPanel();
         } else {
+            // Update badge count
             const badge = existingWrapper.querySelector('.badge-count');
             if (badge) {
                 badge.textContent = this.getTotalObjections();
             }
         }
-    },
-
-    // Reset recently used
-    resetRecentlyUsed: function() {
-        this.recentlyUsed = [];
-        localStorage.setItem('objectionRecentlyUsed', JSON.stringify(this.recentlyUsed));
-        if (this.isOpen) {
-            this.renderList();
-        }
-        if (window.showToast) showToast('Recently used history cleared', 'info');
-    },
-
-    // Get all objections as a flat array
-    getAllObjections: function() {
-        const all = [];
-        for (const category of Object.values(this.categories)) {
-            all.push(...category.objections);
-        }
-        return all;
-    },
-
-    // Search by tag
-    searchByTag: function(tag) {
-        this.searchTerm = tag.toLowerCase();
-        if (this.elements.searchInput) {
-            this.elements.searchInput.value = tag;
-        }
-        this.renderList();
-    },
-
-    // Get objections by category
-    getByCategory: function(categoryId) {
-        return this.categories[categoryId]?.objections || [];
-    },
-
-    // Get meeting-related objections
-    getMeetingObjections: function() {
-        return this.getByCategory('meeting');
-    },
-
-    // Get closing objections
-    getClosingObjections: function() {
-        return this.getByCategory('closing');
-    },
-
-    // Get objections by tag
-    getByTag: function(tag) {
-        const all = this.getAllObjections();
-        return all.filter(obj => obj.tags && obj.tags.includes(tag));
-    },
-
-    // Get favorite objections
-    getFavorites: function() {
-        const all = this.getAllObjections();
-        return all.filter(obj => this.favorites.includes(obj.id));
-    },
-
-    // Get recently used objections
-    getRecentlyUsed: function() {
-        const all = this.getAllObjections();
-        return all.filter(obj => this.recentlyUsed.includes(obj.id));
-    },
-
-    // Get objection by ID
-    getById: function(id) {
-        const all = this.getAllObjections();
-        return all.find(obj => obj.id === id);
     }
 };
 
@@ -1293,7 +1006,7 @@ const ObjectionHandler = {
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         ObjectionHandler.init();
-        console.log('🛡️ Objection Handler initialized');
+        console.log('ðŸ›¡ï¸ Objection Handler initialized');
     }, 600);
 });
 
