@@ -60,17 +60,25 @@ const APP_CONFIG = {
     console.log('⚙️ Initializing application configuration...');
     
     // 1. Load API key from localStorage
-    const storedKey = localStorage.getItem(APP_CONFIG.storageKeys.geminiApiKey);
-    if (storedKey && storedKey.trim().length > 10) {
-        APP_CONFIG.gemini.apiKey = storedKey.trim();
-        console.log('🔑 Gemini API key loaded from localStorage');
+    try {
+        const storedKey = localStorage.getItem(APP_CONFIG.storageKeys.geminiApiKey);
+        if (storedKey && storedKey.trim().length > 10) {
+            APP_CONFIG.gemini.apiKey = storedKey.trim();
+            console.log('🔑 Gemini API key loaded from localStorage');
+        }
+    } catch (e) {
+        console.warn('⚠️ Could not read from localStorage:', e.message);
     }
     
     // 2. Check for global variable (for development/testing)
     if (window.GEMINI_API_KEY && window.GEMINI_API_KEY.trim().length > 10) {
         APP_CONFIG.gemini.apiKey = window.GEMINI_API_KEY.trim();
-        localStorage.setItem(APP_CONFIG.storageKeys.geminiApiKey, APP_CONFIG.gemini.apiKey);
-        console.log('🔑 Gemini API key loaded from global variable');
+        try {
+            localStorage.setItem(APP_CONFIG.storageKeys.geminiApiKey, APP_CONFIG.gemini.apiKey);
+            console.log('🔑 Gemini API key loaded from global variable');
+        } catch (e) {
+            console.warn('⚠️ Could not save to localStorage:', e.message);
+        }
     }
     
     // 3. Check for environment variable (for Render.com)
@@ -78,8 +86,12 @@ const APP_CONFIG = {
         const envKey = process.env.GEMINI_API_KEY.trim();
         if (envKey.length > 10) {
             APP_CONFIG.gemini.apiKey = envKey;
-            localStorage.setItem(APP_CONFIG.storageKeys.geminiApiKey, envKey);
-            console.log('🔑 Gemini API key loaded from environment variable');
+            try {
+                localStorage.setItem(APP_CONFIG.storageKeys.geminiApiKey, envKey);
+                console.log('🔑 Gemini API key loaded from environment variable');
+            } catch (e) {
+                console.warn('⚠️ Could not save to localStorage:', e.message);
+            }
         }
     }
     

@@ -3714,21 +3714,30 @@ function initApp() {
     if (typeof openSmartImportEnhanced === 'undefined') {
         console.warn('⚠️ openSmartImportEnhanced not defined, creating fallback');
         window.openSmartImportEnhanced = function() {
+            console.log('📥 Smart Import fallback called');
             showToast('Smart Import loading...', 'info');
             // Try to load smart-import.js dynamically
-            const script = document.createElement('script');
-            script.src = 'js/smart-import.js';
-            script.onload = function() {
-                showToast('Smart Import loaded! Please try again.', 'success');
-                // Re-initialize the function
-                if (typeof window.openSmartImportEnhanced === 'function') {
-                    window.openSmartImportEnhanced();
-                }
-            };
-            script.onerror = function() {
-                showToast('Failed to load Smart Import. Please refresh the page.', 'error');
-            };
-            document.head.appendChild(script);
+            try {
+                const script = document.createElement('script');
+                script.src = 'js/smart-import.js';
+                script.onload = function() {
+                    console.log('✅ Smart Import loaded dynamically');
+                    showToast('Smart Import loaded! Please try again.', 'success');
+                    // Try to open after load
+                    if (typeof window.openSmartImportEnhanced === 'function' && 
+                        window.openSmartImportEnhanced !== arguments.callee) {
+                        setTimeout(() => window.openSmartImportEnhanced(), 300);
+                    }
+                };
+                script.onerror = function() {
+                    console.error('❌ Failed to load Smart Import');
+                    showToast('Failed to load Smart Import. Please refresh the page.', 'error');
+                };
+                document.head.appendChild(script);
+            } catch (e) {
+                console.error('❌ Error loading Smart Import:', e);
+                showToast('Error loading Smart Import. Please refresh.', 'error');
+            }
         };
     }
     
