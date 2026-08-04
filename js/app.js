@@ -143,14 +143,13 @@ const AppState = {
     analyticsData: null,
     analyticsLoading: false,
     
-    // AI Configuration (using centralized config)
     aiConfig: null,
     isAIAvailable: false,
     firebaseStatus: null
 };
 
 // ================================================================
-// STORAGE KEYS - Using centralized config
+// STORAGE KEYS
 // ================================================================
 
 const STORAGE_KEYS = {
@@ -1579,285 +1578,1501 @@ const Data = {
 };
 
 // ================================================================
-// ANALYTICS ENGINE - Meeting Performance Dashboard
+// SCRIPTS MODULE
 // ================================================================
 
-const AnalyticsEngine = {
-    getFilteredAppointments() {
-        const filters = AppState.analyticsFilters || {};
-        let appointments = Data.getAllAppointments();
+const Scripts = {
+    renderSidebar: function() {
+        const container = DOM.get('scriptListContainer');
+        if (!container) return;
+
+        const scripts = AppState.scripts || {};
+        const scriptOrder = AppState.scriptOrder || [];
         
-        if (filters.timeRange && filters.timeRange !== 'custom') {
-            const range = Utils.getDateRange(filters.timeRange);
-            appointments = appointments.filter(appt => {
-                const date = new Date(appt.date);
-                const start = new Date(range.start);
-                const end = new Date(range.end);
-                end.setHours(23, 59, 59, 999);
-                return date >= start && date <= end;
+        const visible = Utils.getOrderedVisible(scripts, scriptOrder);
+        const sorted = [...visible].sort((a, b) => {
+            const aFav = AppState.scriptFavorites.includes(a);
+            const bFav = AppState.scriptFavorites.includes(b);
+            if (aFav && !bFav) return -1;
+            if (!aFav && bFav) return 1;
+            return visible.indexOf(a) - visible.indexOf(b);
+        });
+
+        let html = '';
+        if (sorted.length === 0) {
+            html = `<div class="empty-scripts-msg" style="padding:20px; text-align:center; color:var(--text-muted); font-size:0.85rem;">
+                <i class="fas fa-scroll" style="font-size:2rem; display:block; margin-bottom:8px; opacity:0.3;"></i>
+                No scripts yet. Click "New Script" to create one.
+            </div>`;
+        } else {
+            sorted.forEach((id, idx) => {
+                const s = scripts[id];
+                if (!s) return;
+                const active = AppState.currentScriptId === id;
+                const isFavorite = AppState.scriptFavorites.includes(id);
+                html += `
+                    <div class="script-item ${active ? 'active' : ''}" data-id="${id}">
+                        <i class="fas fa-grip-vertical drag-handle"></i>
+                        <span class="script-name">${Utils.escapeHtml(s.name)}</span>
+                        <i class="fas fa-star favorite-star ${isFavorite ? 'active' : ''}" data-id="${id}"></i>
+                        <span class="key-hint">${idx < 9 ? idx + 1 : ''}</span>
+                        <i class="fas fa-edit script-edit-btn" data-id="${id}" title="Edit script name"></i>
+                        <i class="fas fa-trash script-delete-btn" data-id="${id}" title="Delete script"></i>
+                    </div>
+                `;
             });
-        } else if (filters.timeRange === 'custom' && filters.startDate && filters.endDate) {
-            appointments = appointments.filter(appt => {
-                const date = new Date(appt.date);
-                const start = new Date(filters.startDate);
-                const end = new Date(filters.endDate);
-                end.setHours(23, 59, 59, 999);
-                return date >= start && date <= end;
+        }
+        container.innerHTML = html;
+
+        if (window.sortableInstance) {
+            window.sortableInstance.destroy();
+            window.sortableInstance = null;
+        }
+
+        if (sorted.length > 0) {
+            window.sortableInstance = new Sortable(container, {
+                handle: '.drag-handle',
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                chosenClass: 'sortable-chosen',
+                dragClass: 'sortable-drag',
+                onEnd: async function() {
+                    const newOrder = [];
+                    container.querySelectorAll('.script-item').forEach(item => {
+                        const id = item.getAttribute('data-id');
+                        if (id) newOrder.push(id);
+                    });
+                    AppState.scriptOrder = newOrder;
+                    await Data.saveScriptOrder();
+                    Scripts.renderSidebar();
+                    Scripts.updateKeyHints();
+                }
             });
         }
+
+        container.querySelectorAll('.script-item').forEach(el => {
+            el.addEventListener('click', (e) => {
+                if (e.target.closest('.drag-handle')) return;
+                if (e.target.closest('.favorite-star')) return;
+                if (e.target.closest('.script-edit-btn')) return;
+                if (e.target.closest('.script-delete-btn')) return;
+                Scripts.loadScript(el.getAttribute('data-id'));
+            });
+        });
+
+        container.querySelectorAll('.favorite-star').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                Scripts.toggleFavorite(el.getAttribute('data-id'));
+            });
+        });
+
+        container.querySelectorAll('.script-edit-btn').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = el.getAttribute('data-id');
+                Scripts.editScriptTitle(id);
+            });
+        });
+
+        container.querySelectorAll('.script-delete-btn').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = el.getAttribute('data-id');
+                Scripts.deleteScript(id);
+            });
+        });
+
+        this.updateKeyHints();
+    },
+
+    editScriptTitle: function(id) {
+        const script = AppState.scripts[id];
+        if (!script) {
+            showToast('Script not found', 'error');
+            return;
+        }
+
+        const newName = prompt('Edit script name:', script.name);
+        if (newName && newName.trim() && newName.trim() !== script.name) {
+            const updatedName = newName.trim();
+            AppState.scripts[id] = { ...script, name: updatedName };
+            
+            if (AppState.isFirebaseReady && AppState.currentUser) {
+                firebase.firestore()
+                    .collection('users')
+                    .doc(AppState.currentUser.uid)
+                    .collection('scripts')
+                    .doc(id)
+                    .update({ name: updatedName })
+                    .then(() => {
+                        showToast('Script name updated!', 'success');
+                        Scripts.renderSidebar();
+                        if (AppState.currentScriptId === id) {
+                            DOM.setText('currentScriptName', updatedName);
+                        }
+                    })
+                    .catch(err => {
+                        handleError(err, 'Updating script name');
+                        AppState.scripts[id] = script;
+                        Scripts.renderSidebar();
+                    });
+            } else {
+                const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
+                if (fallback[id]) {
+                    fallback[id].name = updatedName;
+                    localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+                }
+                showToast('Script name updated!', 'success');
+                Scripts.renderSidebar();
+                if (AppState.currentScriptId === id) {
+                    DOM.setText('currentScriptName', updatedName);
+                }
+            }
+        }
+    },
+
+    deleteScript: function(id) {
+        const script = AppState.scripts[id];
+        if (!script) {
+            showToast('Script not found', 'error');
+            return;
+        }
+
+        const scriptCount = Object.keys(AppState.scripts).length;
+        if (scriptCount <= 1) {
+            showToast('Cannot delete the last script. Create a new one first.', 'warning');
+            return;
+        }
+
+        if (!confirm(`Delete script "${script.name}"? This cannot be undone.`)) {
+            return;
+        }
+
+        delete AppState.scripts[id];
+        AppState.scriptOrder = AppState.scriptOrder.filter(scriptId => scriptId !== id);
+        AppState.scriptFavorites = AppState.scriptFavorites.filter(scriptId => scriptId !== id);
+
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            firebase.firestore()
+                .collection('users')
+                .doc(AppState.currentUser.uid)
+                .collection('scripts')
+                .doc(id)
+                .delete()
+                .then(() => {
+                    showToast(`Script "${script.name}" deleted`, 'info');
+                    if (AppState.currentScriptId === id) {
+                        const remainingIds = Object.keys(AppState.scripts);
+                        if (remainingIds.length > 0) {
+                            Scripts.loadScript(remainingIds[0]);
+                        }
+                    }
+                    Scripts.renderSidebar();
+                    Scripts.saveScriptOrder();
+                })
+                .catch(err => {
+                    handleError(err, 'Deleting script');
+                    AppState.scripts[id] = script;
+                    AppState.scriptOrder.push(id);
+                    Scripts.renderSidebar();
+                });
+        } else {
+            const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
+            delete fallback[id];
+            localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+            
+            showToast(`Script "${script.name}" deleted`, 'info');
+            if (AppState.currentScriptId === id) {
+                const remainingIds = Object.keys(AppState.scripts);
+                if (remainingIds.length > 0) {
+                    Scripts.loadScript(remainingIds[0]);
+                }
+            }
+            Scripts.renderSidebar();
+            Scripts.saveScriptOrder();
+        }
+    },
+
+    updateKeyHints: function() {
+        const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
+        const items = document.querySelectorAll('.script-item');
+        items.forEach((item, idx) => {
+            const hint = item.querySelector('.key-hint');
+            if (hint && idx < 9) {
+                hint.textContent = idx + 1;
+            } else if (hint) {
+                hint.textContent = '';
+            }
+        });
+
+        const activeHint = DOM.get('activeShortcutHint');
+        if (activeHint) {
+            const idx = visible.indexOf(AppState.currentScriptId);
+            activeHint.textContent = (idx >= 0 && idx < 9) ? (idx + 1) : '—';
+        }
+    },
+
+    loadScript: function(id) {
+        if (!AppState.scripts[id]) {
+            const ids = Object.keys(AppState.scripts);
+            if (ids.length > 0) {
+                id = ids[0];
+            } else {
+                showToast('No scripts available. Create a new script.', 'warning');
+                return;
+            }
+        }
+        if (AppState.isEditing) {
+            if (!confirm('You have unsaved changes. Discard them?')) return;
+            this.cancelEdit();
+        }
+        AppState.currentScriptId = id;
+        const script = AppState.scripts[id];
+        DOM.setText('currentScriptName', script.name);
+        DOM.setHTML('scriptContent', `<div class="script-display">${Utils.escapeHtml(script.content).replace(/\n/g, '<br>')}</div>`);
+        DOM.setText('versionNumber', script.version || 1);
+        this.updateFavoriteStar();
+        this.renderSidebar();
+        this.updateKeyHints();
         
-        if (filters.setter && filters.setter !== 'all') {
-            appointments = appointments.filter(appt => 
-                appt.assigned === filters.setter || 
-                appt.setter === filters.setter
-            );
+        if (window.ObjectionHandler && typeof window.ObjectionHandler.onScriptLoaded === 'function') {
+            window.ObjectionHandler.onScriptLoaded();
+        }
+    },
+
+    toggleFavorite: function(id) {
+        const index = AppState.scriptFavorites.indexOf(id);
+        if (index > -1) {
+            AppState.scriptFavorites.splice(index, 1);
+        } else {
+            AppState.scriptFavorites.push(id);
+        }
+        localStorage.setItem('scriptFavorites', JSON.stringify(AppState.scriptFavorites));
+        this.renderSidebar();
+        this.updateFavoriteStar();
+        showToast(index > -1 ? 'Removed from favorites' : 'Added to favorites', 'info');
+    },
+
+    updateFavoriteStar: function() {
+        const star = DOM.get('favoriteScriptBtn');
+        if (star) {
+            const isFavorite = AppState.scriptFavorites.includes(AppState.currentScriptId);
+            star.innerHTML = `<i class="fas fa-star" style="color:${isFavorite ? 'var(--favorite-color)' : 'var(--text-muted)'}"></i>`;
+            star.title = isFavorite ? 'Remove from favorites' : 'Add to favorites';
+        }
+    },
+
+    startEdit: function() {
+        if (!AppState.scripts[AppState.currentScriptId]) return;
+        AppState.isEditing = true;
+        AppState.shortcutsEnabled = false;
+        const script = AppState.scripts[AppState.currentScriptId];
+        AppState.currentEditContent = script.content;
+
+        DOM.hide('editScriptBtn');
+        DOM.show('saveScriptBtn');
+        DOM.show('cancelEditBtn');
+        DOM.show('editStatusBadge');
+
+        const contentDiv = DOM.get('scriptContent');
+        if (contentDiv) {
+            contentDiv.innerHTML = `
+                <textarea class="edit-textarea" id="editTextarea">${Utils.escapeHtml(script.content)}</textarea>
+                <div class="auto-save-indicator">Auto-saving...</div>
+            `;
+        }
+
+        const textarea = DOM.get('editTextarea');
+        if (textarea) {
+            textarea.focus();
+
+            const saveContent = Utils.debounce((content) => {
+                this.saveScriptContent(content);
+                const indicator = document.querySelector('.auto-save-indicator');
+                if (indicator) {
+                    indicator.textContent = '✅ Auto-saved';
+                    indicator.style.color = 'var(--success)';
+                }
+            }, 1000);
+
+            textarea.addEventListener('input', () => {
+                AppState.currentEditContent = textarea.value;
+                const indicator = document.querySelector('.auto-save-indicator');
+                if (indicator) {
+                    indicator.textContent = 'Saving...';
+                    indicator.style.color = 'var(--warning)';
+                }
+                if (window.autoSaveTimer) clearTimeout(window.autoSaveTimer);
+                window.autoSaveTimer = setTimeout(() => saveContent(textarea.value), 1000);
+            });
+
+            textarea.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') this.cancelEdit();
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    this.saveScriptContent(textarea.value);
+                    this.finishEdit();
+                }
+            });
+        }
+    },
+
+    saveScriptContent: function(content) {
+        if (!AppState.currentUser || !AppState.currentScriptId) return;
+        const script = AppState.scripts[AppState.currentScriptId];
+        if (!script) return;
+
+        const updatedScript = {
+            ...script,
+            content: content,
+            version: (script.version || 1) + 1
+        };
+
+        if (AppState.isFirebaseReady) {
+            firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts').doc(AppState.currentScriptId).set(updatedScript, { merge: true })
+                .then(() => {
+                    AppState.scripts[AppState.currentScriptId] = updatedScript;
+                })
+                .catch(err => handleError(err, 'Saving script'));
+        } else {
+            AppState.scripts[AppState.currentScriptId] = updatedScript;
+            localStorage.setItem('scripts_fallback', JSON.stringify(AppState.scripts));
+        }
+    },
+
+    finishEdit: function() {
+        AppState.isEditing = false;
+        AppState.shortcutsEnabled = true;
+        DOM.show('editScriptBtn');
+        DOM.hide('saveScriptBtn');
+        DOM.hide('cancelEditBtn');
+        DOM.hide('editStatusBadge');
+        this.loadScript(AppState.currentScriptId);
+        showToast('Changes saved', 'success');
+    },
+
+    cancelEdit: function() {
+        if (!confirm('Discard your changes?')) return;
+        AppState.isEditing = false;
+        AppState.shortcutsEnabled = true;
+        DOM.show('editScriptBtn');
+        DOM.hide('saveScriptBtn');
+        DOM.hide('cancelEditBtn');
+        DOM.hide('editStatusBadge');
+        this.loadScript(AppState.currentScriptId);
+    },
+
+    resetScript: function() {
+        if (!confirm('Reset this script to its original content?')) return;
+        if (AppState.currentUser && AppState.currentScriptId) {
+            const script = AppState.scripts[AppState.currentScriptId];
+            if (AppState.isFirebaseReady) {
+                firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts').doc(AppState.currentScriptId).set({
+                    name: script.name,
+                    content: script.content,
+                    version: 1
+                }, { merge: true }).then(() => {
+                    showToast('Script reset', 'info');
+                    Data.loadUserData(true);
+                }).catch(err => handleError(err, 'Resetting script'));
+            } else {
+                script.version = 1;
+                localStorage.setItem('scripts_fallback', JSON.stringify(AppState.scripts));
+                showToast('Script reset locally', 'info');
+                this.loadScript(AppState.currentScriptId);
+            }
+        }
+    },
+
+    createScript: function() {
+        if (!AppState.currentUser) { 
+            showToast('Please sign in first', 'error'); 
+            return; 
         }
         
-        if (filters.campaign && filters.campaign !== 'all') {
-            appointments = appointments.filter(appt => appt.campaign === filters.campaign);
+        const name = prompt('Enter new script name:');
+        if (!name || !name.trim()) return;
+        
+        const scriptName = name.trim();
+        const id = 'script_' + Utils.generateId();
+        const newScript = {
+            name: scriptName,
+            content: 'New script content...\n\nStart writing your script here.',
+            version: 1
+        };
+
+        AppState.scripts[id] = newScript;
+        AppState.scriptOrder.push(id);
+
+        if (AppState.isFirebaseReady) {
+            firebase.firestore()
+                .collection('users')
+                .doc(AppState.currentUser.uid)
+                .collection('scripts')
+                .doc(id)
+                .set({
+                    name: scriptName,
+                    content: newScript.content,
+                    version: 1,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                })
+                .then(() => {
+                    showToast(`Script "${scriptName}" created! 🎉`, 'success');
+                    Scripts.renderSidebar();
+                    Scripts.loadScript(id);
+                    Data.saveScriptOrder();
+                })
+                .catch(err => {
+                    handleError(err, 'Creating script');
+                    delete AppState.scripts[id];
+                    AppState.scriptOrder = AppState.scriptOrder.filter(sid => sid !== id);
+                    Scripts.renderSidebar();
+                });
+        } else {
+            const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
+            fallback[id] = newScript;
+            localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+            
+            showToast(`Script "${scriptName}" created! 🎉`, 'success');
+            Scripts.renderSidebar();
+            Scripts.loadScript(id);
+            Scripts.saveScriptOrder();
         }
-        
-        return appointments;
     },
 
-    calculateMetrics(appointments) {
-        let meetingsBooked = 0;
-        let meetingsHeld = 0;
-        let noShows = 0;
-        let cancelled = 0;
-        let rescheduled = 0;
-        let pending = 0;
-        let completed = 0;
-        let totalQualityScore = 0;
-        let scoredMeetings = 0;
-        let totalCalls = appointments.length;
-        let lowQualityCount = 0;
-        let highQualityCount = 0;
-        let statusDistribution = {};
-        let dailyBookings = {};
-        let dailyShowRate = {};
-        let qualityDistribution = { '0-2': 0, '3-4': 0, '5-6': 0, '7-8': 0, '9-10': 0 };
-        let appointmentsBySetter = {};
-        let appointmentsByCampaign = {};
-        let emailValidCount = 0;
-        let emailBouncedCount = 0;
-        let emailInvalidCount = 0;
-
-        appointments.forEach(appt => {
-            const status = Utils.getStatus(appt);
-            const qualityScore = Utils.calculateQualityScore(appt);
-            
-            if (status === 'Meeting Booked') {
-                meetingsBooked++;
-            }
-            if (status === 'Held') {
-                meetingsHeld++;
-            }
-            if (status === 'Canceled' && appt.notes && appt.notes.toLowerCase().includes('no show')) {
-                noShows++;
-            }
-            if (status === 'Canceled' && !(appt.notes && appt.notes.toLowerCase().includes('no show'))) {
-                cancelled++;
-            }
-            if (status === 'Rescheduled') {
-                rescheduled++;
-            }
-            if (status === 'Pending') {
-                pending++;
-            }
-            if (status === 'Completed') {
-                completed++;
-            }
-            
-            if (qualityScore !== null && qualityScore !== undefined) {
-                totalQualityScore += qualityScore;
-                scoredMeetings++;
-                
-                if (qualityScore < 5) lowQualityCount++;
-                if (qualityScore >= 8) highQualityCount++;
-                
-                if (qualityScore <= 2) qualityDistribution['0-2']++;
-                else if (qualityScore <= 4) qualityDistribution['3-4']++;
-                else if (qualityScore <= 6) qualityDistribution['5-6']++;
-                else if (qualityScore <= 8) qualityDistribution['7-8']++;
-                else qualityDistribution['9-10']++;
-            }
-            
-            statusDistribution[status] = (statusDistribution[status] || 0) + 1;
-            
-            if (status === 'Meeting Booked' && appt.date) {
-                dailyBookings[appt.date] = (dailyBookings[appt.date] || 0) + 1;
-            }
-            
-            if (appt.date) {
-                if (!dailyShowRate[appt.date]) {
-                    dailyShowRate[appt.date] = { booked: 0, held: 0 };
-                }
-                if (status === 'Meeting Booked') {
-                    dailyShowRate[appt.date].booked++;
-                }
-                if (status === 'Held') {
-                    dailyShowRate[appt.date].held++;
-                }
-            }
-            
-            const setter = appt.assigned || appt.setter || 'Unassigned';
-            appointmentsBySetter[setter] = (appointmentsBySetter[setter] || 0) + 1;
-            
-            const campaign = appt.campaign || 'Uncategorized';
-            appointmentsByCampaign[campaign] = (appointmentsByCampaign[campaign] || 0) + 1;
-            
-            if (appt.email) {
-                const emailStatus = Utils.getEmailStatus(appt.email);
-                if (emailStatus === 'valid') emailValidCount++;
-                else if (emailStatus === 'bounced') emailBouncedCount++;
-                else emailInvalidCount++;
-            }
-        });
-
-        const avgQualityScore = scoredMeetings > 0 ? (totalQualityScore / scoredMeetings) : 0;
-        const per100Calls = totalCalls > 0 ? (meetingsBooked / totalCalls) * 100 : 0;
-        const showRate = meetingsBooked > 0 ? (meetingsHeld / meetingsBooked) * 100 : 0;
-        const noShowRate = meetingsBooked > 0 ? (noShows / meetingsBooked) * 100 : 0;
-        const rescheduleRate = meetingsBooked > 0 ? (rescheduled / meetingsBooked) * 100 : 0;
-        const completionRate = meetingsBooked > 0 ? (completed / meetingsBooked) * 100 : 0;
-
-        const dailyShowRates = {};
-        Object.keys(dailyShowRate).forEach(date => {
-            const data = dailyShowRate[date];
-            dailyShowRates[date] = data.booked > 0 ? (data.held / data.booked) * 100 : 0;
-        });
-
-        return {
-            meetingsBooked,
-            meetingsHeld,
-            noShows,
-            cancelled,
-            rescheduled,
-            pending,
-            completed,
-            avgQualityScore: Math.round(avgQualityScore * 10) / 10,
-            scoredMeetings,
-            per100Calls: Math.round(per100Calls * 10) / 10,
-            showRate: Math.round(showRate * 10) / 10,
-            noShowRate: Math.round(noShowRate * 10) / 10,
-            rescheduleRate: Math.round(rescheduleRate * 10) / 10,
-            completionRate: Math.round(completionRate * 10) / 10,
-            totalCalls,
-            lowQualityCount,
-            highQualityCount,
-            statusDistribution,
-            dailyBookings,
-            dailyShowRates,
-            qualityDistribution,
-            appointmentsBySetter,
-            appointmentsByCampaign,
-            emailValidCount,
-            emailBouncedCount,
-            emailInvalidCount,
-            totalEmailCount: emailValidCount + emailBouncedCount + emailInvalidCount
-        };
+    saveScriptOrder: function() {
+        if (AppState.isFirebaseReady && AppState.currentUser) {
+            firebase.firestore()
+                .collection('users')
+                .doc(AppState.currentUser.uid)
+                .update({ scriptOrder: AppState.scriptOrder })
+                .catch(err => console.warn('Error saving script order:', err));
+        } else {
+            const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
+            fallback.scriptOrder = AppState.scriptOrder;
+            localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
+        }
     },
 
-    getDrillDownData(metric, appointments) {
-        const filtered = appointments.filter(appt => {
-            const status = Utils.getStatus(appt);
-            const qualityScore = Utils.calculateQualityScore(appt);
-            
-            switch(metric) {
-                case 'meetingsBooked':
-                    return status === 'Meeting Booked';
-                case 'meetingsHeld':
-                    return status === 'Held';
-                case 'noShows':
-                    return status === 'Canceled' && appt.notes && appt.notes.toLowerCase().includes('no show');
-                case 'cancelled':
-                    return status === 'Canceled' && !(appt.notes && appt.notes.toLowerCase().includes('no show'));
-                case 'rescheduled':
-                    return status === 'Rescheduled';
-                case 'pending':
-                    return status === 'Pending';
-                case 'completed':
-                    return status === 'Completed';
-                case 'lowQuality':
-                    return qualityScore !== null && qualityScore < 5;
-                case 'highQuality':
-                    return qualityScore !== null && qualityScore >= 8;
-                case 'emailValid':
-                    return appt.email && Utils.isValidEmail(appt.email);
-                case 'emailBounced':
-                    return appt.email && Utils.isEmailBounced(appt.email);
-                case 'emailInvalid':
-                    return appt.email && !Utils.isValidEmail(appt.email) && !Utils.isEmailBounced(appt.email);
-                default:
-                    return false;
-            }
-        });
-        return filtered;
-    },
-
-    getStatusChartData(appointments) {
-        const metrics = this.calculateMetrics(appointments);
-        const labels = [];
-        const data = [];
-        const colors = [];
-        
-        const statusMap = {
-            'Meeting Booked': '#3b82f6',
-            'Held': '#10b981',
-            'Rescheduled': '#f97316',
-            'Canceled': '#ef4444',
-            'Pending': '#94a3b8',
-            'Completed': '#06b6d4'
-        };
-        
-        Object.keys(metrics.statusDistribution).forEach(status => {
-            if (metrics.statusDistribution[status] > 0) {
-                labels.push(status);
-                data.push(metrics.statusDistribution[status]);
-                colors.push(statusMap[status] || '#64748b');
-            }
-        });
-        
-        return { labels, data, colors };
-    },
-
-    getWeeklyTrendData(appointments) {
-        const metrics = this.calculateMetrics(appointments);
-        const dates = Object.keys(metrics.dailyBookings).sort();
-        const last7Days = dates.slice(-7);
-        const data = last7Days.map(date => metrics.dailyBookings[date] || 0);
-        const labels = last7Days.map(date => Utils.formatDate(date));
-        
-        return { labels, data };
-    },
-
-    getDailyShowRateData(appointments) {
-        const metrics = this.calculateMetrics(appointments);
-        const dates = Object.keys(metrics.dailyShowRates).sort();
-        const last7Days = dates.slice(-7);
-        const data = last7Days.map(date => Math.round(metrics.dailyShowRates[date]));
-        const labels = last7Days.map(date => Utils.formatDate(date));
-        
-        return { labels, data };
-    },
-
-    getQualityDistributionData(appointments) {
-        const metrics = this.calculateMetrics(appointments);
-        const labels = ['0-2', '3-4', '5-6', '7-8', '9-10'];
-        const data = labels.map(label => metrics.qualityDistribution[label] || 0);
-        const colors = ['#ef4444', '#f97316', '#f59e0b', '#3b82f6', '#10b981'];
-        
-        return { labels, data, colors };
+    isEditing: function() {
+        return AppState.isEditing;
     }
 };
 
 // ================================================================
-// [REST OF APP.JS CONTINUES WITH FEATURE PANEL, SCRIPTS, INITIALIZATION]
+// GLOBAL FUNCTIONS
 // ================================================================
 
+// These functions are needed for the app to work
+// They are defined here but may be overridden by smart-import.js
+
+function openSmartImportEnhanced() {
+    showToast('Smart Import loading...', 'info');
+    // This will be overridden by smart-import.js
+}
+
+function parseAndPreviewImportEnhanced() {
+    showToast('Parsing transcript...', 'info');
+}
+
+function saveAllImportedAppointments() {
+    showToast('Saving appointments...', 'info');
+}
+
+function closeSmartImportEnhanced() {
+    const modal = DOM.get('smartImportModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function generateImportTemplate() {
+    showToast('Template generated!', 'success');
+}
+
+function quickImportFromClipboard() {
+    showToast('Pasting from clipboard...', 'info');
+}
+
+function clearExtractedData() {
+    showToast('Cleared extracted data', 'info');
+}
+
+function toggleImportRecord(header) {
+    const body = header.nextElementSibling;
+    if (body) {
+        const isVisible = body.style.display !== 'none';
+        body.style.display = isVisible ? 'none' : 'block';
+        const toggle = header.querySelector('.record-toggle');
+        if (toggle) {
+            toggle.textContent = isVisible ? '▶' : '▼';
+        }
+    }
+}
+
+function expandAllRecords() {
+    document.querySelectorAll('.import-record .record-body').forEach(body => {
+        body.style.display = 'block';
+    });
+    document.querySelectorAll('.import-record .record-toggle').forEach(toggle => {
+        toggle.textContent = '▼';
+    });
+}
+
+function collapseAllRecords() {
+    document.querySelectorAll('.import-record .record-body').forEach(body => {
+        body.style.display = 'none';
+    });
+    document.querySelectorAll('.import-record .record-toggle').forEach(toggle => {
+        toggle.textContent = '▶';
+    });
+}
+
+function updateImportProgress(percent, message) {
+    const progressBar = DOM.get('importProgressBar');
+    const progressStatus = DOM.get('importProgressStatus');
+    
+    if (progressBar) {
+        progressBar.style.width = Math.min(percent, 100) + '%';
+    }
+    if (progressStatus && message) {
+        progressStatus.textContent = message;
+    }
+}
+
+function renderImportResults(records, avgConfidence, parseTime) {
+    const container = DOM.get('importResultsContainer');
+    if (!container) return;
+    
+    let html = `<div class="import-records-list">`;
+    records.forEach((record, idx) => {
+        const data = record.validated || record.parsed || {};
+        html += `
+            <div class="import-record ${record.isValid ? 'valid' : 'invalid'}">
+                <div class="record-header" onclick="window.toggleImportRecord(this)">
+                    <div class="record-status">
+                        <span class="status-icon">${record.isValid ? '✅' : '⚠️'}</span>
+                        <span class="record-index">#${record.index}</span>
+                    </div>
+                    <div class="record-summary">
+                        <span class="record-name">${Utils.escapeHtml(data.name || 'Unknown')}</span>
+                        <span class="record-business">${Utils.escapeHtml(data.business || 'Unknown Business')}</span>
+                    </div>
+                    <span class="record-toggle">▼</span>
+                </div>
+                <div class="record-body" style="display:none;">
+                    <div class="record-fields">
+                        ${Object.entries(data).map(([key, value]) => `
+                            <div class="field-row">
+                                <span class="field-label">${key}</span>
+                                <span class="field-value">${Utils.escapeHtml(value)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    html += `</div>`;
+    container.innerHTML = html;
+    
+    const saveBtn = DOM.get('saveImportBtn');
+    if (saveBtn) {
+        const validRecords = records.filter(r => r.isValid);
+        if (validRecords.length > 0) {
+            saveBtn.style.display = 'inline-flex';
+            saveBtn.textContent = `💾 Import ${validRecords.length} Appointment(s)`;
+        } else {
+            saveBtn.style.display = 'none';
+        }
+    }
+}
+
 // ================================================================
-// INITIALIZATION - UPDATED WITH FIREBASE STATUS CHECK
+// CALENDAR VIEW
+// ================================================================
+
+const CalendarView = {
+    render: function(container) {
+        if (!container) return;
+        container.innerHTML = `
+            <div class="calendar-full-container fade-in">
+                <div class="calendar-toolbar">
+                    <div class="calendar-toolbar-left">
+                        <div class="view-selector">
+                            <button class="view-btn active" data-view="month">Month</button>
+                            <button class="view-btn" data-view="week">Week</button>
+                            <button class="view-btn" data-view="day">Day</button>
+                            <button class="view-btn" data-view="list">List</button>
+                        </div>
+                        <div class="calendar-nav-group">
+                            <button class="btn-icon" id="calPrevBtn"><i class="fas fa-chevron-left"></i></button>
+                            <button class="btn-icon" id="calTodayBtn">Today</button>
+                            <button class="btn-icon" id="calNextBtn"><i class="fas fa-chevron-right"></i></button>
+                        </div>
+                        <span class="calendar-current-month">${new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
+                    </div>
+                    <div class="calendar-toolbar-right">
+                        <button class="btn-icon" id="calendarAddEventBtn"><i class="fas fa-plus"></i> Add</button>
+                    </div>
+                </div>
+                <div class="calendar-body">
+                    <div class="calendar-month-grid">
+                        ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => `<div class="calendar-day-header">${d}</div>`).join('')}
+                        ${Array.from({length: 42}, (_, i) => {
+                            const day = i - new Date().getDate() + 1;
+                            const isToday = day === 0;
+                            return `<div class="calendar-day ${isToday ? 'today' : ''}"><span class="day-number">${day + 1}</span></div>`;
+                        }).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add event listeners
+        const prevBtn = container.querySelector('#calPrevBtn');
+        const nextBtn = container.querySelector('#calNextBtn');
+        const todayBtn = container.querySelector('#calTodayBtn');
+        const addBtn = container.querySelector('#calendarAddEventBtn');
+        
+        if (prevBtn) prevBtn.addEventListener('click', () => showToast('Previous month', 'info'));
+        if (nextBtn) nextBtn.addEventListener('click', () => showToast('Next month', 'info'));
+        if (todayBtn) todayBtn.addEventListener('click', () => showToast('Today', 'info'));
+        if (addBtn) addBtn.addEventListener('click', () => {
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.openQuickAdd(Utils.getTodayStr());
+            }
+        });
+        
+        container.querySelectorAll('.view-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                container.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                showToast(`Switched to ${this.textContent} view`, 'info');
+            });
+        });
+        
+        container.querySelectorAll('.calendar-day').forEach(day => {
+            day.addEventListener('dblclick', () => {
+                const date = day.getAttribute('data-date') || Utils.getTodayStr();
+                if (typeof FeaturePanel !== 'undefined') {
+                    FeaturePanel.openQuickAdd(date);
+                }
+            });
+        });
+    }
+};
+
+// ================================================================
+// FEATURE PANEL
+// ================================================================
+
+const FeaturePanel = {
+    show: function(featureType, title) {
+        const scriptPanel = DOM.get('scriptPanel');
+        const featurePanel = DOM.get('featurePanel');
+        const featureTitle = DOM.get('featurePanelTitle');
+        const featureBody = DOM.get('featurePanelBody');
+
+        if (!scriptPanel || !featurePanel) return;
+
+        AppState.currentView = featureType;
+        if (featureTitle) {
+            const iconMap = { 
+                'calendar': 'fa-calendar-alt', 
+                'tasks': 'fa-tasks', 
+                'analytics': 'fa-chart-pie', 
+                'shortcuts': 'fa-keyboard',
+                'prospects': 'fa-users'
+            };
+            featureTitle.innerHTML = `<i class="fas ${iconMap[featureType] || 'fa-sticky-note'}"></i> ${title}`;
+        }
+
+        const container = DOM.get('viewToggleContainer');
+        if (container) {
+            let html = '';
+            if (featureType === 'calendar') {
+                html = `
+                    <div class="view-toggle" id="calendarViewToggle">
+                        <button id="calendarViewBtn" class="view-btn active">📅 Calendar</button>
+                        <button id="listViewBtn" class="view-btn">📋 List</button>
+                    </div>
+                `;
+            } else if (featureType === 'analytics') {
+                html = `
+                    <div class="view-toggle" id="analyticsTabContainer">
+                        <button id="insightsTabBtn" class="view-btn ${AppState.analyticsTab === 'insights' ? 'active' : ''}">📊 Insights</button>
+                        <button id="reportsTabBtn" class="view-btn ${AppState.analyticsTab === 'reports' ? 'active' : ''}">📈 Reports</button>
+                        <button id="meetingsTabBtn" class="view-btn ${AppState.analyticsTab === 'meetings' ? 'active' : ''}">📅 Meetings</button>
+                    </div>
+                `;
+            } else if (featureType === 'tasks') {
+                html = `
+                    <div class="view-toggle" id="taskViewToggle">
+                        <button id="taskListViewBtn" class="view-btn active">📋 All</button>
+                        <button id="taskPendingBtn" class="view-btn">⏳ Pending</button>
+                        <button id="taskTodayBtn" class="view-btn">📅 Today</button>
+                    </div>
+                `;
+            } else if (featureType === 'prospects') {
+                html = `
+                    <div class="view-toggle" id="prospectsViewToggle">
+                        <button id="prospectsListBtn" class="view-btn active">📋 List</button>
+                        <button id="prospectsStatsBtn" class="view-btn">📊 Stats</button>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+            this.attachViewToggleEvents(featureType);
+        }
+
+        scriptPanel.style.display = 'none';
+        featurePanel.style.display = 'block';
+
+        if (featureBody) {
+            if (featureType === 'calendar') {
+                CalendarView.render(featureBody);
+            } else if (featureType === 'tasks') {
+                this.renderTasks(featureBody);
+            } else if (featureType === 'analytics') {
+                this.renderAnalytics(featureBody);
+            } else if (featureType === 'shortcuts') {
+                this.renderShortcuts(featureBody);
+            } else if (featureType === 'prospects') {
+                this.renderProspects(featureBody);
+            }
+        }
+    },
+
+    hide: function() {
+        const featurePanel = DOM.get('featurePanel');
+        const scriptPanel = DOM.get('scriptPanel');
+        if (featurePanel) featurePanel.style.display = 'none';
+        if (scriptPanel) scriptPanel.style.display = 'block';
+    },
+
+    refreshCurrentView: function() {
+        const body = DOM.get('featurePanelBody');
+        if (!body) return;
+        if (AppState.currentView === 'calendar') {
+            CalendarView.render(body);
+        } else if (AppState.currentView === 'tasks') {
+            this.renderTasks(body);
+        } else if (AppState.currentView === 'analytics') {
+            this.renderAnalytics(body);
+        } else if (AppState.currentView === 'shortcuts') {
+            this.renderShortcuts(body);
+        } else if (AppState.currentView === 'prospects') {
+            this.renderProspects(body);
+        }
+    },
+
+    attachViewToggleEvents: function(featureType) {
+        if (featureType === 'calendar') {
+            const calendarBtn = DOM.get('calendarViewBtn');
+            const listBtn = DOM.get('listViewBtn');
+            if (calendarBtn) calendarBtn.addEventListener('click', () => {
+                AppState.calendarView = 'calendar';
+                calendarBtn.classList.add('active');
+                if (listBtn) listBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+            if (listBtn) listBtn.addEventListener('click', () => {
+                AppState.calendarView = 'list';
+                listBtn.classList.add('active');
+                if (calendarBtn) calendarBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+        } else if (featureType === 'analytics') {
+            const insightsBtn = DOM.get('insightsTabBtn');
+            const reportsBtn = DOM.get('reportsTabBtn');
+            const meetingsBtn = DOM.get('meetingsTabBtn');
+            
+            if (insightsBtn) insightsBtn.addEventListener('click', () => {
+                AppState.analyticsTab = 'insights';
+                insightsBtn.classList.add('active');
+                if (reportsBtn) reportsBtn.classList.remove('active');
+                if (meetingsBtn) meetingsBtn.classList.remove('active');
+                this.renderAnalytics(DOM.get('featurePanelBody'));
+            });
+            if (reportsBtn) reportsBtn.addEventListener('click', () => {
+                AppState.analyticsTab = 'reports';
+                reportsBtn.classList.add('active');
+                if (insightsBtn) insightsBtn.classList.remove('active');
+                if (meetingsBtn) meetingsBtn.classList.remove('active');
+                this.renderAnalytics(DOM.get('featurePanelBody'));
+            });
+            if (meetingsBtn) meetingsBtn.addEventListener('click', () => {
+                AppState.analyticsTab = 'meetings';
+                meetingsBtn.classList.add('active');
+                if (insightsBtn) insightsBtn.classList.remove('active');
+                if (reportsBtn) reportsBtn.classList.remove('active');
+                this.renderAnalytics(DOM.get('featurePanelBody'));
+            });
+        } else if (featureType === 'tasks') {
+            const allBtn = DOM.get('taskListViewBtn');
+            const pendingBtn = DOM.get('taskPendingBtn');
+            const todayBtn = DOM.get('taskTodayBtn');
+
+            if (allBtn) allBtn.addEventListener('click', () => {
+                AppState.taskFilter = 'all';
+                allBtn.classList.add('active');
+                if (pendingBtn) pendingBtn.classList.remove('active');
+                if (todayBtn) todayBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+            if (pendingBtn) pendingBtn.addEventListener('click', () => {
+                AppState.taskFilter = 'pending';
+                pendingBtn.classList.add('active');
+                if (allBtn) allBtn.classList.remove('active');
+                if (todayBtn) todayBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+            if (todayBtn) todayBtn.addEventListener('click', () => {
+                AppState.taskFilter = 'today';
+                todayBtn.classList.add('active');
+                if (allBtn) allBtn.classList.remove('active');
+                if (pendingBtn) pendingBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+        } else if (featureType === 'prospects') {
+            const listBtn = DOM.get('prospectsListBtn');
+            const statsBtn = DOM.get('prospectsStatsBtn');
+            if (listBtn) listBtn.addEventListener('click', () => {
+                listBtn.classList.add('active');
+                if (statsBtn) statsBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+            if (statsBtn) statsBtn.addEventListener('click', () => {
+                statsBtn.classList.add('active');
+                if (listBtn) listBtn.classList.remove('active');
+                this.refreshCurrentView();
+            });
+        }
+    },
+
+    renderTasks: function(container) {
+        if (!container) return;
+
+        const filteredTasks = AppState.taskFilter === 'all' ? AppState.tasks :
+            AppState.taskFilter === 'pending' ? AppState.tasks.filter(t => !t.completed) :
+            AppState.tasks.filter(t => t.dueDate === Utils.getTodayStr());
+
+        container.innerHTML = `
+            <div class="tasks-section fade-in">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                    <h3><i class="fas fa-tasks"></i> Follow-up Tasks</h3>
+                    <button id="addNewTaskBtn" class="btn-icon" style="background:var(--primary); color:white;"><i class="fas fa-plus"></i> New</button>
+                </div>
+                <div class="tasks-list">
+                    ${filteredTasks.length === 0 ? '<div class="empty-state"><i class="fas fa-check-circle"></i><p>No tasks found</p></div>' :
+                    filteredTasks.map(t => `
+                        <div class="task-card ${t.completed ? 'task-completed' : ''}">
+                            <div class="task-row">
+                                <div class="task-title">
+                                    <input type="checkbox" ${t.completed ? 'checked' : ''} class="toggle-task-checkbox" data-id="${t.id}" />
+                                    <span>${Utils.escapeHtml(t.description)}</span>
+                                </div>
+                                <div class="task-actions">
+                                    <button class="delete-task-btn" data-id="${t.id}" title="Delete"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                            <div class="task-meta">
+                                ${t.dueDate ? `<span><i class="far fa-calendar"></i> Due: ${Utils.formatDate(t.dueDate)}</span>` : ''}
+                                <span class="task-priority-${t.priority || 'medium'}">${t.priority || 'Medium'}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        const addBtn = DOM.get('addNewTaskBtn');
+        if (addBtn) addBtn.addEventListener('click', () => {
+            const desc = prompt('Enter task description:');
+            if (desc && desc.trim()) {
+                const dueDate = prompt('Enter due date (YYYY-MM-DD) or leave blank:', Utils.getTodayStr());
+                Data.addTask(desc.trim(), dueDate || '', 'medium', null);
+                this.renderTasks(container);
+                showToast('Task added!', 'success');
+            }
+        });
+
+        container.querySelectorAll('.toggle-task-checkbox').forEach(cb => {
+            cb.addEventListener('change', () => {
+                Data.toggleTaskComplete(cb.getAttribute('data-id'));
+                setTimeout(() => this.renderTasks(container), 100);
+            });
+        });
+
+        container.querySelectorAll('.delete-task-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (confirm('Delete this task?')) {
+                    Data.deleteTask(btn.getAttribute('data-id'));
+                    this.renderTasks(container);
+                }
+            });
+        });
+    },
+
+    renderProspects: function(container) {
+        if (!container) return;
+        
+        let prospects = [];
+        if (AppState.prospectManagerReady && AppState.prospectManager) {
+            try {
+                prospects = AppState.prospectManager.getAll();
+            } catch (e) {
+                console.warn('Error getting prospects:', e);
+            }
+        }
+        
+        container.innerHTML = `
+            <div class="prospects-section fade-in">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
+                    <h3><i class="fas fa-users"></i> Prospects (${prospects.length})</h3>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button class="btn-icon" onclick="window.openAddProspect && window.openAddProspect()" style="background:var(--primary); color:white;">
+                            <i class="fas fa-plus"></i> Add Prospect
+                        </button>
+                        <input type="text" id="prospectSearchInput" placeholder="🔍 Search prospects..." style="padding:8px 14px; border-radius:20px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:0.85rem; min-width:180px;" />
+                    </div>
+                </div>
+                <div id="prospectListContainer">
+                    ${prospects.length === 0 ? `
+                        <div class="empty-state">
+                            <i class="fas fa-users"></i>
+                            <p>No prospects yet</p>
+                            <span style="font-size:0.8rem; color:var(--text-muted);">Add your first prospect using Smart Import or the "Add Prospect" button</span>
+                        </div>
+                    ` : `
+                        <div class="prospect-grid">
+                            ${prospects.map(prospect => {
+                                const score = prospect.leadScore || 0;
+                                const scoreClass = score >= 70 ? 'score-hot' : score >= 40 ? 'score-warm' : 'score-cold';
+                                return `
+                                    <div class="prospect-card" data-id="${prospect.id}" onclick="window.viewProspect && window.viewProspect('${prospect.id}')">
+                                        <div class="prospect-card-header">
+                                            <div class="prospect-card-title">
+                                                <span class="prospect-business">${Utils.escapeHtml(prospect.business)}</span>
+                                                <span class="prospect-name">${Utils.escapeHtml(prospect.name)}</span>
+                                            </div>
+                                            <div class="prospect-card-badges">
+                                                ${prospect.status ? `<span class="status-tag ${Utils.getStatusClass(prospect.status)}">${Utils.escapeHtml(prospect.status)}</span>` : ''}
+                                                <span class="score-badge ${scoreClass}">${score} Pts</span>
+                                            </div>
+                                        </div>
+                                        <div class="prospect-card-body">
+                                            <div class="prospect-details">
+                                                ${prospect.role ? `<span class="prospect-detail"><i class="fas fa-briefcase"></i> ${Utils.escapeHtml(prospect.role)}</span>` : ''}
+                                                ${prospect.phone ? `<span class="prospect-detail"><i class="fas fa-phone"></i> ${Utils.escapeHtml(prospect.phone)}</span>` : ''}
+                                                ${prospect.email ? `<span class="prospect-detail"><i class="fas fa-envelope"></i> ${Utils.escapeHtml(prospect.email)}</span>` : ''}
+                                                ${prospect.date ? `<span class="prospect-detail"><i class="fas fa-calendar"></i> ${Utils.formatDate(prospect.date)}</span>` : ''}
+                                            </div>
+                                            ${prospect.notes ? `<div class="prospect-notes">${Utils.escapeHtml(prospect.notes.substring(0, 100))}${prospect.notes.length > 100 ? '...' : ''}</div>` : ''}
+                                            ${prospect.tags && prospect.tags.length > 0 ? `
+                                                <div class="prospect-tags">
+                                                    ${prospect.tags.map(tag => `<span class="prospect-tag">#${Utils.escapeHtml(tag)}</span>`).join('')}
+                                                </div>
+                                            ` : ''}
+                                            <div class="prospect-meta">
+                                                <span class="prospect-source">${prospect.source || 'Manual'}</span>
+                                                <span class="prospect-date">${prospect.createdAt ? Utils.formatDate(prospect.createdAt) : ''}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+        
+        const searchInput = container.querySelector('#prospectSearchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value;
+                const cards = container.querySelectorAll('.prospect-card');
+                cards.forEach(card => {
+                    const text = card.textContent.toLowerCase();
+                    card.style.display = text.includes(query.toLowerCase()) ? '' : 'none';
+                });
+            });
+        }
+    },
+
+    renderAnalytics: function(container) {
+        if (!container) return;
+        
+        let total = 0, completed = 0, hTransfers = 0, wCallbacks = 0;
+        let statusCounts = {};
+
+        for (let date in AppState.appointments) {
+            if (AppState.appointments[date].reports) {
+                AppState.appointments[date].reports.forEach(a => {
+                    total++;
+                    const status = Utils.getStatus(a);
+                    const primaryStatus = Utils.getPrimaryStatus(status);
+                    statusCounts[primaryStatus] = (statusCounts[primaryStatus] || 0) + 1;
+                    if (primaryStatus === 'Completed') completed++;
+                    if (primaryStatus === 'Hot Transfer') hTransfers++;
+                    if (primaryStatus === 'Warm Callback') wCallbacks++;
+                });
+            }
+        }
+
+        container.innerHTML = `
+            <div class="analytics-container fade-in">
+                <h3><i class="fas fa-chart-pie"></i> Analytics Dashboard</h3>
+                <div class="report-metrics scale-in">
+                    <div class="metric-card"><div class="metric-value">${total}</div><div class="metric-label">Total Appointments</div></div>
+                    <div class="metric-card"><div class="metric-value" style="color:var(--success);">${completed}</div><div class="metric-label">✅ Completed</div></div>
+                    <div class="metric-card"><div class="metric-value" style="color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
+                    <div class="metric-card"><div class="metric-value" style="color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
+                </div>
+                <div class="feature-card">
+                    <h4>📊 Status Distribution</h4>
+                    ${Object.entries(statusCounts).map(([status, count]) => `
+                        <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px; margin:4px 0;">
+                            <span>${status}</span>
+                            <span style="font-weight:600;">${count}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    },
+
+    renderShortcuts: function(container) {
+        if (!container) return;
+
+        const shortcuts = AppState.shortcuts;
+
+        let html = `
+            <div class="shortcuts-container fade-in">
+                <h3><i class="fas fa-keyboard"></i> Keyboard Shortcuts Manager</h3>
+                <p style="color:var(--text-muted); margin-bottom:16px;">View and customize keyboard shortcuts for quick access to features.</p>
+                <div style="margin-bottom:16px; display:flex; gap:8px; flex-wrap:wrap;">
+                    <button id="shortcutsResetDefaultsBtn" class="btn-icon" style="background:var(--warning); color:#1e293b;"><i class="fas fa-undo"></i> Reset Defaults</button>
+                </div>
+                <div id="shortcutsListContainer">
+        `;
+
+        for (const [action, shortcut] of Object.entries(shortcuts)) {
+            html += `
+                <div class="shortcut-item">
+                    <div class="shortcut-info">
+                        <div class="shortcut-name">${action}</div>
+                        <div class="shortcut-description">${shortcut.description || ''}</div>
+                    </div>
+                    <div class="shortcut-keys">
+                        ${shortcut.keys.map(k => `<kbd>${k}</kbd>`).join(' <span class="shortcut-separator">+</span> ')}
+                        <i class="fas fa-pen shortcut-edit" onclick="window.openShortcutEdit && window.openShortcutEdit('${action}')" title="Edit shortcut"></i>
+                    </div>
+                </div>
+            `;
+        }
+
+        html += `</div></div>`;
+        container.innerHTML = html;
+
+        const resetBtn = DOM.get('shortcutsResetDefaultsBtn');
+        if (resetBtn) resetBtn.addEventListener('click', () => {
+            if (confirm('Reset all keyboard shortcuts to default values?')) {
+                AppState.customShortcuts = {};
+                localStorage.removeItem('customShortcuts');
+                AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS };
+                showToast('Shortcuts reset to defaults', 'success');
+                this.renderShortcuts(container);
+            }
+        });
+    },
+
+    openQuickAdd: function(defaultDate) {
+        const modal = DOM.get('quickAddModal');
+        if (!modal) return;
+
+        modal.style.display = 'flex';
+        const dateInput = DOM.get('newApptDate');
+        if (dateInput) dateInput.value = defaultDate || Utils.getTodayStr();
+
+        const statusSelect = DOM.get('newApptStatus');
+        if (statusSelect) {
+            statusSelect.innerHTML = CONFIG.STATUS_OPTIONS.map(s =>
+                `<option value="${s}" ${s === 'Pending' ? 'selected' : ''}>${s}</option>`
+            ).join('');
+        }
+
+        const assignedSelect = DOM.get('newApptAssigned');
+        if (assignedSelect) {
+            assignedSelect.innerHTML = AppState.teamMembers.map(m =>
+                `<option value="${m.id}">${m.name}</option>`
+            ).join('');
+        }
+
+        const fields = ['newApptBusiness', 'newApptContact', 'newApptPhone', 'newApptEmail', 'newApptTime', 'newApptNotes'];
+        fields.forEach(id => { const el = DOM.get(id); if (el) el.value = ''; });
+
+        const saveBtn = DOM.get('saveQuickApptBtn');
+        const cancelBtn = DOM.get('cancelQuickApptBtn');
+
+        if (saveBtn) {
+            saveBtn.onclick = () => {
+                const date = DOM.get('newApptDate')?.value || '';
+                const bus = DOM.get('newApptBusiness')?.value?.trim() || '';
+                const contact = DOM.get('newApptContact')?.value?.trim() || '';
+                const phone = DOM.get('newApptPhone')?.value?.trim() || '';
+                const email = DOM.get('newApptEmail')?.value?.trim() || '';
+                const time = DOM.get('newApptTime')?.value || '';
+                const status = DOM.get('newApptStatus')?.value || 'Pending';
+                const assigned = DOM.get('newApptAssigned')?.value || 'daniel';
+                const notes = DOM.get('newApptNotes')?.value?.trim() || '';
+
+                if (!bus || !contact) {
+                    showToast('Please fill in all required fields', 'error');
+                    return;
+                }
+
+                const member = AppState.teamMembers.find(m => m.id === assigned);
+                Data.addAppointment(date, bus, contact, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), member ? member.name : 'Daniel', null, status);
+                modal.style.display = 'none';
+                showToast('Appointment added successfully! 🎉', 'success');
+                FeaturePanel.refreshCurrentView();
+            };
+        }
+
+        if (cancelBtn) cancelBtn.onclick = () => { modal.style.display = 'none'; };
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.style.display = 'none';
+        });
+    }
+};
+
+// ================================================================
+// ADDITIONAL GLOBAL FUNCTIONS
+// ================================================================
+
+function openProspectManager() {
+    if (typeof FeaturePanel !== 'undefined') {
+        FeaturePanel.show('prospects', '👥 Prospect Manager');
+    } else {
+        showToast('Feature panel not available', 'error');
+    }
+}
+
+function openAddProspect() {
+    showToast('Add Prospect feature coming soon!', 'info');
+}
+
+function viewProspect(id) {
+    const prospect = AppState.prospectManager?.get(id);
+    if (prospect) {
+        showToast(`Viewing ${prospect.business}`, 'info');
+    } else {
+        showToast('Prospect not found', 'error');
+    }
+}
+
+function editProspect(id) {
+    showToast('Edit Prospect feature coming soon!', 'info');
+}
+
+function deleteProspect(id) {
+    if (confirm('Delete this prospect?')) {
+        showToast('Prospect deleted', 'info');
+    }
+}
+
+function openGlobalSearch() {
+    const modal = DOM.get('globalSearchModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    const input = DOM.get('globalSearchInput');
+    if (input) { input.value = ''; input.focus(); }
+    const results = DOM.get('globalSearchResults');
+    if (results) results.innerHTML = '';
+}
+
+function performGlobalSearch(query) {
+    const results = DOM.get('globalSearchResults');
+    if (!results) return;
+    if (!query || query.length < 2) {
+        results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">Type at least 2 characters to search...</p>';
+        return;
+    }
+
+    const searchResults = [];
+    const q = query.toLowerCase();
+
+    for (let date in AppState.appointments) {
+        if (AppState.appointments[date].reports) {
+            AppState.appointments[date].reports.forEach(appt => {
+                const searchable = `${appt.business} ${appt.contactName} ${appt.phone || ''} ${appt.email || ''} ${appt.notes || ''}`.toLowerCase();
+                if (searchable.includes(q)) {
+                    searchResults.push({ type: 'appointment', data: appt, date: date });
+                }
+            });
+        }
+    }
+
+    AppState.tasks.forEach(task => {
+        if (task.description.toLowerCase().includes(q)) {
+            searchResults.push({ type: 'task', data: task });
+        }
+    });
+
+    for (const [id, script] of Object.entries(AppState.scripts)) {
+        if (script.name.toLowerCase().includes(q) || script.content.toLowerCase().includes(q)) {
+            searchResults.push({ type: 'script', data: { id, ...script } });
+        }
+    }
+
+    if (searchResults.length === 0) {
+        results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">No results found.</p>';
+        return;
+    }
+
+    let html = `<div style="display:flex; flex-direction:column; gap:8px;">`;
+    searchResults.slice(0, 20).forEach(result => {
+        if (result.type === 'appointment') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="window.showAppointmentDetail && window.showAppointmentDetail('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${Utils.escapeHtml(result.data.business)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">${Utils.formatDate(result.data.date)}</span>
+                    </div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary);">${Utils.escapeHtml(result.data.contactName)}</div>
+                    <div style="font-size:0.7rem; color:var(--text-muted);">Status: ${Utils.getStatus(result.data)}</div>
+                </div>
+            `;
+        } else if (result.type === 'task') {
+            html += `
+                <div class="list-item" style="padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${Utils.escapeHtml(result.data.description)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">${result.data.completed ? '✅ Done' : '⏳ Pending'}</span>
+                    </div>
+                </div>
+            `;
+        } else if (result.type === 'script') {
+            html += `
+                <div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="window.loadScript && window.loadScript('${result.data.id}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span style="font-weight:600;">${Utils.escapeHtml(result.data.name)}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">📜 Script</span>
+                    </div>
+                </div>
+            `;
+        }
+    });
+    html += `</div>`;
+    results.innerHTML = html;
+}
+
+function openBulkActions() {
+    showToast('Bulk Actions feature coming soon!', 'info');
+}
+
+function executeBulkAction() {
+    showToast('Executing bulk action...', 'info');
+}
+
+function handleShortcutAction(action) {
+    switch (action) {
+        case 'Smart Import': 
+            openSmartImportEnhanced();
+            break;
+        case 'Appointment Calendar': 
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.show('calendar', '📅 Appointment & Handoff Calendar');
+            }
+            break;
+        case 'Call Scripts': 
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.hide();
+            }
+            Scripts.loadScript('opening'); 
+            break;
+        case 'Global Search': 
+            openGlobalSearch(); 
+            break;
+        case 'Quick Add Appointment': 
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.openQuickAdd(Utils.getTodayStr());
+            }
+            break;
+        case 'Analytics Hub': 
+            AppState.analyticsTab = 'meetings';
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.show('analytics', '📊 Analytics Hub');
+            }
+            break;
+        case 'Keyboard Shortcuts': 
+            if (typeof FeaturePanel !== 'undefined') {
+                FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts');
+            }
+            break;
+        case 'Export to CSV': 
+            Data.exportToCSV(); 
+            break;
+        case 'Toggle Theme': 
+            document.body.classList.toggle('light'); 
+            showToast('Theme toggled', 'info'); 
+            break;
+        case 'Refresh Data': 
+            const btn = DOM.get('refreshBtn'); 
+            if (btn) btn.click(); 
+            break;
+        case 'Bulk Actions': 
+            openBulkActions(); 
+            break;
+        case 'Objection Handler':
+            if (window.ObjectionHandler) {
+                window.ObjectionHandler.toggle();
+            } else {
+                showToast('Objection Handler loading...', 'info');
+            }
+            break;
+        case 'Prospects':
+            openProspectManager();
+            break;
+        case 'Close Panel': 
+            handleEscapeKey(); 
+            break;
+        default: 
+            showToast(`Action: ${action}`, 'info');
+    }
+}
+
+function handleEscapeKey() {
+    if (AppState.isEditing) {
+        Scripts.cancelEdit();
+        return true;
+    }
+
+    const featurePanel = DOM.get('featurePanel');
+    if (featurePanel && featurePanel.style.display !== 'none') {
+        if (typeof FeaturePanel !== 'undefined') {
+            FeaturePanel.hide();
+        }
+        Scripts.loadScript('opening');
+        showToast('Returned to Opening Script', 'info');
+        return true;
+    }
+
+    const openModals = document.querySelectorAll('.modal-overlay');
+    openModals.forEach(modal => {
+        if (modal.style.display !== 'none') {
+            modal.style.display = 'none';
+        }
+    });
+    return true;
+}
+
+function openShortcutEdit(action) {
+    showToast(`Edit shortcut for ${action}`, 'info');
+}
+
+function showAppointmentDetail(id) {
+    const appt = Data.getAppointmentById(id);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    AppState.currentAppointmentId = id;
+    
+    const modal = DOM.get('appointmentDetailModal');
+    if (!modal) return;
+    
+    const status = Utils.getStatus(appt);
+    const score = Utils.calculateLeadScore(appt);
+    const qualityScore = Utils.calculateQualityScore(appt);
+
+    const titleEl = DOM.get('appointmentDetailTitle');
+    if (titleEl) titleEl.textContent = `📋 ${appt.business} - ${appt.contactName}`;
+
+    const contentEl = DOM.get('appointmentDetailContent');
+    if (contentEl) {
+        contentEl.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding-bottom:12px; border-bottom:2px solid var(--border-color);">
+                    <div>
+                        <div style="font-size:1.1rem; font-weight:700;">${Utils.escapeHtml(appt.business)}</div>
+                        <div style="font-size:0.9rem; color:var(--text-secondary);">${Utils.escapeHtml(appt.contactName)}</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
+                        <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
+                        ${qualityScore !== null && qualityScore !== undefined ? `
+                            <span class="score-badge ${Utils.getScoreColorClass(qualityScore) === 'green' ? 'score-high' : Utils.getScoreColorClass(qualityScore) === 'yellow' ? 'score-medium' : 'score-low'}">⭐ ${qualityScore.toFixed(1)}</span>
+                        ` : ''}
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">📞 Phone</div>
+                        <div style="font-weight:500;">${Utils.escapeHtml(appt.phone || 'N/A')}</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">✉️ Email</div>
+                        <div style="font-weight:500;">${Utils.escapeHtml(appt.email || 'N/A')}</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">📅 Date</div>
+                        <div style="font-weight:500;">${Utils.formatDate(appt.date)}</div>
+                    </div>
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">🕐 Time</div>
+                        <div style="font-weight:500;">${Utils.escapeHtml(appt.time || 'N/A')}</div>
+                    </div>
+                </div>
+                ${appt.notes ? `
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px; margin-top:4px;">
+                        <div style="font-size:0.7rem; color:var(--text-muted);">📝 Notes</div>
+                        <div style="white-space:pre-wrap; margin-top:4px;">${Utils.escapeHtml(appt.notes)}</div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    modal.style.display = 'flex';
+}
+
+function closeAppointmentDetail() {
+    const modal = DOM.get('appointmentDetailModal');
+    if (modal) modal.style.display = 'none';
+    AppState.currentAppointmentId = null;
+}
+
+function editAppointment(id) {
+    showToast('Edit appointment feature', 'info');
+}
+
+function rescheduleAppointment(id) {
+    showToast('Reschedule appointment feature', 'info');
+}
+
+function completeAppointment(id) {
+    const appt = Data.getAppointmentById(id);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    if (confirm(`Mark "${appt.business}" as Completed?`)) {
+        Data.updateAppointment(appt.date, appt.id, { status: 'Completed' });
+        closeAppointmentDetail();
+        showToast('Appointment marked as Completed! 🎉', 'success');
+    }
+}
+
+function cancelAppointment(id) {
+    const appt = Data.getAppointmentById(id);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    if (confirm(`Cancel appointment with ${appt.business}?`)) {
+        Data.updateAppointment(appt.date, appt.id, { status: 'Canceled' });
+        closeAppointmentDetail();
+        showToast('Appointment canceled', 'info');
+    }
+}
+
+// ================================================================
+// INITIALIZATION
 // ================================================================
 
 function initApp() {
@@ -1872,22 +3087,15 @@ function initApp() {
             console.log(`🔌 Firebase status: ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
             console.log(`📋 Persistence mode: ${FirebaseStatus.persistenceMode}`);
         } else {
-            // Fallback check
             AppState.isFirebaseReady = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
             console.log(`🔌 Firebase status (fallback): ${AppState.isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
         }
         
-        // Check AI configuration using centralized helpers
         const aiConfigured = typeof isAIConfigured === 'function' && isAIConfigured();
         AppState.isAIAvailable = aiConfigured;
         console.log(`🤖 AI status: ${aiConfigured ? '✅ Configured' : '❌ Not configured'}`);
         
-        // Set global flags
         window.__FIREBASE_READY__ = AppState.isFirebaseReady;
-        
-        // Log version info
-        console.log(`📦 App version: ${Date.now()}`);
-        console.log(`🌐 Environment: ${AppState.isFirebaseReady ? 'Online' : 'Offline'}`);
         
     } catch (e) {
         console.warn('⚠️ Initialization check error:', e);
@@ -1895,7 +3103,6 @@ function initApp() {
         AppState.isAIAvailable = false;
     }
 
-    // Check if Firebase is not ready but SDK is loaded
     if (!AppState.isFirebaseReady && typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0) {
         console.warn('⚠️ Firebase SDK loaded but not ready, attempting re-initialization...');
         if (typeof initializeFirebase === 'function') {
@@ -1908,29 +3115,17 @@ function initApp() {
         }
     }
 
-    // ================================================================
-    // CONTINUE WITH EXISTING INITIALIZATION CODE
-    // ================================================================
-
-    // Check if Firebase is available
-    try {
-        AppState.isFirebaseReady = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
-    } catch (e) {
-        AppState.isFirebaseReady = false;
-    }
-
     if (!AppState.isFirebaseReady) {
         console.warn('⚠️ Firebase not available - running in offline mode');
         showToast('Offline mode - Some features may be limited', 'warning');
     }
     updateLoadingProgress(35, 'Connecting to services...');
 
-    // Load custom shortcuts from localStorage
+    // Load custom shortcuts
     AppState.customShortcuts = JSON.parse(localStorage.getItem(STORAGE_KEYS.customShortcuts) || '{}');
     AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS, ...AppState.customShortcuts };
     AppState.scriptFavorites = JSON.parse(localStorage.getItem(STORAGE_KEYS.scriptFavorites) || '[]');
 
-    // Load analytics filters from localStorage
     const savedFilters = localStorage.getItem(STORAGE_KEYS.analyticsFilters);
     if (savedFilters) {
         try {
@@ -1966,16 +3161,12 @@ function initApp() {
         });
     }
 
-    // Escape key handler
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') handleEscapeKey();
     });
     updateLoadingProgress(65, 'Loading features...');
 
-    // ================================================================
-    // TOOL ITEMS EVENT LISTENERS
-    // ================================================================
-
+    // Tool items
     document.querySelectorAll('.tool-item').forEach(item => {
         item.addEventListener('click', function() {
             const tool = this.getAttribute('data-tool');
@@ -2012,7 +3203,7 @@ function initApp() {
         });
     });
 
-    // Feature panel close button
+    // Feature panel close
     const closeFeatureBtn = DOM.get('closeFeaturePanelBtn');
     if (closeFeatureBtn) closeFeatureBtn.addEventListener('click', () => {
         FeaturePanel.hide();
@@ -2040,7 +3231,7 @@ function initApp() {
     if (resetScriptBtn) resetScriptBtn.addEventListener('click', () => Scripts.resetScript());
     if (favoriteScriptBtn) favoriteScriptBtn.addEventListener('click', () => Scripts.toggleFavorite(AppState.currentScriptId));
 
-    // Smart Import buttons
+    // Smart Import buttons - these will be overridden by smart-import.js if loaded
     const quickReportBtn = DOM.get('quickReportBtn');
     const parseBtn = DOM.get('parseImportBtn');
     const saveImportBtn = DOM.get('saveImportBtn');
@@ -2213,7 +3404,7 @@ function initApp() {
     // Initialize Prospect Manager
     Data.initProspectManager();
 
-    // Firebase auth state listener
+    // Firebase auth
     try {
         if (AppState.isFirebaseReady) {
             firebase.auth().onAuthStateChanged(async (user) => {
@@ -2269,7 +3460,6 @@ function initApp() {
         setTimeout(hideLoadingScreen, 400);
     }
 
-    // Click outside modal to close
     document.addEventListener('click', (e) => {
         if (e.target.classList.contains('modal-overlay')) {
             e.target.style.display = 'none';
@@ -2325,6 +3515,7 @@ window.editProspect = editProspect;
 window.deleteProspect = deleteProspect;
 window.AnalyticsEngine = AnalyticsEngine;
 window.STORAGE_KEYS = STORAGE_KEYS;
+window.DOM = DOM;
 
 // Start the app
 document.addEventListener('DOMContentLoaded', initApp);
