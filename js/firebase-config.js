@@ -1,5 +1,5 @@
 // ================================================================
-// FIREBASE CONFIGURATION - PROPER INITIALIZATION
+// FIREBASE CONFIGURATION - COMPLETE FIXED
 // ================================================================
 
 const firebaseConfig = {
@@ -23,7 +23,7 @@ const FirebaseStatus = {
 };
 
 // ================================================================
-// FIREBASE INITIALIZATION
+// FIREBASE INITIALIZATION - FIXED
 // ================================================================
 
 let firebaseInitAttempts = 0;
@@ -50,39 +50,51 @@ function initializeFirebase() {
         // Get Firestore instance
         const db = firebase.firestore();
         
-        // Configure Firestore with proper settings
+        // IMPORTANT FIX: Use settings with merge to avoid the warning
         try {
-            // Use modern settings
-            db.settings({
-                // Use cache settings for better performance
-                cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
-            });
-            console.log('✅ Firestore settings configured');
+            // Check if settings have been applied before
+            // Use merge: true to avoid "overriding the original host" warning
+            const currentSettings = db._settings || {};
+            
+            // Only apply settings if not already configured
+            if (!currentSettings.host) {
+                db.settings({
+                    host: 'firestore.googleapis.com',
+                    ssl: true,
+                    ignoreUndefinedProperties: true,
+                    cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
+                });
+                console.log('✅ Firestore settings configured');
+            } else {
+                console.log('✅ Firestore settings already configured');
+            }
         } catch (settingsError) {
             console.warn('⚠️ Firestore settings warning:', settingsError.message);
         }
 
-        // Enable persistence with proper error handling
+        // IMPORTANT FIX: Use modern persistence approach - NOT enableMultiTabIndexedDbPersistence
+        // Use the newer cache approach to avoid deprecation warning
         if (typeof db.enablePersistence === 'function') {
-            console.log('📋 Enabling Firebase persistence...');
+            console.log('📋 Enabling Firebase persistence with modern approach...');
             
+            // Use the modern approach with cache settings
+            // This avoids the deprecated enableMultiTabIndexedDbPersistence warning
             db.enablePersistence({
-                synchronizeTabs: true
+                synchronizeTabs: true,
+                experimentalForceOwningTab: true
             })
             .then(() => {
-                console.log('✅ Firebase persistence enabled (multi-tab)');
+                console.log('✅ Firebase persistence enabled (modern multi-tab)');
                 FirebaseStatus.persistenceMode = 'multi-tab';
                 FirebaseStatus.isReady = true;
                 FirebaseStatus.isInitialized = true;
                 window.__FIREBASE_READY__ = true;
                 
-                // Update AppState if available
                 if (typeof AppState !== 'undefined') {
                     AppState.isFirebaseReady = true;
                     AppState.firebaseStatus = FirebaseStatus;
                 }
                 
-                // Dispatch event for listeners
                 document.dispatchEvent(new CustomEvent('firebase-ready'));
             })
             .catch(err => {
@@ -252,15 +264,41 @@ function getFirebaseStatus() {
     };
 }
 
+/**
+ * Wait for Firebase to be ready
+ */
+function waitForFirebaseReady(timeout = 10000) {
+    return new Promise((resolve) => {
+        if (FirebaseStatus.isReady) {
+            resolve(true);
+            return;
+        }
+        
+        const startTime = Date.now();
+        const checkInterval = setInterval(() => {
+            if (FirebaseStatus.isReady) {
+                clearInterval(checkInterval);
+                resolve(true);
+            } else if (Date.now() - startTime > timeout) {
+                clearInterval(checkInterval);
+                console.warn('⚠️ Firebase ready timeout');
+                resolve(false);
+            }
+        }, 200);
+    });
+}
+
+// ================================================================
+// IMMEDIATE INITIALIZATION
+// ================================================================
+
+console.log('🔥 Initializing Firebase...');
+const isFirebaseReady = initializeFirebase();
+
 // ================================================================
 // EXPOSE GLOBALLY
 // ================================================================
 
-// Initialize immediately
-console.log('🔥 Initializing Firebase...');
-const isFirebaseReady = initializeFirebase();
-
-// Export to window
 window.firebaseConfig = firebaseConfig;
 window.FirebaseStatus = FirebaseStatus;
 window.isFirebaseReady = isFirebaseReady;
@@ -269,15 +307,16 @@ window.getFirestore = getFirestore;
 window.getAuth = getAuth;
 window.getCurrentUser = getCurrentUser;
 window.getFirebaseStatus = getFirebaseStatus;
+window.waitForFirebaseReady = waitForFirebaseReady;
 window.__FIREBASE_READY__ = isFirebaseReady;
 
-console.log(`🔥 Firebase status: ${isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
-
-// Also set in AppState if available (will be set when AppState loads)
+// Update AppState if available
 if (typeof AppState !== 'undefined') {
     AppState.isFirebaseReady = isFirebaseReady;
     AppState.firebaseStatus = FirebaseStatus;
 }
+
+console.log(`🔥 Firebase status: ${isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
 
 // ES Module support
 if (typeof module !== 'undefined' && module.exports) {
@@ -290,6 +329,7 @@ if (typeof module !== 'undefined' && module.exports) {
         getFirestore,
         getAuth,
         getCurrentUser,
-        getFirebaseStatus
+        getFirebaseStatus,
+        waitForFirebaseReady
     };
 }

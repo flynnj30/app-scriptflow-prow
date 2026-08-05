@@ -3,36 +3,6 @@
 // ================================================================
 
 // ================================================================
-// FIREBASE WAIT UTILITY
-// ================================================================
-
-function waitForFirebase() {
-    return new Promise((resolve) => {
-        if (window.__FIREBASE_READY__) {
-            resolve(true);
-            return;
-        }
-        
-        document.addEventListener('firebase-ready', () => {
-            resolve(true);
-        });
-        
-        const checkInterval = setInterval(() => {
-            if (window.__FIREBASE_READY__) {
-                clearInterval(checkInterval);
-                resolve(true);
-            }
-        }, 500);
-        
-        setTimeout(() => {
-            clearInterval(checkInterval);
-            console.warn('⚠️ Firebase ready timeout - continuing anyway');
-            resolve(false);
-        }, 10000);
-    });
-}
-
-// ================================================================
 // SMART IMPORT FALLBACK FUNCTIONS
 // ================================================================
 
@@ -541,12 +511,31 @@ function hideLoadingScreen() {
 }
 
 // ================================================================
-// AUTHENTICATION
+// AUTHENTICATION - FULLY INTEGRATED WITH FIREBASE
 // ================================================================
 
 const Auth = {
     signInWithGoogle: async function() {
-        if (AppState.authInProgress || !AppState.isFirebaseReady) return false;
+        if (AppState.authInProgress || !AppState.isFirebaseReady) {
+            if (!AppState.isFirebaseReady) {
+                showToast('Firebase is connecting. Please wait...', 'info');
+                // Wait for Firebase to be ready
+                await new Promise((resolve) => {
+                    const checkReady = setInterval(() => {
+                        if (AppState.isFirebaseReady) {
+                            clearInterval(checkReady);
+                            resolve();
+                        }
+                    }, 500);
+                    setTimeout(() => clearInterval(checkReady), 10000);
+                });
+                if (!AppState.isFirebaseReady) {
+                    showToast('Firebase connection failed. Please refresh.', 'error');
+                    return false;
+                }
+            }
+        }
+        
         AppState.authInProgress = true;
         try {
             const provider = new firebase.auth.GoogleAuthProvider();
@@ -563,8 +552,11 @@ const Auth = {
             }
         } catch (error) {
             AppState.authInProgress = false;
-            if (error.code === 'auth/popup-closed-by-user') showToast('Sign in cancelled', 'info');
-            else handleError(error, 'Google Sign-In');
+            if (error.code === 'auth/popup-closed-by-user') {
+                showToast('Sign in cancelled', 'info');
+            } else {
+                handleError(error, 'Google Sign-In');
+            }
             return false;
         }
     },
@@ -661,7 +653,7 @@ const Auth = {
                         <span style="font-weight:500;">Sign in with Google</span>
                     </button>
                     <div class="auth-divider">or continue with email</div>
-                ` : `<div style="padding:16px; background:var(--warning); border-radius:12px; margin-bottom:16px; color:#1e293b;">⚠️ Offline Mode - Firebase connection unavailable</div>`}
+                ` : `<div style="padding:16px; background:var(--warning); border-radius:12px; margin-bottom:16px; color:#1e293b;">⚠️ Connecting to Firebase... Please wait</div>`}
                 <div id="authFormContainer">
                     <div style="display:flex; gap:8px; margin-bottom:20px;">
                         <button id="loginTabBtn" class="view-btn active" style="flex:1; justify-content:center;">Sign In</button>
@@ -683,12 +675,15 @@ const Auth = {
             </div>
         `;
         document.body.appendChild(modal);
+        
+        // Only attach event listeners if Firebase is ready
         if (isFirebaseReady) {
             const googleBtn = DOM.get('googleSignInBtn');
             const loginTab = DOM.get('loginTabBtn');
             const signupTab = DOM.get('signupTabBtn');
             const loginBtn = DOM.get('loginBtn');
             const signupBtn = DOM.get('signupBtn');
+            
             if (googleBtn) googleBtn.addEventListener('click', (e) => { e.preventDefault(); this.signInWithGoogle(); });
             if (loginTab) loginTab.addEventListener('click', () => {
                 loginTab.classList.add('active');
@@ -721,6 +716,7 @@ const Auth = {
                 await this.signUp(email, password, username);
             });
         }
+        
         modal.addEventListener('click', (e) => { if (e.target === modal) this.closeModal(); });
     },
     closeModal: function() {
@@ -847,7 +843,10 @@ const Data = {
             }
             return;
         }
-        if (!AppState.isFirebaseReady) { showToast('Firebase unavailable - using offline mode', 'warning'); return; }
+        if (!AppState.isFirebaseReady) { 
+            showToast('Firebase unavailable - using offline mode', 'warning'); 
+            return;
+        }
         try {
             const statusEl = DOM.get('saveStatus');
             if (statusEl && showLoading) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
@@ -929,12 +928,6 @@ const Data = {
             }, error => { console.warn('Team members subscription error:', error); });
         } catch (error) {
             console.warn('Subscription error:', error);
-            const appointmentsLocal = localStorage.getItem(STORAGE_KEYS.appointments);
-            const tasksLocal = localStorage.getItem(STORAGE_KEYS.tasks);
-            const teamLocal = localStorage.getItem(STORAGE_KEYS.teamMembers);
-            if (appointmentsLocal) { try { AppState.appointments = JSON.parse(appointmentsLocal); Stats.updateAll(); if (typeof FeaturePanel !== 'undefined') FeaturePanel.refreshCurrentView(); } catch (e) {} }
-            if (tasksLocal) { try { AppState.tasks = JSON.parse(tasksLocal); Stats.updateTaskStats(); if (typeof FeaturePanel !== 'undefined') FeaturePanel.refreshCurrentView(); } catch (e) {} }
-            if (teamLocal) { try { AppState.teamMembers = JSON.parse(teamLocal); } catch (e) {} }
         }
     },
     createDefaultScripts: async function() {
@@ -2450,11 +2443,28 @@ async function initApp() {
     console.log('🚀 Starting ScriptFlow Pro...');
     updateLoadingProgress(10, 'Initializing application...');
 
-    // Wait for Firebase to be ready
-    const firebaseReady = await waitForFirebase();
-    AppState.isFirebaseReady = firebaseReady;
+    // Check Firebase status
+    AppState.isFirebaseReady = window.__FIREBASE_READY__ || false;
     
-    console.log(`🔥 Firebase status: ${firebaseReady ? '✅ Ready' : '⚠️ Not ready - using offline mode'}`);
+    if (!AppState.isFirebaseReady) {
+        console.log('⏳ Waiting for Firebase to be ready...');
+        // Wait for Firebase to be ready
+        await new Promise((resolve) => {
+            const checkReady = setInterval(() => {
+                if (window.__FIREBASE_READY__) {
+                    clearInterval(checkReady);
+                    AppState.isFirebaseReady = true;
+                    resolve();
+                }
+            }, 500);
+            setTimeout(() => {
+                clearInterval(checkReady);
+                resolve();
+            }, 10000);
+        });
+    }
+    
+    console.log(`🔥 Firebase status: ${AppState.isFirebaseReady ? '✅ Ready' : '⚠️ Not ready - using offline mode'}`);
 
     // Load custom shortcuts
     AppState.customShortcuts = JSON.parse(localStorage.getItem(STORAGE_KEYS.customShortcuts) || '{}');
@@ -2627,10 +2637,12 @@ async function initApp() {
     // Initialize Prospect Manager
     Data.initProspectManager();
 
-    // Firebase auth
+    // Firebase auth - FIXED: Properly handle auth state
     try {
         if (AppState.isFirebaseReady) {
+            console.log('🔥 Setting up Firebase auth listener...');
             firebase.auth().onAuthStateChanged(async (user) => {
+                console.log('👤 Auth state changed:', user ? 'User logged in' : 'No user');
                 if (user) {
                     AppState.currentUser = user;
                     Auth.updateUI();
@@ -2658,6 +2670,7 @@ async function initApp() {
                 setTimeout(hideLoadingScreen, 400);
             });
         } else {
+            console.log('⚠️ Firebase not ready - showing auth modal with offline data');
             const localData = localStorage.getItem(STORAGE_KEYS.userData);
             if (localData) {
                 try {
@@ -2721,7 +2734,6 @@ window.deleteProspect = deleteProspect;
 window.AnalyticsEngine = AnalyticsEngine;
 window.STORAGE_KEYS = STORAGE_KEYS;
 window.DOM = DOM;
-window.waitForFirebase = waitForFirebase;
 
 // Start the app
 document.addEventListener('DOMContentLoaded', initApp);
