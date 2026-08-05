@@ -8,23 +8,18 @@
  * Transcript Parser Configuration
  */
 const PARSER_CONFIG = {
-    // Confidence thresholds
     CONFIDENCE: {
         HIGH: 0.85,
         MEDIUM: 0.65,
         LOW: 0.40,
         MINIMUM: 0.30
     },
-    // Status options for matching
     STATUS_OPTIONS: [
         'Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 
         'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'
     ],
-    // Role options
     ROLE_OPTIONS: ['Owner', 'Manager', 'CEO', 'Director', 'Supervisor', 'Team Lead', 'President', 'Founder', 'Partner'],
-    // Team member options
     TEAM_MEMBERS: ['Kailan', 'Seif', 'Daniel', 'Sarah', 'Mike', 'Jessica', 'David'],
-    // Timezone patterns
     TIMEZONES: ['EDT', 'EST', 'CDT', 'CST', 'MDT', 'MST', 'PDT', 'PST', 'GMT', 'UTC', 'ET', 'CT', 'MT', 'PT']
 };
 
@@ -45,6 +40,7 @@ class TranscriptParser {
             timeConfirmed: false,
             dateConfirmed: false
         };
+        this._initialized = true;
     }
 
     /**
@@ -53,50 +49,83 @@ class TranscriptParser {
     parse(transcript, defaultDate = null) {
         console.log('📝 Starting transcript parsing...');
         
-        // Reset state
-        this.confidenceScores = {};
-        this.extractedData = {};
-        this.speakerMap = {};
-        this.detectedIntent = null;
-        this.meetingDetails = { booked: false, timeConfirmed: false, dateConfirmed: false };
-        
-        // Clean and prepare transcript
-        this.rawTranscript = transcript;
-        this.fullText = this._cleanText(transcript);
-        this.lines = this._splitLines(this.fullText);
-        
-        // Extract speakers
-        this._extractSpeakers();
-        
-        // Run all extraction modules
-        const results = {
-            business: this._extractBusiness(),
-            name: this._extractName(),
-            role: this._extractRole(),
-            phone: this._extractPhone(),
-            email: this._extractEmail(),
-            date: this._extractDate(defaultDate),
-            time: this._extractTime(),
-            status: this._extractStatus(),
-            assigned: this._extractAssigned(),
-            notes: this._extractNotes(),
-            tags: this._extractTags(),
-            sentiment: this._extractSentiment(),
-            callSummary: this._extractCallSummary(),
-            detectedObjections: this._extractObjections(),
-            meetingQualityScore: this._calculateMeetingQuality(),
-            missingInformation: this._identifyMissingInfo()
+        try {
+            // Reset state
+            this.confidenceScores = {};
+            this.extractedData = {};
+            this.speakerMap = {};
+            this.detectedIntent = null;
+            this.meetingDetails = { booked: false, timeConfirmed: false, dateConfirmed: false };
+            
+            // Clean and prepare transcript
+            this.rawTranscript = transcript;
+            this.fullText = this._cleanText(transcript);
+            this.lines = this._splitLines(this.fullText);
+            
+            // Extract speakers
+            this._extractSpeakers();
+            
+            // Run all extraction modules
+            const results = {
+                business: this._extractBusiness(),
+                name: this._extractName(),
+                role: this._extractRole(),
+                phone: this._extractPhone(),
+                email: this._extractEmail(),
+                date: this._extractDate(defaultDate),
+                time: this._extractTime(),
+                status: this._extractStatus(),
+                assigned: this._extractAssigned(),
+                notes: this._extractNotes(),
+                tags: this._extractTags(),
+                sentiment: this._extractSentiment(),
+                callSummary: this._extractCallSummary(),
+                detectedObjections: this._extractObjections(),
+                meetingQualityScore: this._calculateMeetingQuality(),
+                missingInformation: this._identifyMissingInfo()
+            };
+            
+            // Calculate overall confidence
+            this._calculateOverallConfidence(results);
+            
+            // Build final output
+            const output = this._buildOutput(results);
+            
+            console.log('✅ Parsing complete. Confidence:', Math.round(output.confidence * 100) + '%');
+            
+            return output;
+        } catch (error) {
+            console.error('❌ Parser error:', error);
+            // Return fallback results
+            return this._getFallbackResults(defaultDate);
+        }
+    }
+
+    /**
+     * Get fallback results when parser fails
+     */
+    _getFallbackResults(defaultDate) {
+        return {
+            business: 'N/A',
+            name: 'N/A',
+            role: 'N/A',
+            phone: 'N/A',
+            email: 'N/A',
+            date: defaultDate || new Date().toISOString().split('T')[0],
+            time: 'N/A',
+            status: 'Meeting Booked',
+            assigned: 'Daniel',
+            notes: '',
+            tags: [],
+            sentiment: 'Neutral',
+            callSummary: '',
+            detectedObjections: [],
+            meetingQualityScore: 5,
+            missingInformation: ['Business Name', 'Contact Name', 'Phone Number', 'Email', 'Time'],
+            confidence: 0.3,
+            _confidence: {},
+            _evidence: {}
         };
-        
-        // Calculate overall confidence
-        this._calculateOverallConfidence(results);
-        
-        // Build final output
-        const output = this._buildOutput(results);
-        
-        console.log('✅ Parsing complete. Confidence:', Math.round(output.confidence * 100) + '%');
-        
-        return output;
     }
 
     // ================================================================
@@ -131,7 +160,6 @@ class TranscriptParser {
             }
         });
         
-        // Detect if this is a call transcript
         if (Object.keys(this.speakerMap).length >= 2) {
             this._detectCallerInfo();
         }
@@ -139,7 +167,6 @@ class TranscriptParser {
 
     _detectCallerInfo() {
         const speakers = Object.keys(this.speakerMap);
-        // Look for setter/flynn patterns
         for (const speaker of speakers) {
             const lower = speaker.toLowerCase();
             if (lower.includes('flynn') || lower.includes('setter') || lower.includes('agent')) {
@@ -180,17 +207,17 @@ class TranscriptParser {
         }
         
         // Pattern 2: Search for capitalized phrases that sound like business names
-        const businessPhrases = text.match(/([A-Z][A-Za-z0-9\s&'\-.,]{2,}(?:Services|Maintenance|Solutions|Products|Tech|Corp|Inc|LLC|Co|Company|Truck|Auto|Plumbing|Electrical|Roofing|Construction|Cleaning|Consulting|Design|Media|Logistics|Transport|Freight|Towing|Repair|Restoration|Remodeling|Landscaping|Painting|Excavation|Paving|Concrete|Framing|Roofing|Siding|Windows|Doors|Cabinets|Flooring|Masonry|Plumbing|HVAC|Electrical|Security|Landscaping|Irrigation|Tree|Stump|Grading|Septic|Well|Pump|Generator|Solar|Insulation|Drywall|Paint|Carpet|Tile|Granite|Marble|Quartz|Laminate|Vinyl|Hardwood|Laminate|Carpet|Tile|Stone|Brick|Block|Steel|Aluminum|Copper|Brass|Iron)/i);
-        if (businessPhrases) {
-            for (const phrase of businessPhrases) {
-                // Check if it's a valid business name (not a person or generic)
-                if (phrase.length > 3 && !this._isPersonName(phrase)) {
-                    result.value = phrase.trim();
-                    result.confidence = 0.65;
-                    result.evidence = phrase;
-                    return result;
-                }
-            }
+        // FIXED: Simplified regex to avoid nested group issues
+        const businessIndicators = ['Services', 'Maintenance', 'Solutions', 'Products', 'Tech', 'Corp', 'Inc', 'LLC', 'Co', 'Company', 'Truck', 'Auto', 'Plumbing', 'Electrical', 'Roofing', 'Construction', 'Cleaning', 'Consulting', 'Design', 'Media', 'Logistics', 'Transport', 'Freight', 'Towing', 'Repair', 'Restoration', 'Remodeling', 'Landscaping', 'Painting', 'Excavation', 'Paving', 'Concrete', 'Framing', 'Siding', 'Windows', 'Doors', 'Cabinets', 'Flooring', 'Masonry', 'HVAC', 'Security', 'Irrigation', 'Tree', 'Stump', 'Grading', 'Septic', 'Well', 'Pump', 'Generator', 'Solar', 'Insulation', 'Drywall', 'Paint', 'Carpet', 'Tile', 'Granite', 'Marble', 'Quartz', 'Laminate', 'Vinyl', 'Hardwood', 'Stone', 'Brick', 'Block', 'Steel', 'Aluminum', 'Copper', 'Brass', 'Iron'];
+        
+        // Build a simpler regex for business name detection
+        const businessRegex = new RegExp('([A-Z][A-Za-z0-9\\s&\'\\-.,]{2,}(?:' + businessIndicators.join('|') + '))', 'i');
+        const businessMatch = text.match(businessRegex);
+        if (businessMatch && businessMatch[1]) {
+            result.value = businessMatch[1].trim();
+            result.confidence = 0.65;
+            result.evidence = businessMatch[0];
+            return result;
         }
         
         // Pattern 3: Extract from context
@@ -210,7 +237,6 @@ class TranscriptParser {
         const text = this.fullText;
         const lines = this.lines;
         
-        // Pattern 1: Explicit name mention
         const namePatterns = [
             /(?:name|contact|client|customer|person|full name)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
             /(?:my name is|this is|i'm|i am)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
@@ -231,7 +257,6 @@ class TranscriptParser {
             }
         }
         
-        // Pattern 2: Look for "Prospect: Name" pattern
         for (const line of lines) {
             const match = line.match(/Prospect:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
             if (match && match[1]) {
@@ -242,27 +267,22 @@ class TranscriptParser {
             }
         }
         
-        // Pattern 3: Look for names in the transcript
         const nameMatches = text.match(/([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?)/g);
         if (nameMatches) {
             for (const name of nameMatches) {
-                // Filter out common words and false positives
                 const commonWords = ['Hello', 'Yeah', 'Okay', 'Thanks', 'Great', 'Perfect', 'Sure', 'Alright', 'Well', 'Good', 'Nice', 'Awesome', 'Right', 'Sorry', 'Please', 'Thank', 'Welcome'];
                 if (!commonWords.includes(name) && name.length >= 3) {
-                    // Check if it's in the context of an introduction
-                    const contextCheck = text.match(new RegExp(`(?:my name is|this is|i'm|i am|what was your name|your name|name again)\\s*${name}`, 'i'));
+                    const contextCheck = text.match(new RegExp(`(?:my name is|this is|i'm|i am|what was your name|your name|name again)\\s*${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i'));
                     if (contextCheck) {
                         result.value = name;
                         result.confidence = 0.7;
                         result.evidence = contextCheck[0];
                         return result;
                     }
-                    // Check if it's likely a name (not a business)
                     if (!this._isBusinessName(name)) {
                         result.value = name;
                         result.confidence = 0.5;
                         result.evidence = name;
-                        // Don't return yet, keep looking for better matches
                     }
                 }
             }
@@ -284,7 +304,6 @@ class TranscriptParser {
             const match = text.match(pattern);
             if (match) {
                 let value = match[1] ? match[1].trim() : match[0].trim();
-                // Normalize role
                 const lower = value.toLowerCase();
                 if (lower.includes('owner')) value = 'Owner';
                 else if (lower.includes('manager')) value = 'Manager';
@@ -305,7 +324,6 @@ class TranscriptParser {
             }
         }
         
-        // Check for context clues
         if (text.match(/\b(?:owner|i own|my business|my company)\b/i)) {
             result.value = 'Owner';
             result.confidence = 0.6;
@@ -323,7 +341,6 @@ class TranscriptParser {
         const result = { value: 'N/A', confidence: 0, evidence: '' };
         const text = this.fullText;
         
-        // Phone number patterns (US and international)
         const phonePatterns = [
             /(?:phone|mobile|cell|telephone|number|call|contact)[:\s]+([+\d\s\-\(\)]{7,20})/i,
             /([+\d\s\-\(\)]{10,20})(?:\s*(?:is|was|will be|the|their|his|her))/i,
@@ -336,10 +353,8 @@ class TranscriptParser {
             const match = text.match(pattern);
             if (match && match[1]) {
                 let phone = match[1].trim();
-                // Clean up phone number
                 phone = phone.replace(/[^\d+]/g, '');
                 if (phone.length >= 10) {
-                    // Format phone number
                     if (phone.length === 10 && !phone.startsWith('+')) {
                         phone = '+1' + phone;
                     } else if (phone.length === 11 && phone.startsWith('1')) {
@@ -360,7 +375,6 @@ class TranscriptParser {
         const result = { value: 'N/A', confidence: 0, evidence: '' };
         const text = this.fullText;
         
-        // Email patterns
         const emailPatterns = [
             /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/,
             /(?:email|e-mail|mail|address)[:\s]+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i
@@ -379,7 +393,6 @@ class TranscriptParser {
             }
         }
         
-        // Check for "email doesn't work" or similar
         if (text.match(/email\s*(?:doesn['’]t|does not|is not|isn['’]t|no)\s*(?:work|working|valid|good|available)/i)) {
             result.value = 'Unavailable';
             result.confidence = 0.7;
@@ -394,7 +407,6 @@ class TranscriptParser {
         const result = { value: defaultDate || 'N/A', confidence: 0.3, evidence: '' };
         const text = this.fullText;
         
-        // Date patterns
         const datePatterns = [
             /(?:date|appointment|scheduled|meeting|call|day|on)[:\s]+([A-Za-z]+[\s,]+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4})/i,
             /(?:date|appointment|scheduled|meeting|call|day|on)[:\s]+([A-Za-z]+[\s,]+\d{1,2}(?:st|nd|rd|th)?)/i,
@@ -416,7 +428,6 @@ class TranscriptParser {
             }
         }
         
-        // Check for day names
         const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
         for (const day of dayNames) {
             if (text.match(new RegExp(`\\b${day}\\b`, 'i'))) {
@@ -437,7 +448,6 @@ class TranscriptParser {
         if (!dateStr) return null;
         const trimmed = dateStr.trim();
         
-        // Try to parse various date formats
         const months = {
             'january': 1, 'february': 2, 'march': 3, 'april': 4,
             'may': 5, 'june': 6, 'july': 7, 'august': 8,
@@ -447,7 +457,6 @@ class TranscriptParser {
             'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
         };
         
-        // Format: Month Day, Year
         const monthDayYearMatch = trimmed.match(/([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/i);
         if (monthDayYearMatch) {
             const month = months[monthDayYearMatch[1].toLowerCase()];
@@ -461,7 +470,6 @@ class TranscriptParser {
             }
         }
         
-        // Format: Month Day
         const monthDayMatch = trimmed.match(/([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?/i);
         if (monthDayMatch) {
             const month = months[monthDayMatch[1].toLowerCase()];
@@ -469,7 +477,6 @@ class TranscriptParser {
             if (month && day) {
                 let year = new Date().getFullYear();
                 let date = new Date(year, month - 1, day);
-                // If date is in the past, use next year
                 if (date < new Date() && month < new Date().getMonth() + 1) {
                     date = new Date(year + 1, month - 1, day);
                 }
@@ -479,7 +486,6 @@ class TranscriptParser {
             }
         }
         
-        // Format: YYYY-MM-DD
         const isoMatch = trimmed.match(/(\d{4})-(\d{2})-(\d{2})/);
         if (isoMatch) {
             const year = parseInt(isoMatch[1]);
@@ -491,7 +497,6 @@ class TranscriptParser {
             }
         }
         
-        // Format: MM/DD/YYYY
         const usMatch = trimmed.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
         if (usMatch) {
             const month = parseInt(usMatch[1]);
@@ -503,10 +508,7 @@ class TranscriptParser {
             }
         }
         
-        // Check for "today", "tomorrow", "yesterday"
-        if (/today/i.test(trimmed)) {
-            return this._formatDate(new Date());
-        }
+        if (/today/i.test(trimmed)) return this._formatDate(new Date());
         if (/tomorrow/i.test(trimmed)) {
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
@@ -546,7 +548,6 @@ class TranscriptParser {
         const result = { value: 'N/A', confidence: 0, evidence: '' };
         const text = this.fullText;
         
-        // Time patterns
         const timePatterns = [
             /(?:time|at|for)[:\s]+(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm))/i,
             /(?:time|at|for)[:\s]+(\d{1,2}\s*(?:AM|PM|am|pm))/i,
@@ -558,7 +559,6 @@ class TranscriptParser {
             const match = text.match(pattern);
             if (match && match[1]) {
                 let time = match[1].trim();
-                // Normalize time format
                 if (!time.includes(':') && time.match(/\d{1,2}\s*(?:AM|PM|am|pm)/)) {
                     const num = parseInt(time);
                     const period = time.match(/(AM|PM|am|pm)/)[1].toUpperCase();
@@ -575,7 +575,6 @@ class TranscriptParser {
             }
         }
         
-        // Check for time ranges
         const rangeMatch = text.match(/(\d{1,2}:\d{2})\s*(?:to|-)\s*(\d{1,2}:\d{2})/i);
         if (rangeMatch) {
             result.value = `${rangeMatch[1]} - ${rangeMatch[2]}`;
@@ -584,7 +583,6 @@ class TranscriptParser {
             return result;
         }
         
-        // Check for contextual time indicators
         if (text.match(/morning/i)) {
             result.value = 'Morning';
             result.confidence = 0.4;
@@ -606,7 +604,6 @@ class TranscriptParser {
         const result = { value: 'Meeting Booked', confidence: 0.3, evidence: '' };
         const text = this.fullText;
         
-        // Check for status indicators
         const statusIndicators = {
             'Hot Transfer': /(?:hot transfer|hot lead|ready to transfer|transferring now|take it over|immediate transfer)/i,
             'Warm Callback': /(?:warm callback|call back|follow up|follow-up|callback|call me back|get back to|check back)/i,
@@ -620,21 +617,14 @@ class TranscriptParser {
         
         for (const [status, pattern] of Object.entries(statusIndicators)) {
             if (pattern.test(text)) {
-                // Check if it's a positive booking
-                if (status === 'Meeting Booked' || status === 'Completed' || status === 'Held') {
-                    result.confidence = 0.8;
-                } else {
-                    result.confidence = 0.65;
-                }
+                result.confidence = (status === 'Meeting Booked' || status === 'Completed' || status === 'Held') ? 0.8 : 0.65;
                 result.value = status;
                 result.evidence = 'Status indicator found';
                 return result;
             }
         }
         
-        // Check for meeting confirmation
-        if (text.match(/send (?:you|the) (?:details|invite|calendar|appointment)/i) ||
-            text.match(/confirm/i)) {
+        if (text.match(/send (?:you|the) (?:details|invite|calendar|appointment)/i) || text.match(/confirm/i)) {
             result.value = 'Meeting Booked';
             result.confidence = 0.7;
             result.evidence = 'Meeting booking confirmed';
@@ -647,7 +637,6 @@ class TranscriptParser {
         const result = { value: 'Daniel', confidence: 0.3, evidence: '' };
         const text = this.fullText;
         
-        // Check for assigned agent mentions
         for (const member of PARSER_CONFIG.TEAM_MEMBERS) {
             if (text.match(new RegExp(`\\b${member}\\b`, 'i'))) {
                 result.value = member;
@@ -657,9 +646,7 @@ class TranscriptParser {
             }
         }
         
-        // Check for meeting booked assignment logic
         if (this.meetingDetails.booked) {
-            // Alternate assignment for meeting bookings
             const meetingCount = this._getMeetingCount();
             result.value = meetingCount % 2 === 0 ? 'Kailan' : 'Seif';
             result.confidence = 0.5;
@@ -674,7 +661,6 @@ class TranscriptParser {
         const lines = this.lines;
         const notes = [];
         
-        // Extract key points from the conversation
         let hasWebsite = false;
         let hasSocialMedia = false;
         let wantsCallback = false;
@@ -685,7 +671,6 @@ class TranscriptParser {
         for (const line of lines) {
             const lower = line.toLowerCase();
             
-            // Check for website-related information
             if (lower.includes('website') || lower.includes('site')) {
                 if (lower.includes('no') || lower.includes('not') || lower.includes('don\'t') || lower.includes('dont')) {
                     notes.push('No current website');
@@ -699,25 +684,21 @@ class TranscriptParser {
                 }
             }
             
-            // Check for social media
             if (lower.includes('social media') || lower.includes('facebook') || lower.includes('instagram') || lower.includes('google')) {
                 notes.push('Business relies on social media and word-of-mouth');
                 hasSocialMedia = true;
             }
             
-            // Check for callback requests
             if (lower.includes('call back') || lower.includes('callback') || lower.includes('follow up') || lower.includes('follow-up')) {
                 notes.push('Callback requested by prospect');
                 wantsCallback = true;
             }
             
-            // Check for email
             if (lower.includes('email') && !lower.includes('doesn\'t') && !lower.includes('does not') && !lower.includes('isn\'t')) {
                 notes.push('Email captured for meeting invite');
                 emailProvided = true;
             }
             
-            // Check for date/time confirmation
             if (lower.includes('monday') || lower.includes('tuesday') || lower.includes('wednesday') || 
                 lower.includes('thursday') || lower.includes('friday') || lower.includes('saturday') || lower.includes('sunday')) {
                 notes.push('Appointment date confirmed');
@@ -728,7 +709,6 @@ class TranscriptParser {
                 dateTimeSet = true;
             }
             
-            // Check for discovery
             if (lower.includes('goal') || lower.includes('want') || lower.includes('need') || 
                 lower.includes('looking for') || lower.includes('help with')) {
                 notes.push('Discovery started but deferred to manager walkthrough');
@@ -736,22 +716,17 @@ class TranscriptParser {
             }
         }
         
-        // Add summary notes
         if (!hasWebsite && !hasSocialMedia) {
             notes.push('No current website or social media presence mentioned');
         }
-        
         if (wantsCallback) {
             notes.push('Prospect requested callback');
         }
-        
         if (!dateTimeSet) {
             notes.push('Date/time not explicitly confirmed in conversation');
         }
         
-        // Build final notes string
         if (notes.length > 0) {
-            // Remove duplicates
             const uniqueNotes = [...new Set(notes)];
             result.value = uniqueNotes.join('; ');
             result.confidence = 0.7;
@@ -766,7 +741,6 @@ class TranscriptParser {
         const text = this.fullText;
         const tags = [];
         
-        // Tag patterns
         const tagPatterns = {
             'vip': /(?:vip|priority|important|key|major|top|high value)/i,
             'qualified_warm_call': /(?:qualified|warm call|good fit|ideal|perfect fit|qualified lead|interested|positive|great fit)/i,
@@ -797,7 +771,6 @@ class TranscriptParser {
         const result = { value: 'Neutral', confidence: 0.4, evidence: '' };
         const text = this.fullText;
         
-        // Sentiment patterns
         const sentimentPatterns = {
             'Very Positive': /(?:amazing|excellent|outstanding|fantastic|perfect|brilliant|incredible|wonderful|extraordinary|love it|great job|sounds perfect)/i,
             'Positive': /(?:great|good|nice|positive|happy|pleased|satisfied|impressed|interested|excited|enthusiastic|awesome|sounds good|like it|agree|absolutely)/i,
@@ -813,7 +786,6 @@ class TranscriptParser {
             if (pattern.test(text)) {
                 const matches = text.match(pattern);
                 if (matches) {
-                    // Higher confidence if multiple matches
                     const count = matches.length;
                     const confidence = Math.min(0.9, 0.4 + (count * 0.1));
                     if (confidence > highestConfidence) {
@@ -838,7 +810,6 @@ class TranscriptParser {
         const lines = this.lines;
         const summaryParts = [];
         
-        // Extract key conversation points
         let hasOffer = false;
         let hasInterest = false;
         let hasBooking = false;
@@ -869,13 +840,11 @@ class TranscriptParser {
             }
         }
         
-        // Build summary
         if (summaryParts.length > 0) {
             result.value = summaryParts.join('. ') + '.';
             result.confidence = 0.6;
             result.evidence = 'Summary extracted from conversation';
         } else {
-            // Fallback summary
             const firstLines = lines.slice(0, 3).join(' ');
             if (firstLines) {
                 result.value = firstLines.substring(0, 150) + (firstLines.length > 150 ? '...' : '');
@@ -911,7 +880,6 @@ class TranscriptParser {
             }
         }
         
-        // Remove duplicates
         const uniqueObjections = [...new Set(objections)];
         if (uniqueObjections.length > 0) {
             result.value = uniqueObjections;
@@ -924,34 +892,17 @@ class TranscriptParser {
 
     _calculateMeetingQuality() {
         const text = this.fullText;
-        let score = 5; // Start at neutral
+        let score = 5;
         
-        // Check for positive indicators
-        if (text.match(/great|good|nice|excellent|perfect|awesome|love|excited|interested/i)) {
-            score += 2;
-        }
-        if (text.match(/booked|scheduled|confirmed|set up|calendar|invite/i)) {
-            score += 2;
-        }
-        if (text.match(/email|contact|follow[- ]up|next steps/i)) {
-            score += 1;
-        }
-        if (text.match(/website|preview|custom|free/i)) {
-            score += 1;
-        }
+        if (text.match(/great|good|nice|excellent|perfect|awesome|love|excited|interested/i)) score += 2;
+        if (text.match(/booked|scheduled|confirmed|set up|calendar|invite/i)) score += 2;
+        if (text.match(/email|contact|follow[- ]up|next steps/i)) score += 1;
+        if (text.match(/website|preview|custom|free/i)) score += 1;
         
-        // Check for negative indicators
-        if (text.match(/not interested|no thanks|don't need|already have|busy/i)) {
-            score -= 2;
-        }
-        if (text.match(/maybe|perhaps|possibly|not sure|think so/i)) {
-            score -= 1;
-        }
-        if (text.match(/call back|another time|reschedule|later/i)) {
-            score -= 1;
-        }
+        if (text.match(/not interested|no thanks|don't need|already have|busy/i)) score -= 2;
+        if (text.match(/maybe|perhaps|possibly|not sure|think so/i)) score -= 1;
+        if (text.match(/call back|another time|reschedule|later/i)) score -= 1;
         
-        // Clamp score between 0 and 10
         return Math.max(0, Math.min(10, score));
     }
 
@@ -981,11 +932,10 @@ class TranscriptParser {
             }
         }
         
-        this.confidenceScores.overall = count > 0 ? totalConfidence / count : 0;
+        this.confidenceScores.overall = count > 0 ? totalConfidence / count : 0.3;
     }
 
     _buildOutput(results) {
-        // Map fields to expected output structure
         const output = {
             business: results.business.value,
             name: results.name.value,
@@ -1004,7 +954,6 @@ class TranscriptParser {
             meetingQualityScore: results.meetingQualityScore,
             missingInformation: results.missingInformation,
             confidence: this.confidenceScores.overall || 0.5,
-            // Include confidence scores for debugging
             _confidence: {
                 business: results.business.confidence,
                 name: results.name.confidence,
@@ -1017,7 +966,6 @@ class TranscriptParser {
                 assigned: results.assigned.confidence,
                 overall: this.confidenceScores.overall || 0.5
             },
-            // Include evidence for debugging
             _evidence: {
                 business: results.business.evidence,
                 name: results.name.evidence,
@@ -1031,9 +979,7 @@ class TranscriptParser {
             }
         };
         
-        // Store for reference
         this.extractedData = output;
-        
         return output;
     }
 
@@ -1050,7 +996,6 @@ class TranscriptParser {
                              'Kevin', 'Laura', 'Brian', 'Sarah', 'Timothy', 'Kimberly', 'Ronald', 'Deborah'];
         const name = text.trim();
         if (commonNames.includes(name)) return true;
-        // Check if it's likely a name (starts with capital, 2+ chars, not all caps)
         if (name.length >= 2 && name.length <= 15 && /^[A-Z][a-z]+$/.test(name)) {
             return true;
         }
@@ -1062,7 +1007,7 @@ class TranscriptParser {
                                     'Company', 'Truck', 'Auto', 'Plumbing', 'Electrical', 'Roofing', 'Construction',
                                     'Cleaning', 'Consulting', 'Design', 'Media', 'Logistics', 'Transport', 'Freight',
                                     'Towing', 'Repair', 'Restoration', 'Remodeling', 'Landscaping', 'Painting',
-                                    'Excavation', 'Paving', 'Concrete', 'Framing', 'Roofing', 'Siding', 'Windows',
+                                    'Excavation', 'Paving', 'Concrete', 'Framing', 'Siding', 'Windows',
                                     'Doors', 'Cabinets', 'Flooring', 'Masonry', 'HVAC', 'Security', 'Irrigation',
                                     'Maintenance', 'Solutions', 'Group', 'Holdings', 'Ventures', 'Partners'];
         const name = text.trim();
@@ -1073,8 +1018,6 @@ class TranscriptParser {
     }
 
     _getMeetingCount() {
-        // This should be integrated with the main app's meeting count
-        // For now, return a random number for testing
         return Math.floor(Math.random() * 10) + 1;
     }
 }
