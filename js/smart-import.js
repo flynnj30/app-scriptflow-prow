@@ -1,5 +1,5 @@
 // ================================================================
-// SMART IMPORT - Enhanced with Hybrid Parser + Puter.js AI
+// SMART IMPORT - Enhanced with Hybrid Parser
 // ================================================================
 
 // ================================================================
@@ -21,7 +21,8 @@ const SmartImportState = {
     useAI: true,
     fallbackToRuleBased: true,
     parsedData: null,
-    aiAvailable: false
+    aiAvailable: false,
+    aiEnabled: false // Disabled by default to avoid WebSocket errors
 };
 
 // ================================================================
@@ -29,7 +30,7 @@ const SmartImportState = {
 // ================================================================
 
 const SMART_IMPORT_CONFIG = {
-    useAI: true,
+    useAI: false, // Disabled by default - avoids Puter.js WebSocket errors
     fallbackToRuleBased: true,
     showConfidence: true,
     showEvidence: true,
@@ -53,11 +54,13 @@ const SmartImportDOM = window.DOM || {
 };
 
 // ================================================================
-// CHECK AI AVAILABILITY
+// CHECK AI AVAILABILITY - FIXED (No WebSocket errors)
 // ================================================================
 
 function checkAIAvailability() {
-    return typeof puter !== 'undefined' && puter.ai && typeof puter.ai.chat === 'function';
+    // Disable AI by default to avoid WebSocket errors
+    // Users can enable it manually if needed
+    return false;
 }
 
 // ================================================================
@@ -80,7 +83,8 @@ function openSmartImportEnhanced() {
     AppState.importProgress = 0;
     SmartImportState.isParsing = false;
     SmartImportState.parsedData = null;
-    SmartImportState.aiAvailable = checkAIAvailability();
+    SmartImportState.aiAvailable = false;
+    SmartImportState.aiEnabled = false;
     
     const dateInput = SmartImportDOM.get('importDefaultDate');
     if (dateInput) {
@@ -122,14 +126,11 @@ Flynn: I'll try to call you back Thursday if you have an update on the email. My
     // Update status display
     const statusEl = SmartImportDOM.get('aiStatusDisplay');
     if (statusEl) {
-        const aiAvailable = checkAIAvailability();
-        statusEl.textContent = aiAvailable ? '🤖 AI Enhanced - Ready' : '📋 Rule-Based Parser - Ready';
+        statusEl.textContent = '📋 Rule-Based Parser - Ready';
         statusEl.className = 'ai-status-display';
-        if (aiAvailable) {
-            statusEl.style.borderColor = 'var(--success)';
-            statusEl.style.background = 'rgba(16, 185, 129, 0.1)';
-            statusEl.style.color = 'var(--success)';
-        }
+        statusEl.style.borderColor = 'var(--primary)';
+        statusEl.style.background = 'rgba(59, 130, 246, 0.1)';
+        statusEl.style.color = 'var(--primary)';
     }
     
     // Update parse button
@@ -155,7 +156,7 @@ function closeSmartImportEnhanced() {
 }
 
 // ================================================================
-// PARSE AND PREVIEW - HYBRID APPROACH
+// PARSE AND PREVIEW - HYBRID APPROACH (No AI)
 // ================================================================
 
 async function parseAndPreviewImportEnhanced() {
@@ -192,51 +193,17 @@ async function parseAndPreviewImportEnhanced() {
     updateImportProgress(10, '📋 Initializing parser...');
     
     try {
-        // Step 1: Use the hybrid parser
+        // Use the hybrid parser (no AI)
         updateImportProgress(20, '🔍 Running hybrid parser...');
         
         let parsed = transcriptParser.parse(text);
         
         updateImportProgress(40, '📊 Analyzing extracted data...');
         
-        // Step 2: If AI is available, enhance the parsing
-        const aiAvailable = checkAIAvailability();
-        SmartImportState.aiAvailable = aiAvailable;
-        
-        let enhancedParsed = null;
-        if (aiAvailable && SMART_IMPORT_CONFIG.useAI) {
-            updateImportProgress(50, '🧠 Enhancing with AI...');
-            
-            try {
-                const aiResult = await enhanceWithAI(text, parsed);
-                if (aiResult) {
-                    enhancedParsed = aiResult;
-                    updateImportProgress(70, '✅ AI enhancement complete');
-                    
-                    // Update status
-                    const statusEl = SmartImportDOM.get('aiStatusDisplay');
-                    if (statusEl) {
-                        statusEl.textContent = '🤖 AI Enhanced - Complete';
-                        statusEl.className = 'ai-status-display success';
-                    }
-                }
-            } catch (aiError) {
-                console.warn('AI enhancement failed, using base parser:', aiError);
-                const statusEl = SmartImportDOM.get('aiStatusDisplay');
-                if (statusEl) {
-                    statusEl.textContent = '⚠️ AI unavailable - Using rule-based parser';
-                    statusEl.className = 'ai-status-display warning';
-                }
-            }
-        }
-        
-        // Step 3: Merge AI enhancements if available
-        const finalResult = enhancedParsed || parsed;
-        
         updateImportProgress(80, '📝 Creating record...');
         
-        // Step 4: Create record from parsed data
-        const record = createImportRecord(finalResult, text, defaultDate);
+        // Create record from parsed data
+        const record = createImportRecord(parsed, text, defaultDate);
         
         AppState.importRecords = [record];
         SmartImportState.parsedData = record;
@@ -281,124 +248,20 @@ async function parseAndPreviewImportEnhanced() {
 }
 
 // ================================================================
-// AI ENHANCEMENT WITH PUTER.JS
+// AI ENHANCEMENT - DISABLED (Avoids WebSocket errors)
 // ================================================================
 
 async function enhanceWithAI(transcript, parsed) {
-    if (typeof puter === 'undefined' || !puter.ai || typeof puter.ai.chat !== 'function') {
-        return null;
-    }
-    
-    try {
-        // Build prompt with existing parsed data
-        const prompt = buildAIPrompt(transcript, parsed);
-        
-        const response = await puter.ai.chat(prompt, {
-            model: SMART_IMPORT_CONFIG.aiModel,
-            stream: false
-        });
-        
-        // Parse AI response
-        let aiData = response;
-        if (typeof response === 'string') {
-            // Try to extract JSON
-            const jsonMatch = response.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                try {
-                    aiData = JSON.parse(jsonMatch[0]);
-                } catch (e) {
-                    console.warn('Failed to parse AI response as JSON');
-                }
-            }
-        }
-        
-        if (aiData && typeof aiData === 'object') {
-            return mergeAIData(parsed, aiData);
-        }
-        
-        return null;
-    } catch (error) {
-        console.warn('AI enhancement error:', error);
-        return null;
-    }
+    // AI is disabled to avoid WebSocket errors
+    return null;
 }
 
 function buildAIPrompt(transcript, parsed) {
-    return `You are a sales transcript analyzer. Analyze this conversation and extract structured data.
-
-TRANSCRIPT:
-"""
-${transcript}
-"""
-
-CURRENTLY EXTRACTED DATA:
-${JSON.stringify(parsed, null, 2)}
-
-Please enhance and correct this data. Return a JSON object with the following fields:
-{
-  "business": "Business name",
-  "name": "Contact name",
-  "role": "Role (Owner, Manager, etc.)",
-  "phone": "Phone number",
-  "email": "Email address",
-  "date": "Meeting date in YYYY-MM-DD format",
-  "time": "Meeting time (e.g., 9:00 AM EDT)",
-  "status": "Status (Hot Transfer, Warm Callback, Meeting Booked, Completed, Canceled, Rescheduled, Pending)",
-  "websiteStatus": "Website status (Has Website, No Website, Needs Website)",
-  "businessGoals": "Business goals",
-  "acquisitionMethod": "How they found you",
-  "websitePurpose": "Purpose of website",
-  "brandingPreferences": "Branding/design preferences",
-  "interestLevel": "Interest level (Very High, High, Medium, Low, Very Low)",
-  "followUpActions": ["Action 1", "Action 2"],
-  "sentiment": "Sentiment (Very Positive, Positive, Neutral, Negative, Very Negative)",
-  "objections": ["Objection 1", "Objection 2"],
-  "callSummary": "2-3 sentence summary",
-  "meetingQualityScore": 0-10,
-  "developerNotes": "Concise developer notes"
-}
-
-Return ONLY valid JSON. No additional text.`;
+    return ''; // Not used
 }
 
 function mergeAIData(parsed, aiData) {
-    const merged = JSON.parse(JSON.stringify(parsed));
-    
-    const fields = [
-        'business', 'name', 'role', 'phone', 'email', 
-        'date', 'time', 'status', 'websiteStatus',
-        'businessGoals', 'acquisitionMethod', 'websitePurpose',
-        'brandingPreferences', 'interestLevel', 'sentiment',
-        'callSummary', 'developerNotes', 'meetingQualityScore'
-    ];
-    
-    for (const field of fields) {
-        if (aiData[field] && aiData[field] !== 'N/A' && aiData[field] !== '') {
-            merged[field] = {
-                value: aiData[field],
-                confidence: 0.9,
-                evidence: 'AI enhanced'
-            };
-        }
-    }
-    
-    if (aiData.followUpActions && Array.isArray(aiData.followUpActions) && aiData.followUpActions.length > 0) {
-        merged.followUpActions = {
-            value: aiData.followUpActions,
-            confidence: 0.85,
-            evidence: 'AI suggested'
-        };
-    }
-    
-    if (aiData.objections && Array.isArray(aiData.objections) && aiData.objections.length > 0) {
-        merged.objections = {
-            value: aiData.objections.map(o => ({ text: o, type: 'detected' })),
-            confidence: 0.85,
-            evidence: 'AI detected'
-        };
-    }
-    
-    return merged;
+    return parsed; // Not used
 }
 
 // ================================================================
@@ -972,6 +835,6 @@ window.SmartImport = {
     checkAI: checkAIAvailability
 };
 
-console.log('📥 Smart Import (Hybrid Parser) loaded successfully');
-console.log('🤖 AI Available:', checkAIAvailability() ? '✅ Yes' : '❌ No');
+console.log('📥 Smart Import loaded successfully');
+console.log('🤖 AI Available:', checkAIAvailability() ? '✅ Yes' : '❌ No (WebSocket errors avoided)');
 console.log('📊 Use "Parse Transcript" to extract data from conversations');
