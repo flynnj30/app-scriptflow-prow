@@ -30,7 +30,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     
     <!-- ============================================================ -->
-    <!-- FIREBASE - MUST LOAD FIRST -->
+    <!-- FIREBASE -->
     <!-- ============================================================ -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
@@ -304,7 +304,7 @@
     </div>
 
     <!-- ============================================================ -->
-    <!-- SCRIPTS - CORRECT LOADING ORDER (Firebase First) -->
+    <!-- SCRIPTS - CORRECT LOADING ORDER -->
     <!-- ============================================================ -->
     
     <!-- 1. Firebase Config (must be first) -->
@@ -313,15 +313,18 @@
     <!-- 2. Configuration -->
     <script src="js/config.js"></script>
     
-    <!-- 3. Feature Modules -->
+    <!-- 3. Parser Module (NEW) -->
+    <script src="js/parser/transcript-parser.js"></script>
+    
+    <!-- 4. Feature Modules -->
     <script src="js/smart-import.js"></script>
     <script src="js/objection-handler.js"></script>
     <script src="js/prospect-manager.js"></script>
     
-    <!-- 4. Core Application -->
+    <!-- 5. Core Application -->
     <script src="js/app.js"></script>
     
-    <!-- 5. Error Handler (Last) -->
+    <!-- 6. Error Handler (Last) -->
     <script src="js/error-handler.js"></script>
     
 </body>

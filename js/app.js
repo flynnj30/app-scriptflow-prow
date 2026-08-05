@@ -3,6 +3,47 @@
 // ================================================================
 
 // ================================================================
+// PARSER REFERENCE - CHECK AVAILABILITY
+// ================================================================
+
+// Check if transcript parser is available
+if (typeof transcriptParser !== 'undefined') {
+    console.log('📝 Transcript parser available');
+    window.transcriptParser = transcriptParser;
+} else {
+    console.warn('⚠️ Transcript parser not available - using fallback');
+    // Create a minimal fallback if parser is not available
+    window.transcriptParser = {
+        parse: function(transcript, defaultDate) {
+            console.warn('⚠️ Using fallback parser');
+            // Simple fallback extraction
+            const result = {
+                business: 'N/A',
+                name: 'N/A',
+                role: 'N/A',
+                phone: 'N/A',
+                email: 'N/A',
+                date: defaultDate || new Date().toISOString().split('T')[0],
+                time: 'N/A',
+                status: 'Meeting Booked',
+                assigned: 'Daniel',
+                notes: '',
+                tags: [],
+                sentiment: 'Neutral',
+                callSummary: '',
+                detectedObjections: [],
+                meetingQualityScore: 5,
+                missingInformation: [],
+                confidence: 0.3,
+                _confidence: {},
+                _evidence: {}
+            };
+            return result;
+        }
+    };
+}
+
+// ================================================================
 // SMART IMPORT FALLBACK FUNCTIONS
 // ================================================================
 
@@ -10,6 +51,7 @@ if (typeof window.openSmartImportEnhanced === 'undefined') {
     window.openSmartImportEnhanced = function() {
         const modal = document.getElementById('smartImportModal');
         if (modal) modal.style.display = 'flex';
+        else if (window.showToast) window.showToast('Smart Import modal not found', 'error');
         else alert('Smart Import modal not found');
     };
 }
@@ -17,20 +59,27 @@ if (typeof window.openSmartImportEnhanced === 'undefined') {
 if (typeof window.parseAndPreviewImportEnhanced === 'undefined') {
     window.parseAndPreviewImportEnhanced = function() {
         const textArea = document.getElementById('importTextArea');
-        if (!textArea) { alert('Text area not found'); return; }
+        if (!textArea) { 
+            if (window.showToast) window.showToast('Text area not found', 'error');
+            return; 
+        }
         const text = textArea.value;
-        if (!text.trim()) { alert('Please paste a transcript to parse'); return; }
+        if (!text.trim()) { 
+            if (window.showToast) window.showToast('Please paste a transcript to parse', 'warning');
+            return; 
+        }
         if (typeof window._parseAndPreviewImport === 'function') {
             window._parseAndPreviewImport();
         } else {
-            alert('Smart Import parser not loaded. Please refresh the page.');
+            if (window.showToast) window.showToast('Smart Import parser not loaded. Please refresh the page.', 'error');
         }
     };
 }
 
 if (typeof window.saveAllImportedAppointments === 'undefined') {
     window.saveAllImportedAppointments = function() {
-        alert('Save function not loaded. Please refresh the page.');
+        if (window.showToast) window.showToast('Save function not loaded. Please refresh the page.', 'error');
+        else alert('Save function not loaded. Please refresh the page.');
     };
 }
 
@@ -70,7 +119,8 @@ if (typeof window.quickImportFromClipboard === 'undefined') {
                 setTimeout(window.parseAndPreviewImportEnhanced, 500);
             }
         } catch (e) {
-            alert('Unable to read clipboard. Please paste manually.');
+            if (window.showToast) window.showToast('Unable to read clipboard. Please paste manually.', 'error');
+            else alert('Unable to read clipboard. Please paste manually.');
         }
     };
 }
@@ -113,19 +163,22 @@ if (typeof window.clearExtractedData === 'undefined') {
 
 if (typeof window.reviewDuplicate === 'undefined') {
     window.reviewDuplicate = function(index) {
-        alert('Review duplicate function not loaded. Please refresh.');
+        if (window.showToast) window.showToast('Review duplicate function not loaded. Please refresh.', 'warning');
+        else alert('Review duplicate function not loaded. Please refresh.');
     };
 }
 
 if (typeof window.updateDuplicate === 'undefined') {
     window.updateDuplicate = function(index) {
-        alert('Update duplicate function not loaded. Please refresh.');
+        if (window.showToast) window.showToast('Update duplicate function not loaded. Please refresh.', 'warning');
+        else alert('Update duplicate function not loaded. Please refresh.');
     };
 }
 
 if (typeof window.importAsNew === 'undefined') {
     window.importAsNew = function(index) {
-        alert('Import as new function not loaded. Please refresh.');
+        if (window.showToast) window.showToast('Import as new function not loaded. Please refresh.', 'warning');
+        else alert('Import as new function not loaded. Please refresh.');
     };
 }
 
@@ -234,7 +287,8 @@ const AppState = {
     analyticsFilters: { timeRange: 'today', startDate: null, endDate: null, setter: 'all', campaign: 'all', timeZone: 'local' },
     analyticsData: null,
     analyticsLoading: false,
-    firebaseStatus: null
+    firebaseStatus: null,
+    parserAvailable: typeof transcriptParser !== 'undefined'
 };
 
 // ================================================================
@@ -429,6 +483,10 @@ const Utils = {
     },
     formatDateForCompare(date) {
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    },
+    // Parser helper - check if parser is available
+    isParserAvailable() {
+        return typeof transcriptParser !== 'undefined' || typeof window.transcriptParser !== 'undefined';
     }
 };
 
@@ -519,7 +577,6 @@ const Auth = {
         if (AppState.authInProgress || !AppState.isFirebaseReady) {
             if (!AppState.isFirebaseReady) {
                 showToast('Firebase is connecting. Please wait...', 'info');
-                // Wait for Firebase to be ready
                 await new Promise((resolve) => {
                     const checkReady = setInterval(() => {
                         if (AppState.isFirebaseReady) {
@@ -676,7 +733,6 @@ const Auth = {
         `;
         document.body.appendChild(modal);
         
-        // Only attach event listeners if Firebase is ready
         if (isFirebaseReady) {
             const googleBtn = DOM.get('googleSignInBtn');
             const loginTab = DOM.get('loginTabBtn');
@@ -2441,6 +2497,7 @@ function cancelAppointment(appointmentId) {
 
 async function initApp() {
     console.log('🚀 Starting ScriptFlow Pro...');
+    console.log('📝 Parser available:', Utils.isParserAvailable());
     updateLoadingProgress(10, 'Initializing application...');
 
     // Check Firebase status
@@ -2448,7 +2505,6 @@ async function initApp() {
     
     if (!AppState.isFirebaseReady) {
         console.log('⏳ Waiting for Firebase to be ready...');
-        // Wait for Firebase to be ready
         await new Promise((resolve) => {
             const checkReady = setInterval(() => {
                 if (window.__FIREBASE_READY__) {
@@ -2637,7 +2693,7 @@ async function initApp() {
     // Initialize Prospect Manager
     Data.initProspectManager();
 
-    // Firebase auth - FIXED: Properly handle auth state
+    // Firebase auth - Properly handle auth state
     try {
         if (AppState.isFirebaseReady) {
             console.log('🔥 Setting up Firebase auth listener...');
@@ -2700,6 +2756,7 @@ async function initApp() {
 
     console.log('🚀 ScriptFlow Pro initialized successfully!');
     console.log('📥 Smart Import: Click the "Smart Import" button, paste text, click Parse, review, and Save!');
+    console.log('📝 Parser status:', Utils.isParserAvailable() ? '✅ Available' : '⚠️ Fallback mode');
 }
 
 // ================================================================
@@ -2734,9 +2791,11 @@ window.deleteProspect = deleteProspect;
 window.AnalyticsEngine = AnalyticsEngine;
 window.STORAGE_KEYS = STORAGE_KEYS;
 window.DOM = DOM;
+window.transcriptParser = transcriptParser || null;
 
 // Start the app
 document.addEventListener('DOMContentLoaded', initApp);
 
 console.log('🚀 ScriptFlow Pro loaded successfully');
 console.log('🔌 Firebase Ready:', AppState.isFirebaseReady);
+console.log('📝 Parser Available:', Utils.isParserAvailable());

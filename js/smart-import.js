@@ -1,19 +1,18 @@
 // ================================================================
-// SMART IMPORT - Rule-Based Only (No AI)
-// Complete replacement for smart-import.js
+// SMART IMPORT - Enhanced with Transcript Parser
 // ================================================================
 
 /**
- * Smart Import Configuration - AI DISABLED
+ * Smart Import Configuration
  */
 const SMART_IMPORT_CONFIG = {
-    useAI: false, // AI disabled
-    fallbackToRuleBased: true,
-    showConfidence: false,
-    showEvidence: false,
+    useParser: true,
+    showConfidence: true,
+    showEvidence: true,
     showAIStatus: false,
     defaultStatus: 'Meeting Booked',
-    defaultAssigned: 'Daniel'
+    defaultAssigned: 'Daniel',
+    minConfidence: 0.3
 };
 
 /**
@@ -30,9 +29,9 @@ const SmartImportState = {
     parseStartTime: null,
     parseEndTime: null,
     currentTranscript: null,
+    parserResult: null,
     isEditable: false,
-    useAI: false,
-    fallbackToRuleBased: true,
+    useParser: true,
     parsedData: null
 };
 
@@ -42,491 +41,163 @@ const SmartImportState = {
 
 const SmartImportDOM = window.DOM || {
     get: function(id) { return document.getElementById(id); },
-    show: function(id) { 
-        const el = document.getElementById(id);
-        if (el) el.style.display = 'block';
-    },
-    hide: function(id) {
-        const el = document.getElementById(id);
-        if (el) el.style.display = 'none';
-    },
-    setText: function(id, text) {
-        const el = document.getElementById(id);
-        if (el) el.textContent = text;
-    },
-    setHTML: function(id, html) {
-        const el = document.getElementById(id);
-        if (el) el.innerHTML = html;
-    }
+    show: function(id) { const el = document.getElementById(id); if (el) el.style.display = 'block'; },
+    hide: function(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; },
+    setText: function(id, text) { const el = document.getElementById(id); if (el) el.textContent = text; },
+    setHTML: function(id, html) { const el = document.getElementById(id); if (el) el.innerHTML = html; }
 };
 
 // ================================================================
-// ENHANCED RULE-BASED PARSER
+// ENHANCED TRANSCRIPT PARSING WITH NEW PARSER
 // ================================================================
 
-function parseTranscriptEnhanced(transcript, defaultDate) {
-    const result = {
-        business: { value: 'N/A', confidence: 0, evidence: '' },
-        name: { value: 'N/A', confidence: 0, evidence: '' },
-        role: { value: 'N/A', confidence: 0, evidence: '' },
-        phone: { value: 'N/A', confidence: 0, evidence: '' },
-        email: { value: 'N/A', confidence: 0, evidence: '' },
-        date: { value: defaultDate || new Date().toISOString().split('T')[0], confidence: 0.3, evidence: '' },
-        time: { value: 'N/A', confidence: 0, evidence: '' },
-        status: { value: 'Meeting Booked', confidence: 0.3, evidence: '' },
-        assigned: { value: 'Daniel', confidence: 0.3, evidence: '' },
-        notes: { value: '', confidence: 0.5, evidence: '' },
-        callSummary: { value: '', confidence: 0, evidence: '' },
-        meetingQualityScore: { value: 5, confidence: 0, evidence: '' },
-        detectedObjections: { value: [], confidence: 0, evidence: '' },
-        missingInformation: { value: [], confidence: 0, evidence: '' },
-        suggestedFollowUp: { value: [], confidence: 0, evidence: '' },
-        tags: { value: [], confidence: 0, evidence: '' },
-        sentiment: { value: 'Neutral', confidence: 0, evidence: '' }
+async function parseTranscriptEnhanced(transcript, defaultDate) {
+    console.log('📝 Starting enhanced transcript parsing...');
+    
+    // Check if the new parser is available
+    if (typeof transcriptParser !== 'undefined') {
+        try {
+            // Use the new parser
+            const result = transcriptParser.parse(transcript, defaultDate);
+            console.log('✅ Parser result:', result);
+            
+            // Format the result for the existing smart import structure
+            return {
+                business: { 
+                    value: result.business || 'N/A', 
+                    confidence: result._confidence?.business || 0.7, 
+                    evidence: result._evidence?.business || '' 
+                },
+                name: { 
+                    value: result.name || 'N/A', 
+                    confidence: result._confidence?.name || 0.7, 
+                    evidence: result._evidence?.name || '' 
+                },
+                role: { 
+                    value: result.role || 'N/A', 
+                    confidence: result._confidence?.role || 0.5, 
+                    evidence: result._evidence?.role || '' 
+                },
+                phone: { 
+                    value: result.phone || 'N/A', 
+                    confidence: result._confidence?.phone || 0.8, 
+                    evidence: result._evidence?.phone || '' 
+                },
+                email: { 
+                    value: result.email || 'N/A', 
+                    confidence: result._confidence?.email || 0.8, 
+                    evidence: result._evidence?.email || '' 
+                },
+                date: { 
+                    value: result.date || defaultDate || 'N/A', 
+                    confidence: result._confidence?.date || 0.7, 
+                    evidence: result._evidence?.date || '' 
+                },
+                time: { 
+                    value: result.time || 'N/A', 
+                    confidence: result._confidence?.time || 0.7, 
+                    evidence: result._evidence?.time || '' 
+                },
+                status: { 
+                    value: result.status || 'Meeting Booked', 
+                    confidence: result._confidence?.status || 0.6, 
+                    evidence: result._evidence?.status || '' 
+                },
+                assigned: { 
+                    value: result.assigned || 'Daniel', 
+                    confidence: result._confidence?.assigned || 0.5, 
+                    evidence: result._evidence?.assigned || '' 
+                },
+                notes: { 
+                    value: result.notes || '', 
+                    confidence: 0.6, 
+                    evidence: 'Extracted from conversation' 
+                },
+                callSummary: { 
+                    value: result.callSummary || '', 
+                    confidence: 0.5, 
+                    evidence: '' 
+                },
+                meetingQualityScore: { 
+                    value: result.meetingQualityScore || 5, 
+                    confidence: 0.5, 
+                    evidence: '' 
+                },
+                detectedObjections: { 
+                    value: result.detectedObjections || [], 
+                    confidence: 0.5, 
+                    evidence: '' 
+                },
+                missingInformation: { 
+                    value: result.missingInformation || [], 
+                    confidence: 0.9, 
+                    evidence: '' 
+                },
+                tags: { 
+                    value: result.tags || [], 
+                    confidence: 0.5, 
+                    evidence: '' 
+                },
+                sentiment: { 
+                    value: result.sentiment || 'Neutral', 
+                    confidence: 0.5, 
+                    evidence: '' 
+                },
+                _parserResult: result
+            };
+        } catch (error) {
+            console.error('Parser error:', error);
+            // Fallback to basic extraction
+            return await parseTranscriptWithFallback(transcript, defaultDate);
+        }
+    } else {
+        console.warn('⚠️ Transcript parser not available, using fallback');
+        return await parseTranscriptWithFallback(transcript, defaultDate);
+    }
+}
+
+/**
+ * Parse transcript with fallback (rule-based)
+ */
+async function parseTranscriptWithFallback(transcript, defaultDate) {
+    console.log('📝 Using fallback parser...');
+    
+    // Simple fallback extraction
+    const result = {};
+    const patterns = {
+        business: /(?:business|company|firm|brand|store)[:\s]+([^\n]+)/i,
+        name: /(?:name|contact|client|customer)[:\s]+([^\n]+)/i,
+        role: /(?:role|title|position)[:\s]+([^\n]+)/i,
+        phone: /(?:phone|mobile|cell|number)[:\s]+([+\d\s\-\(\)]+)/i,
+        email: /([^\s@]+@[^\s@]+\.[^\s@]+)/,
+        date: /(?:date|appointment|meeting|call)[:\s]+([^\n]+)/i,
+        time: /(?:time|at)[:\s]+([^\n]+)/i,
+        status: /(?:status|outcome)[:\s]+([^\n]+)/i,
+        assigned: /(?:assigned|owner|agent)[:\s]+([^\n]+)/i,
+        notes: /(?:notes|remarks|summary)[:\s]+([^\n]+)/i
     };
-
-    const cleanText = transcript.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const lines = cleanText.split('\n').filter(line => line.trim());
-    const fullText = lines.join(' ');
-
-    // ============================================================
-    // PATTERN DEFINITIONS
-    // ============================================================
-
-    // Business name patterns
-    const businessPatterns = [
-        /(?:business|company|organization|org|firm|brand|store|shop)[:\s]+([A-Z][A-Za-z0-9\s&'\-.,]+?)(?:[,.\n]|$)/i,
-        /(?:from|at|with|for)\s+([A-Z][A-Za-z0-9\s&'\-.,]+?)(?:[,.\n]|$)/i,
-        /(?:called|named)\s+([A-Z][A-Za-z0-9\s&'\-.,]+?)(?:[,.\n]|$)/i,
-        /^([A-Z][A-Za-z0-9\s&'\-.,]+?)(?:\s+(?:is|are|was|were|has|have|had|said|wants))/i
-    ];
-
-    // Name patterns
-    const namePatterns = [
-        /(?:name|contact|client|customer|person|full name)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
-        /(?:from|with|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
-        /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:from|at|with|said|wants|would like)/i,
-        /(?:my name is|this is|i'm|i am)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i
-    ];
-
-    // Phone patterns
-    const phonePatterns = [
-        /(?:phone|mobile|cell|telephone|number|call|contact)[:\s]+([+\d\s\-\(\)]{7,20})/i,
-        /([+\d\s\-\(\)]{10,20})(?:\s*(?:is|was|will be|the|their|his|her))/i,
-        /(\d{3}[-.]?\d{3}[-.]?\d{4})/,
-        /\(\d{3}\)\s*\d{3}[-.]?\d{4}/,
-        /(\+\d{1,3}[\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{4})/
-    ];
-
-    // Email patterns
-    const emailPatterns = [
-        /([^\s@]+@[^\s@]+\.[^\s@]+)/,
-        /(?:email|e-mail|mail|address)[:\s]+([^\s@]+@[^\s@]+\.[^\s@]+)/i
-    ];
-
-    // Role patterns
-    const rolePatterns = [
-        /(?:role|title|position|job title|designation)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
-        /(?:owner|manager|ceo|director|supervisor|team lead|president|founder|co-founder)/i
-    ];
-
-    // Date patterns
-    const datePatterns = [
-        /(?:date|appointment|scheduled|meeting|call|day|on)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i,
-        /(\d{1,2}\/\d{1,2}\/\d{4})/,
-        /(\d{4}-\d{2}-\d{2})/,
-        /([A-Za-z]+\s+\d{1,2},?\s+\d{4})/,
-        /(\d{1,2}(?:st|nd|rd|th)?\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4})/i
-    ];
-
-    // Time patterns
-    const timePatterns = [
-        /(?:time|at|for)[:\s]+(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm))/i,
-        /(?:time|at|for)[:\s]+(\d{1,2}\s*(?:AM|PM|am|pm))/i,
-        /(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm))/,
-        /(\d{1,2}\s*(?:AM|PM|am|pm))/
-    ];
-
-    // Status patterns
-    const statusPatterns = {
-        'Hot Transfer': /(?:hot transfer|hot lead|ready to transfer|transferring now|take it over)/i,
-        'Warm Callback': /(?:warm callback|call back|follow up|follow-up|callback|call me back|get back to)/i,
-        'Completed': /(?:completed|done|finished|closed|wrapped up|finalized)/i,
-        'Canceled': /(?:canceled|cancelled|no show|didn't show|not interested|no longer|passed)/i,
-        'Rescheduled': /(?:rescheduled|reschedule|postponed|pushed back|moved to|another time)/i,
-        'Meeting Booked': /(?:meeting booked|booked|scheduled|confirmed|set up|locked in|calendar invite)/i,
-        'Held': /(?:held|meeting done|conversation had|discussed|walked through|presented)/i,
-        'Pending': /(?:pending|waiting|undecided|thinking|considering|maybe)/i
-    };
-
-    // Sentiment patterns
-    const sentimentPatterns = {
-        'Very Positive': /(?:amazing|excellent|outstanding|fantastic|perfect|brilliant|incredible|wonderful|extraordinary|love it|great job)/i,
-        'Positive': /(?:great|good|nice|positive|happy|pleased|satisfied|impressed|interested|excited|enthusiastic|awesome|sounds good|like it)/i,
-        'Neutral': /(?:okay|fine|alright|neutral|average|decent|moderate|standard|normal|not bad|so-so)/i,
-        'Negative': /(?:bad|poor|terrible|awful|horrible|disappointed|unhappy|frustrated|annoyed|irritated|not good|don't like)/i,
-        'Very Negative': /(?:worst|horrible|disgusting|atrocious|abysmal|appalling|dreadful|unacceptable|never|hate)/i
-    };
-
-    // Objection patterns
-    const objectionPatterns = [
-        /(?:not interested|no thanks|don't need|not right now)/i,
-        /(?:too busy|don't have time|busy right now|can't talk)/i,
-        /(?:already have|already got|we already|currently have)/i,
-        /(?:too expensive|cost too much|price is high|budget)/i,
-        /(?:call me back|not now|later|some other time)/i,
-        /(?:send info|email me|just send|information)/i,
-        /(?:who is this|how did you|where did you|why are you)/i
-    ];
-
-    // Tag patterns
-    const tagPatterns = {
-        'vip': /(?:vip|priority|important|key|major|top|high value)/i,
-        'qualified_warm_call': /(?:qualified|warm call|good fit|ideal|perfect fit|qualified lead|interested|positive)/i,
-        'high_interest': /(?:high interest|very interested|excited|enthusiastic|love it)/i,
-        'decision_maker': /(?:owner|ceo|president|founder|director|decision maker|manager)/i,
-        'callback_requested': /(?:callback|call back|return call|follow up|follow-up|next steps|schedule call|call me)/i,
-        'referred': /(?:referred|reference|referral|recommended|suggested|from|sent by)/i,
-        'no_website': /(?:no website|doesn't have a website|needs website|wants website|website redesign|new site)/i,
-        'negligent_warm_callback': /(?:negligent|unqualified|not interested|no interest|poor fit|bad fit)/i
-    };
-
-    // Assigned agent patterns
-    const assignedPatterns = [
-        /(?:assigned|assigned to|owner|agent|representative|rep)[:\s]+([A-Z][a-z]+)/i,
-        /(?:kailan|seif|daniel|sarah|mike|jessica|david)/i
-    ];
-
-    // ============================================================
-    // EXTRACTION FUNCTIONS
-    // ============================================================
-
-    function extractField(patterns, text, defaultValue = 'N/A') {
-        for (const pattern of patterns) {
-            const match = text.match(pattern);
-            if (match && match[1]) {
-                const value = match[1].trim();
-                if (value && value.length > 1) {
-                    return value;
-                }
-            }
-            // For regex patterns that don't use capture groups (like role patterns)
-            if (typeof pattern === 'string' || !pattern.exec) {
-                const match2 = text.match(pattern);
-                if (match2 && match2[0]) {
-                    const value = match2[0].trim();
-                    if (value && value.length > 1) {
-                        return value;
-                    }
-                }
-            }
-        }
-        return defaultValue;
-    }
-
-    function extractAllMatches(pattern, text) {
-        const matches = [];
-        let match;
-        const regex = new RegExp(pattern, 'gi');
-        while ((match = regex.exec(text)) !== null) {
-            if (match[1]) {
-                matches.push(match[1].trim());
-            } else if (match[0]) {
-                matches.push(match[0].trim());
-            }
-        }
-        return matches;
-    }
-
-    function extractStatus(text) {
-        for (const [status, pattern] of Object.entries(statusPatterns)) {
-            if (pattern.test(text)) {
-                return status;
-            }
-        }
-        return 'Meeting Booked';
-    }
-
-    function extractSentiment(text) {
-        for (const [sentiment, pattern] of Object.entries(sentimentPatterns)) {
-            if (pattern.test(text)) {
-                return sentiment;
-            }
-        }
-        return 'Neutral';
-    }
-
-    function extractTags(text) {
-        const tags = [];
-        for (const [tag, pattern] of Object.entries(tagPatterns)) {
-            if (pattern.test(text)) {
-                tags.push(tag);
-            }
-        }
-        return tags;
-    }
-
-    function extractObjections(text) {
-        const objections = [];
-        for (const pattern of objectionPatterns) {
-            if (pattern.test(text)) {
-                const match = text.match(pattern);
-                if (match) {
-                    objections.push(match[0].trim());
-                }
-            }
-        }
-        // Remove duplicates
-        return [...new Set(objections)];
-    }
-
-    function parseDateString(dateStr) {
-        if (!dateStr) return null;
-        const trimmed = dateStr.trim();
-        
-        // ISO format: YYYY-MM-DD
-        const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-        if (isoMatch) {
-            const year = parseInt(isoMatch[1]);
-            const month = parseInt(isoMatch[2]) - 1;
-            const day = parseInt(isoMatch[3]);
-            const date = new Date(year, month, day);
-            if (!isNaN(date.getTime())) {
-                return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            }
-        }
-        
-        // US format: MM/DD/YYYY
-        const usMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-        if (usMatch) {
-            const month = parseInt(usMatch[1]) - 1;
-            const day = parseInt(usMatch[2]);
-            const year = parseInt(usMatch[3]);
-            const date = new Date(year, month, day);
-            if (!isNaN(date.getTime())) {
-                return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            }
-        }
-        
-        // Natural format: Month Day, Year
-        const naturalMatch = trimmed.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/i);
-        if (naturalMatch) {
-            const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-            const monthName = naturalMatch[1].toLowerCase();
-            const monthIndex = months.indexOf(monthName);
-            if (monthIndex !== -1) {
-                const day = parseInt(naturalMatch[2]);
-                const year = parseInt(naturalMatch[3]);
-                const date = new Date(year, monthIndex, day);
-                if (!isNaN(date.getTime())) {
-                    return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                }
-            }
-        }
-
-        // Month Day format (without year)
-        const monthDayMatch = trimmed.match(/([A-Za-z]+)\s+(\d{1,2})/i);
-        if (monthDayMatch) {
-            const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-            const monthName = monthDayMatch[1].toLowerCase();
-            const monthIndex = months.indexOf(monthName);
-            if (monthIndex !== -1) {
-                const day = parseInt(monthDayMatch[2]);
-                const year = new Date().getFullYear();
-                const date = new Date(year, monthIndex, day);
-                // If date is in the past, use next year
-                if (date < new Date() && monthIndex < new Date().getMonth()) {
-                    date.setFullYear(year + 1);
-                }
-                if (!isNaN(date.getTime())) {
-                    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-                }
-            }
-        }
-        
-        // Today/Tomorrow/Yesterday
-        if (/today/i.test(trimmed)) {
-            const d = new Date();
-            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        }
-        if (/tomorrow/i.test(trimmed)) {
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
-        }
-        if (/yesterday/i.test(trimmed)) {
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            return `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
-        }
-        
-        return null;
-    }
-
-    // ============================================================
-    // EXECUTE EXTRACTION
-    // ============================================================
-
-    // Extract business name
-    let business = extractField(businessPatterns, fullText);
-    if (business === 'N/A') {
-        // Try to find business after "is this" pattern
-        const isThisMatch = fullText.match(/is this\s+([A-Z][A-Za-z0-9\s&'\-.,]+?)(?:[?.,!]|$)/i);
-        if (isThisMatch && isThisMatch[1]) {
-            business = isThisMatch[1].trim();
+    
+    for (const [field, pattern] of Object.entries(patterns)) {
+        const match = transcript.match(pattern);
+        if (match && match[1]) {
+            result[field] = { value: match[1].trim(), confidence: 0.6, evidence: match[0] };
+        } else {
+            result[field] = { value: 'N/A', confidence: 0, evidence: '' };
         }
     }
-    if (business && business !== 'N/A') {
-        result.business.value = business;
-        result.business.confidence = 0.7;
+    
+    if (result.date?.value === 'N/A' && defaultDate) {
+        result.date.value = defaultDate;
+        result.date.confidence = 0.3;
     }
-
-    // Extract name
-    let name = extractField(namePatterns, fullText);
-    if (name === 'N/A') {
-        // Try "Prospect: Name" pattern
-        const prospectMatch = fullText.match(/Prospect:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
-        if (prospectMatch && prospectMatch[1]) {
-            name = prospectMatch[1].trim();
-        }
-    }
-    if (name && name !== 'N/A') {
-        result.name.value = name;
-        result.name.confidence = 0.7;
-    }
-
-    // Extract phone
-    let phone = extractField(phonePatterns, fullText);
-    if (phone && phone !== 'N/A') {
-        // Clean up phone number
-        phone = phone.replace(/[^+\d]/g, '');
-        if (phone.length >= 10) {
-            result.phone.value = phone;
-            result.phone.confidence = 0.8;
-        }
-    }
-
-    // Extract email
-    let email = extractField(emailPatterns, fullText);
-    if (email && email !== 'N/A') {
-        result.email.value = email.toLowerCase();
-        result.email.confidence = 0.9;
-    }
-
-    // Extract role
-    let role = extractField(rolePatterns, fullText);
-    if (role && role !== 'N/A') {
-        result.role.value = role;
-        result.role.confidence = 0.5;
-    }
-
-    // Extract date
-    let date = extractField(datePatterns, fullText);
-    if (date && date !== 'N/A') {
-        const parsedDate = parseDateString(date);
-        if (parsedDate) {
-            result.date.value = parsedDate;
-            result.date.confidence = 0.8;
-        }
-    }
-
-    // Extract time
-    let time = extractField(timePatterns, fullText);
-    if (time && time !== 'N/A') {
-        result.time.value = time;
-        result.time.confidence = 0.8;
-    }
-
-    // Extract status
-    const status = extractStatus(fullText);
-    result.status.value = status;
-    result.status.confidence = 0.6;
-
-    // Extract assigned
-    let assigned = extractField(assignedPatterns, fullText);
-    if (assigned && assigned !== 'N/A') {
-        result.assigned.value = assigned;
-        result.assigned.confidence = 0.5;
-    }
-
-    // Extract sentiment
-    const sentiment = extractSentiment(fullText);
-    result.sentiment.value = sentiment;
-    result.sentiment.confidence = 0.5;
-
-    // Extract tags
-    const tags = extractTags(fullText);
-    if (tags.length > 0) {
-        result.tags.value = tags;
-        result.tags.confidence = 0.5;
-    }
-
-    // Extract objections
-    const objections = extractObjections(fullText);
-    if (objections.length > 0) {
-        result.detectedObjections.value = objections;
-        result.detectedObjections.confidence = 0.5;
-    }
-
-    // Extract notes - everything that wasn't captured
-    let notes = '';
-    for (const line of lines) {
-        // Skip lines that are likely just speaker labels
-        if (/^[A-Za-z]+:/.test(line) && !/Prospect:/.test(line) && !/Flynn:/.test(line)) {
-            notes += line + '\n';
-        } else if (!/^[A-Za-z]+:/.test(line) && line.length > 3) {
-            notes += line + '\n';
-        }
-    }
-    if (notes.trim()) {
-        result.notes.value = notes.trim();
-        result.notes.confidence = 0.5;
-    }
-
-    // Generate call summary
-    const firstLines = lines.slice(0, 3).join(' ');
-    if (firstLines) {
-        result.callSummary.value = firstLines.substring(0, 150) + (firstLines.length > 150 ? '...' : '');
-        result.callSummary.confidence = 0.4;
-    }
-
-    // Detect missing information
-    const missing = [];
-    if (result.business.value === 'N/A') missing.push('Business Name');
-    if (result.name.value === 'N/A') missing.push('Contact Name');
-    if (result.phone.value === 'N/A') missing.push('Phone Number');
-    if (result.email.value === 'N/A') missing.push('Email');
-    if (result.time.value === 'N/A') missing.push('Time');
-    if (missing.length > 0) {
-        result.missingInformation.value = missing;
-        result.missingInformation.confidence = 0.9;
-    }
-
-    // Generate follow-up suggestions
-    const suggestions = [];
-    if (result.status.value === 'Warm Callback') {
-        suggestions.push('Schedule follow-up call');
-    }
-    if (result.status.value === 'Meeting Booked') {
-        suggestions.push('Send calendar invite');
-    }
-    if (result.status.value === 'Hot Transfer') {
-        suggestions.push('Transfer to closer immediately');
-    }
-    if (result.status.value === 'Pending') {
-        suggestions.push('Follow up in 2-3 days');
-    }
-    if (result.tags.value.includes('no_website')) {
-        suggestions.push('Prepare website preview');
-    }
-    if (result.tags.value.includes('vip')) {
-        suggestions.push('Priority follow-up');
-    }
-    if (suggestions.length > 0) {
-        result.suggestedFollowUp.value = suggestions;
-        result.suggestedFollowUp.confidence = 0.5;
-    }
-
+    
+    result.callSummary = { value: 'Call summary not available', confidence: 0, evidence: '' };
+    result.meetingQualityScore = { value: 5, confidence: 0, evidence: '' };
+    result.detectedObjections = { value: [], confidence: 0, evidence: '' };
+    result.missingInformation = { value: [], confidence: 0, evidence: '' };
+    result.tags = { value: [], confidence: 0, evidence: '' };
+    result.sentiment = { value: 'Neutral', confidence: 0, evidence: '' };
+    
     return result;
 }
 
@@ -552,6 +223,7 @@ function openSmartImportEnhanced() {
     AppState.importProcessing = false;
     AppState.importProgress = 0;
     SmartImportState.isParsing = false;
+    SmartImportState.parserResult = null;
     SmartImportState.parsedData = null;
     
     const dateInput = SmartImportDOM.get('importDefaultDate');
@@ -598,11 +270,12 @@ Flynn: I'll try to call you back Thursday if you have an update on the email. My
         parseBtn.disabled = false;
     }
     
-    // Remove AI status display if exists
-    const aiStatusEl = SmartImportDOM.get('aiStatusDisplay');
-    if (aiStatusEl) {
-        aiStatusEl.textContent = '📋 Ready to parse';
-        aiStatusEl.className = 'ai-status-display';
+    // Update status display
+    const statusEl = SmartImportDOM.get('aiStatusDisplay');
+    if (statusEl) {
+        const parserAvailable = typeof transcriptParser !== 'undefined';
+        statusEl.textContent = parserAvailable ? '📝 Enhanced parser ready' : '📋 Ready to parse (basic)';
+        statusEl.className = 'ai-status-display';
     }
 }
 
@@ -616,14 +289,15 @@ function closeSmartImportEnhanced() {
     AppState.importProcessing = false;
     SmartImportState.isParsing = false;
     SmartImportState.currentTranscript = null;
+    SmartImportState.parserResult = null;
     SmartImportState.parsedData = null;
 }
 
 /**
- * Parse and preview import (rule-based only)
+ * Parse and preview import with enhanced parser
  */
-function parseAndPreviewImportEnhanced() {
-    console.log('🔍 Parsing transcript...');
+async function parseAndPreviewImportEnhanced() {
+    console.log('🔍 Parsing transcript with enhanced parser...');
     const textArea = SmartImportDOM.get('importTextArea');
     if (!textArea) {
         if (window.showToast) window.showToast('Text area not found', 'error');
@@ -652,13 +326,13 @@ function parseAndPreviewImportEnhanced() {
         parseBtn.disabled = true;
     }
     
-    updateImportProgress(10, '📋 Analyzing transcript...');
+    updateImportProgress(10, '📝 Analyzing transcript...');
     
     try {
-        // Use enhanced rule-based parser
+        // Use enhanced parser
         updateImportProgress(30, '🔍 Extracting fields...');
         
-        const parsed = parseTranscriptEnhanced(text, defaultDate);
+        const parsed = await parseTranscriptEnhanced(text, defaultDate);
         
         updateImportProgress(60, '📊 Processing results...');
         
@@ -691,15 +365,30 @@ function parseAndPreviewImportEnhanced() {
             callSummary: parsed.callSummary.value || '',
             detectedObjections: parsed.detectedObjections.value || [],
             missingInformation: parsed.missingInformation.value || [],
-            suggestedFollowUp: parsed.suggestedFollowUp.value || [],
-            tags: parsed.tags.value || []
+            suggestedFollowUp: parsed.suggestedFollowUp?.value || [],
+            tags: parsed.tags.value || [],
+            sentiment: parsed.sentiment.value || 'Neutral',
+            _confidence: {
+                business: parsed.business.confidence || 0,
+                name: parsed.name.confidence || 0,
+                role: parsed.role.confidence || 0,
+                phone: parsed.phone.confidence || 0,
+                email: parsed.email.confidence || 0,
+                date: parsed.date.confidence || 0,
+                time: parsed.time.confidence || 0,
+                status: parsed.status.confidence || 0
+            }
         };
+        
+        // Calculate average confidence
+        const confValues = Object.values(record._confidence);
+        record.avgConfidence = confValues.reduce((a, b) => a + b, 0) / Math.max(1, confValues.length);
         
         // Check for uncertain fields
         const uncertain = [];
-        for (const [field, data] of Object.entries(parsed)) {
-            if (data.confidence < 0.3 && data.value !== 'N/A') {
-                uncertain.push({ field, message: `Low confidence in ${field}` });
+        for (const [field, conf] of Object.entries(record._confidence)) {
+            if (conf < 0.4 && conf > 0) {
+                uncertain.push({ field, message: `Low confidence (${Math.round(conf * 100)}%)` });
             }
         }
         record.uncertainFields = uncertain;
@@ -707,10 +396,10 @@ function parseAndPreviewImportEnhanced() {
         // Check for duplicates
         const existingAppointments = Data.getAllAppointments();
         for (const existing of existingAppointments) {
-            if (parsed.business.value !== 'N/A' && existing.business && 
-                parsed.business.value.toLowerCase().trim() === existing.business.toLowerCase().trim() &&
-                parsed.phone.value !== 'N/A' && existing.phone &&
-                parsed.phone.value.replace(/[^\d+]/g, '') === existing.phone.replace(/[^\d+]/g, '')) {
+            if (record.validated.business !== 'N/A' && existing.business && 
+                record.validated.business.toLowerCase().trim() === existing.business.toLowerCase().trim() &&
+                record.validated.phone !== 'N/A' && existing.phone &&
+                record.validated.phone.replace(/[^\d+]/g, '') === existing.phone.replace(/[^\d+]/g, '')) {
                 record.hasDuplicate = true;
                 record.duplicates.push({
                     existing: existing,
@@ -724,13 +413,14 @@ function parseAndPreviewImportEnhanced() {
         
         AppState.importRecords = [record];
         SmartImportState.parsedData = record;
+        SmartImportState.parserResult = parsed;
         
         updateImportProgress(85, '✅ Analysis complete!');
         
         const parseTime = ((Date.now() - SmartImportState.parseStartTime) / 1000).toFixed(1);
         
         setTimeout(() => {
-            renderImportResults([record], 65, parseTime);
+            renderImportResults([record], Math.round(record.avgConfidence * 100), parseTime);
             AppState.importProcessing = false;
             SmartImportState.isParsing = false;
             updateImportProgress(100, '✨ Ready! Review and save.');
@@ -765,7 +455,7 @@ function parseAndPreviewImportEnhanced() {
 }
 
 /**
- * Render import results
+ * Render import results with confidence indicators
  */
 function renderImportResults(records, avgConfidence, parseTime) {
     const preview = SmartImportDOM.get('importPreview');
@@ -789,6 +479,9 @@ function renderImportResults(records, avgConfidence, parseTime) {
         const duplicates = records.filter(r => r.hasDuplicate).length;
         const uncertain = records.filter(r => r.uncertainFields && r.uncertainFields.length > 0).length;
         
+        const confidenceLabel = avgConfidence >= 80 ? 'High' : (avgConfidence >= 60 ? 'Medium' : 'Low');
+        const confidenceColor = avgConfidence >= 80 ? 'success' : (avgConfidence >= 60 ? 'warning' : 'danger');
+        
         summary.style.display = 'block';
         summary.innerHTML = `
             <div class="import-summary-grid">
@@ -809,8 +502,8 @@ function renderImportResults(records, avgConfidence, parseTime) {
                     <span class="stat-label">❓ Uncertain Fields</span>
                 </div>
                 <div class="import-stat" style="grid-column: span 1;">
-                    <span class="stat-number">${avgConfidence}%</span>
-                    <span class="stat-label">📊 Confidence</span>
+                    <span class="stat-number" style="color: var(--${confidenceColor});">${avgConfidence}%</span>
+                    <span class="stat-label">📊 Confidence (${confidenceLabel})</span>
                 </div>
                 <div class="import-stat" style="grid-column: span 1;">
                     <span class="stat-number">${parseTime || '0.0'}s</span>
@@ -823,6 +516,7 @@ function renderImportResults(records, avgConfidence, parseTime) {
     let resultsHtml = '';
     records.forEach((record) => {
         const data = record.validated || {};
+        const confidence = record._confidence || {};
         
         const fields = [
             { key: 'business', label: 'Business Name', value: data.business },
@@ -838,12 +532,15 @@ function renderImportResults(records, avgConfidence, parseTime) {
         
         const fieldRows = fields.map(f => {
             const isNA = f.value === 'N/A' || !f.value;
+            const conf = confidence[f.key] || 0;
+            const confLabel = conf >= 0.7 ? 'High' : (conf >= 0.4 ? 'Medium' : 'Low');
+            const confClass = conf >= 0.7 ? 'high' : (conf >= 0.4 ? 'medium' : 'low');
             const valueDisplay = f.key === 'date' && f.value !== 'N/A' ? Utils.formatDate(f.value) : f.value;
             return `
-                <div class="field-row ${isNA ? 'na-field' : ''}">
+                <div class="field-row ${isNA ? 'na-field' : ''} ${confClass}">
                     <span class="field-label">${f.label}</span>
                     <span class="field-value ${isNA ? 'na-value' : ''}">${isNA ? 'N/A' : Utils.escapeHtml(valueDisplay)}</span>
-                    <span class="field-label" style="font-size:0.6rem; min-width:auto;">${isNA ? 'Missing' : '✓'}</span>
+                    <span class="field-confidence ${confClass}">${isNA ? 'N/A' : confLabel}</span>
                 </div>
             `;
         }).join('');
@@ -859,11 +556,13 @@ function renderImportResults(records, avgConfidence, parseTime) {
                         <span class="record-name">${data.name && data.name !== 'N/A' ? Utils.escapeHtml(data.name) : 'Unknown'}</span>
                         <span class="record-business">${data.business && data.business !== 'N/A' ? Utils.escapeHtml(data.business) : 'Unknown Business'}</span>
                         ${data.status && data.status !== 'N/A' ? `<span class="record-status-badge">${Utils.escapeHtml(data.status)}</span>` : ''}
+                        ${record.sentiment && record.sentiment !== 'N/A' ? `<span class="record-status-badge" style="background:${record.sentiment === 'Positive' ? 'var(--success)' : record.sentiment === 'Negative' ? 'var(--danger)' : 'var(--warning)'};">${record.sentiment}</span>` : ''}
                     </div>
                     <div class="record-badges">
                         ${record.hasDuplicate ? '<span class="badge duplicate">🔄 Duplicate</span>' : ''}
                         ${record.uncertainFields && record.uncertainFields.length > 0 ? `<span class="badge warning">❓ ${record.uncertainFields.length}</span>` : ''}
                         ${record.tags && record.tags.length > 0 ? `<span class="badge confidence high">🏷️ ${record.tags.length}</span>` : ''}
+                        <span class="badge confidence ${record.avgConfidence >= 0.7 ? 'high' : record.avgConfidence >= 0.4 ? 'medium' : 'low'}">${Math.round(record.avgConfidence * 100)}%</span>
                     </div>
                     <span class="record-toggle">▼</span>
                 </div>
@@ -887,10 +586,18 @@ function renderImportResults(records, avgConfidence, parseTime) {
                             <ul>${record.detectedObjections.map(o => `<li>${o}</li>`).join('')}</ul>
                         </div>
                     ` : ''}
-                    ${record.suggestedFollowUp && record.suggestedFollowUp.length > 0 ? `
-                        <div class="record-uncertain" style="border-left-color: var(--success);">
-                            <strong>📌 Suggested Follow-ups:</strong>
-                            <ul>${record.suggestedFollowUp.map(s => `<li>${s}</li>`).join('')}</ul>
+                    ${record.tags && record.tags.length > 0 ? `
+                        <div class="record-uncertain" style="border-left-color: var(--primary);">
+                            <strong>🏷️ Tags:</strong>
+                            <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
+                                ${record.tags.map(t => `<span style="background:rgba(59,130,246,0.1); padding:2px 10px; border-radius:12px; font-size:0.7rem;">#${t}</span>`).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    ${record.callSummary ? `
+                        <div style="padding:8px 12px; background:var(--bg-primary); border-radius:6px; margin-top:8px;">
+                            <strong>📝 Summary:</strong>
+                            <div style="margin-top:4px; font-size:0.8rem; color:var(--text-secondary);">${Utils.escapeHtml(record.callSummary)}</div>
                         </div>
                     ` : ''}
                     ${record.hasDuplicate && record.duplicates && record.duplicates.length > 0 ? `
@@ -904,12 +611,6 @@ function renderImportResults(records, avgConfidence, parseTime) {
                                 <button class="btn-icon update-duplicate" onclick="window.updateDuplicate('${record.index}')">Update</button>
                                 <button class="btn-icon import-new" onclick="window.importAsNew('${record.index}')">Import as New</button>
                             </div>
-                        </div>
-                    ` : ''}
-                    ${record.callSummary ? `
-                        <div style="padding:8px 12px; background:var(--bg-primary); border-radius:6px; margin-top:8px;">
-                            <strong>📝 Summary:</strong>
-                            <div style="margin-top:4px; font-size:0.8rem; color:var(--text-secondary);">${Utils.escapeHtml(record.callSummary)}</div>
                         </div>
                     ` : ''}
                 </div>
@@ -964,6 +665,12 @@ function saveAllImportedAppointments() {
         if (record.suggestedFollowUp && record.suggestedFollowUp.length > 0) {
             notes += (notes ? '\n' : '') + 'Follow-up: ' + record.suggestedFollowUp.join(', ');
         }
+        if (record.tags && record.tags.length > 0) {
+            notes += (notes ? '\n' : '') + 'Tags: ' + record.tags.join(', ');
+        }
+        if (record.sentiment && record.sentiment !== 'Neutral') {
+            notes += (notes ? '\n' : '') + 'Sentiment: ' + record.sentiment;
+        }
         
         // Map status to valid options
         let status = data.status || 'Meeting Booked';
@@ -998,6 +705,10 @@ function saveAllImportedAppointments() {
     if (typeof FeaturePanel !== 'undefined') FeaturePanel.refreshCurrentView();
     Stats.updateAll();
 }
+
+// ================================================================
+// UTILITY FUNCTIONS
+// ================================================================
 
 function updateImportProgress(percent, message) {
     const progressBar = SmartImportDOM.get('importProgressBar');
@@ -1142,6 +853,7 @@ window.updateDuplicate = updateDuplicate;
 window.importAsNew = importAsNew;
 window.SmartImportState = SmartImportState;
 window.SmartImportDOM = SmartImportDOM;
+window.parseTranscriptEnhanced = parseTranscriptEnhanced;
 
 // Export SmartImport object
 window.SmartImport = {
@@ -1151,8 +863,9 @@ window.SmartImport = {
     render: renderImportResults,
     save: saveAllImportedAppointments,
     state: SmartImportState,
-    config: SMART_IMPORT_CONFIG
+    config: SMART_IMPORT_CONFIG,
+    parseEnhanced: parseTranscriptEnhanced
 };
 
-console.log('📥 Smart Import (Rule-Based) loaded successfully');
+console.log('📥 Smart Import (Enhanced with Parser) loaded successfully');
 console.log('📊 Use "Parse Transcript" to extract data from conversations');
