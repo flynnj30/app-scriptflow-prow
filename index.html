@@ -189,8 +189,8 @@
         <div class="modal-card">
             <h3><i class="fas fa-magic"></i> Smart Import</h3>
             
-            <!-- AI Status Display -->
-            <div id="aiStatusDisplay" class="ai-status-display">🤖 AI ready</div>
+            <!-- Status Display -->
+            <div id="aiStatusDisplay" class="ai-status-display">📋 Ready to parse</div>
             
             <div class="import-date-selector">
                 <label>Target Appointment Date:</label>
@@ -201,7 +201,7 @@
             
             <div class="form-group">
                 <label for="importTextArea">📝 Conversation Transcript</label>
-                <textarea id="importTextArea" rows="8" placeholder="Paste your conversation transcript here. The AI will intelligently extract all CRM fields.
+                <textarea id="importTextArea" rows="8" placeholder="Paste your conversation transcript here. The parser will intelligently extract all CRM fields.
 
 Example transcript:
 &quot;Flynn: Hey, is this RG77 Tires?
@@ -240,7 +240,7 @@ Flynn: I'll try to call you back Thursday if you have an update on the email. My
             <!-- Action Buttons -->
             <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:15px; flex-wrap:wrap;">
                 <button id="parseImportBtn" class="btn-icon" style="background:var(--primary); color:white;">
-                    <i class="fas fa-wand-magic-sparkles"></i> Parse Transcript (AI)
+                    <i class="fas fa-wand-magic-sparkles"></i> Parse Transcript
                 </button>
                 <button id="saveImportBtn" class="btn-icon" style="background:var(--success); color:white; display:none;">
                     <i class="fas fa-save"></i> Import Appointment
@@ -371,7 +371,7 @@ Flynn: I'll try to call you back Thursday if you have an update on the email. My
     </div>
 
     <!-- ============================================================ -->
-    <!-- SCRIPT LOADING ORDER - CRITICAL FOR PROPER FUNCTIONALITY -->
+    <!-- SCRIPT LOADING ORDER - AI FEATURES REMOVED -->
     <!-- ============================================================ -->
     
     <!-- 1. Configuration (API Keys, Feature Flags) -->
@@ -383,16 +383,12 @@ Flynn: I'll try to call you back Thursday if you have an update on the email. My
     <!-- 3. Core Application -->
     <script src="js/app.js"></script>
     
-    <!-- 4. AI Services -->
-    <script src="js/services/ai/gemini-service.js"></script>
-    <script src="js/services/ai/prompts.js"></script>
-    
-    <!-- 5. Feature Modules -->
+    <!-- 4. Feature Modules (No AI) -->
     <script src="js/smart-import.js"></script>
     <script src="js/objection-handler.js"></script>
     <script src="js/prospect-manager.js"></script>
     
-    <!-- 6. Error Handler (Load Last - Catches all errors) -->
+    <!-- 5. Error Handler (Load Last - Catches all errors) -->
     <script src="js/error-handler.js"></script>
     
 </body>

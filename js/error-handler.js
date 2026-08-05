@@ -9,30 +9,25 @@ const ErrorHandler = {
         logErrors: true,
         maxLogEntries: 100,
         errorLog: [],
-        autoDismissDelay: 0, // 0 = manual dismiss only
-        showDetails: false // Start with details hidden
+        autoDismissDelay: 0,
+        showDetails: false
     },
 
     // Initialize error handler
     init() {
-        // Global error handlers
         window.addEventListener('error', this.handleGlobalError.bind(this));
         window.addEventListener('unhandledrejection', this.handlePromiseRejection.bind(this));
         
-        // Override console.error to capture errors
         const originalConsoleError = console.error;
         console.error = (...args) => {
             originalConsoleError.apply(console, args);
             this.logError(args.join(' '));
         };
         
-        // Load previous error log from localStorage
         this.loadErrorLog();
-        
         console.log('🛡️ Error Handler initialized');
     },
 
-    // Load error log from localStorage
     loadErrorLog() {
         try {
             const stored = localStorage.getItem('error_log');
@@ -47,7 +42,6 @@ const ErrorHandler = {
         }
     },
 
-    // Handle global errors
     handleGlobalError(event) {
         const error = {
             message: event.message || 'Unknown error',
@@ -65,7 +59,6 @@ const ErrorHandler = {
         return true;
     },
 
-    // Handle promise rejections
     handlePromiseRejection(event) {
         const error = {
             message: event.reason?.message || 'Unhandled Promise Rejection',
@@ -79,11 +72,9 @@ const ErrorHandler = {
         this.showErrorPage(error);
     },
 
-    // Log error
     logError(error) {
         if (!this.config.logErrors) return;
         
-        // Handle different error formats
         let logEntry;
         if (typeof error === 'string') {
             logEntry = { 
@@ -98,26 +89,19 @@ const ErrorHandler = {
             };
         }
         
-        // Add to log (newest first)
         this.config.errorLog.unshift(logEntry);
         if (this.config.errorLog.length > this.config.maxLogEntries) {
             this.config.errorLog.pop();
         }
         
-        // Save to localStorage
         try {
             localStorage.setItem('error_log', JSON.stringify(this.config.errorLog.slice(0, 50)));
         } catch (e) {}
     },
 
-    // Show error page
     showErrorPage(error) {
         if (!this.config.showErrorPage) return;
-        
-        // Check if error page already exists
         if (document.getElementById('errorPage')) return;
-        
-        // Check if we should show error page (avoid infinite loops)
         if (error.message && error.message.includes('error-handler')) return;
         
         const errorPage = document.createElement('div');
@@ -186,12 +170,9 @@ const ErrorHandler = {
             </div>
         `;
         
-        // Add styles if not already present
         this.injectErrorStyles();
-        
         document.body.appendChild(errorPage);
         
-        // Auto-dismiss if configured
         if (this.config.autoDismissDelay > 0) {
             setTimeout(() => {
                 const el = document.getElementById('errorPage');
@@ -200,7 +181,6 @@ const ErrorHandler = {
         }
     },
 
-    // Inject error page styles
     injectErrorStyles() {
         if (document.getElementById('error-handler-styles')) return;
         
@@ -211,41 +191,33 @@ const ErrorHandler = {
                 transform: translateY(-2px);
                 box-shadow: 0 4px 12px rgba(0,0,0,0.2);
             }
-            
             #errorPage .btn-icon:active {
                 transform: translateY(0px);
             }
-            
             #errorPage details summary::-webkit-details-marker {
                 display: none;
             }
-            
             #errorPage details[open] summary .fa-chevron-right {
                 transform: rotate(90deg);
             }
-            
             @media (max-width: 480px) {
                 #errorPage > div {
                     padding: 20px 16px !important;
                     border-radius: 16px !important;
                 }
-                
                 #errorPage h1 {
                     font-size: 1.1rem !important;
                 }
-                
                 #errorPage .btn-icon {
                     padding: 8px 20px !important;
                     font-size: 0.75rem !important;
                     width: 100%;
                     justify-content: center;
                 }
-                
                 #errorPage > div > div:last-child {
                     flex-direction: column;
                 }
             }
-            
             @media (max-width: 768px) {
                 #errorPage > div {
                     max-width: 95% !important;
@@ -256,12 +228,10 @@ const ErrorHandler = {
         document.head.appendChild(style);
     },
 
-    // Generate unique error ID
     generateErrorId() {
         return Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 6);
     },
 
-    // Escape HTML
     escapeHtml(text) {
         if (!text) return '';
         return String(text)
@@ -272,12 +242,10 @@ const ErrorHandler = {
             .replace(/'/g, '&#039;');
     },
 
-    // Get error log
     getErrorLog() {
         return this.config.errorLog;
     },
 
-    // Get error log summary
     getErrorSummary() {
         const log = this.config.errorLog;
         if (log.length === 0) return { total: 0, types: {}, recent: null };
@@ -296,7 +264,6 @@ const ErrorHandler = {
         };
     },
 
-    // Clear error log
     clearErrorLog() {
         this.config.errorLog = [];
         try {
@@ -306,7 +273,6 @@ const ErrorHandler = {
         return true;
     },
 
-    // Report error (for manual reporting)
     report(error, context = '') {
         const errorObj = {
             message: error?.message || String(error),
@@ -320,29 +286,28 @@ const ErrorHandler = {
         this.logError(errorObj);
         console.error(`📢 Error reported from ${context}:`, error);
         
-        // Show toast notification if available
+        // Use fallback toast if showToast is not available
         if (typeof showToast === 'function') {
             showToast(`Error reported: ${errorObj.message.substring(0, 50)}`, 'error');
+        } else {
+            this.showErrorToast(errorObj.message.substring(0, 50));
         }
         
         return errorObj;
     },
 
-    // Show error toast (lightweight notification)
     showErrorToast(message, duration = 5000) {
-        // Use existing toast system if available
         if (typeof showToast === 'function') {
             showToast(message, 'error');
             return;
         }
         
-        // Fallback toast
         const toast = document.createElement('div');
         toast.style.cssText = `
             position: fixed;
             bottom: 24px;
             right: 24px;
-            background: var(--danger, #ef4444);
+            background: #ef4444;
             color: white;
             padding: 12px 24px;
             border-radius: 12px;
@@ -364,21 +329,16 @@ const ErrorHandler = {
         }, duration);
     },
 
-    // Check if there are any stored errors
     hasStoredErrors() {
         return this.config.errorLog.length > 0;
     },
 
-    // Get the most recent error
     getLastError() {
         return this.config.errorLog[0] || null;
     },
 
-    // Send error report (for future enhancement)
     sendErrorReport(error) {
-        // This can be extended to send errors to a server
         console.log('📤 Error report would be sent:', error);
-        // Example: fetch('/api/log-error', { method: 'POST', body: JSON.stringify(error) })
         return true;
     }
 };
@@ -387,21 +347,15 @@ const ErrorHandler = {
 // AUTO-INITIALIZE
 // ================================================================
 
-// Initialize after DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         ErrorHandler.init();
     }, 100);
 });
 
-// Also expose as module
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = ErrorHandler;
 }
-
-// ================================================================
-// EXPOSE GLOBALLY
-// ================================================================
 
 window.ErrorHandler = ErrorHandler;
 
