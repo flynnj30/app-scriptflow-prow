@@ -1,12 +1,41 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION (FIXED)
+// SCRIPTFLOW PRO - COMPLETE APPLICATION
 // ================================================================
 
 // ================================================================
-// FALLBACK FUNCTIONS - Defined before app.js loads
+// FIREBASE WAIT UTILITY
 // ================================================================
 
-// Smart Import fallbacks (will be overridden by smart-import.js)
+function waitForFirebase() {
+    return new Promise((resolve) => {
+        if (window.__FIREBASE_READY__) {
+            resolve(true);
+            return;
+        }
+        
+        document.addEventListener('firebase-ready', () => {
+            resolve(true);
+        });
+        
+        const checkInterval = setInterval(() => {
+            if (window.__FIREBASE_READY__) {
+                clearInterval(checkInterval);
+                resolve(true);
+            }
+        }, 500);
+        
+        setTimeout(() => {
+            clearInterval(checkInterval);
+            console.warn('⚠️ Firebase ready timeout - continuing anyway');
+            resolve(false);
+        }, 10000);
+    });
+}
+
+// ================================================================
+// SMART IMPORT FALLBACK FUNCTIONS
+// ================================================================
+
 if (typeof window.openSmartImportEnhanced === 'undefined') {
     window.openSmartImportEnhanced = function() {
         const modal = document.getElementById('smartImportModal');
@@ -17,12 +46,10 @@ if (typeof window.openSmartImportEnhanced === 'undefined') {
 
 if (typeof window.parseAndPreviewImportEnhanced === 'undefined') {
     window.parseAndPreviewImportEnhanced = function() {
-        console.log('Parsing transcript...');
         const textArea = document.getElementById('importTextArea');
         if (!textArea) { alert('Text area not found'); return; }
         const text = textArea.value;
         if (!text.trim()) { alert('Please paste a transcript to parse'); return; }
-        // Call the function from smart-import.js
         if (typeof window._parseAndPreviewImport === 'function') {
             window._parseAndPreviewImport();
         } else {
@@ -795,7 +822,7 @@ const Stats = {
 };
 
 // ================================================================
-// DATA LAYER (Condensed for space)
+// DATA LAYER
 // ================================================================
 
 const Data = {
@@ -1297,7 +1324,7 @@ const AnalyticsEngine = {
 };
 
 // ================================================================
-// SCRIPTS MODULE (Condensed)
+// SCRIPTS MODULE
 // ================================================================
 
 const Scripts = {
@@ -1562,7 +1589,7 @@ const Scripts = {
 };
 
 // ================================================================
-// FEATURE PANEL (Condensed - Core functions)
+// FEATURE PANEL
 // ================================================================
 
 const FeaturePanel = {
@@ -2419,22 +2446,15 @@ function cancelAppointment(appointmentId) {
 // INITIALIZATION
 // ================================================================
 
-function initApp() {
+async function initApp() {
     console.log('🚀 Starting ScriptFlow Pro...');
     updateLoadingProgress(10, 'Initializing application...');
 
-    try {
-        if (typeof FirebaseStatus !== 'undefined') {
-            AppState.isFirebaseReady = FirebaseStatus.isReady;
-            AppState.firebaseStatus = FirebaseStatus;
-        } else {
-            AppState.isFirebaseReady = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
-        }
-        window.__FIREBASE_READY__ = AppState.isFirebaseReady;
-    } catch (e) {
-        console.warn('⚠️ Initialization check error:', e);
-        AppState.isFirebaseReady = false;
-    }
+    // Wait for Firebase to be ready
+    const firebaseReady = await waitForFirebase();
+    AppState.isFirebaseReady = firebaseReady;
+    
+    console.log(`🔥 Firebase status: ${firebaseReady ? '✅ Ready' : '⚠️ Not ready - using offline mode'}`);
 
     // Load custom shortcuts
     AppState.customShortcuts = JSON.parse(localStorage.getItem(STORAGE_KEYS.customShortcuts) || '{}');
@@ -2578,38 +2598,6 @@ function initApp() {
     if (globalSearchInput) globalSearchInput.addEventListener('input', (e) => performGlobalSearch(e.target.value));
     if (globalSearchClose) globalSearchClose.addEventListener('click', () => { const modal = DOM.get('globalSearchModal'); if (modal) modal.style.display = 'none'; });
 
-    // CSV Import
-    const csvFileInput = DOM.get('csvFileInput');
-    if (csvFileInput) csvFileInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                try {
-                    const csvText = event.target.result;
-                    const lines = csvText.split('\n').filter(line => line.trim());
-                    if (lines.length > 0) {
-                        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-                        let imported = 0;
-                        for (let i = 1; i < lines.length; i++) {
-                            const values = lines[i].split(',').map(v => v.trim());
-                            const data = {};
-                            headers.forEach((h, idx) => data[h] = values[idx] || '');
-                            if (data.name || data.business) {
-                                Data.addAppointment(data.date || Utils.getTodayStr(), data.business || data.company || 'Unknown Business', data.name || data.contact || 'Unknown Contact', 'Owner', data.phone || data.mobile || '', data.time || '', data.notes || '', 'Daniel', null, data.status || 'Pending');
-                                imported++;
-                            }
-                        }
-                        showToast(`Imported ${imported} appointments from CSV!`, 'success');
-                        FeaturePanel.refreshCurrentView();
-                    }
-                } catch (err) { showToast('Error parsing CSV: ' + err.message, 'error'); }
-            };
-            reader.readAsText(file);
-        }
-        e.target.value = '';
-    });
-
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         if (!AppState.shortcutsEnabled || AppState.isEditing) {
@@ -2733,7 +2721,9 @@ window.deleteProspect = deleteProspect;
 window.AnalyticsEngine = AnalyticsEngine;
 window.STORAGE_KEYS = STORAGE_KEYS;
 window.DOM = DOM;
+window.waitForFirebase = waitForFirebase;
 
+// Start the app
 document.addEventListener('DOMContentLoaded', initApp);
 
 console.log('🚀 ScriptFlow Pro loaded successfully');
