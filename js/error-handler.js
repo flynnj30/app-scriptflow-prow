@@ -35,6 +35,22 @@ const ErrorHandler = {
     },
 
     handleGlobalError(event) {
+        // Ignore ERR_BLOCKED_BY_CLIENT errors (caused by ad blockers)
+        if (event.message && event.message.includes('ERR_BLOCKED_BY_CLIENT')) {
+            console.warn('⚠️ Resource blocked by client (ad blocker) - continuing');
+            return true;
+        }
+        // Ignore QUIC protocol errors
+        if (event.message && event.message.includes('ERR_QUIC_PROTOCOL_ERROR')) {
+            console.warn('⚠️ QUIC protocol error - continuing');
+            return true;
+        }
+        // Ignore connection reset errors
+        if (event.message && event.message.includes('ERR_CONNECTION_RESET')) {
+            console.warn('⚠️ Connection reset - continuing');
+            return true;
+        }
+        
         const error = {
             message: event.message || 'Unknown error',
             filename: event.filename || 'unknown',
@@ -47,11 +63,24 @@ const ErrorHandler = {
             url: window.location.href
         };
         this.logError(error);
-        this.showErrorPage(error);
+        // Only show error page for critical errors
+        if (event.message && !event.message.includes('Firestore')) {
+            this.showErrorPage(error);
+        }
         return true;
     },
 
     handlePromiseRejection(event) {
+        // Ignore Firestore connection errors (caused by ad blockers)
+        if (event.reason && event.reason.message && 
+            (event.reason.message.includes('ERR_BLOCKED_BY_CLIENT') ||
+             event.reason.message.includes('Firestore') ||
+             event.reason.message.includes('connection') ||
+             event.reason.message.includes('QUIC'))) {
+            console.warn('⚠️ Firestore connection error ignored:', event.reason.message);
+            return;
+        }
+        
         const error = {
             message: event.reason?.message || 'Unhandled Promise Rejection',
             stack: event.reason?.stack || '',
@@ -61,7 +90,9 @@ const ErrorHandler = {
             url: window.location.href
         };
         this.logError(error);
-        this.showErrorPage(error);
+        if (!error.message.includes('Firestore') && !error.message.includes('connection')) {
+            this.showErrorPage(error);
+        }
     },
 
     logError(error) {
@@ -83,6 +114,10 @@ const ErrorHandler = {
         if (!this.config.showErrorPage) return;
         if (document.getElementById('errorPage')) return;
         if (error.message && error.message.includes('error-handler')) return;
+        if (error.message && error.message.includes('ERR_BLOCKED_BY_CLIENT')) return;
+        if (error.message && error.message.includes('Firestore')) return;
+        if (error.message && error.message.includes('connection')) return;
+        
         const errorPage = document.createElement('div');
         errorPage.id = 'errorPage';
         errorPage.style.cssText = `
@@ -195,6 +230,14 @@ const ErrorHandler = {
     },
 
     report(error, context = '') {
+        // Ignore Firestore connection errors
+        if (error.message && (error.message.includes('ERR_BLOCKED_BY_CLIENT') || 
+            error.message.includes('Firestore') || 
+            error.message.includes('connection'))) {
+            console.warn('⚠️ Firestore connection error ignored:', error.message);
+            return;
+        }
+        
         const errorObj = {
             message: error?.message || String(error),
             stack: error?.stack || '',
@@ -238,18 +281,9 @@ const ErrorHandler = {
     sendErrorReport(error) { console.log('📤 Error report would be sent:', error); return true; }
 };
 
-// ================================================================
-// AUTO-INITIALIZE
-// ================================================================
-
 document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(() => {
-        ErrorHandler.init();
-    }, 100);
+    setTimeout(() => { ErrorHandler.init(); }, 100);
 });
 
-// Expose globally
 window.ErrorHandler = ErrorHandler;
-
 console.log('🛡️ Error Handler module loaded');
-console.log(`📋 Error log contains ${ErrorHandler.getErrorLog().length} entries`);

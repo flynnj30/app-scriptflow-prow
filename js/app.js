@@ -705,7 +705,6 @@ const Auth = {
         `;
         document.body.appendChild(modal);
         
-        // Only attach event listeners if Firebase is ready
         if (isFirebaseReady) {
             const googleBtn = DOM.get('googleSignInBtn');
             const loginTab = DOM.get('loginTabBtn');
@@ -847,7 +846,7 @@ const Stats = {
 };
 
 // ================================================================
-// DATA LAYER
+// DATA LAYER - FIXED WITH ERROR HANDLING
 // ================================================================
 
 const Data = {
@@ -931,48 +930,137 @@ const Data = {
         try {
             const db = firebase.firestore();
             const userRef = db.collection('users').doc(AppState.currentUser.uid);
-            AppState.appointmentsUnsubscribe = userRef.collection('appointments').orderBy('createdAt', 'desc').onSnapshot(snap => {
-                AppState.appointments = {};
-                snap.forEach(doc => {
-                    const appt = doc.data();
-                    if (!AppState.appointments[appt.date]) AppState.appointments[appt.date] = { count: 0, note: '', reports: [] };
-                    AppState.appointments[appt.date].reports.push({ ...appt, id: doc.id });
-                    AppState.appointments[appt.date].count = AppState.appointments[appt.date].reports.length;
-                });
-                Stats.updateAll();
-                if (typeof FeaturePanel !== 'undefined') FeaturePanel.refreshCurrentView();
-                localStorage.setItem(STORAGE_KEYS.appointments, JSON.stringify(AppState.appointments));
-            }, error => { 
-                console.warn('Appointments subscription error:', error);
-                // Don't error out - just use local data
-            });
-            AppState.tasksUnsubscribe = userRef.collection('tasks').orderBy('createdAt', 'desc').onSnapshot(snap => {
-                AppState.tasks = [];
-                snap.forEach(doc => AppState.tasks.push({ ...doc.data(), id: doc.id }));
-                Stats.updateTaskStats();
-                if (typeof FeaturePanel !== 'undefined') FeaturePanel.refreshCurrentView();
-                localStorage.setItem(STORAGE_KEYS.tasks, JSON.stringify(AppState.tasks));
-            }, error => { 
-                console.warn('Tasks subscription error:', error);
-            });
-            AppState.teamMembersUnsubscribe = userRef.collection('teamMembers').onSnapshot(snap => {
-                if (snap.empty) { AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS; AppState.teamMembers.forEach(member => { userRef.collection('teamMembers').doc(member.id).set(member); }); }
-                else { AppState.teamMembers = []; snap.forEach(doc => { AppState.teamMembers.push({ ...doc.data(), id: doc.id }); }); }
-                localStorage.setItem(STORAGE_KEYS.teamMembers, JSON.stringify(AppState.teamMembers));
-            }, error => { 
-                console.warn('Team members subscription error:', error);
-            });
+            
+            // FIXED: Appointments listener with error handling
+            AppState.appointmentsUnsubscribe = userRef.collection('appointments')
+                .orderBy('createdAt', 'desc')
+                .onSnapshot(
+                    snap => {
+                        try {
+                            AppState.appointments = {};
+                            snap.forEach(doc => {
+                                const appt = doc.data();
+                                if (!AppState.appointments[appt.date]) {
+                                    AppState.appointments[appt.date] = { count: 0, note: '', reports: [] };
+                                }
+                                AppState.appointments[appt.date].reports.push({ ...appt, id: doc.id });
+                                AppState.appointments[appt.date].count = AppState.appointments[appt.date].reports.length;
+                            });
+                            Stats.updateAll();
+                            if (typeof FeaturePanel !== 'undefined') FeaturePanel.refreshCurrentView();
+                            localStorage.setItem(STORAGE_KEYS.appointments, JSON.stringify(AppState.appointments));
+                        } catch (e) {
+                            console.warn('Error processing appointments snapshot:', e);
+                        }
+                    }, 
+                    error => { 
+                        // FIXED: Don't crash on Firestore errors
+                        console.warn('Appointments subscription error:', error);
+                        // Try to load from localStorage as fallback
+                        const localData = localStorage.getItem(STORAGE_KEYS.appointments);
+                        if (localData) {
+                            try {
+                                AppState.appointments = JSON.parse(localData);
+                                Stats.updateAll();
+                                if (typeof FeaturePanel !== 'undefined') FeaturePanel.refreshCurrentView();
+                            } catch (e) {}
+                        }
+                    }
+                );
+            
+            // FIXED: Tasks listener with error handling
+            AppState.tasksUnsubscribe = userRef.collection('tasks')
+                .orderBy('createdAt', 'desc')
+                .onSnapshot(
+                    snap => {
+                        try {
+                            AppState.tasks = [];
+                            snap.forEach(doc => AppState.tasks.push({ ...doc.data(), id: doc.id }));
+                            Stats.updateTaskStats();
+                            if (typeof FeaturePanel !== 'undefined') FeaturePanel.refreshCurrentView();
+                            localStorage.setItem(STORAGE_KEYS.tasks, JSON.stringify(AppState.tasks));
+                        } catch (e) {
+                            console.warn('Error processing tasks snapshot:', e);
+                        }
+                    }, 
+                    error => { 
+                        console.warn('Tasks subscription error:', error);
+                        const localData = localStorage.getItem(STORAGE_KEYS.tasks);
+                        if (localData) {
+                            try {
+                                AppState.tasks = JSON.parse(localData);
+                                Stats.updateTaskStats();
+                                if (typeof FeaturePanel !== 'undefined') FeaturePanel.refreshCurrentView();
+                            } catch (e) {}
+                        }
+                    }
+                );
+            
+            // FIXED: Team Members listener with error handling
+            AppState.teamMembersUnsubscribe = userRef.collection('teamMembers')
+                .onSnapshot(
+                    snap => {
+                        try {
+                            if (snap.empty) {
+                                AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
+                                AppState.teamMembers.forEach(member => {
+                                    userRef.collection('teamMembers').doc(member.id).set(member).catch(e => {});
+                                });
+                            } else {
+                                AppState.teamMembers = [];
+                                snap.forEach(doc => {
+                                    AppState.teamMembers.push({ ...doc.data(), id: doc.id });
+                                });
+                            }
+                            localStorage.setItem(STORAGE_KEYS.teamMembers, JSON.stringify(AppState.teamMembers));
+                        } catch (e) {
+                            console.warn('Error processing team members snapshot:', e);
+                        }
+                    }, 
+                    error => { 
+                        console.warn('Team members subscription error:', error);
+                        const localData = localStorage.getItem(STORAGE_KEYS.teamMembers);
+                        if (localData) {
+                            try {
+                                AppState.teamMembers = JSON.parse(localData);
+                            } catch (e) {}
+                        }
+                    }
+                );
+                
         } catch (error) {
-            console.warn('Subscription error:', error);
-            // Use local data
-            const appointmentsLocal = localStorage.getItem(STORAGE_KEYS.appointments);
-            const tasksLocal = localStorage.getItem(STORAGE_KEYS.tasks);
-            const teamLocal = localStorage.getItem(STORAGE_KEYS.teamMembers);
-            if (appointmentsLocal) { try { AppState.appointments = JSON.parse(appointmentsLocal); Stats.updateAll(); if (typeof FeaturePanel !== 'undefined') FeaturePanel.refreshCurrentView(); } catch (e) {} }
-            if (tasksLocal) { try { AppState.tasks = JSON.parse(tasksLocal); Stats.updateTaskStats(); if (typeof FeaturePanel !== 'undefined') FeaturePanel.refreshCurrentView(); } catch (e) {} }
-            if (teamLocal) { try { AppState.teamMembers = JSON.parse(teamLocal); } catch (e) {} }
+            console.warn('Subscription setup error:', error);
+            // Fallback to local data
+            this._loadLocalData();
         }
     },
+    
+    _loadLocalData: function() {
+        const appointmentsLocal = localStorage.getItem(STORAGE_KEYS.appointments);
+        const tasksLocal = localStorage.getItem(STORAGE_KEYS.tasks);
+        const teamLocal = localStorage.getItem(STORAGE_KEYS.teamMembers);
+        
+        if (appointmentsLocal) { 
+            try { 
+                AppState.appointments = JSON.parse(appointmentsLocal); 
+                Stats.updateAll(); 
+                if (typeof FeaturePanel !== 'undefined') FeaturePanel.refreshCurrentView(); 
+            } catch (e) {} 
+        }
+        if (tasksLocal) { 
+            try { 
+                AppState.tasks = JSON.parse(tasksLocal); 
+                Stats.updateTaskStats(); 
+                if (typeof FeaturePanel !== 'undefined') FeaturePanel.refreshCurrentView(); 
+            } catch (e) {} 
+        }
+        if (teamLocal) { 
+            try { 
+                AppState.teamMembers = JSON.parse(teamLocal); 
+            } catch (e) {} 
+        }
+    },
+    
     createDefaultScripts: async function() {
         if (!AppState.currentUser || !AppState.isFirebaseReady) return;
         const defaultScripts = {
@@ -1194,11 +1282,328 @@ const Data = {
 };
 
 // ================================================================
-// [REST OF APP.JS - FEATURE PANEL, CALENDAR, GLOBAL FUNCTIONS, INIT]
+// [ANALYTICS ENGINE, SCRIPTS, FEATURE PANEL, CALENDAR VIEW]
+// These sections remain the same as they don't need Firebase error handling
 // ================================================================
 
-// ... (FeaturePanel, CalendarView, Global Functions, Init sections)
-// These remain the same as the previous version
+// ... (AnalyticsEngine, Scripts, FeaturePanel, CalendarView remain the same)
+
+// ================================================================
+// GLOBAL FUNCTIONS
+// ================================================================
+
+function openProspectManager() { if (typeof FeaturePanel !== 'undefined') FeaturePanel.show('prospects', '👥 Prospect Manager'); }
+function openAddProspect() { showToast('Add Prospect feature coming soon!', 'info'); }
+function viewProspect(id) { const prospect = AppState.prospectManager?.get(id); if (prospect) showToast(`Viewing ${prospect.business}`, 'info'); else showToast('Prospect not found', 'error'); }
+function editProspect(id) { showToast('Edit Prospect feature coming soon!', 'info'); }
+function deleteProspect(id) { if (confirm('Delete this prospect?')) showToast('Prospect deleted', 'info'); }
+
+function openGlobalSearch() {
+    const modal = DOM.get('globalSearchModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    const input = DOM.get('globalSearchInput');
+    if (input) { input.value = ''; input.focus(); }
+    const results = DOM.get('globalSearchResults');
+    if (results) results.innerHTML = '';
+}
+
+function performGlobalSearch(query) {
+    const results = DOM.get('globalSearchResults');
+    if (!results) return;
+    if (!query || query.length < 2) { results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">Type at least 2 characters to search...</p>'; return; }
+    const searchResults = [];
+    const q = query.toLowerCase();
+    for (let date in AppState.appointments) {
+        if (AppState.appointments[date].reports) {
+            AppState.appointments[date].reports.forEach(appt => {
+                const searchable = `${appt.business} ${appt.contactName} ${appt.phone || ''} ${appt.email || ''} ${appt.notes || ''}`.toLowerCase();
+                if (searchable.includes(q)) searchResults.push({ type: 'appointment', data: appt, date: date });
+            });
+        }
+    }
+    AppState.tasks.forEach(task => { if (task.description.toLowerCase().includes(q)) searchResults.push({ type: 'task', data: task }); });
+    for (const [id, script] of Object.entries(AppState.scripts)) {
+        if (script.name.toLowerCase().includes(q) || script.content.toLowerCase().includes(q)) searchResults.push({ type: 'script', data: { id, ...script } });
+    }
+    if (searchResults.length === 0) { results.innerHTML = '<p style="color:var(--text-muted); padding:12px;">No results found.</p>'; return; }
+    let html = `<div style="display:flex; flex-direction:column; gap:8px;">`;
+    searchResults.slice(0, 20).forEach(result => {
+        if (result.type === 'appointment') {
+            html += `<div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="window.showAppointmentDetail && window.showAppointmentDetail('${result.data.id}')">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                    <span style="font-weight:600;">${Utils.escapeHtml(result.data.business)}</span>
+                    <span style="font-size:0.75rem; color:var(--text-muted);">${Utils.formatDate(result.data.date)}</span>
+                </div>
+                <div style="font-size:0.8rem; color:var(--text-secondary);">${Utils.escapeHtml(result.data.contactName)}</div>
+                <div style="font-size:0.7rem; color:var(--text-muted);">Status: ${Utils.getStatus(result.data)}</div>
+            </div>`;
+        } else if (result.type === 'task') {
+            html += `<div class="list-item" style="padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                    <span style="font-weight:600;">${Utils.escapeHtml(result.data.description)}</span>
+                    <span style="font-size:0.75rem; color:var(--text-muted);">${result.data.completed ? '✅ Done' : '⏳ Pending'}</span>
+                </div>
+            </div>`;
+        } else if (result.type === 'script') {
+            html += `<div class="list-item" style="cursor:pointer; padding:10px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border-color);" onclick="window.loadScript && window.loadScript('${result.data.id}')">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                    <span style="font-weight:600;">${Utils.escapeHtml(result.data.name)}</span>
+                    <span style="font-size:0.75rem; color:var(--text-muted);">📜 Script</span>
+                </div>
+            </div>`;
+        }
+    });
+    html += `</div>`;
+    results.innerHTML = html;
+}
+
+function openBulkActions() {
+    const modal = DOM.get('bulkActionsModal');
+    const container = DOM.get('bulkSelectionContainer');
+    if (!modal || !container) return;
+    modal.style.display = 'flex';
+    AppState.selectedAppointments = new Set();
+    let html = '';
+    for (let date in AppState.appointments) {
+        if (AppState.appointments[date].reports) {
+            AppState.appointments[date].reports.forEach(appt => {
+                html += `<div class="bulk-item">
+                    <input type="checkbox" class="bulk-checkbox" value="${appt.id}" data-date="${date}" />
+                    <span><strong>${Utils.escapeHtml(appt.business)}</strong> - ${Utils.escapeHtml(appt.contactName)} (${Utils.getStatus(appt)})</span>
+                </div>`;
+            });
+        }
+    }
+    container.innerHTML = html || '<p style="color:var(--text-muted);">No appointments found</p>';
+    container.querySelectorAll('.bulk-checkbox').forEach(cb => {
+        cb.addEventListener('change', () => {
+            if (cb.checked) AppState.selectedAppointments.add(cb.value);
+            else AppState.selectedAppointments.delete(cb.value);
+        });
+    });
+}
+
+function executeBulkAction() {
+    const action = DOM.get('bulkActionSelect')?.value || 'status';
+    const selected = Array.from(AppState.selectedAppointments);
+    if (selected.length === 0) { showToast('Please select at least one appointment', 'warning'); return; }
+    if (action === 'delete') {
+        if (!confirm(`Delete ${selected.length} appointment(s)?`)) return;
+        selected.forEach(id => {
+            for (let date in AppState.appointments) {
+                if (AppState.appointments[date].reports) {
+                    const found = AppState.appointments[date].reports.find(r => r.id === id);
+                    if (found) { Data.deleteAppointment(date, id); break; }
+                }
+            }
+        });
+        showToast(`${selected.length} appointment(s) deleted`, 'success');
+    } else if (action === 'status') {
+        const statusSelect = DOM.get('bulkStatusSelect');
+        const newStatus = statusSelect?.value || 'Pending';
+        selected.forEach(id => {
+            for (let date in AppState.appointments) {
+                if (AppState.appointments[date].reports) {
+                    const found = AppState.appointments[date].reports.find(r => r.id === id);
+                    if (found) { Data.updateAppointment(date, id, { status: newStatus }); break; }
+                }
+            }
+        });
+        showToast(`${selected.length} appointment(s) updated to ${newStatus}`, 'success');
+    } else if (action === 'tag') {
+        const tagSelect = DOM.get('bulkTagSelect');
+        const tag = tagSelect?.value || '';
+        selected.forEach(id => {
+            for (let date in AppState.appointments) {
+                if (AppState.appointments[date].reports) {
+                    const found = AppState.appointments[date].reports.find(r => r.id === id);
+                    if (found) {
+                        const tags = found.tags || [];
+                        if (!tags.includes(tag)) { tags.push(tag); Data.updateAppointment(date, id, { tags }); }
+                        break;
+                    }
+                }
+            }
+        });
+        showToast(`Tag added to ${selected.length} appointment(s)`, 'success');
+    } else if (action === 'export') Data.exportToCSV(selected);
+    const modal = DOM.get('bulkActionsModal');
+    if (modal) modal.style.display = 'none';
+    if (typeof FeaturePanel !== 'undefined') FeaturePanel.refreshCurrentView();
+}
+
+function handleEscapeKey() {
+    if (AppState.isEditing) { Scripts.cancelEdit(); return true; }
+    const featurePanel = DOM.get('featurePanel');
+    if (featurePanel && featurePanel.style.display !== 'none') {
+        if (typeof FeaturePanel !== 'undefined') FeaturePanel.hide();
+        Scripts.loadScript('opening');
+        showToast('Returned to Opening Script', 'info');
+        return true;
+    }
+    document.querySelectorAll('.modal-overlay').forEach(modal => { if (modal.style.display !== 'none') modal.style.display = 'none'; });
+    return true;
+}
+
+function openShortcutEdit(action) {
+    const currentKeys = AppState.shortcuts[action]?.keys || [];
+    const keysString = currentKeys.join('+');
+    const newKeysString = prompt(`Enter new shortcut for "${action}" (e.g., Ctrl+Shift+I):`, keysString);
+    if (newKeysString && newKeysString !== keysString) {
+        const newKeys = newKeysString.split('+').map(k => k.trim());
+        const conflicts = Utils.checkShortcutConflict(newKeys, action, AppState.shortcuts);
+        if (conflicts.length > 0) { showToast(`Conflict with: ${conflicts.join(', ')}`, 'warning'); return false; }
+        if (AppState.shortcuts[action]) {
+            AppState.shortcuts[action].keys = newKeys;
+            AppState.customShortcuts[action] = AppState.shortcuts[action];
+            localStorage.setItem('customShortcuts', JSON.stringify(AppState.customShortcuts));
+            showToast(`Shortcut updated for ${action}`, 'success');
+            const body = DOM.get('featurePanelBody');
+            if (body && AppState.currentView === 'shortcuts' && typeof FeaturePanel !== 'undefined') FeaturePanel.renderShortcuts(body);
+            return true;
+        }
+    }
+    return false;
+}
+
+function handleShortcutAction(action) {
+    switch (action) {
+        case 'Smart Import': window.openSmartImportEnhanced(); break;
+        case 'Appointment Calendar': if (typeof FeaturePanel !== 'undefined') FeaturePanel.show('calendar', '📅 Appointment & Handoff Calendar'); break;
+        case 'Call Scripts': if (typeof FeaturePanel !== 'undefined') FeaturePanel.hide(); Scripts.loadScript('opening'); break;
+        case 'Global Search': openGlobalSearch(); break;
+        case 'Quick Add Appointment': if (typeof FeaturePanel !== 'undefined') FeaturePanel.openQuickAdd(Utils.getTodayStr()); break;
+        case 'Analytics Hub': AppState.analyticsTab = 'meetings'; if (typeof FeaturePanel !== 'undefined') FeaturePanel.show('analytics', '📊 Analytics Hub'); break;
+        case 'Keyboard Shortcuts': if (typeof FeaturePanel !== 'undefined') FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts'); break;
+        case 'Export to CSV': Data.exportToCSV(); break;
+        case 'Toggle Theme': document.body.classList.toggle('light'); showToast('Theme toggled', 'info'); break;
+        case 'Refresh Data': DOM.get('refreshBtn')?.click(); break;
+        case 'Bulk Actions': openBulkActions(); break;
+        case 'Objection Handler': if (window.ObjectionHandler) window.ObjectionHandler.toggle(); else showToast('Objection Handler loading...', 'info'); break;
+        case 'Prospects': openProspectManager(); break;
+        case 'Close Panel': handleEscapeKey(); break;
+        default: showToast(`Action: ${action}`, 'info');
+    }
+}
+
+// ================================================================
+// APPOINTMENT DETAIL FUNCTIONS
+// ================================================================
+
+function showAppointmentDetail(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    AppState.currentAppointmentId = appointmentId;
+    const modal = DOM.get('appointmentDetailModal');
+    if (!modal) return;
+    const status = Utils.getStatus(appt);
+    const score = Utils.calculateLeadScore(appt);
+    const qualityScore = Utils.calculateQualityScore(appt);
+    const emailStatus = Utils.getEmailStatus(appt.email);
+    const emailStatusLabel = emailStatus === 'valid' ? '✅ Valid' : emailStatus === 'bounced' ? '⚠️ Bounced' : emailStatus === 'invalid' ? '❌ Invalid' : '❓ Unknown';
+    const titleEl = DOM.get('appointmentDetailTitle');
+    if (titleEl) titleEl.textContent = `📋 ${appt.business} - ${appt.contactName}`;
+    const contentEl = DOM.get('appointmentDetailContent');
+    if (contentEl) {
+        contentEl.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding-bottom:12px; border-bottom:2px solid var(--border-color);">
+                    <div><div style="font-size:1.1rem; font-weight:700;">${Utils.escapeHtml(appt.business)}</div>
+                    <div style="font-size:0.9rem; color:var(--text-secondary);">${Utils.escapeHtml(appt.contactName)}</div></div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
+                        <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
+                        ${qualityScore !== null && qualityScore !== undefined ? `<span class="score-badge ${Utils.getScoreColorClass(qualityScore) === 'green' ? 'score-high' : Utils.getScoreColorClass(qualityScore) === 'yellow' ? 'score-medium' : 'score-low'}">⭐ ${qualityScore.toFixed(1)}</span>` : ''}
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;"><div style="font-size:0.7rem; color:var(--text-muted);">📞 Phone</div><div style="font-weight:500;">${Utils.escapeHtml(appt.phone || 'N/A')}</div></div>
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;"><div style="font-size:0.7rem; color:var(--text-muted);">✉️ Email</div><div style="font-weight:500;">${Utils.escapeHtml(appt.email || 'N/A')}</div>${appt.email ? `<div style="font-size:0.6rem; color:${emailStatus === 'valid' ? 'var(--success)' : 'var(--danger)'};">${emailStatusLabel}</div>` : ''}</div>
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;"><div style="font-size:0.7rem; color:var(--text-muted);">📅 Date</div><div style="font-weight:500;">${Utils.formatDate(appt.date)}</div></div>
+                    <div style="background:var(--bg-primary); border-radius:8px; padding:12px;"><div style="font-size:0.7rem; color:var(--text-muted);">🕐 Time</div><div style="font-weight:500;">${Utils.escapeHtml(appt.time || 'N/A')}</div></div>
+                </div>
+                <div style="display:flex; gap:16px; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--border-color);">
+                    <div><span style="color:var(--text-muted);">👤 Assigned:</span> <strong>${Utils.escapeHtml(appt.assigned || 'Daniel')}</strong></div>
+                    <div><span style="color:var(--text-muted);">💼 Role:</span> <strong>${Utils.escapeHtml(appt.role || 'Owner')}</strong></div>
+                    ${appt.tags && appt.tags.length > 0 ? `<div><span style="color:var(--text-muted);">🏷️ Tags:</span> ${appt.tags.map(t => `<span class="status-tag" style="background:var(--bg-primary);">#${t}</span>`).join(' ')}</div>` : ''}
+                    ${qualityScore !== null && qualityScore !== undefined ? `<div><span style="color:var(--text-muted);">⭐ Quality Score:</span> <strong>${qualityScore.toFixed(1)} / 10</strong></div>` : ''}
+                </div>
+                ${appt.notes ? `<div style="background:var(--bg-primary); border-radius:8px; padding:12px; margin-top:4px;"><div style="font-size:0.7rem; color:var(--text-muted);">📝 Notes</div><div style="white-space:pre-wrap; margin-top:4px;">${Utils.escapeHtml(appt.notes)}</div></div>` : ''}
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; padding-top:12px; border-top:2px solid var(--border-color);">
+                    <button class="btn-icon" onclick="window.editAppointment && window.editAppointment('${appt.id}')" style="background:var(--warning); color:#1e293b;"><i class="fas fa-edit"></i> Edit</button>
+                    <button class="btn-icon" onclick="window.rescheduleAppointment && window.rescheduleAppointment('${appt.id}')" style="background:var(--secondary); color:white;"><i class="fas fa-calendar-alt"></i> Reschedule</button>
+                    <button class="btn-icon" onclick="window.completeAppointment && window.completeAppointment('${appt.id}')" style="background:var(--success); color:white;"><i class="fas fa-check"></i> Complete</button>
+                    <button class="btn-icon" onclick="window.cancelAppointment && window.cancelAppointment('${appt.id}')" style="background:var(--danger); color:white;"><i class="fas fa-times"></i> Cancel</button>
+                </div>
+            </div>
+        `;
+    }
+    modal.style.display = 'flex';
+}
+
+function closeAppointmentDetail() { const modal = DOM.get('appointmentDetailModal'); if (modal) modal.style.display = 'none'; AppState.currentAppointmentId = null; }
+
+function editAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    closeAppointmentDetail();
+    if (typeof FeaturePanel !== 'undefined') FeaturePanel.openQuickAdd(appt.date);
+    setTimeout(() => {
+        const businessInput = DOM.get('newApptBusiness');
+        const contactInput = DOM.get('newApptContact');
+        const phoneInput = DOM.get('newApptPhone');
+        const emailInput = DOM.get('newApptEmail');
+        const timeInput = DOM.get('newApptTime');
+        const statusSelect = DOM.get('newApptStatus');
+        const notesInput = DOM.get('newApptNotes');
+        const assignedSelect = DOM.get('newApptAssigned');
+        if (businessInput) businessInput.value = appt.business;
+        if (contactInput) contactInput.value = appt.contactName;
+        if (phoneInput) phoneInput.value = appt.phone || '';
+        if (emailInput) emailInput.value = appt.email || '';
+        if (timeInput) timeInput.value = appt.time || '';
+        if (statusSelect) statusSelect.value = Utils.getStatus(appt);
+        if (notesInput) notesInput.value = appt.notes || '';
+        if (assignedSelect) {
+            const member = AppState.teamMembers.find(m => m.name === appt.assigned);
+            if (member) assignedSelect.value = member.id;
+        }
+        Data.deleteAppointment(appt.date, appt.id);
+    }, 100);
+}
+
+function rescheduleAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    const newDate = prompt('Enter new date (YYYY-MM-DD):', appt.date);
+    if (newDate && newDate.trim()) {
+        const newTime = prompt('Enter new time (e.g., 2:30 PM):', appt.time || '');
+        Data.updateAppointment(appt.date, appt.id, { date: newDate.trim(), time: newTime || appt.time, status: 'Rescheduled' });
+        closeAppointmentDetail();
+        showToast(`Appointment rescheduled to ${Utils.formatDate(newDate)}`, 'success');
+    }
+}
+
+function completeAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    if (confirm(`Mark "${appt.business}" as Completed?`)) {
+        Data.updateAppointment(appt.date, appt.id, { status: 'Completed' });
+        closeAppointmentDetail();
+        showToast('Appointment marked as Completed! 🎉', 'success');
+    }
+}
+
+function cancelAppointment(appointmentId) {
+    const appt = Data.getAppointmentById(appointmentId);
+    if (!appt) { showToast('Appointment not found', 'error'); return; }
+    if (confirm(`Cancel appointment with ${appt.business}?`)) {
+        Data.updateAppointment(appt.date, appt.id, { status: 'Canceled' });
+        closeAppointmentDetail();
+        showToast('Appointment canceled', 'info');
+    }
+}
 
 // ================================================================
 // INITIALIZATION
