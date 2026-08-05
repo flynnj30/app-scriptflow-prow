@@ -19,11 +19,12 @@ const FirebaseStatus = {
     isReady: false,
     lastError: null,
     persistenceMode: 'none',
-    connectionStatus: 'unknown'
+    connectionStatus: 'unknown',
+    blockedByClient: false
 };
 
 // ================================================================
-// FIREBASE INITIALIZATION - FIXED (No deprecated persistence)
+// FIREBASE INITIALIZATION - FIXED
 // ================================================================
 
 let firebaseInitAttempts = 0;
@@ -52,49 +53,81 @@ function initializeFirebase() {
         
         // FIXED: Use modern Firestore settings with cache
         try {
-            // Use the modern cache approach to avoid deprecation warning
             db.settings({
-                cache: firebase.firestore.CacheConfig?.UNLIMITED || undefined,
                 cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
                 ignoreUndefinedProperties: true,
                 merge: true
             });
-            console.log('✅ Firestore settings configured with modern cache');
+            console.log('✅ Firestore settings configured');
         } catch (settingsError) {
             console.warn('⚠️ Firestore settings warning:', settingsError.message);
-            // Fallback: try without cache
-            try {
-                db.settings({
-                    cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
-                    ignoreUndefinedProperties: true,
-                    merge: true
-                });
-                console.log('✅ Firestore settings configured (fallback)');
-            } catch (e) {
-                console.warn('⚠️ Firestore settings fallback failed:', e.message);
-            }
         }
 
-        // FIXED: Use modern persistence approach - no deprecated methods
-        // The new approach uses the cache setting above
-        // Just mark as ready since persistence is handled by cache settings
-        setTimeout(() => {
-            FirebaseStatus.persistenceMode = 'modern-cache';
-            FirebaseStatus.isReady = true;
-            FirebaseStatus.isInitialized = true;
-            window.__FIREBASE_READY__ = true;
+        // FIXED: Try to enable persistence with fallback
+        // If persistence fails, we still continue with online-only mode
+        if (typeof db.enablePersistence === 'function') {
+            console.log('📋 Attempting to enable Firebase persistence...');
             
-            if (typeof AppState !== 'undefined') {
-                AppState.isFirebaseReady = true;
-                AppState.firebaseStatus = FirebaseStatus;
-            }
-            
-            document.dispatchEvent(new CustomEvent('firebase-ready'));
-            console.log('✅ Firebase ready with modern cache settings');
-        }, 500);
+            // Try with synchronizeTabs: true
+            db.enablePersistence({
+                synchronizeTabs: true
+            })
+            .then(() => {
+                console.log('✅ Firebase persistence enabled (multi-tab)');
+                FirebaseStatus.persistenceMode = 'multi-tab';
+                FirebaseStatus.isReady = true;
+                FirebaseStatus.isInitialized = true;
+                window.__FIREBASE_READY__ = true;
+                
+                if (typeof AppState !== 'undefined') {
+                    AppState.isFirebaseReady = true;
+                    AppState.firebaseStatus = FirebaseStatus;
+                }
+                
+                document.dispatchEvent(new CustomEvent('firebase-ready'));
+            })
+            .catch(err => {
+                console.warn('⚠️ Multi-tab persistence failed:', err.code || err.message);
+                
+                // Try single-tab mode
+                if (err.code === 'failed-precondition') {
+                    console.warn('⚠️ Multiple tabs open - trying single-tab mode');
+                    db.enablePersistence({
+                        synchronizeTabs: false
+                    })
+                    .then(() => {
+                        console.log('✅ Firebase persistence enabled (single-tab)');
+                        FirebaseStatus.persistenceMode = 'single-tab';
+                        FirebaseStatus.isReady = true;
+                        FirebaseStatus.isInitialized = true;
+                        window.__FIREBASE_READY__ = true;
+                        
+                        if (typeof AppState !== 'undefined') {
+                            AppState.isFirebaseReady = true;
+                            AppState.firebaseStatus = FirebaseStatus;
+                        }
+                        
+                        document.dispatchEvent(new CustomEvent('firebase-ready'));
+                    })
+                    .catch(fallbackErr => {
+                        console.warn('⚠️ Single-tab persistence failed:', fallbackErr.message);
+                        this._handlePersistenceFallback(db);
+                    });
+                } else if (err.code === 'unimplemented') {
+                    console.warn('⚠️ Persistence not supported in this browser');
+                    this._handlePersistenceFallback(db);
+                } else {
+                    console.warn('⚠️ Persistence error:', err.message);
+                    this._handlePersistenceFallback(db);
+                }
+            });
+        } else {
+            console.warn('⚠️ enablePersistence not available');
+            this._handlePersistenceFallback(db);
+        }
 
-        console.log('🔥 Firebase initialized successfully');
-        console.log(`📋 Status: ${FirebaseStatus.isReady ? '✅ Ready' : '❌ Not ready'}`);
+        console.log('🔥 Firebase initialization complete');
+        console.log(`📋 Status: ${FirebaseStatus.isReady ? '✅ Ready' : '⚠️ Limited mode'}`);
         console.log(`📋 Persistence mode: ${FirebaseStatus.persistenceMode}`);
         return true;
 
@@ -121,6 +154,25 @@ function initializeFirebase() {
         
         return false;
     }
+}
+
+// ================================================================
+// PERSISTENCE FALLBACK
+// ================================================================
+
+function _handlePersistenceFallback(db) {
+    FirebaseStatus.persistenceMode = 'none';
+    FirebaseStatus.isReady = true;
+    FirebaseStatus.isInitialized = true;
+    window.__FIREBASE_READY__ = true;
+    
+    if (typeof AppState !== 'undefined') {
+        AppState.isFirebaseReady = true;
+        AppState.firebaseStatus = FirebaseStatus;
+    }
+    
+    document.dispatchEvent(new CustomEvent('firebase-ready'));
+    console.info('ℹ️ Running in online-only mode (no persistence)');
 }
 
 // ================================================================
