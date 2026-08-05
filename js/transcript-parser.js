@@ -362,16 +362,35 @@ class TranscriptParser {
     }
 
     // ================================================================
-    // CONFIDENCE SCORING
+    // CONFIDENCE SCORING - FIXED
     // ================================================================
 
     _calculateConfidence(value, field, pattern, fullText) {
+        // FIXED: Check if value is valid before using it in regex
+        if (!value || typeof value !== 'string' || value === 'N/A' || value === '') {
+            return 0.1;
+        }
+
         let confidence = 0.3; // Base confidence
 
+        // Sanitize value for regex - escape special characters
+        let escapedValue;
+        try {
+            escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        } catch (e) {
+            // If escaping fails, use a simple approach
+            escapedValue = value.replace(/[^a-zA-Z0-9]/g, '');
+        }
+
         // Check if value appears multiple times (higher confidence)
-        const occurrences = (fullText.match(new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')) || []).length;
-        if (occurrences > 2) confidence += 0.2;
-        else if (occurrences > 1) confidence += 0.1;
+        try {
+            const occurrences = (fullText.match(new RegExp(escapedValue, 'gi')) || []).length;
+            if (occurrences > 2) confidence += 0.2;
+            else if (occurrences > 1) confidence += 0.1;
+        } catch (e) {
+            // If regex fails, skip occurrence counting
+            confidence += 0.05;
+        }
 
         // Check if field is explicitly labeled (higher confidence)
         const fieldLabels = {
@@ -401,10 +420,6 @@ class TranscriptParser {
         // Reduce confidence for short values
         if (value.length < 2) confidence -= 0.2;
         if (value.length < 4) confidence -= 0.1;
-
-        // Check for conflicting information
-        const similarValues = (fullText.match(new RegExp(value.substring(0, 3), 'gi')) || []).length;
-        if (similarValues > 1) confidence -= 0.1;
 
         return Math.max(0, Math.min(1, confidence));
     }
