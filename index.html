@@ -33,6 +33,7 @@
     
     <!-- ============================================================ -->
     <!-- PUTER.JS - FREE GEMINI AI ACCESS (No API Key Required) -->
+    <!-- Note: AI is disabled by default to avoid WebSocket errors    -->
     <!-- ============================================================ -->
     <script src="https://js.puter.com/v2/"></script>
     
@@ -196,7 +197,7 @@
             <h3><i class="fas fa-magic"></i> Smart Import</h3>
             
             <!-- Status Display -->
-            <div id="aiStatusDisplay" class="ai-status-display">📋 Ready to parse</div>
+            <div id="aiStatusDisplay" class="ai-status-display">🧠 Smart Parser - Ready</div>
             
             <div class="import-date-selector">
                 <label>Target Appointment Date:</label>
@@ -207,7 +208,7 @@
             
             <div class="form-group">
                 <label for="importTextArea">📝 Conversation Transcript</label>
-                <textarea id="importTextArea" rows="8" placeholder="Paste your conversation transcript here. The hybrid parser will intelligently extract all CRM fields.
+                <textarea id="importTextArea" rows="8" placeholder="Paste your conversation transcript here. The smart parser will intelligently extract all CRM fields.
 
 Example transcript:
 &quot;Flynn: Hey, is this RG77 Tires?
@@ -387,18 +388,21 @@ Flynn: I'll try to call you back Thursday if you have an update on the email. My
     <!-- 3. Configuration -->
     <script src="js/config.js"></script>
     
-    <!-- 4. Transcript Parser (Hybrid) -->
-    <script src="js/transcript-parser.js"></script>
+    <!-- 4. Smart Parser Service (Centralized) -->
+    <script src="js/smart-parser-service.js"></script>
     
-    <!-- 5. Feature Modules -->
+    <!-- 5. CRM Sync Service -->
+    <script src="js/crm-sync.js"></script>
+    
+    <!-- 6. Feature Modules -->
     <script src="js/smart-import.js"></script>
     <script src="js/objection-handler.js"></script>
     <script src="js/prospect-manager.js"></script>
     
-    <!-- 6. Core Application -->
+    <!-- 7. Core Application -->
     <script src="js/app.js"></script>
     
-    <!-- 7. Error Handler (Last - Catches all errors) -->
+    <!-- 8. Error Handler (Last - Catches all errors) -->
     <script src="js/error-handler.js"></script>
     
 </body>

@@ -1,5 +1,5 @@
 // ================================================================
-// SMART IMPORT - Enhanced with Hybrid Parser
+// SMART IMPORT - Using Centralized Parser Service
 // ================================================================
 
 // ================================================================
@@ -18,11 +18,11 @@ const SmartImportState = {
     parseEndTime: null,
     currentTranscript: null,
     isEditable: false,
-    useAI: true,
+    useAI: false,
     fallbackToRuleBased: true,
     parsedData: null,
     aiAvailable: false,
-    aiEnabled: false // Disabled by default to avoid WebSocket errors
+    aiEnabled: false
 };
 
 // ================================================================
@@ -30,14 +30,13 @@ const SmartImportState = {
 // ================================================================
 
 const SMART_IMPORT_CONFIG = {
-    useAI: false, // Disabled by default - avoids Puter.js WebSocket errors
+    useAI: false,
     fallbackToRuleBased: true,
     showConfidence: true,
     showEvidence: true,
     showAIStatus: true,
     defaultStatus: 'Meeting Booked',
     defaultAssigned: 'Daniel',
-    aiModel: 'gemini-3.6-flash',
     confidenceThreshold: 0.6
 };
 
@@ -52,16 +51,6 @@ const SmartImportDOM = window.DOM || {
     setText(id, text) { const el = document.getElementById(id); if (el) el.textContent = text; },
     setHTML(id, html) { const el = document.getElementById(id); if (el) el.innerHTML = html; }
 };
-
-// ================================================================
-// CHECK AI AVAILABILITY - FIXED (No WebSocket errors)
-// ================================================================
-
-function checkAIAvailability() {
-    // Disable AI by default to avoid WebSocket errors
-    // Users can enable it manually if needed
-    return false;
-}
 
 // ================================================================
 // OPEN SMART IMPORT
@@ -94,7 +83,7 @@ function openSmartImportEnhanced() {
     const textArea = SmartImportDOM.get('importTextArea');
     if (textArea) {
         textArea.value = '';
-        textArea.placeholder = `Paste your conversation transcript here. The hybrid parser will extract all CRM fields.
+        textArea.placeholder = `Paste your conversation transcript here. The smart parser will extract all CRM fields.
 
 Example transcript:
 "Flynn: Hey, is this RG77 Tires?
@@ -126,7 +115,7 @@ Flynn: I'll try to call you back Thursday if you have an update on the email. My
     // Update status display
     const statusEl = SmartImportDOM.get('aiStatusDisplay');
     if (statusEl) {
-        statusEl.textContent = '📋 Rule-Based Parser - Ready';
+        statusEl.textContent = '🧠 Smart Parser - Ready';
         statusEl.className = 'ai-status-display';
         statusEl.style.borderColor = 'var(--primary)';
         statusEl.style.background = 'rgba(59, 130, 246, 0.1)';
@@ -156,11 +145,11 @@ function closeSmartImportEnhanced() {
 }
 
 // ================================================================
-// PARSE AND PREVIEW - HYBRID APPROACH (No AI)
+// PARSE AND PREVIEW - Using Smart Parser Service
 // ================================================================
 
 async function parseAndPreviewImportEnhanced() {
-    console.log('🔍 Parsing transcript...');
+    console.log('🔍 Parsing transcript with Smart Parser...');
     const textArea = SmartImportDOM.get('importTextArea');
     if (!textArea) {
         if (window.showToast) window.showToast('Text area not found', 'error');
@@ -190,20 +179,28 @@ async function parseAndPreviewImportEnhanced() {
         parseBtn.disabled = true;
     }
     
-    updateImportProgress(10, '📋 Initializing parser...');
+    updateImportProgress(10, '📋 Initializing smart parser...');
     
     try {
-        // Use the hybrid parser (no AI)
-        updateImportProgress(20, '🔍 Running hybrid parser...');
+        // Use the smart parser service
+        updateImportProgress(20, '🧠 Running smart parser...');
         
-        let parsed = transcriptParser.parse(text);
+        const parsed = smartParser.parse(text, { date: defaultDate });
         
         updateImportProgress(40, '📊 Analyzing extracted data...');
         
-        updateImportProgress(80, '📝 Creating record...');
+        // Validate parsed data
+        const validation = smartParser.validate(parsed);
         
-        // Create record from parsed data
-        const record = createImportRecord(parsed, text, defaultDate);
+        updateImportProgress(60, '📝 Creating CRM record...');
+        
+        // Create CRM record
+        const crmRecord = smartParser.toCRMRecord(parsed);
+        
+        updateImportProgress(80, '📋 Building record...');
+        
+        // Create import record
+        const record = createImportRecord(parsed, crmRecord, text, defaultDate, validation);
         
         AppState.importRecords = [record];
         SmartImportState.parsedData = record;
@@ -213,7 +210,7 @@ async function parseAndPreviewImportEnhanced() {
         const parseTime = ((Date.now() - SmartImportState.parseStartTime) / 1000).toFixed(1);
         
         setTimeout(() => {
-            renderImportResults([record], Math.round(record.avgConfidence * 100), parseTime);
+            renderImportResults([record], Math.round(record.confidence * 100), parseTime);
             AppState.importProcessing = false;
             SmartImportState.isParsing = false;
             updateImportProgress(100, '✨ Ready! Review and save.');
@@ -248,107 +245,57 @@ async function parseAndPreviewImportEnhanced() {
 }
 
 // ================================================================
-// AI ENHANCEMENT - DISABLED (Avoids WebSocket errors)
-// ================================================================
-
-async function enhanceWithAI(transcript, parsed) {
-    // AI is disabled to avoid WebSocket errors
-    return null;
-}
-
-function buildAIPrompt(transcript, parsed) {
-    return ''; // Not used
-}
-
-function mergeAIData(parsed, aiData) {
-    return parsed; // Not used
-}
-
-// ================================================================
 // CREATE IMPORT RECORD
 // ================================================================
 
-function createImportRecord(parsed, text, defaultDate) {
-    const data = parsed;
-    
-    // Extract values
-    const getValue = (field) => {
-        if (data[field] && data[field].value) {
-            return data[field].value;
-        }
-        return 'N/A';
-    };
-    
-    const getConfidence = (field) => {
-        if (data[field] && data[field].confidence) {
-            return data[field].confidence;
-        }
-        return 0;
-    };
-    
-    const getEvidence = (field) => {
-        if (data[field] && data[field].evidence) {
-            return data[field].evidence;
-        }
-        return '';
-    };
-    
-    // Calculate average confidence
-    const confidenceFields = ['business', 'name', 'phone', 'email', 'date', 'time'];
-    let totalConf = 0;
-    let confCount = 0;
-    for (const field of confidenceFields) {
-        if (getValue(field) !== 'N/A') {
-            totalConf += getConfidence(field);
-            confCount++;
-        }
-    }
-    const avgConfidence = confCount > 0 ? totalConf / confCount : 0;
-    
+function createImportRecord(parsed, crmRecord, text, defaultDate, validation) {
     const record = {
         index: 1,
         raw: text,
         parsed: parsed,
-        confidence: {},
+        crmRecord: crmRecord,
+        confidence: parsed.confidence ? parsed.confidence.overall : 0,
         validated: {
-            business: getValue('business'),
-            name: getValue('name'),
-            role: getValue('role'),
-            phone: getValue('phone'),
-            email: getValue('email'),
-            date: getValue('date') !== 'N/A' ? getValue('date') : defaultDate,
-            time: getValue('time'),
-            status: getValue('status') !== 'N/A' ? getValue('status') : 'Meeting Booked',
-            assigned: 'Daniel',
-            notes: getValue('developerNotes') || getValue('callSummary') || '',
-            tags: data.tags && data.tags.value ? data.tags.value : []
+            business: crmRecord.businessName || '',
+            name: crmRecord.contactName || '',
+            role: crmRecord.role || 'Owner',
+            phone: crmRecord.phone || '',
+            email: crmRecord.email || '',
+            date: crmRecord.date || defaultDate,
+            time: crmRecord.time || '',
+            status: crmRecord.status || 'Pending',
+            assigned: crmRecord.assigned || 'Daniel',
+            notes: crmRecord.notes || '',
+            tags: crmRecord.tags || []
         },
-        isValid: getValue('business') !== 'N/A' && getValue('name') !== 'N/A',
-        errors: [],
-        warnings: [],
+        isValid: validation.isValid,
+        errors: validation.errors || [],
+        warnings: validation.warnings || [],
         uncertainFields: [],
         hasDuplicate: false,
         duplicates: [],
-        avgConfidence: avgConfidence,
-        qualityScore: getValue('meetingQualityScore') !== 'N/A' ? parseFloat(getValue('meetingQualityScore')) : 5,
-        callSummary: getValue('callSummary'),
-        detectedObjections: data.objections && data.objections.value ? data.objections.value : [],
-        missingInformation: data.missingInformation && data.missingInformation.value ? data.missingInformation.value : [],
-        suggestedFollowUp: data.suggestedFollowUp && data.suggestedFollowUp.value ? data.suggestedFollowUp.value : [],
-        tags: data.tags && data.tags.value ? data.tags.value : [],
-        sentiment: getValue('sentiment'),
-        businessGoals: getValue('businessGoals'),
-        websiteStatus: getValue('websiteStatus'),
-        interestLevel: getValue('interestLevel'),
-        followUpActions: data.followUpActions && data.followUpActions.value ? data.followUpActions.value : []
+        avgConfidence: parsed.confidence ? parsed.confidence.overall : 0,
+        qualityScore: 5,
+        callSummary: parsed.notes ? parsed.notes.join(' ') : '',
+        detectedObjections: [],
+        missingInformation: [],
+        suggestedFollowUp: [],
+        tags: parsed.tags || [],
+        sentiment: 'Neutral',
+        businessGoals: '',
+        websiteStatus: '',
+        interestLevel: '',
+        followUpActions: [],
+        speakers: parsed.speakers || {},
+        appointment: parsed.appointment || null
     };
     
     // Check for duplicates
     const existingAppointments = Data.getAllAppointments();
     for (const existing of existingAppointments) {
-        if (record.validated.business !== 'N/A' && existing.business && 
+        if (record.validated.business && existing.business && 
             record.validated.business.toLowerCase().trim() === existing.business.toLowerCase().trim() &&
-            record.validated.phone !== 'N/A' && existing.phone &&
+            record.validated.phone && existing.phone &&
             record.validated.phone.replace(/[^\d+]/g, '') === existing.phone.replace(/[^\d+]/g, '')) {
             record.hasDuplicate = true;
             record.duplicates.push({
@@ -363,11 +310,10 @@ function createImportRecord(parsed, text, defaultDate) {
     
     // Check for uncertain fields
     const uncertain = [];
-    for (const field of confidenceFields) {
-        if (getValue(field) === 'N/A') {
+    const requiredFields = ['business', 'name', 'phone', 'email', 'date'];
+    for (const field of requiredFields) {
+        if (!record.validated[field] || record.validated[field] === '') {
             uncertain.push({ field, message: `Missing ${field}` });
-        } else if (getConfidence(field) < 0.4) {
-            uncertain.push({ field, message: `Low confidence in ${field}` });
         }
     }
     record.uncertainFields = uncertain;
@@ -376,7 +322,7 @@ function createImportRecord(parsed, text, defaultDate) {
 }
 
 // ================================================================
-// RENDER IMPORT RESULTS
+// RENDER IMPORT RESULTS - UPDATED with Parser Data
 // ================================================================
 
 function renderImportResults(records, avgConfidence, parseTime) {
@@ -438,7 +384,7 @@ function renderImportResults(records, avgConfidence, parseTime) {
     let resultsHtml = '';
     records.forEach((record) => {
         const data = record.validated || {};
-        const confidence = record.confidence || {};
+        const parsed = record.parsed || {};
         
         const fields = [
             { key: 'business', label: 'Business Name', value: data.business, confidence: record.avgConfidence },
@@ -452,8 +398,8 @@ function renderImportResults(records, avgConfidence, parseTime) {
         ];
         
         const fieldRows = fields.map(f => {
-            const isNA = f.value === 'N/A' || !f.value;
-            const valueDisplay = f.key === 'date' && f.value !== 'N/A' ? Utils.formatDate(f.value) : f.value;
+            const isNA = f.value === 'N/A' || !f.value || f.value === '';
+            const valueDisplay = f.key === 'date' && f.value && f.value !== 'N/A' ? Utils.formatDate(f.value) : f.value;
             const conf = f.confidence || 0;
             const confLabel = conf >= 0.8 ? 'High' : (conf >= 0.5 ? 'Medium' : 'Low');
             const confClass = conf >= 0.8 ? 'high' : (conf >= 0.5 ? 'medium' : 'low');
@@ -467,22 +413,22 @@ function renderImportResults(records, avgConfidence, parseTime) {
             `;
         }).join('');
         
-        // Extended fields
-        const extendedFields = [
-            { key: 'websiteStatus', label: 'Website Status', value: record.websiteStatus },
-            { key: 'interestLevel', label: 'Interest Level', value: record.interestLevel },
-            { key: 'sentiment', label: 'Sentiment', value: record.sentiment },
-            { key: 'businessGoals', label: 'Business Goals', value: record.businessGoals }
-        ];
+        // Appointment info
+        const appointmentInfo = parsed.appointment && parsed.appointment.confirmed ? `
+            <div class="field-row" style="background: var(--bg-primary); border-left: 3px solid var(--success);">
+                <span class="field-label">📅 Appointment</span>
+                <span class="field-value">${parsed.appointment.datetime || 'Confirmed'}</span>
+                <span class="field-confidence high">✓</span>
+            </div>
+        ` : '';
         
-        const extendedRows = extendedFields
-            .filter(f => f.value && f.value !== 'N/A')
-            .map(f => `
-                <div class="field-row" style="background: var(--bg-primary);">
-                    <span class="field-label">${f.label}</span>
-                    <span class="field-value">${Utils.escapeHtml(f.value)}</span>
-                </div>
-            `).join('');
+        // Speaker info
+        const speakerInfo = parsed.speakers && parsed.speakers.identified ? `
+            <div class="field-row" style="background: var(--bg-primary);">
+                <span class="field-label">🎙️ Speakers</span>
+                <span class="field-value">Setter: ${parsed.speakers.setter || 'Unknown'} | Prospect: ${parsed.speakers.prospect || 'Unknown'}</span>
+            </div>
+        ` : '';
         
         resultsHtml += `
             <div class="import-record ${record.isValid ? 'valid' : 'invalid'}">
@@ -492,10 +438,10 @@ function renderImportResults(records, avgConfidence, parseTime) {
                         <span class="record-index">#${record.index}</span>
                     </div>
                     <div class="record-summary">
-                        <span class="record-name">${data.name && data.name !== 'N/A' ? Utils.escapeHtml(data.name) : 'Unknown'}</span>
-                        <span class="record-business">${data.business && data.business !== 'N/A' ? Utils.escapeHtml(data.business) : 'Unknown Business'}</span>
-                        ${data.status && data.status !== 'N/A' ? `<span class="record-status-badge">${Utils.escapeHtml(data.status)}</span>` : ''}
-                        ${record.interestLevel && record.interestLevel !== 'N/A' ? `<span class="record-quality" style="background: ${record.interestLevel === 'Very High' || record.interestLevel === 'High' ? 'var(--success)' : record.interestLevel === 'Medium' ? 'var(--warning)' : 'var(--danger)'};">${record.interestLevel}</span>` : ''}
+                        <span class="record-name">${data.name && data.name !== 'N/A' && data.name !== '' ? Utils.escapeHtml(data.name) : 'Unknown'}</span>
+                        <span class="record-business">${data.business && data.business !== 'N/A' && data.business !== '' ? Utils.escapeHtml(data.business) : 'Unknown Business'}</span>
+                        ${data.status && data.status !== 'N/A' && data.status !== '' ? `<span class="record-status-badge">${Utils.escapeHtml(data.status)}</span>` : ''}
+                        ${parsed.appointment && parsed.appointment.confirmed ? `<span class="record-quality" style="background: var(--success);">📅 Booked</span>` : ''}
                     </div>
                     <div class="record-badges">
                         ${record.hasDuplicate ? '<span class="badge duplicate">🔄 Duplicate</span>' : ''}
@@ -507,7 +453,8 @@ function renderImportResults(records, avgConfidence, parseTime) {
                 </div>
                 <div class="record-body" style="display:none;">
                     <div class="record-fields">${fieldRows}</div>
-                    ${extendedRows ? `<div class="record-fields" style="border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 10px;">${extendedRows}</div>` : ''}
+                    ${appointmentInfo}
+                    ${speakerInfo}
                     
                     ${record.callSummary ? `
                         <div style="padding:8px 12px; background:var(--bg-primary); border-radius:6px; margin-top:8px;">
@@ -516,35 +463,10 @@ function renderImportResults(records, avgConfidence, parseTime) {
                         </div>
                     ` : ''}
                     
-                    ${record.followUpActions && record.followUpActions.length > 0 ? `
-                        <div style="padding:8px 12px; background:var(--bg-primary); border-radius:6px; margin-top:8px;">
-                            <strong>📌 Follow-up Actions:</strong>
-                            <ul style="margin:4px 0 0 16px; font-size:0.8rem; color:var(--text-secondary);">
-                                ${record.followUpActions.map(a => `<li>${Utils.escapeHtml(a)}</li>`).join('')}
-                            </ul>
-                        </div>
-                    ` : ''}
-                    
-                    ${record.detectedObjections && record.detectedObjections.length > 0 ? `
-                        <div style="padding:8px 12px; background:var(--bg-primary); border-radius:6px; margin-top:8px; border-left: 3px solid var(--warning);">
-                            <strong>🛡️ Objections Detected:</strong>
-                            <ul style="margin:4px 0 0 16px; font-size:0.8rem; color:var(--text-secondary);">
-                                ${record.detectedObjections.map(o => `<li>${Utils.escapeHtml(o.text || o)}</li>`).join('')}
-                            </ul>
-                        </div>
-                    ` : ''}
-                    
                     ${record.uncertainFields && record.uncertainFields.length > 0 ? `
                         <div class="record-uncertain">
                             <strong>❓ Uncertain Fields:</strong>
                             <ul>${record.uncertainFields.map(u => `<li>${u.field}: ${u.message}</li>`).join('')}</ul>
-                        </div>
-                    ` : ''}
-                    
-                    ${record.missingInformation && record.missingInformation.length > 0 ? `
-                        <div class="record-uncertain" style="border-left-color: var(--warning);">
-                            <strong>📋 Missing Information:</strong>
-                            <ul>${record.missingInformation.map(m => `<li>${m}</li>`).join('')}</ul>
                         </div>
                     ` : ''}
                     
@@ -588,10 +510,10 @@ function renderImportResults(records, avgConfidence, parseTime) {
 }
 
 // ================================================================
-// SAVE ALL IMPORTED APPOINTMENTS
+// SAVE ALL IMPORTED APPOINTMENTS - Using CRM Sync
 // ================================================================
 
-function saveAllImportedAppointments() {
+async function saveAllImportedAppointments() {
     const validRecords = AppState.importRecords.filter(r => r.isValid);
     if (validRecords.length === 0) {
         if (window.showToast) window.showToast('No valid records to import', 'warning');
@@ -605,63 +527,26 @@ function saveAllImportedAppointments() {
     let savedCount = 0;
     let skippedCount = 0;
     
-    validRecords.forEach(record => {
-        const data = record.validated;
-        if (data.business === 'N/A' || data.name === 'N/A') {
+    for (const record of validRecords) {
+        try {
+            // Use CRM sync service
+            const result = await crmSync.importTranscript(record.raw, {
+                phone: record.validated.phone,
+                date: record.validated.date,
+                source: 'Smart Import'
+            });
+            
+            if (result.success) {
+                savedCount++;
+            } else {
+                skippedCount++;
+                console.warn('Import failed for record:', result.error);
+            }
+        } catch (error) {
             skippedCount++;
-            return;
+            console.error('Import error:', error);
         }
-        
-        // Build notes with all available data
-        let notes = data.notes || '';
-        if (record.callSummary && record.callSummary !== 'N/A') {
-            notes += (notes ? '\n\n' : '') + 'Call Summary: ' + record.callSummary;
-        }
-        if (record.detectedObjections && record.detectedObjections.length > 0) {
-            const objections = record.detectedObjections.map(o => o.text || o).join(', ');
-            notes += (notes ? '\n' : '') + 'Objections: ' + objections;
-        }
-        if (record.followUpActions && record.followUpActions.length > 0) {
-            notes += (notes ? '\n' : '') + 'Follow-up: ' + record.followUpActions.join(', ');
-        }
-        if (record.businessGoals && record.businessGoals !== 'N/A') {
-            notes += (notes ? '\n' : '') + 'Goals: ' + record.businessGoals;
-        }
-        if (record.websiteStatus && record.websiteStatus !== 'N/A') {
-            notes += (notes ? '\n' : '') + 'Website: ' + record.websiteStatus;
-        }
-        if (record.interestLevel && record.interestLevel !== 'N/A') {
-            notes += (notes ? '\n' : '') + 'Interest: ' + record.interestLevel;
-        }
-        if (record.sentiment && record.sentiment !== 'N/A') {
-            notes += (notes ? '\n' : '') + 'Sentiment: ' + record.sentiment;
-        }
-        
-        // Map status to valid options
-        let status = data.status || 'Meeting Booked';
-        const validStatuses = window.CONFIG?.STATUS_OPTIONS || 
-            ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'];
-        
-        if (!validStatuses.includes(status)) {
-            status = 'Meeting Booked';
-        }
-        
-        const result = Data.addAppointment(
-            data.date || Utils.getTodayStr(),
-            data.business,
-            data.name,
-            data.role && data.role !== 'N/A' ? data.role : 'Owner',
-            data.phone && data.phone !== 'N/A' ? data.phone : '',
-            data.time && data.time !== 'N/A' ? data.time : '',
-            notes,
-            data.assigned && data.assigned !== 'N/A' ? data.assigned : 'Daniel',
-            null,
-            status,
-            '',
-            record.tags || []
-        );
-        if (result) savedCount++;
-    });
+    }
     
     if (window.showToast) {
         window.showToast(`✅ Imported ${savedCount} appointment(s)! ${skippedCount > 0 ? `⏭️ Skipped ${skippedCount}` : ''}`, 'success');
@@ -716,11 +601,6 @@ Email: [Enter Email Address]
 Demo Time & Date: ${formattedDate} at [Time] [Timezone]
 
 Status: [Pending/Hot Transfer/Warm Callback/Meeting Booked/Completed/Canceled/No Show/Rescheduled]
-
-Website Status: [Has Website/No Website/Needs Website]
-Business Goals: [Enter business goals]
-Interest Level: [Very High/High/Medium/Low/Very Low]
-Sentiment: [Positive/Neutral/Negative]
 
 Notes: [Enter notes about the conversation, interest level, and next steps]`;
     if (textArea.value && !confirm('This will replace your current text. Continue?')) return;
@@ -831,10 +711,8 @@ window.SmartImport = {
     render: renderImportResults,
     save: saveAllImportedAppointments,
     state: SmartImportState,
-    config: SMART_IMPORT_CONFIG,
-    checkAI: checkAIAvailability
+    config: SMART_IMPORT_CONFIG
 };
 
-console.log('📥 Smart Import loaded successfully');
-console.log('🤖 AI Available:', checkAIAvailability() ? '✅ Yes' : '❌ No (WebSocket errors avoided)');
-console.log('📊 Use "Parse Transcript" to extract data from conversations');
+console.log('📥 Smart Import (Smart Parser) loaded successfully');
+console.log('🧠 Using centralized Smart Parser Service');
