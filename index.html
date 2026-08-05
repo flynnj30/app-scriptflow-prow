@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+=<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
@@ -6,10 +6,11 @@
     <title>ScriptFlow Pro · Smart CRM</title>
     
     <!-- ============================================================ -->
-    <!-- FONT PRELOADING -->
+    <!-- FONT PRELOADING - Optimize font loading performance -->
     <!-- ============================================================ -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800&display=swap" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800&display=swap" rel="stylesheet" />
     
     <!-- ============================================================ -->
@@ -28,6 +29,11 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    
+    <!-- ============================================================ -->
+    <!-- PUTER.JS - FREE GEMINI AI ACCESS (No API Key Required) -->
+    <!-- ============================================================ -->
+    <script src="https://js.puter.com/v2/"></script>
     
     <!-- ============================================================ -->
     <!-- FIREBASE -->
@@ -63,11 +69,18 @@
     <!-- ============================================================ -->
     <div class="app-wrapper" id="appWrapper" style="display:none;">
         
+        <!-- ============================================================ -->
+        <!-- MENU TOGGLE -->
+        <!-- ============================================================ -->
         <button class="menu-toggle" id="menuToggleBtn" aria-label="Toggle Sidebar">
             <i class="fas fa-bars"></i>
         </button>
 
+        <!-- ============================================================ -->
+        <!-- SIDEBAR -->
+        <!-- ============================================================ -->
         <aside class="sidebar" id="mainSidebar">
+            <!-- Sidebar Header -->
             <div class="sidebar-header">
                 <div class="logo">
                     <div class="logo-icon"><i class="fas fa-microphone-alt"></i></div>
@@ -81,6 +94,7 @@
                 </div>
             </div>
 
+            <!-- Scripts List -->
             <div class="scripts-list-section">
                 <div class="search-area">
                     <input type="text" id="scriptSearch" class="search-box" placeholder="🔍 Search scripts..." />
@@ -94,6 +108,7 @@
                 </div>
             </div>
 
+            <!-- Tools Section -->
             <div class="tools-section">
                 <div class="tools-header" id="toolsHeader">
                     <div class="section-title"><i class="fas fa-tools"></i> TOOLS & SETTINGS</div>
@@ -112,7 +127,12 @@
             </div>
         </aside>
 
+        <!-- ============================================================ -->
+        <!-- MAIN CONTENT -->
+        <!-- ============================================================ -->
         <div class="main-content" id="mainContent">
+            
+            <!-- Top Bar -->
             <div class="top-bar">
                 <div class="stats-row">
                     <div class="stat"><span class="stat-label">Today</span><span class="stat-number" id="statToday">0</span></div>
@@ -130,7 +150,9 @@
                 </div>
             </div>
 
+            <!-- Right Panel -->
             <div id="rightPanel">
+                <!-- Script Panel -->
                 <div id="scriptPanel" class="script-card">
                     <div class="script-header-bar">
                         <div class="script-title-area">
@@ -152,6 +174,7 @@
                     </div>
                 </div>
 
+                <!-- Feature Panel -->
                 <div id="featurePanel" class="feature-panel" style="display:none;">
                     <div class="feature-panel-header">
                         <h2 id="featurePanelTitle">Feature</h2>
@@ -165,27 +188,48 @@
     </div>
 
     <!-- ============================================================ -->
-    <!-- MODALS -->
+    <!-- SMART IMPORT MODAL -->
     <!-- ============================================================ -->
     <div id="smartImportModal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
             <h3><i class="fas fa-magic"></i> Smart Import</h3>
+            
+            <!-- Status Display -->
             <div id="aiStatusDisplay" class="ai-status-display">📋 Ready to parse</div>
+            
             <div class="import-date-selector">
                 <label>Target Appointment Date:</label>
                 <input type="date" id="importDefaultDate" />
                 <button id="quickTemplateBtn" class="btn-icon"><i class="fas fa-file-alt"></i> Template</button>
                 <button id="clipboardImportBtn" class="btn-icon"><i class="fas fa-paste"></i> Paste</button>
             </div>
+            
             <div class="form-group">
                 <label for="importTextArea">📝 Conversation Transcript</label>
-                <textarea id="importTextArea" rows="8" placeholder="Paste your conversation transcript here..."></textarea>
+                <textarea id="importTextArea" rows="8" placeholder="Paste your conversation transcript here. The hybrid parser will intelligently extract all CRM fields.
+
+Example transcript:
+&quot;Flynn: Hey, is this RG77 Tires?
+Prospect: Yes, sir.
+Flynn: Awesome, Flynn here. I found you online and my team created a custom website preview for your business. I was wondering if you have a few moments tomorrow to look at it?
+Prospect: Honestly, tomorrow I ain't gonna be here.
+Flynn: What date this week would be best?
+Prospect: Thursday morning.
+Flynn: Great, I'll call you Thursday at 9:00 AM EDT. May I ask for the best email to send the invite?
+Prospect: Right now, my email doesn't work, it's full. Just call me Thursday.
+Flynn: I'll try to call you back Thursday if you have an update on the email. My manager will prepare a 10-minute walkthrough.&quot;"></textarea>
             </div>
+            
+            <!-- Progress Container -->
             <div id="importProgressContainer" style="display:none;">
                 <div class="progress-bar-track"><div id="importProgressBar" class="progress-bar-fill"></div></div>
                 <div id="importProgressStatus" style="font-size:0.7rem; color:var(--text-muted); margin-top:4px;">Parsing...</div>
             </div>
+            
+            <!-- Summary -->
             <div id="importSummary"></div>
+            
+            <!-- Preview -->
             <div id="importPreview" style="display:none;">
                 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
                     <span><i class="fas fa-list"></i> <span id="importRecordCount">0</span> records</span>
@@ -197,6 +241,8 @@
                 </div>
                 <div id="importResultsContainer"></div>
             </div>
+            
+            <!-- Action Buttons -->
             <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:15px; flex-wrap:wrap;">
                 <button id="parseImportBtn" class="btn-icon" style="background:var(--primary); color:white;">
                     <i class="fas fa-wand-magic-sparkles"></i> Parse Transcript
@@ -209,6 +255,9 @@
         </div>
     </div>
 
+    <!-- ============================================================ -->
+    <!-- APPOINTMENT DETAIL MODAL -->
+    <!-- ============================================================ -->
     <div id="appointmentDetailModal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
             <h3 id="appointmentDetailTitle">Details</h3>
@@ -222,6 +271,9 @@
         </div>
     </div>
 
+    <!-- ============================================================ -->
+    <!-- QUICK ADD MODAL -->
+    <!-- ============================================================ -->
     <div id="quickAddModal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
             <h3>Add Appointment</h3>
@@ -241,6 +293,9 @@
         </div>
     </div>
 
+    <!-- ============================================================ -->
+    <!-- GLOBAL SEARCH MODAL -->
+    <!-- ============================================================ -->
     <div id="globalSearchModal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
             <h3><i class="fas fa-search"></i> Global Search</h3>
@@ -250,6 +305,9 @@
         </div>
     </div>
 
+    <!-- ============================================================ -->
+    <!-- BULK ACTIONS MODAL -->
+    <!-- ============================================================ -->
     <div id="bulkActionsModal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
             <h3><i class="fas fa-layer-group"></i> Bulk Actions</h3>
@@ -288,10 +346,24 @@
         </div>
     </div>
 
+    <!-- ============================================================ -->
+    <!-- AUTH MODAL -->
+    <!-- ============================================================ -->
     <div id="authModal" class="modal-overlay" style="display:none;"></div>
+
+    <!-- ============================================================ -->
+    <!-- PROSPECT DETAIL CONTAINER -->
+    <!-- ============================================================ -->
     <div id="prospectDetailContainer" class="modal-overlay" style="display:none;"></div>
+
+    <!-- ============================================================ -->
+    <!-- PROSPECT FORM CONTAINER -->
+    <!-- ============================================================ -->
     <div id="prospectFormContainer" class="modal-overlay" style="display:none;"></div>
 
+    <!-- ============================================================ -->
+    <!-- DRILLDOWN MODAL -->
+    <!-- ============================================================ -->
     <div id="drilldownModal" class="modal-overlay" style="display:none;">
         <div class="modal-card" style="max-width:800px;">
             <h3 id="drilldownTitle">📋 Records</h3>
@@ -307,24 +379,25 @@
     <!-- SCRIPTS - CORRECT LOADING ORDER -->
     <!-- ============================================================ -->
     
-    <!-- 1. Firebase Config (must be first) -->
+    <!-- 1. Puter.js (AI) - Already loaded in head -->
+    <!-- 2. Firebase Config -->
     <script src="js/firebase-config.js"></script>
     
-    <!-- 2. Configuration -->
+    <!-- 3. Configuration -->
     <script src="js/config.js"></script>
     
-    <!-- 3. Parser Module (NEW) -->
-    <script src="js/parser/transcript-parser.js"></script>
+    <!-- 4. Transcript Parser (Hybrid) -->
+    <script src="js/transcript-parser.js"></script>
     
-    <!-- 4. Feature Modules -->
+    <!-- 5. Feature Modules -->
     <script src="js/smart-import.js"></script>
     <script src="js/objection-handler.js"></script>
     <script src="js/prospect-manager.js"></script>
     
-    <!-- 5. Core Application -->
+    <!-- 6. Core Application -->
     <script src="js/app.js"></script>
     
-    <!-- 6. Error Handler (Last) -->
+    <!-- 7. Error Handler (Last - Catches all errors) -->
     <script src="js/error-handler.js"></script>
     
 </body>

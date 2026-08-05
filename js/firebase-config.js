@@ -52,11 +52,8 @@ function initializeFirebase() {
         
         // IMPORTANT FIX: Use settings with merge to avoid the warning
         try {
-            // Check if settings have been applied before
-            // Use merge: true to avoid "overriding the original host" warning
             const currentSettings = db._settings || {};
             
-            // Only apply settings if not already configured
             if (!currentSettings.host) {
                 db.settings({
                     host: 'firestore.googleapis.com',
@@ -72,13 +69,10 @@ function initializeFirebase() {
             console.warn('⚠️ Firestore settings warning:', settingsError.message);
         }
 
-        // IMPORTANT FIX: Use modern persistence approach
-        // DO NOT use synchronizeTabs and experimentalForceOwningTab together
+        // Enable persistence
         if (typeof db.enablePersistence === 'function') {
             console.log('📋 Enabling Firebase persistence...');
             
-            // Use the modern approach - only use synchronizeTabs
-            // Removed experimentalForceOwningTab to fix the error
             db.enablePersistence({
                 synchronizeTabs: true
             })
@@ -99,7 +93,6 @@ function initializeFirebase() {
             .catch(err => {
                 console.warn('⚠️ Persistence warning:', err.code || err.message);
                 
-                // Try single-tab mode as fallback
                 if (err.code === 'failed-precondition') {
                     console.warn('⚠️ Multiple tabs open - trying single-tab mode');
                     try {
@@ -162,7 +155,6 @@ function initializeFirebase() {
                     
                     document.dispatchEvent(new CustomEvent('firebase-ready'));
                 } else {
-                    // Other persistence errors - still mark as ready
                     console.warn('⚠️ Persistence error:', err.message);
                     FirebaseStatus.persistenceMode = 'none';
                     FirebaseStatus.isReady = true;
@@ -209,7 +201,6 @@ function initializeFirebase() {
             AppState.firebaseStatus = FirebaseStatus;
         }
         
-        // Retry if attempts are less than max
         firebaseInitAttempts++;
         if (firebaseInitAttempts < MAX_INIT_ATTEMPTS) {
             console.log(`🔄 Retrying Firebase initialization (${firebaseInitAttempts}/${MAX_INIT_ATTEMPTS})...`);
@@ -277,9 +268,6 @@ function getFirebaseStatus() {
     };
 }
 
-/**
- * Wait for Firebase to be ready
- */
 function waitForFirebaseReady(timeout = 10000) {
     return new Promise((resolve) => {
         if (FirebaseStatus.isReady) {
@@ -323,7 +311,6 @@ window.getFirebaseStatus = getFirebaseStatus;
 window.waitForFirebaseReady = waitForFirebaseReady;
 window.__FIREBASE_READY__ = isFirebaseReady;
 
-// Update AppState if available
 if (typeof AppState !== 'undefined') {
     AppState.isFirebaseReady = isFirebaseReady;
     AppState.firebaseStatus = FirebaseStatus;
@@ -331,7 +318,6 @@ if (typeof AppState !== 'undefined') {
 
 console.log(`🔥 Firebase status: ${isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
 
-// ES Module support
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         firebaseConfig,
