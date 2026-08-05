@@ -72,19 +72,18 @@ function initializeFirebase() {
             console.warn('⚠️ Firestore settings warning:', settingsError.message);
         }
 
-        // IMPORTANT FIX: Use modern persistence approach - NOT enableMultiTabIndexedDbPersistence
-        // Use the newer cache approach to avoid deprecation warning
+        // IMPORTANT FIX: Use modern persistence approach
+        // DO NOT use synchronizeTabs and experimentalForceOwningTab together
         if (typeof db.enablePersistence === 'function') {
-            console.log('📋 Enabling Firebase persistence with modern approach...');
+            console.log('📋 Enabling Firebase persistence...');
             
-            // Use the modern approach with cache settings
-            // This avoids the deprecated enableMultiTabIndexedDbPersistence warning
+            // Use the modern approach - only use synchronizeTabs
+            // Removed experimentalForceOwningTab to fix the error
             db.enablePersistence({
-                synchronizeTabs: true,
-                experimentalForceOwningTab: true
+                synchronizeTabs: true
             })
             .then(() => {
-                console.log('✅ Firebase persistence enabled (modern multi-tab)');
+                console.log('✅ Firebase persistence enabled (multi-tab)');
                 FirebaseStatus.persistenceMode = 'multi-tab';
                 FirebaseStatus.isReady = true;
                 FirebaseStatus.isInitialized = true;
@@ -149,6 +148,19 @@ function initializeFirebase() {
                         
                         document.dispatchEvent(new CustomEvent('firebase-ready'));
                     }
+                } else if (err.code === 'unimplemented') {
+                    console.warn('⚠️ Persistence not supported in this browser');
+                    FirebaseStatus.persistenceMode = 'none';
+                    FirebaseStatus.isReady = true;
+                    FirebaseStatus.isInitialized = true;
+                    window.__FIREBASE_READY__ = true;
+                    
+                    if (typeof AppState !== 'undefined') {
+                        AppState.isFirebaseReady = true;
+                        AppState.firebaseStatus = FirebaseStatus;
+                    }
+                    
+                    document.dispatchEvent(new CustomEvent('firebase-ready'));
                 } else {
                     // Other persistence errors - still mark as ready
                     console.warn('⚠️ Persistence error:', err.message);
@@ -182,6 +194,7 @@ function initializeFirebase() {
 
         console.log('🔥 Firebase initialized successfully');
         console.log(`📋 Status: ${FirebaseStatus.isReady ? '✅ Ready' : '❌ Not ready'}`);
+        console.log(`📋 Persistence mode: ${FirebaseStatus.persistenceMode}`);
         return true;
 
     } catch (error) {

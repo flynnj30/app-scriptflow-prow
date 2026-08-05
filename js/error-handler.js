@@ -238,9 +238,18 @@ const ErrorHandler = {
     sendErrorReport(error) { console.log('📤 Error report would be sent:', error); return true; }
 };
 
+// ================================================================
+// AUTO-INITIALIZE
+// ================================================================
+
 document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(() => { ErrorHandler.init(); }, 100);
+    setTimeout(() => {
+        ErrorHandler.init();
+    }, 100);
 });
 
+// Expose globally
 window.ErrorHandler = ErrorHandler;
+
 console.log('🛡️ Error Handler module loaded');
+console.log(`📋 Error log contains ${ErrorHandler.getErrorLog().length} entries`);
