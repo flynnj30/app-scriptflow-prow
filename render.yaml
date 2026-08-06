@@ -1,18 +1,12 @@
 services:
   - type: web
-    name: app-scriptflow-pro
+    name: scriptflow-pro
     runtime: static
-    buildCommand: echo "Static site - no build needed"
-    staticPublishPath: ./
+    staticPublishPath: .
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
-    envVars:
-      - key: NODE_VERSION
-        value: 18.0.0
-      - key: NODE_ENV
-        value: production
     headers:
       - path: /*.js
         name: Content-Type
@@ -30,7 +24,3 @@ services:
         name: X-XSS-Protection
         value: 1; mode=block
     healthCheckPath: /
-    scaling:
-      minInstances: 1
-      maxInstances: 1
-    plan: free

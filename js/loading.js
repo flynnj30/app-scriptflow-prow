@@ -1,5 +1,5 @@
 // ================================================================
-// LOADING MODULE - CENTRALIZED LOADING SCREEN MANAGEMENT (FIXED)
+// LOADING MODULE - CENTRALIZED LOADING SCREEN MANAGEMENT
 // ================================================================
 
 const LoadingManager = {
@@ -21,45 +21,32 @@ const LoadingManager = {
         onComplete: null,
         isComplete: false,
         isStarted: false,
-        isHidden: false,
-        hasError: false
+        isHidden: false
     },
 
-    /**
-     * Initialize the loading screen
-     */
     init: function() {
         const loadingScreen = document.getElementById('loadingScreen');
         if (!loadingScreen) {
-            console.warn('⚠️ Loading screen not found');
+            console.warn('Loading screen not found');
             return this;
         }
         
-        // Ensure loading screen is visible
         loadingScreen.style.display = 'flex';
         loadingScreen.style.opacity = '1';
         loadingScreen.style.visibility = 'visible';
         loadingScreen.style.pointerEvents = 'auto';
         
-        // Start with initial progress
         this.updateProgress(0, 'Starting ScriptFlow Pro...');
-        
         console.log('🎯 Loading Manager initialized');
         return this;
     },
 
-    /**
-     * Update loading progress
-     */
     updateProgress: function(percent, message) {
         const progressBar = document.getElementById('loadingProgress');
-        const loadingSubtitle = document.getElementById('loadingSubtitle');
-        const loadingText = document.getElementById('loadingProgressText');
-        
-        const clampedPercent = Math.min(percent, 100);
+        const loadingSubtitle = document.querySelector('.loading-subtitle');
         
         if (progressBar) {
-            progressBar.style.width = clampedPercent + '%';
+            progressBar.style.width = Math.min(percent, 100) + '%';
             progressBar.style.transition = 'width 0.5s ease';
         }
         
@@ -68,17 +55,10 @@ const LoadingManager = {
             loadingSubtitle.style.color = '';
         }
         
-        if (loadingText) {
-            loadingText.textContent = Math.round(clampedPercent) + '%';
-        }
-        
-        this.state.progress = clampedPercent;
+        this.state.progress = Math.min(percent, 100);
         return this;
     },
 
-    /**
-     * Advance to next loading step
-     */
     nextStep: function() {
         const steps = this.state.steps;
         const currentIndex = this.state.currentStepIndex;
@@ -92,9 +72,6 @@ const LoadingManager = {
         return false;
     },
 
-    /**
-     * Start the loading sequence
-     */
     start: function(onComplete) {
         if (this.state.isStarted) return this;
         this.state.isStarted = true;
@@ -102,48 +79,26 @@ const LoadingManager = {
         this.state.currentStepIndex = 0;
         this.state.isComplete = false;
         this.state.isHidden = false;
-        this.state.hasError = false;
         
-        // Clear any existing interval
         if (this.state.intervalId) {
             clearInterval(this.state.intervalId);
             this.state.intervalId = null;
         }
         
-        // Start with first step
         this.nextStep();
         
-        // Auto-advance through steps
         this.state.intervalId = setInterval(() => {
-            // Check if we should stop
-            if (this.state.hasError) {
-                clearInterval(this.state.intervalId);
-                this.state.intervalId = null;
-                return;
-            }
-            
             const hasMore = this.nextStep();
             if (!hasMore) {
                 clearInterval(this.state.intervalId);
                 this.state.intervalId = null;
                 this.complete();
             }
-        }, 600);
-        
-        // Safety timeout - force complete after 8 seconds
-        setTimeout(() => {
-            if (!this.state.isComplete && !this.state.isHidden) {
-                console.log('⏱️ Safety timeout: forcing loading complete');
-                this.forceComplete();
-            }
-        }, 8000);
+        }, 500);
         
         return this;
     },
 
-    /**
-     * Complete loading and hide the screen
-     */
     complete: function() {
         if (this.state.isComplete || this.state.isHidden) return this;
         this.state.isComplete = true;
@@ -151,16 +106,13 @@ const LoadingManager = {
         const loadingScreen = document.getElementById('loadingScreen');
         const appWrapper = document.getElementById('appWrapper');
         
-        // Update to 100%
         this.updateProgress(100, 'Ready! 🚀');
         
-        // Hide loading screen with smooth transition
         if (loadingScreen) {
             loadingScreen.style.opacity = '0';
             loadingScreen.style.transition = 'opacity 0.4s ease';
             loadingScreen.style.pointerEvents = 'none';
             
-            // Force hide after transition
             setTimeout(() => {
                 loadingScreen.style.display = 'none';
                 loadingScreen.style.visibility = 'hidden';
@@ -169,18 +121,11 @@ const LoadingManager = {
             }, 450);
         }
         
-        // Show app wrapper with fade in
         if (appWrapper) {
             appWrapper.style.display = 'flex';
-            appWrapper.style.opacity = '0';
-            appWrapper.style.transition = 'opacity 0.5s ease';
-            
-            setTimeout(() => {
-                appWrapper.style.opacity = '1';
-            }, 50);
+            appWrapper.style.opacity = '1';
         }
         
-        // Call onComplete callback
         if (typeof this.state.onComplete === 'function') {
             try {
                 this.state.onComplete();
@@ -193,9 +138,6 @@ const LoadingManager = {
         return this;
     },
 
-    /**
-     * Force complete loading immediately (skip animations)
-     */
     forceComplete: function() {
         if (this.state.intervalId) {
             clearInterval(this.state.intervalId);
@@ -205,7 +147,6 @@ const LoadingManager = {
         const loadingScreen = document.getElementById('loadingScreen');
         const appWrapper = document.getElementById('appWrapper');
         
-        // Hide loading screen immediately
         if (loadingScreen) {
             loadingScreen.style.display = 'none';
             loadingScreen.style.visibility = 'hidden';
@@ -226,16 +167,10 @@ const LoadingManager = {
         return this;
     },
 
-    /**
-     * Show an error on the loading screen
-     */
     showError: function(message) {
-        this.state.hasError = true;
-        
-        const loadingSubtitle = document.getElementById('loadingSubtitle');
+        const loadingSubtitle = document.querySelector('.loading-subtitle');
         const loadingIcon = document.querySelector('.loading-icon');
         const loadingTitle = document.querySelector('.loading-title');
-        const progressBar = document.getElementById('loadingProgress');
         
         if (loadingSubtitle) {
             loadingSubtitle.textContent = '⚠️ ' + message;
@@ -250,11 +185,6 @@ const LoadingManager = {
             loadingTitle.textContent = 'Error Loading';
         }
         
-        if (progressBar) {
-            progressBar.style.background = 'var(--danger)';
-        }
-        
-        // Add retry button if not already present
         const loadingContent = document.querySelector('.loading-content');
         if (loadingContent && !loadingContent.querySelector('.retry-btn')) {
             const retryBtn = document.createElement('button');
@@ -271,11 +201,8 @@ const LoadingManager = {
         return this;
     },
 
-    /**
-     * Set a custom loading message
-     */
     setMessage: function(message) {
-        const loadingSubtitle = document.getElementById('loadingSubtitle');
+        const loadingSubtitle = document.querySelector('.loading-subtitle');
         if (loadingSubtitle) {
             loadingSubtitle.textContent = message;
             loadingSubtitle.style.color = '';
@@ -283,37 +210,19 @@ const LoadingManager = {
         return this;
     },
 
-    /**
-     * Get current loading progress
-     */
     getProgress: function() {
         return this.state.progress;
     },
 
-    /**
-     * Check if loading is complete
-     */
     isComplete: function() {
         return this.state.isComplete;
     },
     
-    /**
-     * Check if loading is hidden
-     */
     isHidden: function() {
         return this.state.isHidden;
     }
 };
 
-// Auto-initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize loading manager
-    if (typeof LoadingManager !== 'undefined') {
-        LoadingManager.init();
-    }
-});
-
-// Export for use in other files
 window.LoadingManager = LoadingManager;
 
 console.log('📦 Loading module initialized');

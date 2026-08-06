@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION (FULLY FIXED)
+// SCRIPTFLOW PRO - COMPLETE APPLICATION (FIXED)
 // ================================================================
 
 // ================================================================
@@ -65,8 +65,7 @@ const CONFIG = {
         'Toggle Theme': { keys: ['Ctrl', 'Shift', 'T'], description: 'Toggle Dark/Light Mode' },
         'Refresh Data': { keys: ['Ctrl', 'Shift', 'R'], description: 'Refresh data from server' },
         'Bulk Actions': { keys: ['Ctrl', 'Shift', 'B'], description: 'Open Bulk Actions' },
-        'Close Panel': { keys: ['Escape'], description: 'Close current panel and return to scripts' },
-        'Objection Handler': { keys: ['Ctrl', 'Shift', 'O'], description: 'Toggle Objection Handler Banner' }
+        'Close Panel': { keys: ['Escape'], description: 'Close current panel and return to scripts' }
     }
 };
 
@@ -1727,9 +1726,6 @@ const Scripts = {
         
         setTimeout(() => {
             renderScriptActions();
-            if (typeof ObjectionHandler !== 'undefined' && ObjectionHandler.init) {
-                ObjectionHandler.init();
-            }
         }, 50);
     },
 
@@ -1972,16 +1968,16 @@ const Scripts = {
 };
 
 // ================================================================
-// SCRIPT ACTIONS RENDERER (NO COACH BUTTONS)
+// SCRIPT ACTIONS RENDERER - FIXED (No Duplicates, No Coach)
 // ================================================================
 
 function renderScriptActions() {
     const container = document.getElementById('scriptActionsContainer');
     if (!container) return;
     
+    // Clear container to avoid duplicates
     container.innerHTML = '';
     
-    // Script management buttons only - NO coach buttons
     const buttons = [
         { id: 'editScriptBtn', icon: 'fa-pen', text: 'Edit', style: '', extraClass: '' },
         { id: 'saveScriptBtn', icon: 'fa-save', text: 'Save', style: 'display:none; background:var(--success);', extraClass: '' },
@@ -1998,6 +1994,9 @@ function renderScriptActions() {
         button.className = `btn-icon ${btn.extraClass || ''}`;
         if (btn.style) {
             button.setAttribute('style', btn.style);
+        }
+        if (btn.disabled) {
+            button.disabled = true;
         }
         button.innerHTML = `<i class="fas ${btn.icon}"></i> ${btn.text}`;
         container.appendChild(button);
@@ -2442,7 +2441,7 @@ function cancelAppointment(appointmentId) {
 }
 
 // ================================================================
-// SMART IMPORT FUNCTIONS
+// SMART IMPORT FUNCTIONS - FULL IMPLEMENTATION
 // ================================================================
 
 let _isImportSaving = false;
@@ -2673,28 +2672,33 @@ function renderImportResultsEnhanced(records) {
     
     resultsContainer.innerHTML = resultsHtml;
     
+    // Attach event listeners to all buttons using event delegation
     resultsContainer.addEventListener('click', function(e) {
         const target = e.target.closest('button');
         if (!target) return;
         
+        // Edit button
         if (target.classList.contains('edit-btn')) {
             const index = parseInt(target.dataset.index);
             editImportRecord(index);
             return;
         }
         
+        // Skip button
         if (target.classList.contains('skip-btn')) {
             const index = parseInt(target.dataset.index);
             skipImportRecord(index);
             return;
         }
         
+        // Save single button
         if (target.classList.contains('save-single-btn')) {
             const index = parseInt(target.dataset.index);
             saveSingleRecord(index);
             return;
         }
         
+        // Merge button
         if (target.classList.contains('merge-btn')) {
             const index = parseInt(target.dataset.index);
             mergeDuplicate(index);
@@ -2707,6 +2711,7 @@ function renderImportResultsEnhanced(records) {
         saveBtn.style.display = 'inline-flex';
         saveBtn.disabled = false;
         saveBtn.textContent = `Save ${validRecords.length} Record(s)`;
+        // Remove existing listeners
         const newSaveBtn = saveBtn.cloneNode(true);
         saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
         newSaveBtn.onclick = function(e) {
@@ -5635,12 +5640,6 @@ function handleShortcutAction(action) {
         case 'Refresh Data': { const btn = DOM.get('refreshBtn'); if (btn) btn.click(); break; }
         case 'Bulk Actions': openBulkActions(); break;
         case 'Close Panel': handleEscapeKey(); break;
-        case 'Objection Handler': 
-            if (window.ObjectionHandler) {
-                window.ObjectionHandler.toggleBanner();
-                showToast('🛡️ Objection Handler ' + (window.ObjectionHandler.isOpen ? 'opened' : 'closed'), 'info');
-            }
-            break;
         default: showToast(`Action: ${action}`, 'info');
     }
 }
@@ -5701,188 +5700,522 @@ function renderClosersListHTML() {
 }
 
 // ================================================================
-// START APPLICATION - FIXED LOADING
+// INITIALIZATION
 // ================================================================
 
-// Single initialization point
-async function startApp() {
+function initApp() {
+    console.log('🚀 Initializing ScriptFlow Pro...');
+    
+    // Load shortcuts
+    const savedShortcuts = localStorage.getItem('customShortcuts');
+    if (savedShortcuts) {
+        try {
+            AppState.customShortcuts = JSON.parse(savedShortcuts);
+            AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS, ...AppState.customShortcuts };
+        } catch (e) {
+            AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS };
+        }
+    } else {
+        AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS };
+    }
+    
+    // Load favorites
+    const savedFavorites = localStorage.getItem('scriptFavorites');
+    if (savedFavorites) {
+        try {
+            AppState.scriptFavorites = JSON.parse(savedFavorites);
+        } catch (e) {
+            AppState.scriptFavorites = [];
+        }
+    }
+    
+    // Load team members
+    const savedTeam = localStorage.getItem('teamMembers_fallback');
+    if (savedTeam) {
+        try {
+            AppState.teamMembers = JSON.parse(savedTeam);
+        } catch (e) {
+            AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
+        }
+    } else {
+        AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
+    }
+    
+    // Load closers
+    const savedClosers = localStorage.getItem('closers_fallback');
+    if (savedClosers) {
+        try {
+            AppState.closers = JSON.parse(savedClosers);
+        } catch (e) {
+            AppState.closers = CONFIG.DEFAULT_CLOSERS;
+        }
+    } else {
+        AppState.closers = CONFIG.DEFAULT_CLOSERS;
+    }
+    
+    // Check Firebase readiness
+    AppState.isFirebaseReady = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
+    
+    // Auth state listener
+    if (AppState.isFirebaseReady) {
+        firebase.auth().onAuthStateChanged(user => {
+            if (user) {
+                AppState.currentUser = user;
+                Auth.updateUI();
+                Data.loadUserData(true);
+            } else {
+                AppState.currentUser = null;
+                Auth.updateUI();
+                Auth.showModal();
+            }
+        });
+    } else {
+        // Offline mode - show auth modal with offline notice
+        setTimeout(() => {
+            Auth.showModal();
+            const googleBtn = document.getElementById('googleSignInBtn');
+            if (googleBtn) {
+                googleBtn.style.opacity = '0.5';
+                googleBtn.style.cursor = 'not-allowed';
+                googleBtn.title = 'Firebase unavailable - offline mode';
+            }
+        }, 500);
+    }
+    
+    // Setup UI event listeners
+    setupEventListeners();
+    
+    // Initial render
+    Scripts.renderSidebar();
+    Scripts.loadScript('opening');
+    Stats.updateAll();
+    
+    // Set active date
+    Utils.setActiveDate(Utils.getTodayStr());
+    AppState.calendarCurrentDate = new Date();
+    
+    // Update closer selects
+    updateCloserSelects();
+    
+    console.log('✅ App initialized successfully');
+}
+
+function setupEventListeners() {
+    // Menu toggle
+    const menuBtn = document.getElementById('menuToggleBtn');
+    const sidebar = document.getElementById('mainSidebar');
+    const mainContent = document.getElementById('mainContent');
+    
+    if (menuBtn) {
+        menuBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('closed');
+            mainContent.classList.toggle('expanded');
+            const icon = menuBtn.querySelector('i');
+            if (icon) {
+                icon.className = sidebar.classList.contains('closed') ? 'fas fa-bars' : 'fas fa-times';
+            }
+        });
+    }
+    
+    // Tools toggle
+    const toolsHeader = document.getElementById('toolsHeader');
+    const toolsMenu = document.getElementById('toolsMenu');
+    const toolsChevron = document.getElementById('toolsChevron');
+    
+    if (toolsHeader && toolsMenu) {
+        toolsHeader.addEventListener('click', () => {
+            AppState.toolsOpen = !AppState.toolsOpen;
+            toolsMenu.classList.toggle('open');
+            if (toolsChevron) toolsChevron.classList.toggle('rotated');
+            toolsHeader.setAttribute('aria-expanded', AppState.toolsOpen);
+        });
+    }
+    
+    // Tool items
+    document.querySelectorAll('.tool-item[data-tool]').forEach(item => {
+        item.addEventListener('click', () => {
+            const tool = item.dataset.tool;
+            switch (tool) {
+                case 'calendar':
+                    AppState.calendarViewMode = 'month';
+                    FeaturePanel.show('calendar', '📅 Appointment & Handoff Calendar');
+                    break;
+                case 'tasks':
+                    FeaturePanel.show('tasks', '📋 Follow-up Tasks');
+                    break;
+                case 'analytics':
+                    AppState.analyticsTab = 'insights';
+                    FeaturePanel.show('analytics', '📊 Analytics Hub');
+                    break;
+                case 'shortcuts':
+                    FeaturePanel.show('shortcuts', '⌨️ Keyboard Shortcuts');
+                    break;
+                case 'closers':
+                    FeaturePanel.show('closers', '👔 Closer Management');
+                    break;
+                case 'export':
+                    Data.exportToCSV();
+                    break;
+                case 'theme':
+                    document.body.classList.toggle('light');
+                    showToast('Theme toggled', 'info');
+                    break;
+                case 'help':
+                    showToast('📖 Help: Press Ctrl+Shift+? for shortcuts', 'info');
+                    break;
+                case 'reset':
+                    if (confirm('Reset all data? This cannot be undone.')) {
+                        localStorage.clear();
+                        location.reload();
+                    }
+                    break;
+                case 'notepad':
+                    showToast('📝 Notes feature coming soon!', 'info');
+                    break;
+                default:
+                    showToast(`Feature ${tool} coming soon!`, 'info');
+            }
+        });
+    });
+    
+    // Sign out
+    const signOutBtn = document.getElementById('signOutBtn');
+    if (signOutBtn) {
+        signOutBtn.addEventListener('click', () => Auth.signOut());
+    }
+    
+    // Top bar buttons
+    const quickReportBtn = document.getElementById('quickReportBtn');
+    if (quickReportBtn) {
+        quickReportBtn.addEventListener('click', openSmartImportEnhanced);
+    }
+    
+    const bulkActionsBtn = document.getElementById('bulkActionsBtn');
+    if (bulkActionsBtn) {
+        bulkActionsBtn.addEventListener('click', openBulkActions);
+    }
+    
+    const searchGlobalBtn = document.getElementById('searchGlobalBtn');
+    if (searchGlobalBtn) {
+        searchGlobalBtn.addEventListener('click', openGlobalSearch);
+    }
+    
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            if (AppState.currentUser) {
+                Data.loadUserData(true);
+                showToast('Data refreshed', 'success');
+            } else {
+                showToast('Please sign in first', 'warning');
+            }
+        });
+    }
+    
+    // CSV upload
+    const csvInput = document.getElementById('csvFileInput');
+    if (csvInput) {
+        csvInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const text = event.target.result;
+                openSmartImportEnhanced();
+                const textArea = document.getElementById('importTextArea');
+                if (textArea) {
+                    textArea.value = text;
+                    setTimeout(parseAndPreviewImportEnhanced, 300);
+                }
+            };
+            reader.readAsText(file);
+            csvInput.value = '';
+        });
+    }
+    
+    // Close feature panel
+    const closeFeatureBtn = document.getElementById('closeFeaturePanelBtn');
+    if (closeFeatureBtn) {
+        closeFeatureBtn.addEventListener('click', () => {
+            FeaturePanel.hide();
+            Scripts.loadScript('opening');
+        });
+    }
+    
+    // Add script button
+    const addScriptBtn = document.getElementById('addScriptBtnSide');
+    if (addScriptBtn) {
+        addScriptBtn.addEventListener('click', () => Scripts.createScript());
+    }
+    
+    // Script search
+    const scriptSearch = document.getElementById('scriptSearch');
+    if (scriptSearch) {
+        scriptSearch.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const items = document.querySelectorAll('.script-item');
+            items.forEach(item => {
+                const name = item.querySelector('.script-name')?.textContent?.toLowerCase() || '';
+                item.style.display = name.includes(query) ? 'flex' : 'none';
+            });
+        });
+    }
+    
+    // Smart Import modal events
+    const parseImportBtn = document.getElementById('parseImportBtn');
+    if (parseImportBtn) {
+        parseImportBtn.addEventListener('click', parseAndPreviewImportEnhanced);
+    }
+    
+    const closeImportBtn = document.getElementById('closeImportBtn');
+    if (closeImportBtn) {
+        closeImportBtn.addEventListener('click', closeSmartImportEnhanced);
+    }
+    
+    const quickTemplateBtn = document.getElementById('quickTemplateBtn');
+    if (quickTemplateBtn) {
+        quickTemplateBtn.addEventListener('click', generateImportTemplate);
+    }
+    
+    const clipboardImportBtn = document.getElementById('clipboardImportBtn');
+    if (clipboardImportBtn) {
+        clipboardImportBtn.addEventListener('click', quickImportFromClipboard);
+    }
+    
+    const expandAllRecordsBtn = document.getElementById('expandAllRecordsBtn');
+    if (expandAllRecordsBtn) {
+        expandAllRecordsBtn.addEventListener('click', expandAllRecords);
+    }
+    
+    const collapseAllRecordsBtn = document.getElementById('collapseAllRecordsBtn');
+    if (collapseAllRecordsBtn) {
+        collapseAllRecordsBtn.addEventListener('click', collapseAllRecords);
+    }
+    
+    // Closer Management modal events
+    const addCloserBtn = document.getElementById('addCloserBtn');
+    if (addCloserBtn) {
+        addCloserBtn.addEventListener('click', addCloser);
+    }
+    
+    const closeCloserModalBtn = document.getElementById('closeCloserModalBtn');
+    if (closeCloserModalBtn) {
+        closeCloserModalBtn.addEventListener('click', closeCloserManagement);
+    }
+    
+    // Bulk Actions modal events
+    const executeBulkActionBtn = document.getElementById('executeBulkActionBtn');
+    if (executeBulkActionBtn) {
+        executeBulkActionBtn.addEventListener('click', executeBulkAction);
+    }
+    
+    const closeBulkModalBtn = document.getElementById('closeBulkModalBtn');
+    if (closeBulkModalBtn) {
+        closeBulkModalBtn.addEventListener('click', () => {
+            const modal = document.getElementById('bulkActionsModal');
+            if (modal) modal.style.display = 'none';
+        });
+    }
+    
+    const bulkActionSelect = document.getElementById('bulkActionSelect');
+    if (bulkActionSelect) {
+        bulkActionSelect.addEventListener('change', () => {
+            const options = document.getElementById('bulkActionOptions');
+            const statusGroup = document.getElementById('bulkStatusGroup');
+            const tagGroup = document.getElementById('bulkTagGroup');
+            if (options) options.style.display = 'block';
+            if (statusGroup) statusGroup.style.display = bulkActionSelect.value === 'status' ? 'block' : 'none';
+            if (tagGroup) tagGroup.style.display = bulkActionSelect.value === 'tag' ? 'block' : 'none';
+        });
+    }
+    
+    // Global Search modal events
+    const globalSearchInput = document.getElementById('globalSearchInput');
+    if (globalSearchInput) {
+        globalSearchInput.addEventListener('input', (e) => {
+            performGlobalSearch(e.target.value);
+        });
+        globalSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('globalSearchModal');
+                if (modal) modal.style.display = 'none';
+            }
+        });
+    }
+    
+    const globalSearchCloseBtn = document.getElementById('globalSearchCloseBtn');
+    if (globalSearchCloseBtn) {
+        globalSearchCloseBtn.addEventListener('click', () => {
+            const modal = document.getElementById('globalSearchModal');
+            if (modal) modal.style.display = 'none';
+        });
+    }
+    
+    // Appointment Detail modal events
+    const apptCloseBtn = document.getElementById('apptCloseBtn');
+    if (apptCloseBtn) {
+        apptCloseBtn.addEventListener('click', closeAppointmentDetail);
+    }
+    
+    const apptCopyBtn = document.getElementById('apptCopyBtn');
+    if (apptCopyBtn) {
+        apptCopyBtn.addEventListener('click', () => {
+            const appt = Data.getAppointmentById(AppState.currentAppointmentId);
+            if (appt) {
+                const text = `${appt.business}\n${appt.contactName}\n${appt.phone || ''}\n${appt.email || ''}\n${appt.date}\n${appt.time || ''}\n${appt.notes || ''}`;
+                copyToClipboard(text);
+            }
+        });
+    }
+    
+    const apptEditBtn = document.getElementById('apptEditBtn');
+    if (apptEditBtn) {
+        apptEditBtn.addEventListener('click', () => {
+            if (AppState.currentAppointmentId) {
+                editAppointment(AppState.currentAppointmentId);
+            }
+        });
+    }
+    
+    const apptDeleteBtn = document.getElementById('apptDeleteBtn');
+    if (apptDeleteBtn) {
+        apptDeleteBtn.addEventListener('click', () => {
+            if (AppState.currentAppointmentId) {
+                const appt = Data.getAppointmentById(AppState.currentAppointmentId);
+                if (appt && confirm(`Delete appointment with ${appt.business}?`)) {
+                    Data.deleteAppointment(appt.date, appt.id);
+                    closeAppointmentDetail();
+                    showToast('Appointment deleted', 'info');
+                }
+            }
+        });
+    }
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        if (!AppState.shortcutsEnabled) return;
+        
+        // Don't trigger if in input/textarea
+        const target = e.target;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+            return;
+        }
+        
+        // Escape key
+        if (e.key === 'Escape') {
+            handleEscapeKey();
+            return;
+        }
+        
+        // Number keys 1-9 for scripts
+        if (e.key >= '1' && e.key <= '9' && !e.ctrlKey && !e.metaKey) {
+            const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
+            const idx = parseInt(e.key) - 1;
+            if (idx < visible.length) {
+                Scripts.loadScript(visible[idx]);
+                e.preventDefault();
+            }
+            return;
+        }
+        
+        // Check custom shortcuts
+        const ctrlKey = e.ctrlKey || e.metaKey;
+        const shiftKey = e.shiftKey;
+        const key = e.key;
+        
+        for (const [action, shortcut] of Object.entries(AppState.shortcuts)) {
+            const keys = shortcut.keys || [];
+            const expectedCtrl = keys.includes('Ctrl') || keys.includes('Meta');
+            const expectedShift = keys.includes('Shift');
+            const expectedKey = keys.find(k => !['Ctrl', 'Meta', 'Shift', 'Alt'].includes(k));
+            
+            if (expectedKey && ctrlKey === expectedCtrl && shiftKey === expectedShift && key.toLowerCase() === expectedKey.toLowerCase()) {
+                e.preventDefault();
+                handleShortcutAction(action);
+                break;
+            }
+        }
+    });
+}
+
+// ================================================================
+// START APPLICATION
+// ================================================================
+
+function startApp() {
     console.log('🚀 Starting ScriptFlow Pro...');
     
     const loadingScreen = document.getElementById('loadingScreen');
     const appWrapper = document.getElementById('appWrapper');
-    const loadingManager = window.LoadingManager;
     
-    try {
-        // Update loading progress
-        if (loadingManager) {
-            loadingManager.setMessage('Initializing application...');
-            loadingManager.updateProgress(5, 'Initializing...');
-        }
-        
-        // Check if Firebase is available
-        AppState.isFirebaseReady = window.isFirebaseReady ? window.isFirebaseReady() : false;
-        
-        if (!AppState.isFirebaseReady) {
-            console.log('⏳ Waiting for Firebase to initialize...');
-            if (loadingManager) {
-                loadingManager.setMessage('Connecting to Firebase...');
-                loadingManager.updateProgress(10, 'Connecting to Firebase...');
-            }
-            
-            // Wait for Firebase with timeout
-            try {
-                if (window.waitForFirebase) {
-                    await Promise.race([
-                        window.waitForFirebase(),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('Firebase timeout')), 10000))
-                    ]);
-                    AppState.isFirebaseReady = window.isFirebaseReady ? window.isFirebaseReady() : false;
-                }
-            } catch (fbError) {
-                console.warn('⚠️ Firebase connection issue:', fbError.message);
-                AppState.isFirebaseReady = false;
-                if (loadingManager) {
-                    loadingManager.setMessage('Using offline mode...');
-                }
-            }
-        }
-        
-        if (AppState.isFirebaseReady) {
-            console.log('✅ Firebase connected');
-        } else {
-            console.log('ℹ️ Running in offline mode');
-        }
-        
-        // Update loading progress
-        if (loadingManager) {
-            loadingManager.updateProgress(30, 'Checking authentication...');
-        }
-        
-        // Check for existing user
-        let user = null;
-        if (AppState.isFirebaseReady) {
-            try {
-                const auth = window.getAuth ? window.getAuth() : null;
-                if (auth) {
-                    const authState = await new Promise((resolve) => {
-                        const unsubscribe = auth.onAuthStateChanged((user) => {
-                            unsubscribe();
-                            resolve(user);
-                        });
-                    });
-                    user = authState;
-                }
-            } catch (authError) {
-                console.warn('Auth check error:', authError);
-            }
-        }
-        
-        if (user) {
-            AppState.currentUser = user;
-            Auth.updateUI();
-            if (loadingManager) {
-                loadingManager.setMessage('Loading your data...');
-                loadingManager.updateProgress(40, 'Loading your data...');
-            }
-            await Data.loadUserData(false);
-        } else {
-            if (loadingManager) {
-                loadingManager.setMessage('Please sign in...');
-                loadingManager.updateProgress(50, 'Ready to sign in...');
-            }
-            // Show auth modal after a delay
-            setTimeout(() => {
-                Auth.showModal();
-            }, 500);
-        }
-        
-        // Final setup
-        if (loadingManager) {
-            loadingManager.updateProgress(90, 'Preparing interface...');
-        }
-        
-        // Render scripts
-        if (Object.keys(AppState.scripts).length > 0) {
-            Scripts.renderSidebar();
-            const firstScript = Object.keys(AppState.scripts)[0];
-            Scripts.loadScript(firstScript);
-        } else {
-            // Create default scripts if needed
-            if (AppState.isFirebaseReady) {
-                await Data.createDefaultScripts();
-                await Data.loadUserData(false);
-            }
-        }
-        
-        Stats.updateAll();
-        
-        // Mark app as ready
-        AppState.isAppReady = true;
-        
-        // Complete loading
-        if (loadingManager) {
-            loadingManager.updateProgress(100, 'Ready! 🚀');
-            setTimeout(() => {
-                loadingManager.complete();
-            }, 300);
-        } else {
-            // Fallback: hide loading screen
-            if (loadingScreen) {
-                loadingScreen.style.display = 'none';
-                loadingScreen.style.visibility = 'hidden';
-                loadingScreen.style.opacity = '0';
-            }
+    // Safety timeout - force hide loading screen after 3 seconds max
+    const safetyTimeout = setTimeout(function() {
+        if (loadingScreen && loadingScreen.style.display !== 'none') {
+            console.log('⚠️ Safety timeout: forcing loading screen hide');
+            loadingScreen.style.display = 'none';
+            loadingScreen.style.visibility = 'hidden';
+            loadingScreen.style.opacity = '0';
             if (appWrapper) {
                 appWrapper.style.display = 'flex';
                 appWrapper.style.opacity = '1';
             }
         }
+    }, 3000);
+    
+    // If LoadingManager exists, use it
+    if (typeof LoadingManager !== 'undefined' && LoadingManager) {
+        console.log('📦 Using LoadingManager');
+        LoadingManager.init();
         
-        console.log('✅ ScriptFlow Pro is ready!');
+        // Start the loading sequence
+        LoadingManager.start(function() {
+            console.log('✅ Loading sequence completed');
+        });
         
-    } catch (error) {
-        console.error('❌ App startup error:', error);
-        
-        if (loadingManager) {
-            loadingManager.showError('Failed to load application. Please refresh.');
-        } else {
-            // Fallback error display
-            if (loadingScreen) {
-                const subtitle = document.getElementById('loadingSubtitle');
-                if (subtitle) {
-                    subtitle.textContent = '⚠️ Error loading application';
-                    subtitle.style.color = 'var(--danger)';
-                }
+        // Force complete after 2 seconds if not already done
+        setTimeout(function() {
+            if (LoadingManager && !LoadingManager.isComplete()) {
+                console.log('⏱️ Force completing loading');
+                LoadingManager.forceComplete();
             }
+        }, 2000);
+    } else {
+        // Fallback: hide loading screen manually
+        console.log('⚠️ LoadingManager not found, using fallback');
+        if (loadingScreen) {
+            loadingScreen.style.display = 'none';
+            loadingScreen.style.visibility = 'hidden';
+            loadingScreen.style.opacity = '0';
         }
-        
-        // Show toast if available
-        if (typeof showToast === 'function') {
-            showToast('Error loading app. Please refresh.', 'error');
+        if (appWrapper) {
+            appWrapper.style.display = 'flex';
+            appWrapper.style.opacity = '1';
         }
+    }
+    
+    // Initialize the app
+    try {
+        initApp();
+    } catch (e) {
+        console.error('App initialization error:', e);
+        // Still try to hide loading screen
+        if (loadingScreen) {
+            loadingScreen.style.display = 'none';
+            loadingScreen.style.visibility = 'hidden';
+            loadingScreen.style.opacity = '0';
+        }
+        if (appWrapper) {
+            appWrapper.style.display = 'flex';
+            appWrapper.style.opacity = '1';
+        }
+        showToast('Error loading app. Please refresh.', 'error');
     }
 }
 
-// Start the app when DOM is ready
+// Start the app
 document.addEventListener('DOMContentLoaded', function() {
     console.log('📄 DOM ready, starting app...');
-    
-    // Initialize LoadingManager first
-    if (typeof LoadingManager !== 'undefined' && LoadingManager) {
-        LoadingManager.init();
-        LoadingManager.setMessage('Starting ScriptFlow Pro...');
-        LoadingManager.updateProgress(0, 'Initializing...');
-    }
-    
-    // Initialize Objection Handler after a short delay
-    setTimeout(() => {
-        if (typeof ObjectionHandler !== 'undefined' && ObjectionHandler) {
-            ObjectionHandler.init();
-        }
-    }, 500);
-    
-    // Start the app
-    startApp();
+    setTimeout(startApp, 50);
 });
 
 console.log('🚀 App bundle loaded');

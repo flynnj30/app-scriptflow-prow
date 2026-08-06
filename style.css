@@ -132,11 +132,6 @@ body {
     50% { opacity: 0.6; }
 }
 
-@keyframes wordGlow {
-    0%, 100% { box-shadow: 0 0 20px rgba(250, 204, 21, 0.2); }
-    50% { box-shadow: 0 0 40px rgba(250, 204, 21, 0.5); }
-}
-
 .fade-in { animation: fadeIn 0.4s ease forwards; }
 .fade-in-up { animation: fadeInUp 0.5s ease forwards; }
 .scale-in { animation: scaleIn 0.4s ease forwards; }
@@ -730,759 +725,531 @@ body {
 }
 
 /* ============================================================
-   SCRIPT COACH - BUTTON GROUP
+   OBJECTION HANDLER - INTEGRATED STYLES
    ============================================================ */
-.script-coach-btn-group {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 6px;
-    background: var(--bg-primary);
-    border-radius: 30px;
-    border: 1px solid var(--border-color);
-}
-
-.script-coach-btn-group .btn-icon {
-    padding: 4px 10px;
-    font-size: 0.7rem;
-    min-height: 30px;
-}
-
-.coach-scan-btn {
-    background: var(--primary);
-    color: white;
-}
-
-.coach-scan-btn:hover {
-    background: var(--secondary);
-    transform: scale(1.05);
-}
-
-.coach-play-btn {
-    background: var(--success);
-    color: white;
-}
-
-.coach-play-btn:hover:not(:disabled) {
-    background: #059669;
-    transform: scale(1.05);
-}
-
-.coach-play-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    transform: none !important;
-}
-
-.coach-status-btn {
-    font-size: 0.65rem;
-    padding: 4px 10px;
-    background: var(--success);
-    color: white;
-    border-radius: 20px;
-    border: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-/* ============================================================
-   SCRIPT COACH - TONE SELECTOR
-   ============================================================ */
-.coach-tone-selector {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin-left: 4px;
-}
-
-.coach-tone-select {
-    padding: 4px 10px;
-    border-radius: 20px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    font-size: 0.7rem;
-    cursor: pointer;
-    transition: var(--transition);
-    min-width: 100px;
-    height: 32px;
-}
-
-.coach-tone-select:focus {
-    outline: 2px solid var(--primary);
-    border-color: var(--primary);
-}
-
-.coach-tone-select option {
+.objection-integrated {
     background: var(--bg-secondary);
-    color: var(--text-primary);
-}
-
-/* ============================================================
-   KARAOKE SCRIPT COACH STYLES
-   ============================================================ */
-.coach-karaoke-container {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 500px;
-    background: var(--bg-card);
-    border-radius: 16px;
     border: 1px solid var(--border-color);
+    border-radius: 12px;
     overflow: hidden;
-}
-
-.coach-karaoke-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 20px;
-    background: var(--bg-primary);
-    border-bottom: 1px solid var(--border-color);
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.coach-karaoke-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 600;
-    font-size: 0.9rem;
-}
-
-.coach-karaoke-icon {
-    font-size: 1.2rem;
-}
-
-.coach-karaoke-controls {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-}
-
-.coach-speed-btn {
-    padding: 4px 10px;
-    border-radius: 16px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    font-size: 0.7rem;
-    cursor: pointer;
-    transition: var(--transition);
-}
-
-.coach-speed-btn:hover {
-    border-color: var(--primary);
-    color: var(--text-primary);
-}
-
-.coach-speed-btn.active {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-
-.coach-karaoke-progress {
-    padding: 8px 20px;
-    background: var(--bg-primary);
-    border-bottom: 1px solid var(--border-color);
-}
-
-.coach-progress-bar {
-    position: relative;
-    width: 100%;
-    height: 6px;
-    background: var(--border-color);
-    border-radius: 4px;
-    cursor: pointer;
-    overflow: visible;
-}
-
-.coach-progress-fill {
-    height: 100%;
-    background: var(--accent-gradient);
-    border-radius: 4px;
-    transition: width 0.1s ease;
-    position: relative;
-}
-
-.coach-progress-handle {
-    position: absolute;
-    top: 50%;
-    right: -6px;
-    transform: translateY(-50%);
-    width: 12px;
-    height: 12px;
-    background: var(--primary);
-    border-radius: 50%;
-    border: 2px solid white;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-    opacity: 0;
-    transition: opacity 0.2s ease;
-}
-
-.coach-progress-bar:hover .coach-progress-handle {
-    opacity: 1;
-}
-
-.coach-progress-time {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    margin-top: 4px;
-}
-
-.coach-karaoke-sections {
-    display: flex;
-    gap: 4px;
-    padding: 8px 20px;
-    background: var(--bg-primary);
-    border-bottom: 1px solid var(--border-color);
-    flex-wrap: wrap;
-    overflow-x: auto;
-}
-
-.coach-section-btn {
-    padding: 4px 12px;
-    border-radius: 16px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    font-size: 0.7rem;
-    cursor: pointer;
-    transition: var(--transition);
-    white-space: nowrap;
-}
-
-.coach-section-btn:hover {
-    border-color: var(--primary);
-    color: var(--text-primary);
-}
-
-.coach-section-btn.active {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-
-.coach-karaoke-body {
-    flex: 1;
-    padding: 20px;
-    overflow-y: auto;
-    max-height: 400px;
-    min-height: 300px;
-    background: var(--script-bg);
-    scroll-behavior: smooth;
-}
-
-.coach-karaoke-body::-webkit-scrollbar {
-    width: 4px;
-}
-
-.coach-karaoke-body::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.coach-karaoke-body::-webkit-scrollbar-thumb {
-    background: var(--primary);
-    border-radius: 4px;
-}
-
-.coach-line {
-    padding: 8px 12px;
-    margin-bottom: 4px;
-    border-radius: 8px;
-    transition: all 0.3s ease;
-    border-left: 3px solid transparent;
-}
-
-.coach-line.active {
-    border-left-color: var(--primary);
-    background: rgba(59, 130, 246, 0.08);
-}
-
-.coach-line.dimmed {
-    opacity: 0.4;
-}
-
-.coach-line.setter {
-    border-left-color: var(--primary);
-}
-
-.coach-line.prospect {
-    border-left-color: var(--secondary);
-}
-
-.coach-line .coach-speaker-label {
-    display: block;
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    margin-bottom: 2px;
-}
-
-.coach-word {
-    display: inline-block;
-    transition: all 0.15s ease;
-    padding: 2px 2px;
-    border-radius: 4px;
-    font-size: 1.05rem;
-    line-height: 1.8;
-}
-
-.coach-word.current {
-    background: rgba(250, 204, 21, 0.3);
-    border-radius: 4px;
-    color: #facc15 !important;
-}
-
-.coach-word.speaking {
-    background: rgba(250, 204, 21, 0.4);
-    transform: scale(1.08);
-    box-shadow: 0 0 30px rgba(250, 204, 21, 0.3);
-    color: #facc15 !important;
-    animation: wordGlow 0.5s ease-in-out;
-}
-
-.coach-word.emphasis {
-    font-weight: 700;
-}
-
-.coach-word.low-confidence {
-    opacity: 0.6;
-}
-
-.coach-word.pause::after {
-    content: ' ⏸';
-    font-size: 0.5rem;
-    opacity: 0.4;
-}
-
-.coach-cue {
-    font-size: 0.5rem;
-    margin-left: 2px;
-    opacity: 0.6;
-    display: inline-block;
-}
-
-.coach-karaoke-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 20px;
-    background: var(--bg-primary);
-    border-top: 1px solid var(--border-color);
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.coach-karaoke-actions {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-
-.coach-action-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: 1px solid var(--border-color);
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: var(--transition);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.coach-action-btn:hover {
-    border-color: var(--primary);
-    color: var(--text-primary);
-}
-
-.coach-action-btn.active {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-
-.coach-action-btn.recording {
-    background: var(--danger);
-    color: white;
-    animation: pulse 1s ease-in-out infinite;
-}
-
-.coach-karaoke-status {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-}
-
-.coach-status-text {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-/* ============================================================
-   SCRIPT COACH - LOADING & RESULTS OVERLAYS
-   ============================================================ */
-.coach-loading-overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.92);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
     animation: fadeIn 0.3s ease;
-    border-radius: 24px;
-    backdrop-filter: blur(8px);
 }
 
-.coach-loading-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-    padding: 40px;
-    max-width: 400px;
-    text-align: center;
-}
-
-.coach-brain-animation {
-    position: relative;
-    width: 80px;
-    height: 80px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.coach-brain-animation i {
-    font-size: 3rem;
-    color: var(--primary);
-    z-index: 2;
-    animation: pulse 1.5s ease-in-out infinite;
-}
-
-.coach-pulse-ring {
-    position: absolute;
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    border: 3px solid var(--primary);
-    opacity: 0;
-    animation: pulse-ring 2s ease-out infinite;
-}
-
-.coach-pulse-ring.delay-1 { animation-delay: 0.5s; }
-.coach-pulse-ring.delay-2 { animation-delay: 1s; }
-
-.coach-loading-title {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: var(--text-primary);
-}
-
-.coach-loading-message {
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-    min-height: 1.5em;
-}
-
-.coach-progress-track {
-    width: 100%;
-    height: 4px;
-    background: var(--border-color);
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.coach-progress-fill {
-    height: 100%;
-    background: var(--accent-gradient);
-    border-radius: 4px;
-    transition: width 0.4s ease;
-}
-
-.coach-progress-text {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-}
-
-.coach-loading-dots {
-    display: flex;
-    gap: 8px;
-}
-
-.coach-loading-dots .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--primary);
-    animation: dot-bounce 1.4s ease-in-out infinite;
-}
-
-.coach-loading-dots .dot.delay-1 { animation-delay: 0.2s; }
-.coach-loading-dots .dot.delay-2 { animation-delay: 0.4s; }
-.coach-loading-dots .dot.delay-3 { animation-delay: 0.6s; }
-
-.coach-results-overlay {
-    position: absolute;
-    inset: 0;
-    background: var(--bg-secondary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    animation: fadeIn 0.5s ease;
-    border-radius: 24px;
-    overflow-y: auto;
-    padding: 20px;
-}
-
-.coach-results-content {
-    width: 100%;
-    max-width: 700px;
-    max-height: 90%;
-    overflow-y: auto;
-    padding: 20px;
-    background: var(--bg-card);
-    border-radius: 20px;
-    border: 1px solid var(--border-color);
-    box-shadow: var(--shadow-lg);
-}
-
-.coach-results-header {
+.objection-integrated-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 12px;
+    padding: 10px 16px;
+    background: var(--bg-card);
     border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    user-select: none;
+    transition: var(--transition);
 }
 
-.coach-results-header h3 {
-    font-size: 1.2rem;
+.objection-integrated-header:hover {
+    background: var(--bg-primary);
+}
+
+.objection-integrated-title {
     display: flex;
     align-items: center;
     gap: 10px;
+    flex-wrap: wrap;
 }
 
-.coach-results-close {
+.objection-icon {
+    font-size: 1.1rem;
+}
+
+.objection-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+.objection-badge {
+    background: var(--primary);
+    color: white;
+    padding: 1px 10px;
+    border-radius: 20px;
+    font-size: 0.6rem;
+    font-weight: 600;
+}
+
+.objection-integrated-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.objection-minimize-btn {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: var(--transition);
+}
+
+.objection-minimize-btn:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.objection-integrated-body {
+    padding: 12px 16px 16px;
+    animation: fadeIn 0.3s ease;
+}
+
+.objection-integrated-body .objection-category-nav {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.objection-integrated-body .objection-category-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 2px solid transparent;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
+.objection-integrated-body .objection-category-btn:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.objection-integrated-body .objection-category-btn.active {
+    background: var(--bg-card);
+    border-color: var(--primary);
+    color: var(--text-primary);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+}
+
+.objection-integrated-body .objection-category-btn .category-icon {
+    font-size: 0.8rem;
+}
+
+.objection-integrated-body .objection-category-btn .category-label {
+    font-size: 0.65rem;
+}
+
+.objection-integrated-body .objection-category-btn .category-count {
+    background: var(--bg-primary);
+    color: var(--text-muted);
+    padding: 0 6px;
+    border-radius: 10px;
+    font-size: 0.5rem;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.objection-integrated-body .objection-category-btn.active .category-count {
+    background: var(--primary);
+    color: white;
+}
+
+.objection-integrated-body .objection-cards-container {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.objection-integrated-body .objection-cards-container::-webkit-scrollbar {
+    width: 3px;
+}
+
+.objection-integrated-body .objection-cards-container::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 3px;
+}
+
+.objection-integrated-body .objection-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: var(--transition);
+}
+
+.objection-integrated-body .objection-card:hover {
+    border-color: var(--primary);
+}
+
+.objection-integrated-body .objection-card.expanded {
+    border-color: var(--primary);
+}
+
+.objection-integrated-body .objection-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: var(--transition);
+    user-select: none;
+}
+
+.objection-integrated-body .objection-card-header:hover {
+    background: var(--bg-primary);
+}
+
+.objection-integrated-body .objection-card-icon {
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}
+
+.objection-integrated-body .objection-card-objection {
+    flex: 1;
+    font-weight: 500;
+    font-size: 0.8rem;
+    color: var(--text-primary);
+}
+
+.objection-integrated-body .objection-card-toggle {
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.objection-integrated-body .objection-card.expanded .objection-card-toggle {
+    color: var(--primary);
+}
+
+.objection-integrated-body .objection-card-body {
+    padding: 0 12px 12px;
+    border-top: 1px solid var(--border-color);
+    animation: fadeIn 0.3s ease;
+}
+
+.objection-integrated-body .objection-response {
+    padding: 8px 12px;
+    background: var(--bg-primary);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    border-left: 3px solid var(--success);
+}
+
+.objection-integrated-body .objection-response-label {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 2px;
+}
+
+.objection-integrated-body .objection-response-text {
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+.objection-integrated-body .objection-tip {
+    padding: 8px 12px;
+    background: rgba(245, 158, 11, 0.08);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    border-left: 3px solid var(--warning);
+}
+
+.objection-integrated-body .objection-tip-label {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--warning);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 2px;
+}
+
+.objection-integrated-body .objection-tip-text {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.objection-integrated-body .objection-card-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+}
+
+.objection-integrated-body .objection-copy-btn,
+.objection-integrated-body .objection-practice-btn {
+    padding: 4px 12px;
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.65rem;
+    font-weight: 500;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.objection-integrated-body .objection-copy-btn:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.objection-integrated-body .objection-practice-btn:hover {
+    background: var(--secondary);
+    color: white;
+    border-color: var(--secondary);
+}
+
+.objection-integrated-body .objection-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 10px;
+    margin-top: 10px;
+    border-top: 1px solid var(--border-color);
+}
+
+.objection-integrated-body .objection-footer-tip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    flex: 1;
+}
+
+.objection-integrated-body .objection-footer-tip i {
+    color: var(--warning);
+    font-size: 0.8rem;
+}
+
+.objection-integrated-body .objection-footer-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.objection-integrated-body .objection-expand-all-btn,
+.objection-integrated-body .objection-collapse-all-btn {
+    padding: 3px 10px;
+    border-radius: 14px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.65rem;
+    transition: var(--transition);
+}
+
+.objection-integrated-body .objection-expand-all-btn:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.objection-integrated-body .objection-collapse-all-btn:hover {
+    background: var(--danger);
+    color: white;
+    border-color: var(--danger);
+}
+
+/* ============================================================
+   PRACTICE MODAL
+   ============================================================ */
+.objection-practice-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    padding: 20px;
+}
+
+.objection-practice-modal.active {
+    opacity: 1;
+}
+
+.objection-practice-content {
+    background: var(--bg-secondary);
+    border-radius: 24px;
+    max-width: 600px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-lg);
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.objection-practice-modal.active .objection-practice-content {
+    transform: scale(1);
+}
+
+.objection-practice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-card);
+    border-radius: 24px 24px 0 0;
+}
+
+.objection-practice-header h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.objection-practice-close {
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     cursor: pointer;
     padding: 4px 8px;
     border-radius: 8px;
     transition: var(--transition);
 }
 
-.coach-results-close:hover {
+.objection-practice-close:hover {
     background: var(--bg-primary);
     color: var(--text-primary);
 }
 
-.coach-overall-score {
-    text-align: center;
-    margin-bottom: 24px;
+.objection-practice-body {
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
 }
 
-.coach-score-circle {
-    position: relative;
-    width: 120px;
-    height: 120px;
-    margin: 0 auto 8px;
-}
-
-.coach-score-circle svg {
-    transform: rotate(-90deg);
-}
-
-.coach-score-circle .coach-score-number {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 1.8rem;
-    font-weight: 800;
-    color: var(--text-primary);
-}
-
-.coach-score-label {
-    font-size: 0.8rem;
+.objection-practice-label {
+    font-size: 0.65rem;
+    font-weight: 600;
     color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 2px;
 }
 
-.coach-metrics-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 20px;
-}
-
-@media (max-width: 600px) {
-    .coach-metrics-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-.coach-metric-item {
+.objection-practice-scenario {
     background: var(--bg-primary);
+    padding: 12px 16px;
+    border-radius: 10px;
+    border-left: 4px solid var(--danger);
+}
+
+.objection-practice-objection {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.objection-practice-input {
+    width: 100%;
     padding: 10px 14px;
-    border-radius: 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    resize: vertical;
+    transition: var(--transition);
+}
+
+.objection-practice-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.objection-practice-recommended {
+    background: var(--bg-card);
+    padding: 12px 16px;
+    border-radius: 10px;
     border: 1px solid var(--border-color);
 }
 
-.coach-metric-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
-}
-
-.coach-metric-icon { font-size: 0.9rem; }
-.coach-metric-name {
-    flex: 1;
-    font-size: 0.75rem;
-    font-weight: 500;
+.objection-practice-recommended-text {
+    font-size: 0.85rem;
     color: var(--text-secondary);
-}
-
-.coach-metric-value {
-    font-size: 0.75rem;
-    font-weight: 700;
-}
-
-.coach-metric-value.good { color: var(--success); }
-.coach-metric-value.fair { color: var(--warning); }
-.coach-metric-value.poor { color: var(--danger); }
-
-.coach-metric-bar {
-    width: 100%;
-    height: 4px;
-    background: var(--border-color);
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.coach-metric-fill {
-    height: 100%;
-    border-radius: 4px;
-    transition: width 0.8s ease;
-    background: var(--accent-gradient);
-}
-
-.coach-recommendations {
-    margin-bottom: 20px;
-}
-
-.coach-recommendations h4 {
-    font-size: 0.95rem;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.coach-recommendations-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-.coach-recommendation {
-    padding: 10px 14px;
-    border-radius: 12px;
-    border-left: 4px solid var(--border-color);
-    background: var(--bg-primary);
-}
-
-.coach-recommendation.high { border-left-color: var(--danger); }
-.coach-recommendation.medium { border-left-color: var(--warning); }
-.coach-recommendation.positive { border-left-color: var(--success); }
-
-.coach-rec-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 4px;
-}
-
-.coach-rec-metric {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-}
-
-.coach-rec-badge {
-    font-size: 0.6rem;
-    padding: 2px 10px;
-    border-radius: 20px;
-    font-weight: 600;
-}
-
-.coach-rec-badge.high {
-    background: rgba(239, 68, 68, 0.2);
-    color: var(--danger);
-}
-.coach-rec-badge.medium {
-    background: rgba(245, 158, 11, 0.2);
-    color: var(--warning);
-}
-.coach-rec-badge.positive {
-    background: rgba(16, 185, 129, 0.2);
-    color: var(--success);
-}
-
-.coach-rec-text {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    margin: 0;
     line-height: 1.5;
+    display: none;
+    padding: 6px 0;
 }
 
-.coach-stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    padding: 12px;
+.objection-practice-reveal-btn {
+    padding: 5px 14px;
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
     background: var(--bg-primary);
-    border-radius: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.7rem;
+    transition: var(--transition);
+    margin-top: 4px;
 }
 
-.coach-stat-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 4px 0;
+.objection-practice-reveal-btn:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
 }
 
-.coach-stat-label {
+.objection-practice-copy-btn {
+    padding: 6px 16px;
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
     font-size: 0.75rem;
-    color: var(--text-muted);
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
-.coach-stat-value {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.coach-results-footer {
-    margin-top: 16px;
-    padding-top: 12px;
-    border-top: 1px solid var(--border-color);
-    display: flex;
-    justify-content: flex-end;
+.objection-practice-copy-btn:hover {
+    background: var(--success);
+    color: white;
+    border-color: var(--success);
 }
 
 /* ============================================================
@@ -3162,6 +2929,142 @@ body {
 .auth-divider::after { right: 0; }
 
 /* ============================================================
+   CLOSER MANAGEMENT
+   ============================================================ */
+.closer-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    transition: var(--transition);
+}
+
+.closer-item:hover {
+    border-color: var(--primary);
+    box-shadow: var(--shadow-sm);
+}
+
+.closer-item.inactive {
+    opacity: 0.6;
+}
+
+.closer-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.closer-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--bg-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    border: 2px solid var(--border-color);
+}
+
+.closer-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.closer-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+}
+
+.closer-email,
+.closer-phone {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.closer-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.closer-actions .btn-icon {
+    padding: 4px 10px;
+    font-size: 0.7rem;
+}
+
+.status-badge {
+    font-size: 0.65rem;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+}
+
+.status-badge.active {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+}
+
+.status-badge.inactive {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--danger);
+}
+
+#newApptCloser {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    transition: var(--transition);
+}
+
+#newApptCloser:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-color: var(--primary);
+}
+
+#closerManagementModal .modal-card {
+    max-width: 600px;
+}
+
+#closerManagementModal .empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+#closerManagementModal .empty-state i {
+    font-size: 3rem;
+    margin-bottom: 12px;
+    opacity: 0.3;
+}
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+.footer-note {
+    margin-top: 20px;
+    padding: 12px 20px;
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border-color);
+    opacity: 0.7;
+}
+
+/* ============================================================
    RESPONSIVE DESIGN
    ============================================================ */
 @media (max-width: 1024px) {
@@ -3187,35 +3090,7 @@ body {
     }
     .list-event-item .list-event-contact { display: none; }
     
-    .coach-karaoke-header {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 8px;
-    }
-    .coach-karaoke-controls {
-        justify-content: center;
-    }
-    .coach-karaoke-sections {
-        justify-content: center;
-        padding: 6px 12px;
-    }
-    .coach-karaoke-body {
-        padding: 12px;
-        max-height: 300px;
-        min-height: 200px;
-    }
-    .coach-word {
-        font-size: 0.95rem;
-        line-height: 1.6;
-    }
-    .coach-karaoke-footer {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 8px;
-    }
-    .coach-karaoke-actions {
-        justify-content: center;
-    }
+    .feature-panel-body { padding: 20px; }
 }
 
 @media (max-width: 768px) {
@@ -3339,48 +3214,6 @@ body {
         gap: 4px;
     }
     
-    .coach-tone-select {
-        min-width: 80px;
-        font-size: 0.65rem;
-        padding: 3px 8px;
-    }
-    .coach-results-content {
-        padding: 16px;
-        margin: 8px;
-    }
-    .coach-score-circle {
-        width: 80px;
-        height: 80px;
-    }
-    .coach-score-circle .coach-score-number {
-        font-size: 1.2rem;
-    }
-    
-    .coach-karaoke-container {
-        min-height: 400px;
-    }
-    .coach-karaoke-body {
-        padding: 12px;
-        max-height: 250px;
-        min-height: 150px;
-    }
-    .coach-word {
-        font-size: 0.9rem;
-        line-height: 1.5;
-    }
-    .coach-karaoke-controls .coach-speed-btn {
-        padding: 3px 8px;
-        font-size: 0.65rem;
-    }
-    .coach-section-btn {
-        padding: 3px 10px;
-        font-size: 0.65rem;
-    }
-    .coach-action-btn {
-        width: 32px;
-        height: 32px;
-    }
-    
     .import-date-selector {
         flex-direction: column;
         align-items: stretch;
@@ -3388,6 +3221,76 @@ body {
     }
     .import-date-selector input[type="date"] {
         width: 100%;
+    }
+    
+    .objection-integrated-body .objection-category-nav {
+        gap: 4px;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        padding-bottom: 6px;
+    }
+    
+    .objection-integrated-body .objection-category-btn {
+        padding: 4px 10px;
+        font-size: 0.65rem;
+        flex-shrink: 0;
+    }
+    
+    .objection-integrated-body .objection-category-btn .category-label {
+        font-size: 0.6rem;
+    }
+    
+    .objection-integrated-body .objection-card-objection {
+        font-size: 0.75rem;
+    }
+    
+    .objection-integrated-body .objection-response-text {
+        font-size: 0.75rem;
+    }
+    
+    .objection-integrated-body .objection-tip-text {
+        font-size: 0.7rem;
+    }
+    
+    .objection-integrated-body .objection-footer {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+    }
+    
+    .objection-integrated-body .objection-footer-tip {
+        font-size: 0.65rem;
+    }
+    
+    .objection-integrated-body .objection-footer-actions {
+        justify-content: flex-start;
+    }
+    
+    .objection-integrated-body .objection-card-actions {
+        flex-direction: column;
+    }
+    
+    .objection-integrated-body .objection-copy-btn,
+    .objection-integrated-body .objection-practice-btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .closer-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .closer-actions {
+        justify-content: flex-start;
+        padding-top: 8px;
+        border-top: 1px solid var(--border-color);
+    }
+    
+    .closer-actions .btn-icon {
+        font-size: 0.65rem;
+        padding: 4px 8px;
     }
 }
 
@@ -3488,16 +3391,6 @@ body {
     }
     .feature-panel-body { padding: 12px; }
     
-    .script-coach-btn-group {
-        width: 100%;
-        justify-content: center;
-        padding: 4px;
-    }
-    .coach-tone-select {
-        min-width: 60px;
-        font-size: 0.6rem;
-    }
-    
     .script-item .script-edit-btn,
     .script-item .script-delete-btn {
         font-size: 0.6rem;
@@ -3506,40 +3399,6 @@ body {
     .script-item .key-hint {
         font-size: 0.6rem;
         padding: 1px 6px;
-    }
-    
-    .coach-karaoke-container {
-        min-height: 350px;
-    }
-    .coach-karaoke-body {
-        padding: 8px;
-        max-height: 200px;
-        min-height: 120px;
-    }
-    .coach-word {
-        font-size: 0.8rem;
-        line-height: 1.4;
-    }
-    .coach-karaoke-controls .coach-speed-btn {
-        padding: 2px 8px;
-        font-size: 0.6rem;
-    }
-    .coach-section-btn {
-        padding: 2px 8px;
-        font-size: 0.6rem;
-    }
-    .coach-action-btn {
-        width: 30px;
-        height: 30px;
-    }
-    .coach-karaoke-progress {
-        padding: 6px 12px;
-    }
-    .coach-karaoke-sections {
-        padding: 4px 8px;
-    }
-    .coach-karaoke-footer {
-        padding: 6px 12px;
     }
     
     .import-date-selector {
@@ -3564,450 +3423,7 @@ body {
     .record-fields {
         grid-template-columns: 1fr;
     }
-}
-
-/* ============================================================
-   ACCESSIBILITY
-   ============================================================ */
-.sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0,0,0,0);
-    white-space: nowrap;
-    border: 0;
-}
-
-*:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-::selection { background: var(--primary); color: white; }
-
-/* ============================================================
-   SCROLLBAR STYLES
-   ============================================================ */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--scrollbar-track); border-radius: 10px; }
-::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: var(--primary); }
-
-/* ============================================================
-   OBJECTION HANDLER - INTEGRATED STYLES
-   ============================================================ */
-
-.objection-integrated {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    overflow: hidden;
-    animation: fadeIn 0.3s ease;
-}
-
-.objection-integrated-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 16px;
-    background: var(--bg-card);
-    border-bottom: 1px solid var(--border-color);
-    cursor: pointer;
-    user-select: none;
-    transition: var(--transition);
-}
-
-.objection-integrated-header:hover {
-    background: var(--bg-primary);
-}
-
-.objection-integrated-title {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.objection-icon {
-    font-size: 1.1rem;
-}
-
-.objection-title {
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--text-primary);
-}
-
-.objection-badge {
-    background: var(--primary);
-    color: white;
-    padding: 1px 10px;
-    border-radius: 20px;
-    font-size: 0.6rem;
-    font-weight: 600;
-}
-
-.objection-integrated-controls {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.objection-minimize-btn {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 50%;
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    color: var(--text-secondary);
-    transition: var(--transition);
-}
-
-.objection-minimize-btn:hover {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-
-.objection-integrated-body {
-    padding: 12px 16px 16px;
-    animation: fadeIn 0.3s ease;
-}
-
-.objection-integrated-body .objection-category-nav {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.objection-integrated-body .objection-category-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 12px;
-    border-radius: 20px;
-    border: 2px solid transparent;
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: var(--transition);
-    font-size: 0.7rem;
-    font-weight: 500;
-}
-
-.objection-integrated-body .objection-category-btn:hover {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-}
-
-.objection-integrated-body .objection-category-btn.active {
-    background: var(--bg-card);
-    border-color: var(--primary);
-    color: var(--text-primary);
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
-}
-
-.objection-integrated-body .objection-category-btn .category-icon {
-    font-size: 0.8rem;
-}
-
-.objection-integrated-body .objection-category-btn .category-label {
-    font-size: 0.65rem;
-}
-
-.objection-integrated-body .objection-category-btn .category-count {
-    background: var(--bg-primary);
-    color: var(--text-muted);
-    padding: 0 6px;
-    border-radius: 10px;
-    font-size: 0.5rem;
-    font-weight: 600;
-    line-height: 1.5;
-}
-
-.objection-integrated-body .objection-category-btn.active .category-count {
-    background: var(--primary);
-    color: white;
-}
-
-.objection-integrated-body .objection-cards-container {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    max-height: 400px;
-    overflow-y: auto;
-    padding-right: 4px;
-}
-
-.objection-integrated-body .objection-cards-container::-webkit-scrollbar {
-    width: 3px;
-}
-
-.objection-integrated-body .objection-cards-container::-webkit-scrollbar-thumb {
-    background: var(--primary);
-    border-radius: 3px;
-}
-
-.objection-integrated-body .objection-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    overflow: hidden;
-    transition: var(--transition);
-}
-
-.objection-integrated-body .objection-card:hover {
-    border-color: var(--primary);
-}
-
-.objection-integrated-body .objection-card.expanded {
-    border-color: var(--primary);
-}
-
-.objection-integrated-body .objection-card-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 12px;
-    cursor: pointer;
-    transition: var(--transition);
-    user-select: none;
-}
-
-.objection-integrated-body .objection-card-header:hover {
-    background: var(--bg-primary);
-}
-
-.objection-integrated-body .objection-card-icon {
-    font-size: 0.8rem;
-    flex-shrink: 0;
-}
-
-.objection-integrated-body .objection-card-objection {
-    flex: 1;
-    font-weight: 500;
-    font-size: 0.8rem;
-    color: var(--text-primary);
-}
-
-.objection-integrated-body .objection-card-toggle {
-    color: var(--text-muted);
-    font-size: 0.65rem;
-    transition: var(--transition);
-    flex-shrink: 0;
-}
-
-.objection-integrated-body .objection-card.expanded .objection-card-toggle {
-    color: var(--primary);
-}
-
-.objection-integrated-body .objection-card-body {
-    padding: 0 12px 12px;
-    border-top: 1px solid var(--border-color);
-    animation: fadeIn 0.3s ease;
-}
-
-.objection-integrated-body .objection-response {
-    padding: 8px 12px;
-    background: var(--bg-primary);
-    border-radius: 6px;
-    margin-bottom: 8px;
-    border-left: 3px solid var(--success);
-}
-
-.objection-integrated-body .objection-response-label {
-    font-size: 0.6rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    margin-bottom: 2px;
-}
-
-.objection-integrated-body .objection-response-text {
-    font-size: 0.8rem;
-    color: var(--text-primary);
-    line-height: 1.5;
-}
-
-.objection-integrated-body .objection-tip {
-    padding: 8px 12px;
-    background: rgba(245, 158, 11, 0.08);
-    border-radius: 6px;
-    margin-bottom: 10px;
-    border-left: 3px solid var(--warning);
-}
-
-.objection-integrated-body .objection-tip-label {
-    font-size: 0.6rem;
-    font-weight: 600;
-    color: var(--warning);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    margin-bottom: 2px;
-}
-
-.objection-integrated-body .objection-tip-text {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    line-height: 1.4;
-}
-
-.objection-integrated-body .objection-card-actions {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    padding-top: 8px;
-    border-top: 1px solid var(--border-color);
-}
-
-.objection-integrated-body .objection-copy-btn,
-.objection-integrated-body .objection-practice-btn {
-    padding: 4px 12px;
-    border-radius: 16px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 0.65rem;
-    font-weight: 500;
-    transition: var(--transition);
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.objection-integrated-body .objection-copy-btn:hover {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-
-.objection-integrated-body .objection-practice-btn:hover {
-    background: var(--secondary);
-    color: white;
-    border-color: var(--secondary);
-}
-
-.objection-integrated-body .objection-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-    padding-top: 10px;
-    margin-top: 10px;
-    border-top: 1px solid var(--border-color);
-}
-
-.objection-integrated-body .objection-footer-tip {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    flex: 1;
-}
-
-.objection-integrated-body .objection-footer-tip i {
-    color: var(--warning);
-    font-size: 0.8rem;
-}
-
-.objection-integrated-body .objection-footer-actions {
-    display: flex;
-    gap: 6px;
-}
-
-.objection-integrated-body .objection-expand-all-btn,
-.objection-integrated-body .objection-collapse-all-btn {
-    padding: 3px 10px;
-    border-radius: 14px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 0.65rem;
-    transition: var(--transition);
-}
-
-.objection-integrated-body .objection-expand-all-btn:hover {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-
-.objection-integrated-body .objection-collapse-all-btn:hover {
-    background: var(--danger);
-    color: white;
-    border-color: var(--danger);
-}
-
-/* ============================================================
-   OBJECTION HANDLER - RESPONSIVE
-   ============================================================ */
-@media (max-width: 768px) {
-    .objection-integrated-body .objection-category-nav {
-        gap: 4px;
-        overflow-x: auto;
-        flex-wrap: nowrap;
-        padding-bottom: 6px;
-    }
     
-    .objection-integrated-body .objection-category-btn {
-        padding: 4px 10px;
-        font-size: 0.65rem;
-        flex-shrink: 0;
-    }
-    
-    .objection-integrated-body .objection-category-btn .category-label {
-        font-size: 0.6rem;
-    }
-    
-    .objection-integrated-body .objection-card-objection {
-        font-size: 0.75rem;
-    }
-    
-    .objection-integrated-body .objection-response-text {
-        font-size: 0.75rem;
-    }
-    
-    .objection-integrated-body .objection-tip-text {
-        font-size: 0.7rem;
-    }
-    
-    .objection-integrated-body .objection-footer {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 6px;
-    }
-    
-    .objection-integrated-body .objection-footer-tip {
-        font-size: 0.65rem;
-    }
-    
-    .objection-integrated-body .objection-footer-actions {
-        justify-content: flex-start;
-    }
-    
-    .objection-integrated-body .objection-card-actions {
-        flex-direction: column;
-    }
-    
-    .objection-integrated-body .objection-copy-btn,
-    .objection-integrated-body .objection-practice-btn {
-        width: 100%;
-        justify-content: center;
-    }
-}
-
-@media (max-width: 480px) {
     .objection-integrated-title .objection-badge {
         font-size: 0.5rem;
         padding: 1px 6px;
@@ -4016,378 +3432,7 @@ body {
     .objection-integrated-body .objection-cards-container {
         max-height: 300px;
     }
-}
-
-/* ============================================================
-   PRACTICE MODAL
-   ============================================================ */
-.objection-practice-modal {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(12px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    padding: 20px;
-}
-
-.objection-practice-modal.active {
-    opacity: 1;
-}
-
-.objection-practice-content {
-    background: var(--bg-secondary);
-    border-radius: 24px;
-    max-width: 600px;
-    width: 100%;
-    max-height: 85vh;
-    overflow-y: auto;
-    border: 1px solid var(--border-color);
-    box-shadow: var(--shadow-lg);
-    transform: scale(0.9);
-    transition: transform 0.3s ease;
-}
-
-.objection-practice-modal.active .objection-practice-content {
-    transform: scale(1);
-}
-
-.objection-practice-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 14px 20px;
-    border-bottom: 1px solid var(--border-color);
-    background: var(--bg-card);
-    border-radius: 24px 24px 0 0;
-}
-
-.objection-practice-header h3 {
-    font-size: 1rem;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.objection-practice-close {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 1.1rem;
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 8px;
-    transition: var(--transition);
-}
-
-.objection-practice-close:hover {
-    background: var(--bg-primary);
-    color: var(--text-primary);
-}
-
-.objection-practice-body {
-    padding: 16px 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-}
-
-.objection-practice-label {
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    margin-bottom: 2px;
-}
-
-.objection-practice-scenario {
-    background: var(--bg-primary);
-    padding: 12px 16px;
-    border-radius: 10px;
-    border-left: 4px solid var(--danger);
-}
-
-.objection-practice-objection {
-    font-size: 0.9rem;
-    color: var(--text-primary);
-    font-weight: 500;
-}
-
-.objection-practice-input {
-    width: 100%;
-    padding: 10px 14px;
-    border-radius: 10px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-card);
-    color: var(--text-primary);
-    font-size: 0.85rem;
-    resize: vertical;
-    transition: var(--transition);
-}
-
-.objection-practice-input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-}
-
-.objection-practice-recommended {
-    background: var(--bg-card);
-    padding: 12px 16px;
-    border-radius: 10px;
-    border: 1px solid var(--border-color);
-}
-
-.objection-practice-recommended-text {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    line-height: 1.5;
-    display: none;
-    padding: 6px 0;
-}
-
-.objection-practice-reveal-btn {
-    padding: 5px 14px;
-    border-radius: 16px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 0.7rem;
-    transition: var(--transition);
-    margin-top: 4px;
-}
-
-.objection-practice-reveal-btn:hover {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-
-.objection-practice-copy-btn {
-    padding: 6px 16px;
-    border-radius: 16px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 0.75rem;
-    transition: var(--transition);
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.objection-practice-copy-btn:hover {
-    background: var(--success);
-    color: white;
-    border-color: var(--success);
-}
-
-/* ============================================================
-   SCRIPT ACTIONS - RESPONSIVE FIXES
-   ============================================================ */
-@media (max-width: 1024px) {
-    .script-actions {
-        flex-wrap: wrap;
-    }
-    .script-actions .btn-icon {
-        font-size: 0.7rem;
-        padding: 4px 10px;
-    }
-}
-
-@media (max-width: 768px) {
-    .script-actions .btn-icon {
-        font-size: 0.65rem;
-        padding: 4px 8px;
-    }
     
-    .script-header-bar {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 8px;
-    }
-    
-    .script-title-area {
-        flex-wrap: wrap;
-    }
-    
-    .script-actions {
-        justify-content: flex-start;
-        gap: 4px;
-    }
-}
-
-/* ============================================================
-   TOAST - MOBILE FIXES
-   ============================================================ */
-@media (max-width: 480px) {
-    .toast {
-        bottom: 12px;
-        right: 12px;
-        left: 12px;
-        max-width: none;
-        font-size: 0.8rem;
-        padding: 10px 16px;
-    }
-}
-
-/* ============================================================
-   CLOSER MANAGEMENT STYLES
-   ============================================================ */
-
-.closer-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 16px;
-    margin-bottom: 8px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    transition: var(--transition);
-}
-
-.closer-item:hover {
-    border-color: var(--primary);
-    box-shadow: var(--shadow-sm);
-}
-
-.closer-item.inactive {
-    opacity: 0.6;
-}
-
-.closer-info {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex: 1;
-}
-
-.closer-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--bg-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2rem;
-    border: 2px solid var(--border-color);
-}
-
-.closer-details {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.closer-name {
-    font-weight: 600;
-    font-size: 0.95rem;
-    color: var(--text-primary);
-}
-
-.closer-email,
-.closer-phone {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-}
-
-.closer-actions {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.closer-actions .btn-icon {
-    padding: 4px 10px;
-    font-size: 0.7rem;
-}
-
-.status-badge {
-    font-size: 0.65rem;
-    padding: 2px 10px;
-    border-radius: 20px;
-    font-weight: 500;
-}
-
-.status-badge.active {
-    background: rgba(16, 185, 129, 0.15);
-    color: var(--success);
-}
-
-.status-badge.inactive {
-    background: rgba(239, 68, 68, 0.15);
-    color: var(--danger);
-}
-
-#newApptCloser {
-    width: 100%;
-    padding: 12px 16px;
-    border-radius: 20px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    font-size: 0.9rem;
-    transition: var(--transition);
-}
-
-#newApptCloser:focus {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
-    border-color: var(--primary);
-}
-
-#closerManagementModal .modal-card {
-    max-width: 600px;
-}
-
-#closerManagementModal .empty-state {
-    padding: 40px 20px;
-    text-align: center;
-    color: var(--text-muted);
-}
-
-#closerManagementModal .empty-state i {
-    font-size: 3rem;
-    margin-bottom: 12px;
-    opacity: 0.3;
-}
-
-@media (max-width: 768px) {
-    .closer-item {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 10px;
-    }
-    
-    .closer-actions {
-        justify-content: flex-start;
-        padding-top: 8px;
-        border-top: 1px solid var(--border-color);
-    }
-    
-    .closer-actions .btn-icon {
-        font-size: 0.65rem;
-        padding: 4px 8px;
-    }
-    
-    #closerManagementModal .modal-card {
-        max-width: 95%;
-        padding: 16px;
-    }
-}
-
-@media (max-width: 480px) {
     .closer-item {
         padding: 10px 12px;
     }
@@ -4417,3 +3462,29 @@ body {
         padding: 1px 8px;
     }
 }
+
+/* ============================================================
+   ACCESSIBILITY
+   ============================================================ */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+}
+
+*:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+::selection { background: var(--primary); color: white; }
+
+/* ============================================================
+   SCROLLBAR STYLES
+   ============================================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track); border-radius: 10px; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--primary); }

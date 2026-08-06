@@ -3,13 +3,11 @@
 // ================================================================
 
 const ObjectionHandler = {
-    // State
     isOpen: false,
     currentCategory: 'reflex',
-    currentObjection: null,
     expandedCards: new Set(),
+    initialized: false,
     
-    // Data
     categories: {
         reflex: {
             label: '🔄 Reflex Brush-Offs',
@@ -149,14 +147,14 @@ const ObjectionHandler = {
         }
     },
     
-    // Initialize - integrated into script modal
     init: function() {
+        if (this.initialized) return;
+        this.initialized = true;
         this.createIntegratedUI();
         this.attachEvents();
-        console.log('🎯 Objection Handler integrated into Script Modal');
+        console.log('🎯 Objection Handler initialized');
     },
     
-    // Create integrated UI inside script modal
     createIntegratedUI: function() {
         const container = document.getElementById('objectionHandlerContainer');
         if (!container) return;
@@ -207,7 +205,6 @@ const ObjectionHandler = {
         `;
     },
     
-    // Render cards for a category
     renderCards: function(categoryKey) {
         const category = this.categories[categoryKey];
         if (!category) return '<div class="objection-empty">No objections in this category.</div>';
@@ -243,7 +240,6 @@ const ObjectionHandler = {
         `).join('');
     },
     
-    // Get total objection count
     getTotalObjectionCount: function() {
         let count = 0;
         for (const category of Object.values(this.categories)) {
@@ -252,7 +248,6 @@ const ObjectionHandler = {
         return count;
     },
     
-    // Toggle banner open/close
     toggleBanner: function() {
         this.isOpen = !this.isOpen;
         const body = document.getElementById('objectionIntegratedBody');
@@ -278,7 +273,6 @@ const ObjectionHandler = {
         }
     },
     
-    // Toggle minimize
     toggleMinimize: function() {
         const body = document.getElementById('objectionIntegratedBody');
         const minimizeBtn = document.getElementById('objectionMinimizeBtn');
@@ -292,16 +286,13 @@ const ObjectionHandler = {
         }
     },
     
-    // Switch category
     switchCategory: function(categoryKey) {
         this.currentCategory = categoryKey;
         
-        // Update nav buttons
         document.querySelectorAll('.objection-category-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.category === categoryKey);
         });
         
-        // Update cards
         const container = document.getElementById('objectionCardsContainer');
         if (container) {
             container.innerHTML = this.renderCards(categoryKey);
@@ -309,7 +300,6 @@ const ObjectionHandler = {
         }
     },
     
-    // Toggle card expansion
     toggleCard: function(id) {
         if (this.expandedCards.has(id)) {
             this.expandedCards.delete(id);
@@ -317,7 +307,6 @@ const ObjectionHandler = {
             this.expandedCards.add(id);
         }
         
-        // Update the specific card
         const card = document.querySelector(`.objection-card[data-id="${id}"]`);
         if (card) {
             card.classList.toggle('expanded');
@@ -332,7 +321,6 @@ const ObjectionHandler = {
         }
     },
     
-    // Expand all cards
     expandAll: function() {
         const cards = document.querySelectorAll('.objection-card');
         cards.forEach(card => {
@@ -348,7 +336,6 @@ const ObjectionHandler = {
         });
     },
     
-    // Collapse all cards
     collapseAll: function() {
         const cards = document.querySelectorAll('.objection-card');
         cards.forEach(card => {
@@ -364,13 +351,11 @@ const ObjectionHandler = {
         });
     },
     
-    // Copy response to clipboard
     copyResponse: function(response) {
         const text = response.replace(/&quot;/g, '"');
         navigator.clipboard.writeText(text).then(() => {
             showToast('Response copied to clipboard! 📋', 'success');
         }).catch(() => {
-            // Fallback
             const ta = document.createElement('textarea');
             ta.value = text;
             document.body.appendChild(ta);
@@ -381,12 +366,10 @@ const ObjectionHandler = {
         });
     },
     
-    // Practice mode - open a practice modal
     practiceMode: function(objection, response) {
         const cleanObjection = objection.replace(/&quot;/g, '"');
         const cleanResponse = response.replace(/&quot;/g, '"');
         
-        // Create practice modal
         const existing = document.getElementById('objectionPracticeModal');
         if (existing) existing.remove();
         
@@ -427,11 +410,8 @@ const ObjectionHandler = {
         `;
         
         document.body.appendChild(modal);
-        
-        // Show modal with animation
         setTimeout(() => modal.classList.add('active'), 10);
         
-        // Close handler
         const closeBtn = document.getElementById('objectionPracticeClose');
         if (closeBtn) {
             closeBtn.addEventListener('click', () => {
@@ -440,7 +420,6 @@ const ObjectionHandler = {
             });
         }
         
-        // Click outside to close
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
                 modal.classList.remove('active');
@@ -448,7 +427,6 @@ const ObjectionHandler = {
             }
         });
         
-        // Reveal recommended response
         const revealBtn = document.getElementById('objectionRevealResponse');
         if (revealBtn) {
             revealBtn.addEventListener('click', () => {
@@ -462,7 +440,6 @@ const ObjectionHandler = {
             });
         }
         
-        // Copy button in practice modal
         const copyBtn = document.querySelector('.objection-practice-copy-btn');
         if (copyBtn) {
             copyBtn.addEventListener('click', () => {
@@ -472,18 +449,17 @@ const ObjectionHandler = {
         }
     },
     
-    // Attach all event listeners
     attachEvents: function() {
-        // Toggle banner
         const toggleBtn = document.getElementById('objectionToggleBtn');
         if (toggleBtn) {
-            toggleBtn.addEventListener('click', (e) => {
+            const newToggleBtn = toggleBtn.cloneNode(true);
+            toggleBtn.parentNode.replaceChild(newToggleBtn, toggleBtn);
+            newToggleBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.toggleBanner();
             });
         }
         
-        // Minimize button
         const minimizeBtn = document.getElementById('objectionMinimizeBtn');
         if (minimizeBtn) {
             minimizeBtn.addEventListener('click', (e) => {
@@ -492,30 +468,24 @@ const ObjectionHandler = {
             });
         }
         
-        // Category navigation
         document.querySelectorAll('.objection-category-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 this.switchCategory(btn.dataset.category);
             });
         });
         
-        // Expand all / Collapse all
         const expandAll = document.getElementById('objectionExpandAll');
         const collapseAll = document.getElementById('objectionCollapseAll');
         if (expandAll) expandAll.addEventListener('click', () => this.expandAll());
         if (collapseAll) collapseAll.addEventListener('click', () => this.collapseAll());
         
-        // Card events
         this.attachCardEvents();
         
-        // Default: hidden
         const container = document.getElementById('objectionHandlerContainer');
         if (container) container.style.display = 'none';
     },
     
-    // Attach card-specific events
     attachCardEvents: function() {
-        // Card header click to toggle
         document.querySelectorAll('.objection-card-header').forEach(header => {
             header.addEventListener('click', () => {
                 const id = header.dataset.id;
@@ -523,7 +493,6 @@ const ObjectionHandler = {
             });
         });
         
-        // Copy buttons
         document.querySelectorAll('.objection-copy-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -532,7 +501,6 @@ const ObjectionHandler = {
             });
         });
         
-        // Practice buttons
         document.querySelectorAll('.objection-practice-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -544,13 +512,13 @@ const ObjectionHandler = {
     }
 };
 
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    // Wait for the app to initialize
-    setTimeout(() => {
-        ObjectionHandler.init();
-    }, 500);
-});
-
-// Make globally accessible
 window.ObjectionHandler = ObjectionHandler;
+
+// Auto-initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.getElementById('objectionHandlerContainer')) {
+        setTimeout(function() {
+            ObjectionHandler.init();
+        }, 500);
+    }
+});
