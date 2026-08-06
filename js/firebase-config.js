@@ -1,5 +1,5 @@
 // ================================================================
-// FIREBASE CONFIGURATION - COMPLETE FIXED
+// FIREBASE CONFIGURATION - COMPLETE
 // ================================================================
 
 const firebaseConfig = {
@@ -11,66 +11,50 @@ const firebaseConfig = {
     appId: "1:250157640936:web:cd6218470c302b305aed5d"
 };
 
-/**
- * Firebase Status Tracker
- */
 const FirebaseStatus = {
     isInitialized: false,
     isReady: false,
     lastError: null,
     persistenceMode: 'none',
     connectionStatus: 'unknown',
-    blockedByClient: false,
-    retryCount: 0,
-    maxRetries: 3
+    blockedByClient: false
 };
-
-// ================================================================
-// FIREBASE INITIALIZATION - FIXED
-// ================================================================
 
 let firebaseInitAttempts = 0;
 const MAX_INIT_ATTEMPTS = 5;
 
 function initializeFirebase() {
     try {
-        // Check if Firebase SDK is loaded
         if (typeof firebase === 'undefined') {
-            console.warn('⚠️ Firebase SDK not loaded');
+            console.warn('Firebase SDK not loaded');
             FirebaseStatus.isReady = false;
             FirebaseStatus.lastError = 'Firebase SDK not loaded';
             return false;
         }
 
-        // Initialize Firebase app if not already initialized
         if (!firebase.apps || firebase.apps.length === 0) {
             firebase.initializeApp(firebaseConfig);
-            console.log('✅ Firebase app initialized successfully');
+            console.log('Firebase app initialized successfully');
         } else {
-            console.log('✅ Firebase app already initialized');
+            console.log('Firebase app already initialized');
         }
 
-        // Get Firestore instance
         const db = firebase.firestore();
         
-        // FIXED: Use modern Firestore settings - NO deprecated persistence
         try {
-            // Apply settings with merge to avoid warnings
             db.settings({
                 cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
                 ignoreUndefinedProperties: true,
                 merge: true
             });
-            console.log('✅ Firestore settings configured');
+            console.log('Firestore settings configured');
         } catch (settingsError) {
-            console.warn('⚠️ Firestore settings warning:', settingsError.message);
+            console.warn('Firestore settings warning:', settingsError.message);
         }
 
-        // FIXED: Use memory-only mode to avoid QUIC and connection issues
-        // This is the most reliable approach when Firestore is blocked
-        console.log('📋 Using memory-only mode (no persistence) to avoid connection issues');
+        // Use memory-only mode to avoid connection issues
+        console.log('Using memory-only mode (no persistence) to avoid connection issues');
         
-        // Mark as ready - we'll use memory-only mode
         setTimeout(() => {
             FirebaseStatus.persistenceMode = 'memory-only';
             FirebaseStatus.isReady = true;
@@ -83,16 +67,16 @@ function initializeFirebase() {
             }
             
             document.dispatchEvent(new CustomEvent('firebase-ready'));
-            console.log('✅ Firebase ready in memory-only mode');
+            console.log('Firebase ready in memory-only mode');
         }, 300);
 
-        console.log('🔥 Firebase initialized successfully');
-        console.log(`📋 Status: ${FirebaseStatus.isReady ? '✅ Ready' : '❌ Not ready'}`);
-        console.log(`📋 Persistence mode: ${FirebaseStatus.persistenceMode}`);
+        console.log('Firebase initialized successfully');
+        console.log(`Status: ${FirebaseStatus.isReady ? 'Ready' : 'Not ready'}`);
+        console.log(`Persistence mode: ${FirebaseStatus.persistenceMode}`);
         return true;
 
     } catch (error) {
-        console.error('❌ Firebase initialization error:', error);
+        console.error('Firebase initialization error:', error);
         FirebaseStatus.isInitialized = false;
         FirebaseStatus.isReady = false;
         FirebaseStatus.lastError = error.message;
@@ -103,10 +87,9 @@ function initializeFirebase() {
             AppState.firebaseStatus = FirebaseStatus;
         }
         
-        // Retry if attempts are less than max
         firebaseInitAttempts++;
         if (firebaseInitAttempts < MAX_INIT_ATTEMPTS) {
-            console.log(`🔄 Retrying Firebase initialization (${firebaseInitAttempts}/${MAX_INIT_ATTEMPTS})...`);
+            console.log(`Retrying Firebase initialization (${firebaseInitAttempts}/${MAX_INIT_ATTEMPTS})...`);
             setTimeout(() => {
                 initializeFirebase();
             }, 2000 * firebaseInitAttempts);
@@ -115,29 +98,6 @@ function initializeFirebase() {
         return false;
     }
 }
-
-// ================================================================
-// HANDLE PERSISTENCE FALLBACK
-// ================================================================
-
-function _handlePersistenceFallback(db) {
-    FirebaseStatus.persistenceMode = 'none';
-    FirebaseStatus.isReady = true;
-    FirebaseStatus.isInitialized = true;
-    window.__FIREBASE_READY__ = true;
-    
-    if (typeof AppState !== 'undefined') {
-        AppState.isFirebaseReady = true;
-        AppState.firebaseStatus = FirebaseStatus;
-    }
-    
-    document.dispatchEvent(new CustomEvent('firebase-ready'));
-    console.info('ℹ️ Running in online-only mode (no persistence)');
-}
-
-// ================================================================
-// HELPER FUNCTIONS
-// ================================================================
 
 function isFirebaseAvailable() {
     return typeof firebase !== 'undefined' && 
@@ -153,7 +113,7 @@ function getFirestore() {
         }
         return null;
     } catch (error) {
-        console.warn('⚠️ Could not get Firestore:', error.message);
+        console.warn('Could not get Firestore:', error.message);
         return null;
     }
 }
@@ -165,7 +125,7 @@ function getAuth() {
         }
         return null;
     } catch (error) {
-        console.warn('⚠️ Could not get Auth:', error.message);
+        console.warn('Could not get Auth:', error.message);
         return null;
     }
 }
@@ -177,7 +137,7 @@ function getCurrentUser() {
         }
         return null;
     } catch (error) {
-        console.warn('⚠️ Could not get current user:', error.message);
+        console.warn('Could not get current user:', error.message);
         return null;
     }
 }
@@ -190,9 +150,6 @@ function getFirebaseStatus() {
     };
 }
 
-/**
- * Wait for Firebase to be ready
- */
 function waitForFirebaseReady(timeout = 10000) {
     return new Promise((resolve) => {
         if (FirebaseStatus.isReady) {
@@ -207,23 +164,15 @@ function waitForFirebaseReady(timeout = 10000) {
                 resolve(true);
             } else if (Date.now() - startTime > timeout) {
                 clearInterval(checkInterval);
-                console.warn('⚠️ Firebase ready timeout');
+                console.warn('Firebase ready timeout');
                 resolve(false);
             }
         }, 200);
     });
 }
 
-// ================================================================
-// IMMEDIATE INITIALIZATION
-// ================================================================
-
-console.log('🔥 Initializing Firebase...');
+console.log('Initializing Firebase...');
 const isFirebaseReady = initializeFirebase();
-
-// ================================================================
-// EXPOSE GLOBALLY
-// ================================================================
 
 window.firebaseConfig = firebaseConfig;
 window.FirebaseStatus = FirebaseStatus;
@@ -236,15 +185,13 @@ window.getFirebaseStatus = getFirebaseStatus;
 window.waitForFirebaseReady = waitForFirebaseReady;
 window.__FIREBASE_READY__ = isFirebaseReady;
 
-// Update AppState if available
 if (typeof AppState !== 'undefined') {
     AppState.isFirebaseReady = isFirebaseReady;
     AppState.firebaseStatus = FirebaseStatus;
 }
 
-console.log(`🔥 Firebase status: ${isFirebaseReady ? '✅ Connected' : '❌ Offline mode'}`);
+console.log(`Firebase status: ${isFirebaseReady ? 'Connected' : 'Offline mode'}`);
 
-// ES Module support
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         firebaseConfig,

@@ -21,7 +21,7 @@ const ErrorHandler = {
             this.logError(args.join(' '));
         };
         this.loadErrorLog();
-        console.log('🛡️ Error Handler initialized');
+        console.log('Error Handler initialized');
     },
 
     loadErrorLog() {
@@ -35,19 +35,16 @@ const ErrorHandler = {
     },
 
     handleGlobalError(event) {
-        // Ignore ERR_BLOCKED_BY_CLIENT errors (caused by ad blockers)
         if (event.message && event.message.includes('ERR_BLOCKED_BY_CLIENT')) {
-            console.warn('⚠️ Resource blocked by client (ad blocker) - continuing');
+            console.warn('Resource blocked by client (ad blocker) - continuing');
             return true;
         }
-        // Ignore QUIC protocol errors
         if (event.message && event.message.includes('ERR_QUIC_PROTOCOL_ERROR')) {
-            console.warn('⚠️ QUIC protocol error - continuing');
+            console.warn('QUIC protocol error - continuing');
             return true;
         }
-        // Ignore connection reset errors
         if (event.message && event.message.includes('ERR_CONNECTION_RESET')) {
-            console.warn('⚠️ Connection reset - continuing');
+            console.warn('Connection reset - continuing');
             return true;
         }
         
@@ -63,7 +60,6 @@ const ErrorHandler = {
             url: window.location.href
         };
         this.logError(error);
-        // Only show error page for critical errors
         if (event.message && !event.message.includes('Firestore')) {
             this.showErrorPage(error);
         }
@@ -71,13 +67,12 @@ const ErrorHandler = {
     },
 
     handlePromiseRejection(event) {
-        // Ignore Firestore connection errors (caused by ad blockers)
         if (event.reason && event.reason.message && 
             (event.reason.message.includes('ERR_BLOCKED_BY_CLIENT') ||
              event.reason.message.includes('Firestore') ||
              event.reason.message.includes('connection') ||
              event.reason.message.includes('QUIC'))) {
-            console.warn('⚠️ Firestore connection error ignored:', event.reason.message);
+            console.warn('Firestore connection error ignored:', event.reason.message);
             return;
         }
         
@@ -225,16 +220,15 @@ const ErrorHandler = {
     clearErrorLog() {
         this.config.errorLog = [];
         try { localStorage.removeItem('error_log'); } catch (e) {}
-        console.log('🗑️ Error log cleared');
+        console.log('Error log cleared');
         return true;
     },
 
     report(error, context = '') {
-        // Ignore Firestore connection errors
         if (error.message && (error.message.includes('ERR_BLOCKED_BY_CLIENT') || 
             error.message.includes('Firestore') || 
             error.message.includes('connection'))) {
-            console.warn('⚠️ Firestore connection error ignored:', error.message);
+            console.warn('Firestore connection error ignored:', error.message);
             return;
         }
         
@@ -248,7 +242,7 @@ const ErrorHandler = {
             url: window.location.href
         };
         this.logError(errorObj);
-        console.error(`📢 Error reported from ${context}:`, error);
+        console.error(`Error reported from ${context}:`, error);
         if (typeof showToast === 'function') {
             showToast(`Error reported: ${errorObj.message.substring(0, 50)}`, 'error');
         } else {
@@ -278,7 +272,7 @@ const ErrorHandler = {
 
     hasStoredErrors() { return this.config.errorLog.length > 0; },
     getLastError() { return this.config.errorLog[0] || null; },
-    sendErrorReport(error) { console.log('📤 Error report would be sent:', error); return true; }
+    sendErrorReport(error) { console.log('Error report would be sent:', error); return true; }
 };
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -286,4 +280,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 window.ErrorHandler = ErrorHandler;
-console.log('🛡️ Error Handler module loaded');
+console.log('Error Handler module loaded');

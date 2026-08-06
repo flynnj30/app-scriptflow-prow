@@ -44,4 +44,4 @@ window.isAIEnabled = isAIEnabled;
 window.getAIConfig = getAIConfig;
 window.getApiKeyStatus = getApiKeyStatus;
 
-console.log('⚙️ Configuration loaded (AI disabled)');
+console.log('Configuration loaded (AI disabled)');
