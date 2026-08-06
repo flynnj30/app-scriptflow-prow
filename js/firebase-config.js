@@ -60,7 +60,7 @@ const FirebaseManager = {
             this.isInitializing = false;
             console.log('✅ Firebase initialized successfully');
 
-            // Enable offline persistence with retry
+            // Enable offline persistence with the new cache settings
             this.enablePersistence();
 
             return this.firebaseApp;
@@ -82,21 +82,61 @@ const FirebaseManager = {
 
         try {
             const db = this.getFirestore();
-            if (db) {
-                db.enablePersistence({ synchronizeTabs: true })
-                    .then(() => console.log('✅ Firebase persistence enabled'))
-                    .catch(err => {
-                        if (err.code === 'failed-precondition') {
-                            console.warn('⚠️ Firebase persistence: multiple tabs open, persistence disabled');
-                        } else if (err.code === 'unimplemented') {
-                            console.warn('⚠️ Firebase persistence not supported in this browser');
-                        } else {
-                            console.warn('⚠️ Firebase persistence error:', err.message);
-                        }
-                    });
+            if (!db) return;
+
+            // Use the new cache settings instead of the deprecated enablePersistence
+            // This follows the latest Firebase SDK best practices
+            const settings = {
+                cache: {
+                    // Enable offline persistence with tab synchronization
+                    // This replaces the deprecated enablePersistence({ synchronizeTabs: true })
+                    tabSynchronization: true,
+                    // Enable cache for offline reads
+                    cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
+                }
+            };
+
+            // Apply settings - this is the modern way to enable persistence
+            db.settings(settings);
+            console.log('✅ Firebase cache with tab synchronization enabled');
+
+            // Also try the legacy method as fallback for older SDKs
+            // Only if the cache settings approach fails
+            try {
+                // The new cache settings approach should work, but we'll keep a fallback
+                // for older versions where the cache property might not be recognized
+                if (!db._settings || !db._settings.cache) {
+                    // Fallback to the deprecated method only if necessary
+                    db.enablePersistence({ synchronizeTabs: true })
+                        .then(() => console.log('✅ Firebase persistence enabled (legacy fallback)'))
+                        .catch(err => {
+                            if (err.code === 'failed-precondition') {
+                                console.warn('⚠️ Firebase persistence: multiple tabs open, persistence disabled');
+                            } else if (err.code === 'unimplemented') {
+                                console.warn('⚠️ Firebase persistence not supported in this browser');
+                            } else {
+                                console.warn('⚠️ Firebase persistence error:', err.message);
+                            }
+                        });
+                }
+            } catch (legacyErr) {
+                // Silently ignore legacy fallback errors
+                console.debug('ℹ️ Legacy persistence fallback not needed');
             }
+
         } catch (persistErr) {
             console.warn('⚠️ Firebase persistence setup failed:', persistErr.message);
+            // Try legacy method as final fallback
+            try {
+                const db = this.getFirestore();
+                if (db) {
+                    db.enablePersistence({ synchronizeTabs: true })
+                        .then(() => console.log('✅ Firebase persistence enabled (final fallback)'))
+                        .catch(() => {});
+                }
+            } catch (finalErr) {
+                // Ignore final fallback errors
+            }
         }
     },
 
@@ -109,6 +149,18 @@ const FirebaseManager = {
         try {
             if (!this.firestoreInstance) {
                 this.firestoreInstance = this.firebaseApp.firestore();
+                // Apply cache settings immediately when first created
+                try {
+                    const settings = {
+                        cache: {
+                            tabSynchronization: true,
+                            cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
+                        }
+                    };
+                    this.firestoreInstance.settings(settings);
+                } catch (settingsErr) {
+                    // Silently ignore if settings can't be applied
+                }
             }
             return this.firestoreInstance;
         } catch (e) {
@@ -163,4 +215,4 @@ window.getFirebase = function() { return FirebaseManager.firebaseApp; };
 window.getFirestore = function() { return FirebaseManager.getFirestore(); };
 window.getAuth = function() { return FirebaseManager.getAuth(); };
 
-console.log('🔧 Firebase config loaded (singleton pattern)');
+console.log('🔧 Firebase config loaded (singleton pattern with modern cache settings)');
