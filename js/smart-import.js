@@ -58,7 +58,7 @@ const SmartImportDOM = window.DOM || {
 };
 
 // ================================================================
-// TEMPLATE MANAGEMENT
+// TEMPLATE MANAGEMENT - FIXED
 // ================================================================
 
 const TemplateManager = {
@@ -362,11 +362,9 @@ const TemplateManager = {
 
     calculateConfidence(value, field, text) {
         let confidence = 0.5;
-        // Check if field is explicitly labeled
         if (new RegExp(`${field}[\\s]*:`, 'i').test(text)) {
             confidence += 0.2;
         }
-        // Check if value appears multiple times
         const occurrences = (text.match(new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')) || []).length;
         if (occurrences > 1) confidence += 0.1;
         if (occurrences > 2) confidence += 0.1;
@@ -383,86 +381,11 @@ function checkAIAvailability() {
 }
 
 // ================================================================
-// OPEN SMART IMPORT
+// GLOBAL FUNCTIONS FOR SMART IMPORT
 // ================================================================
 
-function openSmartImportEnhanced() {
-    console.log('Opening Smart Import...');
-    const modal = SmartImportDOM.get('smartImportModal');
-    if (!modal) {
-        console.warn('Smart Import modal not found');
-        if (window.showToast) window.showToast('Smart Import modal not found', 'error');
-        return;
-    }
-    
-    modal.style.display = 'flex';
-    
-    // Initialize template manager
-    TemplateManager.init();
-    
-    AppState.importRecords = [];
-    AppState.importProcessing = false;
-    AppState.importProgress = 0;
-    SmartImportState.isParsing = false;
-    SmartImportState.parsedData = null;
-    SmartImportState.aiAvailable = false;
-    SmartImportState.aiEnabled = false;
-    SmartImportState.templates = TemplateManager.getTemplates();
-    SmartImportState.activeTemplate = TemplateManager.getActiveTemplate();
-    SmartImportState.showTemplateManager = false;
-    
-    const dateInput = SmartImportDOM.get('importDefaultDate');
-    if (dateInput) {
-        dateInput.value = Utils.getTodayStr();
-    }
-    
-    const textArea = SmartImportDOM.get('importTextArea');
-    if (textArea) {
-        textArea.value = '';
-        textArea.placeholder = `Paste your conversation transcript here. The smart parser will extract all CRM fields using the active template.
-
-Active Template: ${SmartImportState.activeTemplate ? SmartImportState.activeTemplate.name : 'Default'}`;
-    }
-    
-    const preview = SmartImportDOM.get('importPreview');
-    if (preview) preview.style.display = 'none';
-    
-    const saveBtn = SmartImportDOM.get('saveImportBtn');
-    if (saveBtn) saveBtn.style.display = 'none';
-    
-    const resultsContainer = SmartImportDOM.get('importResultsContainer');
-    if (resultsContainer) resultsContainer.innerHTML = '';
-    
-    const progressContainer = SmartImportDOM.get('importProgressContainer');
-    if (progressContainer) progressContainer.style.display = 'none';
-    
-    const summary = SmartImportDOM.get('importSummary');
-    if (summary) summary.style.display = 'none';
-    
-    // Render template selector
-    this.renderTemplateSelector();
-    
-    // Update status display
-    const statusEl = SmartImportDOM.get('aiStatusDisplay');
-    if (statusEl) {
-        const templateName = SmartImportState.activeTemplate ? SmartImportState.activeTemplate.name : 'Default';
-        statusEl.textContent = `Template: ${templateName} | Ready to parse`;
-        statusEl.className = 'ai-status-display';
-        statusEl.style.borderColor = 'var(--primary)';
-        statusEl.style.background = 'rgba(59, 130, 246, 0.1)';
-        statusEl.style.color = 'var(--primary)';
-    }
-    
-    // Update parse button
-    const parseBtn = SmartImportDOM.get('parseImportBtn');
-    if (parseBtn) {
-        parseBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Parse Transcript';
-        parseBtn.disabled = false;
-    }
-}
-
 // ================================================================
-// RENDER TEMPLATE SELECTOR
+// RENDER TEMPLATE SELECTOR - FIXED (Standalone Function)
 // ================================================================
 
 function renderTemplateSelector() {
@@ -514,7 +437,6 @@ function renderTemplateSelector() {
                     const activeTemplate = TemplateManager.getActiveTemplate();
                     SmartImportState.activeTemplate = activeTemplate;
                     
-                    // Update button styles
                     buttonContainer.querySelectorAll('.template-btn').forEach(b => {
                         b.style.borderColor = 'var(--border-color)';
                         b.style.background = 'transparent';
@@ -524,13 +446,11 @@ function renderTemplateSelector() {
                     btn.style.background = 'var(--primary)';
                     btn.style.color = 'white';
                     
-                    // Update status
                     const statusEl = SmartImportDOM.get('aiStatusDisplay');
                     if (statusEl) {
                         statusEl.textContent = `Template: ${activeTemplate.name} | Ready to parse`;
                     }
                     
-                    // Update textarea placeholder
                     const textArea = SmartImportDOM.get('importTextArea');
                     if (textArea) {
                         textArea.placeholder = `Paste your conversation transcript here. Using template: ${activeTemplate.name}`;
@@ -558,7 +478,7 @@ function renderTemplateSelector() {
 }
 
 // ================================================================
-// RENDER TEMPLATE MANAGER
+// RENDER TEMPLATE MANAGER - FIXED
 // ================================================================
 
 function renderTemplateManager() {
@@ -616,7 +536,6 @@ function renderTemplateManager() {
         </div>
     `;
 
-    // Create template button
     const createBtn = container.querySelector('#createTemplateBtn');
     if (createBtn) {
         createBtn.addEventListener('click', () => {
@@ -624,7 +543,6 @@ function renderTemplateManager() {
         });
     }
 
-    // Edit template buttons
     container.querySelectorAll('.edit-template-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const id = btn.dataset.id;
@@ -632,7 +550,6 @@ function renderTemplateManager() {
         });
     });
 
-    // Delete template buttons
     container.querySelectorAll('.delete-template-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const id = btn.dataset.id;
@@ -661,7 +578,6 @@ function showCreateTemplateDialog() {
     
     const description = prompt('Enter template description (optional):');
     
-    // Create template with default fields
     const defaultFields = [
         { key: 'business', label: 'Business Name', required: true },
         { key: 'name', label: 'Contact Name', required: true },
@@ -685,7 +601,6 @@ function showCreateTemplateDialog() {
         }
     );
     
-    // Show field editor
     const fieldStr = prompt('Enter field keys separated by commas (e.g., business,name,phone,email,date,status):', 
                            'business,name,phone,email,date,status');
     
@@ -696,7 +611,6 @@ function showCreateTemplateDialog() {
             label: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '),
             required: false
         }));
-        
         TemplateManager.updateTemplate(template.id, { fields: fields });
     }
     
@@ -743,6 +657,85 @@ function showEditTemplateDialog(templateId) {
         renderTemplateManager();
         renderTemplateSelector();
         showToast(`Template "${newName.trim()}" updated!`, 'success');
+    }
+}
+
+// ================================================================
+// OPEN SMART IMPORT - FIXED
+// ================================================================
+
+function openSmartImportEnhanced() {
+    console.log('Opening Smart Import...');
+    const modal = SmartImportDOM.get('smartImportModal');
+    if (!modal) {
+        console.warn('Smart Import modal not found');
+        if (window.showToast) window.showToast('Smart Import modal not found', 'error');
+        return;
+    }
+    
+    modal.style.display = 'flex';
+    
+    // Initialize template manager
+    TemplateManager.init();
+    
+    AppState.importRecords = [];
+    AppState.importProcessing = false;
+    AppState.importProgress = 0;
+    SmartImportState.isParsing = false;
+    SmartImportState.parsedData = null;
+    SmartImportState.aiAvailable = false;
+    SmartImportState.aiEnabled = false;
+    SmartImportState.templates = TemplateManager.getTemplates();
+    SmartImportState.activeTemplate = TemplateManager.getActiveTemplate();
+    SmartImportState.showTemplateManager = false;
+    
+    const dateInput = SmartImportDOM.get('importDefaultDate');
+    if (dateInput) {
+        dateInput.value = Utils.getTodayStr();
+    }
+    
+    const textArea = SmartImportDOM.get('importTextArea');
+    if (textArea) {
+        textArea.value = '';
+        textArea.placeholder = `Paste your conversation transcript here. The smart parser will extract all CRM fields using the active template.
+
+Active Template: ${SmartImportState.activeTemplate ? SmartImportState.activeTemplate.name : 'Default'}`;
+    }
+    
+    const preview = SmartImportDOM.get('importPreview');
+    if (preview) preview.style.display = 'none';
+    
+    const saveBtn = SmartImportDOM.get('saveImportBtn');
+    if (saveBtn) saveBtn.style.display = 'none';
+    
+    const resultsContainer = SmartImportDOM.get('importResultsContainer');
+    if (resultsContainer) resultsContainer.innerHTML = '';
+    
+    const progressContainer = SmartImportDOM.get('importProgressContainer');
+    if (progressContainer) progressContainer.style.display = 'none';
+    
+    const summary = SmartImportDOM.get('importSummary');
+    if (summary) summary.style.display = 'none';
+    
+    // Render template selector - FIXED: Call standalone function
+    renderTemplateSelector();
+    
+    // Update status display
+    const statusEl = SmartImportDOM.get('aiStatusDisplay');
+    if (statusEl) {
+        const templateName = SmartImportState.activeTemplate ? SmartImportState.activeTemplate.name : 'Default';
+        statusEl.textContent = `Template: ${templateName} | Ready to parse`;
+        statusEl.className = 'ai-status-display';
+        statusEl.style.borderColor = 'var(--primary)';
+        statusEl.style.background = 'rgba(59, 130, 246, 0.1)';
+        statusEl.style.color = 'var(--primary)';
+    }
+    
+    // Update parse button
+    const parseBtn = SmartImportDOM.get('parseImportBtn');
+    if (parseBtn) {
+        parseBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Parse Transcript';
+        parseBtn.disabled = false;
     }
 }
 
@@ -799,17 +792,14 @@ async function parseAndPreviewImportEnhanced() {
     updateImportProgress(10, 'Initializing parser...');
     
     try {
-        // Use template-based parsing
         updateImportProgress(20, 'Using template: ' + (SmartImportState.activeTemplate ? SmartImportState.activeTemplate.name : 'Default'));
         
         const templateResult = TemplateManager.parseWithTemplate(text);
         
         updateImportProgress(40, 'Analyzing extracted data...');
         
-        // Also use the main parser for additional fields
         let parsed = transcriptParser.parse(text);
         
-        // Merge template results
         for (const [key, value] of Object.entries(templateResult.result)) {
             if (value && value !== 'N/A') {
                 if (!parsed[key]) parsed[key] = {};
@@ -821,7 +811,6 @@ async function parseAndPreviewImportEnhanced() {
         
         updateImportProgress(60, 'Creating record...');
         
-        // Create record from parsed data
         const record = createImportRecordEnhanced(parsed, text, defaultDate);
         
         AppState.importRecords = [record];
@@ -887,7 +876,6 @@ function createImportRecordEnhanced(parsed, text, defaultDate) {
         return 0;
     };
     
-    // Build validated record
     const validated = {
         business: getValue('business'),
         name: getValue('name'),
@@ -905,7 +893,6 @@ function createImportRecordEnhanced(parsed, text, defaultDate) {
         interestLevel: getValue('interestLevel')
     };
     
-    // Calculate confidence
     const confidenceFields = ['business', 'name', 'phone', 'email', 'date', 'time'];
     let totalConf = 0;
     let confCount = 0;
@@ -945,7 +932,6 @@ function createImportRecordEnhanced(parsed, text, defaultDate) {
         templateUsed: SmartImportState.activeTemplate ? SmartImportState.activeTemplate.name : 'Default'
     };
     
-    // Check for missing information
     const requiredFields = ['business', 'name'];
     for (const field of requiredFields) {
         if (validated[field] === 'N/A' || !validated[field]) {
@@ -953,14 +939,12 @@ function createImportRecordEnhanced(parsed, text, defaultDate) {
         }
     }
     
-    // Check for uncertain fields
     for (const field of confidenceFields) {
         if (getValue(field) !== 'N/A' && getConfidence(field) < 0.5) {
             record.uncertainFields.push({ field, message: `Low confidence in ${field}` });
         }
     }
     
-    // Check for duplicates
     const existingAppointments = Data.getAllAppointments();
     for (const existing of existingAppointments) {
         if (validated.business !== 'N/A' && existing.business && 
@@ -1077,7 +1061,6 @@ function renderImportResultsEnhanced(records, avgConfidence, parseTime) {
             `;
         }).join('');
         
-        // Extended fields
         const extendedFields = [
             { key: 'websiteStatus', label: 'Website Status', value: record.websiteStatus },
             { key: 'interestLevel', label: 'Interest Level', value: record.interestLevel },
@@ -1238,7 +1221,6 @@ async function saveAllImportedAppointments() {
                 continue;
             }
             
-            // Build notes
             let notes = data.notes || '';
             if (record.callSummary && record.callSummary !== 'N/A' && record.callSummary !== '') {
                 notes += (notes ? '\n\n' : '') + 'Call Summary: ' + record.callSummary;
@@ -1263,7 +1245,6 @@ async function saveAllImportedAppointments() {
                 notes += (notes ? '\n' : '') + 'Sentiment: ' + record.sentiment;
             }
             
-            // Map status
             let status = data.status || 'Meeting Booked';
             const validStatuses = window.CONFIG?.STATUS_OPTIONS || 
                 ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'];
@@ -1271,7 +1252,6 @@ async function saveAllImportedAppointments() {
                 status = 'Meeting Booked';
             }
             
-            // Add appointment
             const result = Data.addAppointment(
                 data.date || Utils.getTodayStr(),
                 data.business,
@@ -1455,6 +1435,10 @@ window.SmartImportState = SmartImportState;
 window.SmartImportDOM = SmartImportDOM;
 window.TemplateManager = TemplateManager;
 
+// FIXED: Expose render functions globally
+window.renderTemplateSelector = renderTemplateSelector;
+window.renderTemplateManager = renderTemplateManager;
+
 window.SmartImport = {
     open: openSmartImportEnhanced,
     close: closeSmartImportEnhanced,
@@ -1464,7 +1448,9 @@ window.SmartImport = {
     state: SmartImportState,
     config: SMART_IMPORT_CONFIG,
     checkAI: checkAIAvailability,
-    templates: TemplateManager
+    templates: TemplateManager,
+    renderTemplateSelector: renderTemplateSelector,
+    renderTemplateManager: renderTemplateManager
 };
 
 console.log('Smart Import (Enhanced with Template Management) loaded successfully');
