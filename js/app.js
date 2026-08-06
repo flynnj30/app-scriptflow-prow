@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION (FIXED LOADING)
+// SCRIPTFLOW PRO - COMPLETE APPLICATION (FULLY FIXED)
 // ================================================================
 
 // ================================================================
@@ -1727,8 +1727,8 @@ const Scripts = {
         
         setTimeout(() => {
             renderScriptActions();
-            if (typeof addScriptCoachUI === 'function') {
-                addScriptCoachUI();
+            if (typeof ObjectionHandler !== 'undefined' && ObjectionHandler.init) {
+                ObjectionHandler.init();
             }
         }, 50);
     },
@@ -1972,7 +1972,7 @@ const Scripts = {
 };
 
 // ================================================================
-// SCRIPT ACTIONS RENDERER
+// SCRIPT ACTIONS RENDERER (NO COACH BUTTONS)
 // ================================================================
 
 function renderScriptActions() {
@@ -1981,6 +1981,7 @@ function renderScriptActions() {
     
     container.innerHTML = '';
     
+    // Script management buttons only - NO coach buttons
     const buttons = [
         { id: 'editScriptBtn', icon: 'fa-pen', text: 'Edit', style: '', extraClass: '' },
         { id: 'saveScriptBtn', icon: 'fa-save', text: 'Save', style: 'display:none; background:var(--success);', extraClass: '' },
@@ -1988,8 +1989,6 @@ function renderScriptActions() {
         { id: 'copyScriptBtn', icon: 'fa-copy', text: 'Copy', style: '', extraClass: '' },
         { id: 'resetScriptBtn', icon: 'fa-undo-alt', text: 'Reset', style: '', extraClass: '' },
         { id: 'favoriteScriptBtn', icon: 'fa-star', text: '', style: '', extraClass: '' },
-        { id: 'coachScanBtn', icon: 'fa-brain', text: 'Scan', style: 'background:var(--primary); color:white;', extraClass: 'coach-scan-btn' },
-        { id: 'coachPlayBtn', icon: 'fa-play', text: 'Play', style: 'background:var(--success); color:white;', extraClass: 'coach-play-btn', disabled: true },
         { id: 'objectionToggleBtn', icon: 'fa-shield-alt', text: 'Objections', style: 'background:var(--secondary); color:white;', extraClass: '' }
     ];
     
@@ -2000,19 +1999,12 @@ function renderScriptActions() {
         if (btn.style) {
             button.setAttribute('style', btn.style);
         }
-        if (btn.disabled) {
-            button.disabled = true;
-        }
         button.innerHTML = `<i class="fas ${btn.icon}"></i> ${btn.text}`;
         container.appendChild(button);
     });
     
     updateFavoriteStarUI();
     attachScriptActionEvents();
-    
-    if (typeof updateCoachUI === 'function') {
-        updateCoachUI(ScriptCoachState?.analysisComplete || false);
-    }
 }
 
 function updateFavoriteStarUI() {
@@ -2061,18 +2053,6 @@ function attachScriptActionEvents() {
         favoriteScriptBtn.addEventListener('click', handleFavoriteScript);
     }
     
-    const coachScanBtn = document.getElementById('coachScanBtn');
-    if (coachScanBtn) {
-        coachScanBtn.removeEventListener('click', handleCoachScan);
-        coachScanBtn.addEventListener('click', handleCoachScan);
-    }
-    
-    const coachPlayBtn = document.getElementById('coachPlayBtn');
-    if (coachPlayBtn) {
-        coachPlayBtn.removeEventListener('click', handleCoachPlay);
-        coachPlayBtn.addEventListener('click', handleCoachPlay);
-    }
-    
     const objectionToggleBtn = document.getElementById('objectionToggleBtn');
     if (objectionToggleBtn && window.ObjectionHandler) {
         objectionToggleBtn.removeEventListener('click', handleObjectionToggle);
@@ -2095,27 +2075,6 @@ function handleCopyScript() {
 
 function handleFavoriteScript() {
     Scripts.toggleFavorite(AppState.currentScriptId);
-}
-
-function handleCoachScan() {
-    if (typeof window.runScriptAnalysis === 'function') {
-        const script = AppState.scripts[AppState.currentScriptId];
-        if (script) {
-            window.runScriptAnalysis(script.content);
-        } else {
-            showToast('No script to analyze', 'warning');
-        }
-    } else {
-        showToast('Script Coach not loaded', 'warning');
-    }
-}
-
-function handleCoachPlay() {
-    if (typeof window.startScriptPlayback === 'function') {
-        window.startScriptPlayback();
-    } else {
-        showToast('Script Coach not loaded', 'warning');
-    }
 }
 
 function handleObjectionToggle() {
@@ -5914,6 +5873,13 @@ document.addEventListener('DOMContentLoaded', function() {
         LoadingManager.setMessage('Starting ScriptFlow Pro...');
         LoadingManager.updateProgress(0, 'Initializing...');
     }
+    
+    // Initialize Objection Handler after a short delay
+    setTimeout(() => {
+        if (typeof ObjectionHandler !== 'undefined' && ObjectionHandler) {
+            ObjectionHandler.init();
+        }
+    }, 500);
     
     // Start the app
     startApp();
