@@ -459,7 +459,7 @@ class SmartParserService {
 // Create singleton instance
 const smartParser = new SmartParserService();
 
-// FIXED: Also create transcriptParser alias for backward compatibility
+// Create transcriptParser alias for backward compatibility
 const transcriptParser = smartParser;
 
 // Expose globally

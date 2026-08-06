@@ -1,5 +1,6 @@
 // ================================================================
 // SMART IMPORT - ENHANCED WITH TEMPLATE MANAGEMENT
+// COMPLETE FIXED VERSION
 // ================================================================
 
 // ================================================================
@@ -58,7 +59,7 @@ const SmartImportDOM = window.DOM || {
 };
 
 // ================================================================
-// TEMPLATE MANAGEMENT
+// ENHANCED TEMPLATE MANAGEMENT
 // ================================================================
 
 const TemplateManager = {
@@ -68,6 +69,15 @@ const TemplateManager = {
     init() {
         this.loadTemplates();
         this.loadActiveTemplate();
+        // Ensure we always have templates
+        if (this.templates.length === 0) {
+            this.templates = this.getDefaultTemplates();
+            this.saveTemplates();
+        }
+        if (!this.activeTemplate && this.templates.length > 0) {
+            this.activeTemplate = this.templates[0];
+            this.saveActiveTemplate();
+        }
     },
 
     loadTemplates() {
@@ -75,11 +85,14 @@ const TemplateManager = {
             const stored = localStorage.getItem(SMART_IMPORT_CONFIG.templatesKey);
             if (stored) {
                 this.templates = JSON.parse(stored);
+                // Validate templates have required fields
+                this.templates = this.templates.filter(t => t && t.id && t.name);
             } else {
                 this.templates = this.getDefaultTemplates();
                 this.saveTemplates();
             }
         } catch (e) {
+            console.warn('Failed to load templates, using defaults:', e);
             this.templates = this.getDefaultTemplates();
             this.saveTemplates();
         }
@@ -90,6 +103,11 @@ const TemplateManager = {
             const stored = localStorage.getItem(SMART_IMPORT_CONFIG.activeTemplateKey);
             if (stored) {
                 this.activeTemplate = JSON.parse(stored);
+                // Verify template still exists
+                if (!this.templates.find(t => t.id === this.activeTemplate.id)) {
+                    this.activeTemplate = this.templates[0] || null;
+                    this.saveActiveTemplate();
+                }
             } else {
                 this.activeTemplate = this.templates[0] || null;
                 this.saveActiveTemplate();
@@ -120,10 +138,12 @@ const TemplateManager = {
                 patterns: {
                     business: [
                         /(?:business|company|organization|org|firm)[:\s]+([^\n]+)/i,
+                        /(?:business name|company name)[:\s]+([^\n]+)/i,
                         /(?:from|at|with)\s+([A-Z][A-Za-z0-9\s&'\-.,]+)/i
                     ],
                     name: [
                         /(?:name|contact|client)[:\s]+([^\n]+)/i,
+                        /(?:contact name|full name)[:\s]+([^\n]+)/i,
                         /(?:my name is|this is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i
                     ],
                     role: [
@@ -132,27 +152,33 @@ const TemplateManager = {
                     ],
                     phone: [
                         /(?:phone|mobile|cell|number)[:\s]+([+\d\s\-\(\)]+)/i,
+                        /(?:phone number)[:\s]+([+\d\s\-\(\)]+)/i,
                         /(\d{3}[-.]?\d{3}[-.]?\d{4})/
                     ],
                     email: [
                         /(?:email|e-mail)[:\s]+([^\s@]+@[^\s@]+\.[^\s@]+)/i,
+                        /(?:email address)[:\s]+([^\s@]+@[^\s@]+\.[^\s@]+)/i,
                         /([^\s@]+@[^\s@]+\.[^\s@]+)/
                     ],
                     date: [
                         /(?:date|appointment|scheduled)[:\s]+([^\n]+)/i,
+                        /(?:appointment date|meeting date)[:\s]+([^\n]+)/i,
                         /(\d{1,2}\/\d{1,2}\/\d{4})/,
                         /([A-Za-z]+\s+\d{1,2},?\s+\d{4})/
                     ],
                     time: [
                         /(?:time|at)[:\s]+([^\n]+)/i,
+                        /(?:appointment time|meeting time)[:\s]+([^\n]+)/i,
                         /(\d{1,2}:\d{2}\s*(?:AM|PM))/i
                     ],
                     status: [
                         /(?:status|state)[:\s]+([^\n]+)/i,
+                        /(?:lead status|appointment status)[:\s]+([^\n]+)/i,
                         /(?:hot transfer|warm callback|completed|pending|canceled|meeting booked|rescheduled)/i
                     ],
                     notes: [
-                        /(?:notes|note|remarks|summary)[:\s]+([^\n]+)/i
+                        /(?:notes|note|remarks|summary)[:\s]+([^\n]+)/i,
+                        /(?:developer notes|call notes)[:\s]+([^\n]+)/i
                     ]
                 },
                 createdAt: new Date().toISOString(),
@@ -213,28 +239,35 @@ const TemplateManager = {
                 ],
                 patterns: {
                     business: [
-                        /(?:business|company|organization|org|firm)[:\s]+([^\n]+)/i
+                        /(?:business|company|organization|org|firm)[:\s]+([^\n]+)/i,
+                        /(?:business name|company name)[:\s]+([^\n]+)/i
                     ],
                     name: [
-                        /(?:name|contact|client|full name)[:\s]+([^\n]+)/i
+                        /(?:name|contact|client|full name)[:\s]+([^\n]+)/i,
+                        /(?:contact name)[:\s]+([^\n]+)/i
                     ],
                     role: [
                         /(?:role|title|position)[:\s]+([^\n]+)/i
                     ],
                     phone: [
-                        /(?:phone|mobile|cell|telephone|number)[:\s]+([+\d\s\-\(\)]+)/i
+                        /(?:phone|mobile|cell|telephone|number)[:\s]+([+\d\s\-\(\)]+)/i,
+                        /(?:phone number)[:\s]+([+\d\s\-\(\)]+)/i
                     ],
                     email: [
-                        /(?:email|e-mail|mail|address)[:\s]+([^\s@]+@[^\s@]+\.[^\s@]+)/i
+                        /(?:email|e-mail|mail|address)[:\s]+([^\s@]+@[^\s@]+\.[^\s@]+)/i,
+                        /(?:email address)[:\s]+([^\s@]+@[^\s@]+\.[^\s@]+)/i
                     ],
                     date: [
-                        /(?:date|appointment|scheduled|meeting)[:\s]+([^\n]+)/i
+                        /(?:date|appointment|scheduled|meeting)[:\s]+([^\n]+)/i,
+                        /(?:appointment date)[:\s]+([^\n]+)/i
                     ],
                     time: [
-                        /(?:time|at)[:\s]+([^\n]+)/i
+                        /(?:time|at)[:\s]+([^\n]+)/i,
+                        /(?:appointment time)[:\s]+([^\n]+)/i
                     ],
                     status: [
-                        /(?:status|state|lead status)[:\s]+([^\n]+)/i
+                        /(?:status|state|lead status)[:\s]+([^\n]+)/i,
+                        /(?:appointment status)[:\s]+([^\n]+)/i
                     ],
                     notes: [
                         /(?:notes|note|remarks|summary|developer notes)[:\s]+([^\n]+)/i
@@ -340,35 +373,79 @@ const TemplateManager = {
         const patterns = this.getTemplatePatterns();
         const result = {};
         const confidence = {};
+        const evidence = {};
+
+        // Split text into lines for better parsing
+        const lines = text.split('\n').filter(line => line.trim());
 
         for (const [field, patternList] of Object.entries(patterns)) {
             if (Array.isArray(patternList)) {
-                for (const pattern of patternList) {
-                    const match = text.match(pattern);
-                    if (match && match[1]) {
-                        const value = match[1].trim();
-                        if (value && value.length > 1) {
-                            result[field] = value;
-                            confidence[field] = this.calculateConfidence(value, field, text);
-                            break;
+                // First try line-by-line parsing for better accuracy
+                let found = false;
+                for (const line of lines) {
+                    if (found) break;
+                    for (const pattern of patternList) {
+                        const match = line.match(pattern);
+                        if (match && match[1]) {
+                            const value = match[1].trim();
+                            if (value && value.length > 1 && value !== 'N/A') {
+                                result[field] = value;
+                                confidence[field] = this.calculateConfidence(value, field, text, line);
+                                evidence[field] = line.trim();
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // If not found line-by-line, try full text
+                if (!found) {
+                    for (const pattern of patternList) {
+                        const match = text.match(pattern);
+                        if (match && match[1]) {
+                            const value = match[1].trim();
+                            if (value && value.length > 1 && value !== 'N/A') {
+                                result[field] = value;
+                                confidence[field] = this.calculateConfidence(value, field, text);
+                                evidence[field] = match[0].trim();
+                                break;
+                            }
                         }
                     }
                 }
             }
         }
 
-        return { result, confidence };
+        return { result, confidence, evidence };
     },
 
-    calculateConfidence(value, field, text) {
+    calculateConfidence(value, field, text, line) {
         let confidence = 0.5;
+
+        // Higher confidence if field is explicitly labeled
         if (new RegExp(`${field}[\\s]*:`, 'i').test(text)) {
             confidence += 0.2;
         }
-        const occurrences = (text.match(new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')) || []).length;
-        if (occurrences > 1) confidence += 0.1;
-        if (occurrences > 2) confidence += 0.1;
-        return Math.min(1, confidence);
+
+        // Even higher confidence if the label is at the start of a line
+        if (line && new RegExp(`^\\s*${field}[\\s]*:`, 'i').test(line)) {
+            confidence += 0.15;
+        }
+
+        // Check if value appears multiple times
+        try {
+            const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const occurrences = (text.match(new RegExp(escapedValue, 'gi')) || []).length;
+            if (occurrences > 2) confidence += 0.1;
+            if (occurrences > 3) confidence += 0.1;
+        } catch (e) {}
+
+        // Reduce confidence for very short values
+        if (value.length < 2) confidence -= 0.2;
+        if (value.length < 4) confidence -= 0.1;
+
+        return Math.max(0, Math.min(1, confidence));
     }
 };
 
@@ -586,11 +663,11 @@ function showCreateTemplateDialog() {
         description || '',
         defaultFields,
         {
-            business: [/(?:business|company)[:\s]+([^\n]+)/i],
-            name: [/(?:name|contact)[:\s]+([^\n]+)/i],
-            phone: [/(?:phone|mobile)[:\s]+([+\d\s\-\(\)]+)/i],
-            email: [/(?:email)[:\s]+([^\s@]+@[^\s@]+\.[^\s@]+)/i],
-            date: [/(?:date)[:\s]+([^\n]+)/i],
+            business: [/(?:business|company)[:\s]+([^\n]+)/i, /(?:business name)[:\s]+([^\n]+)/i],
+            name: [/(?:name|contact)[:\s]+([^\n]+)/i, /(?:contact name)[:\s]+([^\n]+)/i],
+            phone: [/(?:phone|mobile)[:\s]+([+\d\s\-\(\)]+)/i, /(?:phone number)[:\s]+([+\d\s\-\(\)]+)/i],
+            email: [/(?:email)[:\s]+([^\s@]+@[^\s@]+\.[^\s@]+)/i, /(?:email address)[:\s]+([^\s@]+@[^\s@]+\.[^\s@]+)/i],
+            date: [/(?:date)[:\s]+([^\n]+)/i, /(?:appointment date)[:\s]+([^\n]+)/i],
             status: [/(?:status)[:\s]+([^\n]+)/i]
         }
     );
@@ -745,7 +822,7 @@ function closeSmartImportEnhanced() {
 }
 
 // ================================================================
-// PARSE AND PREVIEW - ENHANCED
+// ENHANCED PARSE AND PREVIEW
 // ================================================================
 
 async function parseAndPreviewImportEnhanced() {
@@ -784,19 +861,19 @@ async function parseAndPreviewImportEnhanced() {
     try {
         updateImportProgress(20, 'Using template: ' + (SmartImportState.activeTemplate ? SmartImportState.activeTemplate.name : 'Default'));
         
+        // Parse with template - ENHANCED
         const templateResult = TemplateManager.parseWithTemplate(text);
         
         updateImportProgress(40, 'Analyzing extracted data...');
         
-        // FIXED: Check if transcriptParser exists, if not use smartParser
-        let parsed;
+        // Also use the main parser for additional fields
+        let parsed = {};
         if (typeof transcriptParser !== 'undefined' && transcriptParser) {
             parsed = transcriptParser.parse(text);
         } else if (typeof smartParser !== 'undefined' && smartParser) {
             parsed = smartParser.parse(text);
         } else {
             // Fallback: use the TemplateManager result only
-            parsed = {};
             for (const [key, value] of Object.entries(templateResult.result)) {
                 if (value && value !== 'N/A') {
                     parsed[key] = { value: value, confidence: templateResult.confidence[key] || 0.6, evidence: 'Template extraction' };
@@ -805,13 +882,18 @@ async function parseAndPreviewImportEnhanced() {
             console.warn('transcriptParser not available, using template-only parsing');
         }
         
-        // Merge template results
+        // Merge template results - ENHANCED
         for (const [key, value] of Object.entries(templateResult.result)) {
-            if (value && value !== 'N/A') {
+            if (value && value !== 'N/A' && value !== '') {
                 if (!parsed[key]) parsed[key] = {};
                 parsed[key].value = value;
                 parsed[key].confidence = templateResult.confidence[key] || 0.6;
-                parsed[key].evidence = 'Template extraction';
+                parsed[key].evidence = templateResult.evidence?.[key] || 'Template extraction';
+                
+                // Boost confidence if we have line evidence
+                if (templateResult.evidence?.[key]) {
+                    parsed[key].confidence = Math.min(1, (parsed[key].confidence || 0) + 0.15);
+                }
             }
         }
         
@@ -869,7 +951,7 @@ function createImportRecordEnhanced(parsed, text, defaultDate) {
     const data = parsed;
     
     const getValue = (field) => {
-        if (data[field] && data[field].value) {
+        if (data[field] && data[field].value && data[field].value !== 'N/A' && data[field].value !== '') {
             return data[field].value;
         }
         return 'N/A';
@@ -880,6 +962,13 @@ function createImportRecordEnhanced(parsed, text, defaultDate) {
             return data[field].confidence;
         }
         return 0;
+    };
+    
+    const getEvidence = (field) => {
+        if (data[field] && data[field].evidence) {
+            return data[field].evidence;
+        }
+        return '';
     };
     
     const validated = {
@@ -896,7 +985,8 @@ function createImportRecordEnhanced(parsed, text, defaultDate) {
         tags: data.tags && data.tags.value ? data.tags.value : [],
         websiteStatus: getValue('websiteStatus'),
         businessGoals: getValue('businessGoals'),
-        interestLevel: getValue('interestLevel')
+        interestLevel: getValue('interestLevel'),
+        sentiment: getValue('sentiment') || 'Neutral'
     };
     
     const confidenceFields = ['business', 'name', 'phone', 'email', 'date', 'time'];
@@ -929,14 +1019,22 @@ function createImportRecordEnhanced(parsed, text, defaultDate) {
         missingInformation: [],
         suggestedFollowUp: [],
         tags: validated.tags || [],
-        sentiment: getValue('sentiment') || 'Neutral',
+        sentiment: validated.sentiment,
         businessGoals: validated.businessGoals,
         websiteStatus: validated.websiteStatus,
         interestLevel: validated.interestLevel,
         followUpActions: data.followUpActions && data.followUpActions.value ? data.followUpActions.value : [],
         source: 'Smart Import',
-        templateUsed: SmartImportState.activeTemplate ? SmartImportState.activeTemplate.name : 'Default'
+        templateUsed: SmartImportState.activeTemplate ? SmartImportState.activeTemplate.name : 'Default',
+        evidence: {}
     };
+    
+    // Store evidence for display
+    for (const field of confidenceFields) {
+        if (getValue(field) !== 'N/A') {
+            record.evidence[field] = getEvidence(field);
+        }
+    }
     
     const requiredFields = ['business', 'name'];
     for (const field of requiredFields) {
@@ -1056,6 +1154,7 @@ function renderImportResultsEnhanced(records, avgConfidence, parseTime) {
             const conf = record.avgConfidence || 0;
             const confLabel = conf >= 0.8 ? 'High' : (conf >= 0.5 ? 'Medium' : 'Low');
             const confClass = conf >= 0.8 ? 'high' : (conf >= 0.5 ? 'medium' : 'low');
+            const evidence = record.evidence?.[f.key] || '';
             
             return `
                 <div class="field-row ${isNA ? 'na-field' : ''} ${confClass}" 
@@ -1063,10 +1162,12 @@ function renderImportResultsEnhanced(records, avgConfidence, parseTime) {
                     <span class="field-label" style="font-size:0.7rem; font-weight:600; color:var(--text-muted); min-width:80px;">${f.label}</span>
                     <span class="field-value ${isNA ? 'na-value' : ''}" style="flex:1; font-size:0.85rem;">${isNA ? 'N/A' : Utils.escapeHtml(valueDisplay)}</span>
                     <span class="field-confidence ${confClass}" style="font-size:0.6rem; padding:2px 8px; border-radius:12px; ${confClass === 'high' ? 'background:var(--success); color:white;' : confClass === 'medium' ? 'background:var(--warning); color:#1e293b;' : 'background:var(--danger); color:white;'}">${isNA ? 'Missing' : confLabel}</span>
+                    ${evidence ? `<span class="field-evidence" style="font-size:0.6rem; color:var(--text-muted); cursor:help;" title="${Utils.escapeHtml(evidence)}">📌</span>` : ''}
                 </div>
             `;
         }).join('');
         
+        // Extended fields
         const extendedFields = [
             { key: 'websiteStatus', label: 'Website Status', value: record.websiteStatus },
             { key: 'interestLevel', label: 'Interest Level', value: record.interestLevel },
