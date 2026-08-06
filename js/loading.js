@@ -1,5 +1,5 @@
 // ================================================================
-// LOADING MODULE - CENTRALIZED LOADING SCREEN MANAGEMENT
+// LOADING MODULE - CENTRALIZED LOADING SCREEN MANAGEMENT (FIXED)
 // ================================================================
 
 const LoadingManager = {
@@ -19,7 +19,9 @@ const LoadingManager = {
         currentStepIndex: 0,
         intervalId: null,
         onComplete: null,
-        isComplete: false
+        isComplete: false,
+        isStarted: false,
+        isHidden: false
     },
 
     /**
@@ -29,12 +31,14 @@ const LoadingManager = {
         const loadingScreen = document.getElementById('loadingScreen');
         if (!loadingScreen) {
             console.warn('Loading screen not found');
-            return;
+            return this;
         }
         
         // Ensure loading screen is visible
         loadingScreen.style.display = 'flex';
         loadingScreen.style.opacity = '1';
+        loadingScreen.style.visibility = 'visible';
+        loadingScreen.style.pointerEvents = 'auto';
         
         // Start with initial progress
         this.updateProgress(0, 'Starting ScriptFlow Pro...');
@@ -52,10 +56,12 @@ const LoadingManager = {
         
         if (progressBar) {
             progressBar.style.width = Math.min(percent, 100) + '%';
+            progressBar.style.transition = 'width 0.5s ease';
         }
         
         if (loadingSubtitle && message) {
             loadingSubtitle.textContent = message;
+            loadingSubtitle.style.color = '';
         }
         
         this.state.progress = Math.min(percent, 100);
@@ -82,9 +88,12 @@ const LoadingManager = {
      * Start the loading sequence
      */
     start: function(onComplete) {
+        if (this.state.isStarted) return this;
+        this.state.isStarted = true;
         this.state.onComplete = onComplete || null;
         this.state.currentStepIndex = 0;
         this.state.isComplete = false;
+        this.state.isHidden = false;
         
         // Clear any existing interval
         if (this.state.intervalId) {
@@ -103,7 +112,7 @@ const LoadingManager = {
                 this.state.intervalId = null;
                 this.complete();
             }
-        }, 600);
+        }, 500);
         
         return this;
     },
@@ -112,7 +121,7 @@ const LoadingManager = {
      * Complete loading and hide the screen
      */
     complete: function() {
-        if (this.state.isComplete) return;
+        if (this.state.isComplete || this.state.isHidden) return this;
         this.state.isComplete = true;
         
         const loadingScreen = document.getElementById('loadingScreen');
@@ -121,33 +130,70 @@ const LoadingManager = {
         // Update to 100%
         this.updateProgress(100, 'Ready! 🚀');
         
-        // Small delay before hiding
-        setTimeout(() => {
-            if (loadingScreen) {
-                loadingScreen.style.opacity = '0';
-                loadingScreen.style.transition = 'opacity 0.5s ease';
-            }
+        // Hide loading screen immediately
+        if (loadingScreen) {
+            loadingScreen.style.opacity = '0';
+            loadingScreen.style.transition = 'opacity 0.4s ease';
+            loadingScreen.style.pointerEvents = 'none';
             
-            if (appWrapper) {
-                appWrapper.style.display = 'flex';
-            }
-            
-            // Remove loading screen after transition
+            // Force hide after transition
             setTimeout(() => {
-                if (loadingScreen) {
-                    loadingScreen.style.display = 'none';
-                }
+                loadingScreen.style.display = 'none';
+                loadingScreen.style.visibility = 'hidden';
+                this.state.isHidden = true;
                 this.state.isVisible = false;
-            }, 500);
-            
-            // Call onComplete callback
-            if (typeof this.state.onComplete === 'function') {
-                this.state.onComplete();
-            }
-            
-            console.log('✅ Loading complete');
-        }, 400);
+            }, 450);
+        }
         
+        // Show app wrapper
+        if (appWrapper) {
+            appWrapper.style.display = 'flex';
+            appWrapper.style.opacity = '1';
+        }
+        
+        // Call onComplete callback
+        if (typeof this.state.onComplete === 'function') {
+            try {
+                this.state.onComplete();
+            } catch (e) {
+                console.warn('Loading complete callback error:', e);
+            }
+        }
+        
+        console.log('✅ Loading complete');
+        return this;
+    },
+
+    /**
+     * Force complete loading immediately (skip animations)
+     */
+    forceComplete: function() {
+        if (this.state.intervalId) {
+            clearInterval(this.state.intervalId);
+            this.state.intervalId = null;
+        }
+        
+        const loadingScreen = document.getElementById('loadingScreen');
+        const appWrapper = document.getElementById('appWrapper');
+        
+        // Hide loading screen immediately
+        if (loadingScreen) {
+            loadingScreen.style.display = 'none';
+            loadingScreen.style.visibility = 'hidden';
+            loadingScreen.style.opacity = '0';
+            this.state.isHidden = true;
+            this.state.isVisible = false;
+        }
+        
+        if (appWrapper) {
+            appWrapper.style.display = 'flex';
+            appWrapper.style.opacity = '1';
+        }
+        
+        this.state.isComplete = true;
+        this.state.isStarted = true;
+        
+        console.log('✅ Loading force completed');
         return this;
     },
 
@@ -177,7 +223,7 @@ const LoadingManager = {
         if (loadingContent && !loadingContent.querySelector('.retry-btn')) {
             const retryBtn = document.createElement('button');
             retryBtn.className = 'btn-icon retry-btn';
-            retryBtn.style.cssText = 'margin-top:16px; background:var(--primary); color:white; padding:8px 24px;';
+            retryBtn.style.cssText = 'margin-top:16px; background:var(--primary); color:white; padding:8px 24px; border-radius:40px; cursor:pointer; border:none; font-weight:600;';
             retryBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Retry';
             retryBtn.onclick = function() {
                 location.reload();
@@ -196,6 +242,7 @@ const LoadingManager = {
         const loadingSubtitle = document.querySelector('.loading-subtitle');
         if (loadingSubtitle) {
             loadingSubtitle.textContent = message;
+            loadingSubtitle.style.color = '';
         }
         return this;
     },
@@ -215,17 +262,20 @@ const LoadingManager = {
     },
     
     /**
-     * Force complete loading (skip remaining steps)
+     * Check if loading is hidden
      */
-    forceComplete: function() {
-        if (this.state.intervalId) {
-            clearInterval(this.state.intervalId);
-            this.state.intervalId = null;
-        }
-        this.complete();
-        return this;
+    isHidden: function() {
+        return this.state.isHidden;
     }
 };
+
+// Auto-initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize loading manager
+    if (typeof LoadingManager !== 'undefined') {
+        LoadingManager.init();
+    }
+});
 
 // Export for use in other files
 window.LoadingManager = LoadingManager;
