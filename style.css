@@ -4238,3 +4238,182 @@ body {
         padding: 10px 16px;
     }
 }
+
+/* ============================================================
+   CLOSER MANAGEMENT STYLES
+   ============================================================ */
+
+.closer-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    transition: var(--transition);
+}
+
+.closer-item:hover {
+    border-color: var(--primary);
+    box-shadow: var(--shadow-sm);
+}
+
+.closer-item.inactive {
+    opacity: 0.6;
+}
+
+.closer-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.closer-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--bg-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    border: 2px solid var(--border-color);
+}
+
+.closer-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.closer-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+}
+
+.closer-email,
+.closer-phone {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.closer-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.closer-actions .btn-icon {
+    padding: 4px 10px;
+    font-size: 0.7rem;
+}
+
+.status-badge {
+    font-size: 0.65rem;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+}
+
+.status-badge.active {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+}
+
+.status-badge.inactive {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--danger);
+}
+
+#newApptCloser {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    transition: var(--transition);
+}
+
+#newApptCloser:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-color: var(--primary);
+}
+
+#closerManagementModal .modal-card {
+    max-width: 600px;
+}
+
+#closerManagementModal .empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+#closerManagementModal .empty-state i {
+    font-size: 3rem;
+    margin-bottom: 12px;
+    opacity: 0.3;
+}
+
+@media (max-width: 768px) {
+    .closer-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .closer-actions {
+        justify-content: flex-start;
+        padding-top: 8px;
+        border-top: 1px solid var(--border-color);
+    }
+    
+    .closer-actions .btn-icon {
+        font-size: 0.65rem;
+        padding: 4px 8px;
+    }
+    
+    #closerManagementModal .modal-card {
+        max-width: 95%;
+        padding: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .closer-item {
+        padding: 10px 12px;
+    }
+    
+    .closer-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 1rem;
+    }
+    
+    .closer-name {
+        font-size: 0.85rem;
+    }
+    
+    .closer-email,
+    .closer-phone {
+        font-size: 0.7rem;
+    }
+    
+    .closer-actions .btn-icon {
+        font-size: 0.6rem;
+        padding: 3px 6px;
+    }
+    
+    .status-badge {
+        font-size: 0.6rem;
+        padding: 1px 8px;
+    }
+}
