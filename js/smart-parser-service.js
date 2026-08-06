@@ -459,8 +459,14 @@ class SmartParserService {
 // Create singleton instance
 const smartParser = new SmartParserService();
 
+// FIXED: Also create transcriptParser alias for backward compatibility
+const transcriptParser = smartParser;
+
+// Expose globally
 window.SmartParserService = SmartParserService;
 window.smartParser = smartParser;
+window.transcriptParser = transcriptParser;
 
 console.log('Smart Parser Service initialized');
 console.log(`Version: ${smartParser.version}`);
+console.log('transcriptParser alias created for compatibility');

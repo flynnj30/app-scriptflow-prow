@@ -58,7 +58,7 @@ const SmartImportDOM = window.DOM || {
 };
 
 // ================================================================
-// TEMPLATE MANAGEMENT - FIXED
+// TEMPLATE MANAGEMENT
 // ================================================================
 
 const TemplateManager = {
@@ -381,17 +381,12 @@ function checkAIAvailability() {
 }
 
 // ================================================================
-// GLOBAL FUNCTIONS FOR SMART IMPORT
-// ================================================================
-
-// ================================================================
-// RENDER TEMPLATE SELECTOR - FIXED (Standalone Function)
+// RENDER TEMPLATE SELECTOR
 // ================================================================
 
 function renderTemplateSelector() {
     const container = SmartImportDOM.get('templateSelectorContainer');
     if (!container) {
-        // Create container if it doesn't exist
         const modalCard = document.querySelector('#smartImportModal .modal-card');
         if (modalCard) {
             const templateSection = document.createElement('div');
@@ -462,7 +457,6 @@ function renderTemplateSelector() {
         });
     }
 
-    // Manage templates button
     const manageBtn = SmartImportDOM.get('manageTemplatesBtn');
     if (manageBtn) {
         manageBtn.addEventListener('click', () => {
@@ -478,7 +472,7 @@ function renderTemplateSelector() {
 }
 
 // ================================================================
-// RENDER TEMPLATE MANAGER - FIXED
+// RENDER TEMPLATE MANAGER
 // ================================================================
 
 function renderTemplateManager() {
@@ -661,7 +655,7 @@ function showEditTemplateDialog(templateId) {
 }
 
 // ================================================================
-// OPEN SMART IMPORT - FIXED
+// OPEN SMART IMPORT
 // ================================================================
 
 function openSmartImportEnhanced() {
@@ -675,7 +669,6 @@ function openSmartImportEnhanced() {
     
     modal.style.display = 'flex';
     
-    // Initialize template manager
     TemplateManager.init();
     
     AppState.importRecords = [];
@@ -717,10 +710,8 @@ Active Template: ${SmartImportState.activeTemplate ? SmartImportState.activeTemp
     const summary = SmartImportDOM.get('importSummary');
     if (summary) summary.style.display = 'none';
     
-    // Render template selector - FIXED: Call standalone function
     renderTemplateSelector();
     
-    // Update status display
     const statusEl = SmartImportDOM.get('aiStatusDisplay');
     if (statusEl) {
         const templateName = SmartImportState.activeTemplate ? SmartImportState.activeTemplate.name : 'Default';
@@ -731,7 +722,6 @@ Active Template: ${SmartImportState.activeTemplate ? SmartImportState.activeTemp
         statusEl.style.color = 'var(--primary)';
     }
     
-    // Update parse button
     const parseBtn = SmartImportDOM.get('parseImportBtn');
     if (parseBtn) {
         parseBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Parse Transcript';
@@ -798,8 +788,24 @@ async function parseAndPreviewImportEnhanced() {
         
         updateImportProgress(40, 'Analyzing extracted data...');
         
-        let parsed = transcriptParser.parse(text);
+        // FIXED: Check if transcriptParser exists, if not use smartParser
+        let parsed;
+        if (typeof transcriptParser !== 'undefined' && transcriptParser) {
+            parsed = transcriptParser.parse(text);
+        } else if (typeof smartParser !== 'undefined' && smartParser) {
+            parsed = smartParser.parse(text);
+        } else {
+            // Fallback: use the TemplateManager result only
+            parsed = {};
+            for (const [key, value] of Object.entries(templateResult.result)) {
+                if (value && value !== 'N/A') {
+                    parsed[key] = { value: value, confidence: templateResult.confidence[key] || 0.6, evidence: 'Template extraction' };
+                }
+            }
+            console.warn('transcriptParser not available, using template-only parsing');
+        }
         
+        // Merge template results
         for (const [key, value] of Object.entries(templateResult.result)) {
             if (value && value !== 'N/A') {
                 if (!parsed[key]) parsed[key] = {};
@@ -1434,8 +1440,6 @@ window.importAsNew = importAsNew;
 window.SmartImportState = SmartImportState;
 window.SmartImportDOM = SmartImportDOM;
 window.TemplateManager = TemplateManager;
-
-// FIXED: Expose render functions globally
 window.renderTemplateSelector = renderTemplateSelector;
 window.renderTemplateManager = renderTemplateManager;
 
@@ -1455,3 +1459,4 @@ window.SmartImport = {
 
 console.log('Smart Import (Enhanced with Template Management) loaded successfully');
 console.log('Templates available:', TemplateManager.getTemplates().length);
+console.log('transcriptParser available:', typeof transcriptParser !== 'undefined');
