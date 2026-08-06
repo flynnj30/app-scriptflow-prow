@@ -7,6 +7,7 @@ const ObjectionHandler = {
     currentCategory: 'reflex',
     expandedCards: new Set(),
     initialized: false,
+    _eventListenersAttached: false,
     
     categories: {
         reflex: {
@@ -450,6 +451,9 @@ const ObjectionHandler = {
     },
     
     attachEvents: function() {
+        if (this._eventListenersAttached) return;
+        this._eventListenersAttached = true;
+        
         const toggleBtn = document.getElementById('objectionToggleBtn');
         if (toggleBtn) {
             const newToggleBtn = toggleBtn.cloneNode(true);

@@ -21,7 +21,8 @@ const LoadingManager = {
         onComplete: null,
         isComplete: false,
         isStarted: false,
-        isHidden: false
+        isHidden: false,
+        _forceCompleteCalled: false
     },
 
     init: function() {
@@ -79,6 +80,7 @@ const LoadingManager = {
         this.state.currentStepIndex = 0;
         this.state.isComplete = false;
         this.state.isHidden = false;
+        this.state._forceCompleteCalled = false;
         
         if (this.state.intervalId) {
             clearInterval(this.state.intervalId);
@@ -88,6 +90,7 @@ const LoadingManager = {
         this.nextStep();
         
         this.state.intervalId = setInterval(() => {
+            if (this.state._forceCompleteCalled) return;
             const hasMore = this.nextStep();
             if (!hasMore) {
                 clearInterval(this.state.intervalId);
@@ -101,6 +104,8 @@ const LoadingManager = {
 
     complete: function() {
         if (this.state.isComplete || this.state.isHidden) return this;
+        if (this.state._forceCompleteCalled) return this;
+        
         this.state.isComplete = true;
         
         const loadingScreen = document.getElementById('loadingScreen');
@@ -139,6 +144,9 @@ const LoadingManager = {
     },
 
     forceComplete: function() {
+        if (this.state._forceCompleteCalled) return this;
+        this.state._forceCompleteCalled = true;
+        
         if (this.state.intervalId) {
             clearInterval(this.state.intervalId);
             this.state.intervalId = null;
@@ -162,6 +170,14 @@ const LoadingManager = {
         
         this.state.isComplete = true;
         this.state.isStarted = true;
+        
+        if (typeof this.state.onComplete === 'function') {
+            try {
+                this.state.onComplete();
+            } catch (e) {
+                console.warn('Loading complete callback error:', e);
+            }
+        }
         
         console.log('✅ Loading force completed');
         return this;
