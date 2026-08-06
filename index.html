@@ -23,7 +23,7 @@
     <!-- SortableJS -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK - Load first -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -31,21 +31,22 @@
     <!-- Styles -->
     <link rel="stylesheet" href="style.css" />
 </head>
-<body class="dark">
+<body>
     <!-- Loading Screen -->
     <div id="loadingScreen" class="loading-screen">
         <div class="loading-content">
             <div class="loading-icon">🎯</div>
             <div class="loading-title">ScriptFlow Pro</div>
-            <div class="loading-subtitle">Loading...</div>
+            <div class="loading-subtitle" id="loadingSubtitle">Initializing...</div>
             <div class="loading-bar-track">
-                <div id="loadingProgress" class="loading-bar"></div>
+                <div id="loadingProgress" class="loading-bar" style="width:0%;"></div>
             </div>
+            <div class="loading-progress-text" id="loadingProgressText" style="font-size:0.8rem; color:var(--text-muted); margin-top:8px;">0%</div>
         </div>
     </div>
 
     <!-- Main App -->
-    <div class="app-wrapper" id="appWrapper" style="display:none;">
+    <div class="app-wrapper" id="appWrapper" style="display:none; opacity:0;">
         <!-- Menu Toggle -->
         <button class="menu-toggle" id="menuToggleBtn" aria-label="Toggle Sidebar">
             <i class="fas fa-bars"></i>
@@ -126,11 +127,11 @@
             <!-- Right Panel -->
             <div id="rightPanel">
                 <!-- Script Panel -->
-                <div id="scriptPanel" class="script-card">
+                <div id="scriptPanel" class="script-card" style="display:block;">
                     <div class="script-header-bar">
                         <div class="script-title-area">
                             <i class="fas fa-scroll" style="color:var(--primary); font-size:1.3rem;"></i>
-                            <h2 id="currentScriptName">Opening Script</h2>
+                            <h2 id="currentScriptName">Loading...</h2>
                             <span class="version-chip"><i class="fas fa-clock"></i> v<span id="versionNumber">1</span></span>
                             <span class="version-chip"><i class="fas fa-key"></i> Key: <span id="activeShortcutHint">—</span></span>
                             <span class="version-chip" id="editStatusBadge" style="display:none; background:var(--warning); color:#1e293b;"><i class="fas fa-pen"></i> Editing</span>
@@ -144,7 +145,12 @@
                         <div id="objectionHandlerContainer" style="display:none; margin-bottom:16px;">
                             <div id="objectionHandlerContent"></div>
                         </div>
-                        <div id="scriptContent"></div>
+                        <div id="scriptContent">
+                            <div class="script-display" style="color:var(--text-muted); text-align:center; padding:40px 20px;">
+                                <i class="fas fa-spinner fa-spin" style="font-size:2rem; display:block; margin-bottom:16px;"></i>
+                                Loading scripts...
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -374,12 +380,11 @@
     <!-- Auth Modal -->
     <div id="authModal" class="modal-overlay" style="display:none;"></div>
 
-    <!-- JavaScript -->
+    <!-- JavaScript - Load in correct order -->
     <script src="js/firebase-config.js"></script>
     <script src="js/app.js"></script>
-    <!-- Script Coach - AI-Powered Script Analysis & Karaoke Playback -->
+    <script src="js/loading.js"></script>
     <script src="js/script-coach.js"></script>
-    <!-- Objection Handler - Senior Setter/Booker Objection Handling -->
     <script src="js/objection-handler.js"></script>
 </body>
 </html>

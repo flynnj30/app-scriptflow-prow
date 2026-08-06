@@ -21,7 +21,8 @@ const LoadingManager = {
         onComplete: null,
         isComplete: false,
         isStarted: false,
-        isHidden: false
+        isHidden: false,
+        hasError: false
     },
 
     /**
@@ -30,7 +31,7 @@ const LoadingManager = {
     init: function() {
         const loadingScreen = document.getElementById('loadingScreen');
         if (!loadingScreen) {
-            console.warn('Loading screen not found');
+            console.warn('⚠️ Loading screen not found');
             return this;
         }
         
@@ -52,10 +53,13 @@ const LoadingManager = {
      */
     updateProgress: function(percent, message) {
         const progressBar = document.getElementById('loadingProgress');
-        const loadingSubtitle = document.querySelector('.loading-subtitle');
+        const loadingSubtitle = document.getElementById('loadingSubtitle');
+        const loadingText = document.getElementById('loadingProgressText');
+        
+        const clampedPercent = Math.min(percent, 100);
         
         if (progressBar) {
-            progressBar.style.width = Math.min(percent, 100) + '%';
+            progressBar.style.width = clampedPercent + '%';
             progressBar.style.transition = 'width 0.5s ease';
         }
         
@@ -64,7 +68,11 @@ const LoadingManager = {
             loadingSubtitle.style.color = '';
         }
         
-        this.state.progress = Math.min(percent, 100);
+        if (loadingText) {
+            loadingText.textContent = Math.round(clampedPercent) + '%';
+        }
+        
+        this.state.progress = clampedPercent;
         return this;
     },
 
@@ -94,6 +102,7 @@ const LoadingManager = {
         this.state.currentStepIndex = 0;
         this.state.isComplete = false;
         this.state.isHidden = false;
+        this.state.hasError = false;
         
         // Clear any existing interval
         if (this.state.intervalId) {
@@ -106,13 +115,28 @@ const LoadingManager = {
         
         // Auto-advance through steps
         this.state.intervalId = setInterval(() => {
+            // Check if we should stop
+            if (this.state.hasError) {
+                clearInterval(this.state.intervalId);
+                this.state.intervalId = null;
+                return;
+            }
+            
             const hasMore = this.nextStep();
             if (!hasMore) {
                 clearInterval(this.state.intervalId);
                 this.state.intervalId = null;
                 this.complete();
             }
-        }, 500);
+        }, 600);
+        
+        // Safety timeout - force complete after 8 seconds
+        setTimeout(() => {
+            if (!this.state.isComplete && !this.state.isHidden) {
+                console.log('⏱️ Safety timeout: forcing loading complete');
+                this.forceComplete();
+            }
+        }, 8000);
         
         return this;
     },
@@ -130,7 +154,7 @@ const LoadingManager = {
         // Update to 100%
         this.updateProgress(100, 'Ready! 🚀');
         
-        // Hide loading screen immediately
+        // Hide loading screen with smooth transition
         if (loadingScreen) {
             loadingScreen.style.opacity = '0';
             loadingScreen.style.transition = 'opacity 0.4s ease';
@@ -145,10 +169,15 @@ const LoadingManager = {
             }, 450);
         }
         
-        // Show app wrapper
+        // Show app wrapper with fade in
         if (appWrapper) {
             appWrapper.style.display = 'flex';
-            appWrapper.style.opacity = '1';
+            appWrapper.style.opacity = '0';
+            appWrapper.style.transition = 'opacity 0.5s ease';
+            
+            setTimeout(() => {
+                appWrapper.style.opacity = '1';
+            }, 50);
         }
         
         // Call onComplete callback
@@ -201,9 +230,12 @@ const LoadingManager = {
      * Show an error on the loading screen
      */
     showError: function(message) {
-        const loadingSubtitle = document.querySelector('.loading-subtitle');
+        this.state.hasError = true;
+        
+        const loadingSubtitle = document.getElementById('loadingSubtitle');
         const loadingIcon = document.querySelector('.loading-icon');
         const loadingTitle = document.querySelector('.loading-title');
+        const progressBar = document.getElementById('loadingProgress');
         
         if (loadingSubtitle) {
             loadingSubtitle.textContent = '⚠️ ' + message;
@@ -216,6 +248,10 @@ const LoadingManager = {
         
         if (loadingTitle) {
             loadingTitle.textContent = 'Error Loading';
+        }
+        
+        if (progressBar) {
+            progressBar.style.background = 'var(--danger)';
         }
         
         // Add retry button if not already present
@@ -239,7 +275,7 @@ const LoadingManager = {
      * Set a custom loading message
      */
     setMessage: function(message) {
-        const loadingSubtitle = document.querySelector('.loading-subtitle');
+        const loadingSubtitle = document.getElementById('loadingSubtitle');
         if (loadingSubtitle) {
             loadingSubtitle.textContent = message;
             loadingSubtitle.style.color = '';

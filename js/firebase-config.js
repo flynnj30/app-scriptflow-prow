@@ -1,5 +1,5 @@
 // ================================================================
-// FIREBASE CONFIGURATION - WITH ERROR HANDLING & FALLBACK
+// FIREBASE CONFIGURATION - WITH ERROR HANDLING & FALLBACK (FIXED)
 // ================================================================
 
 const firebaseConfig = {
@@ -11,28 +11,63 @@ const firebaseConfig = {
     appId: "1:250157640936:web:cd6218470c302b305aed5d"
 };
 
-// Initialize Firebase with error handling and retry logic
+// State
 let firebaseInitialized = false;
 let firebaseInitAttempts = 0;
-const MAX_INIT_ATTEMPTS = 3;
+const MAX_INIT_ATTEMPTS = 5;
+let initResolve = null;
+let initReject = null;
+let initPromise = null;
 
+/**
+ * Initialize Firebase with retry logic
+ * Returns a promise that resolves when Firebase is ready
+ */
 function initFirebase() {
-    try {
+    if (initPromise) return initPromise;
+    
+    initPromise = new Promise((resolve, reject) => {
+        initResolve = resolve;
+        initReject = reject;
+        
+        // Check if Firebase SDK is loaded
         if (typeof firebase === 'undefined') {
-            console.warn('⚠️ Firebase SDK not loaded');
-            return false;
+            console.warn('⚠️ Firebase SDK not loaded, waiting...');
+            // Wait for Firebase to load
+            let checkCount = 0;
+            const checkInterval = setInterval(() => {
+                checkCount++;
+                if (typeof firebase !== 'undefined') {
+                    clearInterval(checkInterval);
+                    attemptInit();
+                } else if (checkCount > 20) {
+                    clearInterval(checkInterval);
+                    reject(new Error('Firebase SDK failed to load'));
+                }
+            }, 500);
+            return;
         }
         
+        attemptInit();
+    });
+    
+    return initPromise;
+}
+
+function attemptInit() {
+    try {
         if (firebase.apps && firebase.apps.length > 0) {
             console.log('✅ Firebase already initialized');
             firebaseInitialized = true;
-            return true;
+            if (initResolve) initResolve(true);
+            return;
         }
         
         firebase.initializeApp(firebaseConfig);
         firebaseInitialized = true;
         console.log('✅ Firebase initialized successfully');
         
+        // Enable persistence
         try {
             firebase.firestore().enablePersistence({ synchronizeTabs: true })
                 .then(() => console.log('✅ Firebase persistence enabled'))
@@ -49,7 +84,7 @@ function initFirebase() {
             console.warn('⚠️ Firebase persistence setup failed:', persistErr.message);
         }
         
-        return true;
+        if (initResolve) initResolve(true);
         
     } catch (e) {
         console.warn('⚠️ Firebase initialization failed:', e.message);
@@ -57,20 +92,27 @@ function initFirebase() {
         if (firebaseInitAttempts < MAX_INIT_ATTEMPTS) {
             firebaseInitAttempts++;
             console.log(`🔄 Retrying Firebase init (attempt ${firebaseInitAttempts}/${MAX_INIT_ATTEMPTS})...`);
-            setTimeout(initFirebase, 2000);
+            
+            // Update loading screen
+            const loadingSubtitle = document.getElementById('loadingSubtitle');
+            if (loadingSubtitle) {
+                loadingSubtitle.textContent = `Retrying connection (${firebaseInitAttempts}/${MAX_INIT_ATTEMPTS})...`;
+            }
+            
+            setTimeout(() => {
+                attemptInit();
+            }, 2000);
+        } else {
+            console.error('❌ Firebase initialization failed after max attempts');
+            if (initReject) initReject(e);
         }
-        return false;
     }
 }
 
-initFirebase();
+// Start initialization immediately
+const firebaseInitPromise = initFirebase();
 
-document.addEventListener('DOMContentLoaded', function() {
-    if (!firebaseInitialized) {
-        setTimeout(initFirebase, 1000);
-    }
-});
-
+// Expose Firebase status check
 window.isFirebaseReady = function() {
     return firebaseInitialized && typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
 };
@@ -108,4 +150,9 @@ window.getAuth = function() {
     return null;
 };
 
-console.log('🔧 Firebase config loaded with fallback support');
+// Wait for Firebase to be ready
+window.waitForFirebase = function() {
+    return firebaseInitPromise;
+};
+
+console.log('🔧 Firebase config loaded with retry support');

@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION (FIXED)
+// SCRIPTFLOW PRO - COMPLETE APPLICATION (FIXED LOADING)
 // ================================================================
 
 // ================================================================
@@ -1972,7 +1972,7 @@ const Scripts = {
 };
 
 // ================================================================
-// SCRIPT ACTIONS RENDERER - FIXED (No Duplicates)
+// SCRIPT ACTIONS RENDERER
 // ================================================================
 
 function renderScriptActions() {
@@ -2298,7 +2298,7 @@ function updateCloserSelects() {
 }
 
 // ================================================================
-// APPOINTMENT DETAIL FUNCTIONS (DEFINED BEFORE USE)
+// APPOINTMENT DETAIL FUNCTIONS
 // ================================================================
 
 function showAppointmentDetail(appointmentId) {
@@ -2483,7 +2483,7 @@ function cancelAppointment(appointmentId) {
 }
 
 // ================================================================
-// SMART IMPORT FUNCTIONS - FULL IMPLEMENTATION
+// SMART IMPORT FUNCTIONS
 // ================================================================
 
 let _isImportSaving = false;
@@ -2714,33 +2714,28 @@ function renderImportResultsEnhanced(records) {
     
     resultsContainer.innerHTML = resultsHtml;
     
-    // Attach event listeners to all buttons using event delegation
     resultsContainer.addEventListener('click', function(e) {
         const target = e.target.closest('button');
         if (!target) return;
         
-        // Edit button
         if (target.classList.contains('edit-btn')) {
             const index = parseInt(target.dataset.index);
             editImportRecord(index);
             return;
         }
         
-        // Skip button
         if (target.classList.contains('skip-btn')) {
             const index = parseInt(target.dataset.index);
             skipImportRecord(index);
             return;
         }
         
-        // Save single button
         if (target.classList.contains('save-single-btn')) {
             const index = parseInt(target.dataset.index);
             saveSingleRecord(index);
             return;
         }
         
-        // Merge button
         if (target.classList.contains('merge-btn')) {
             const index = parseInt(target.dataset.index);
             mergeDuplicate(index);
@@ -2753,7 +2748,6 @@ function renderImportResultsEnhanced(records) {
         saveBtn.style.display = 'inline-flex';
         saveBtn.disabled = false;
         saveBtn.textContent = `Save ${validRecords.length} Record(s)`;
-        // Remove existing listeners
         const newSaveBtn = saveBtn.cloneNode(true);
         saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
         newSaveBtn.onclick = function(e) {
@@ -5752,96 +5746,177 @@ function renderClosersListHTML() {
 // ================================================================
 
 // Single initialization point
-function startApp() {
+async function startApp() {
     console.log('🚀 Starting ScriptFlow Pro...');
     
     const loadingScreen = document.getElementById('loadingScreen');
     const appWrapper = document.getElementById('appWrapper');
+    const loadingManager = window.LoadingManager;
     
-    // Safety timeout - force hide loading screen after 3 seconds max
-    const safetyTimeout = setTimeout(function() {
-        if (loadingScreen && loadingScreen.style.display !== 'none') {
-            console.log('⚠️ Safety timeout: forcing loading screen hide');
-            loadingScreen.style.display = 'none';
-            loadingScreen.style.visibility = 'hidden';
-            loadingScreen.style.opacity = '0';
-            if (appWrapper) {
-                appWrapper.style.display = 'flex';
-                appWrapper.style.opacity = '1';
-            }
-        }
-    }, 3000);
-    
-    // If LoadingManager exists, use it
-    if (typeof LoadingManager !== 'undefined' && LoadingManager) {
-        console.log('📦 Using LoadingManager');
-        LoadingManager.init();
-        
-        // Start the loading sequence
-        LoadingManager.start(function() {
-            console.log('✅ Loading sequence completed');
-        });
-        
-        // Force complete after 2 seconds if not already done
-        setTimeout(function() {
-            if (LoadingManager && !LoadingManager.isComplete()) {
-                console.log('⏱️ Force completing loading');
-                LoadingManager.forceComplete();
-            }
-        }, 2000);
-    } else {
-        // Fallback: hide loading screen manually
-        console.log('⚠️ LoadingManager not found, using fallback');
-        if (loadingScreen) {
-            loadingScreen.style.display = 'none';
-            loadingScreen.style.visibility = 'hidden';
-            loadingScreen.style.opacity = '0';
-        }
-        if (appWrapper) {
-            appWrapper.style.display = 'flex';
-            appWrapper.style.opacity = '1';
-        }
-    }
-    
-    // Initialize the app
     try {
-        if (typeof initApp === 'function') {
-            initApp();
+        // Update loading progress
+        if (loadingManager) {
+            loadingManager.setMessage('Initializing application...');
+            loadingManager.updateProgress(5, 'Initializing...');
+        }
+        
+        // Check if Firebase is available
+        AppState.isFirebaseReady = window.isFirebaseReady ? window.isFirebaseReady() : false;
+        
+        if (!AppState.isFirebaseReady) {
+            console.log('⏳ Waiting for Firebase to initialize...');
+            if (loadingManager) {
+                loadingManager.setMessage('Connecting to Firebase...');
+                loadingManager.updateProgress(10, 'Connecting to Firebase...');
+            }
+            
+            // Wait for Firebase with timeout
+            try {
+                if (window.waitForFirebase) {
+                    await Promise.race([
+                        window.waitForFirebase(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Firebase timeout')), 10000))
+                    ]);
+                    AppState.isFirebaseReady = window.isFirebaseReady ? window.isFirebaseReady() : false;
+                }
+            } catch (fbError) {
+                console.warn('⚠️ Firebase connection issue:', fbError.message);
+                AppState.isFirebaseReady = false;
+                if (loadingManager) {
+                    loadingManager.setMessage('Using offline mode...');
+                }
+            }
+        }
+        
+        if (AppState.isFirebaseReady) {
+            console.log('✅ Firebase connected');
         } else {
-            console.error('initApp function not found');
-            // Force hide loading
+            console.log('ℹ️ Running in offline mode');
+        }
+        
+        // Update loading progress
+        if (loadingManager) {
+            loadingManager.updateProgress(30, 'Checking authentication...');
+        }
+        
+        // Check for existing user
+        let user = null;
+        if (AppState.isFirebaseReady) {
+            try {
+                const auth = window.getAuth ? window.getAuth() : null;
+                if (auth) {
+                    const authState = await new Promise((resolve) => {
+                        const unsubscribe = auth.onAuthStateChanged((user) => {
+                            unsubscribe();
+                            resolve(user);
+                        });
+                    });
+                    user = authState;
+                }
+            } catch (authError) {
+                console.warn('Auth check error:', authError);
+            }
+        }
+        
+        if (user) {
+            AppState.currentUser = user;
+            Auth.updateUI();
+            if (loadingManager) {
+                loadingManager.setMessage('Loading your data...');
+                loadingManager.updateProgress(40, 'Loading your data...');
+            }
+            await Data.loadUserData(false);
+        } else {
+            if (loadingManager) {
+                loadingManager.setMessage('Please sign in...');
+                loadingManager.updateProgress(50, 'Ready to sign in...');
+            }
+            // Show auth modal after a delay
+            setTimeout(() => {
+                Auth.showModal();
+            }, 500);
+        }
+        
+        // Final setup
+        if (loadingManager) {
+            loadingManager.updateProgress(90, 'Preparing interface...');
+        }
+        
+        // Render scripts
+        if (Object.keys(AppState.scripts).length > 0) {
+            Scripts.renderSidebar();
+            const firstScript = Object.keys(AppState.scripts)[0];
+            Scripts.loadScript(firstScript);
+        } else {
+            // Create default scripts if needed
+            if (AppState.isFirebaseReady) {
+                await Data.createDefaultScripts();
+                await Data.loadUserData(false);
+            }
+        }
+        
+        Stats.updateAll();
+        
+        // Mark app as ready
+        AppState.isAppReady = true;
+        
+        // Complete loading
+        if (loadingManager) {
+            loadingManager.updateProgress(100, 'Ready! 🚀');
+            setTimeout(() => {
+                loadingManager.complete();
+            }, 300);
+        } else {
+            // Fallback: hide loading screen
             if (loadingScreen) {
                 loadingScreen.style.display = 'none';
                 loadingScreen.style.visibility = 'hidden';
+                loadingScreen.style.opacity = '0';
             }
             if (appWrapper) {
                 appWrapper.style.display = 'flex';
                 appWrapper.style.opacity = '1';
             }
         }
-    } catch (e) {
-        console.error('App initialization error:', e);
-        // Still try to hide loading screen
-        if (loadingScreen) {
-            loadingScreen.style.display = 'none';
-            loadingScreen.style.visibility = 'hidden';
-            loadingScreen.style.opacity = '0';
+        
+        console.log('✅ ScriptFlow Pro is ready!');
+        
+    } catch (error) {
+        console.error('❌ App startup error:', error);
+        
+        if (loadingManager) {
+            loadingManager.showError('Failed to load application. Please refresh.');
+        } else {
+            // Fallback error display
+            if (loadingScreen) {
+                const subtitle = document.getElementById('loadingSubtitle');
+                if (subtitle) {
+                    subtitle.textContent = '⚠️ Error loading application';
+                    subtitle.style.color = 'var(--danger)';
+                }
+            }
         }
-        if (appWrapper) {
-            appWrapper.style.display = 'flex';
-            appWrapper.style.opacity = '1';
-        }
+        
+        // Show toast if available
         if (typeof showToast === 'function') {
             showToast('Error loading app. Please refresh.', 'error');
         }
     }
 }
 
-// Start the app - this will handle the loading screen properly
+// Start the app when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     console.log('📄 DOM ready, starting app...');
-    // Use a small delay to ensure everything is loaded
-    setTimeout(startApp, 50);
+    
+    // Initialize LoadingManager first
+    if (typeof LoadingManager !== 'undefined' && LoadingManager) {
+        LoadingManager.init();
+        LoadingManager.setMessage('Starting ScriptFlow Pro...');
+        LoadingManager.updateProgress(0, 'Initializing...');
+    }
+    
+    // Start the app
+    startApp();
 });
 
 console.log('🚀 App bundle loaded');
