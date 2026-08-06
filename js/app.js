@@ -1683,6 +1683,14 @@ const Scripts = {
         this.updateFavoriteStar();
         this.renderSidebar();
         this.updateKeyHints();
+        
+        // Update script actions and coach UI after loading
+        setTimeout(() => {
+            renderScriptActions();
+            if (typeof addScriptCoachUI === 'function') {
+                addScriptCoachUI();
+            }
+        }, 50);
     },
 
     toggleFavorite: function(id) {
@@ -1905,7 +1913,176 @@ const Scripts = {
 };
 
 // ================================================================
-// ENHANCED SMART IMPORT FUNCTIONS - FIXED
+// SCRIPT ACTIONS RENDERER - FIXED (No Duplicates)
+// ================================================================
+
+function renderScriptActions() {
+    const container = document.getElementById('scriptActionsContainer');
+    if (!container) return;
+    
+    // Clear existing content to prevent duplicates
+    container.innerHTML = '';
+    
+    // Create all buttons
+    const buttons = [
+        { id: 'editScriptBtn', icon: 'fa-pen', text: 'Edit', style: '' },
+        { id: 'saveScriptBtn', icon: 'fa-save', text: 'Save', style: 'display:none; background:var(--success);' },
+        { id: 'cancelEditBtn', icon: 'fa-times', text: 'Cancel', style: 'display:none;' },
+        { id: 'copyScriptBtn', icon: 'fa-copy', text: 'Copy', style: '' },
+        { id: 'resetScriptBtn', icon: 'fa-undo-alt', text: 'Reset', style: '' },
+        { id: 'favoriteScriptBtn', icon: 'fa-star', text: '', style: '' },
+        { id: 'coachScanBtn', icon: 'fa-brain', text: 'Scan', style: 'background:var(--primary); color:white;', extraClass: 'coach-scan-btn' },
+        { id: 'coachPlayBtn', icon: 'fa-play', text: 'Play', style: 'background:var(--success); color:white;', extraClass: 'coach-play-btn', disabled: true },
+        { id: 'objectionToggleBtn', icon: 'fa-shield-alt', text: 'Objections', style: 'background:var(--secondary); color:white;' }
+    ];
+    
+    buttons.forEach(btn => {
+        const button = document.createElement('button');
+        button.id = btn.id;
+        button.className = `btn-icon ${btn.extraClass || ''}`;
+        if (btn.style) {
+            button.setAttribute('style', btn.style);
+        }
+        if (btn.disabled) {
+            button.disabled = true;
+        }
+        button.innerHTML = `<i class="fas ${btn.icon}"></i> ${btn.text}`;
+        container.appendChild(button);
+    });
+    
+    // Update favorite star
+    updateFavoriteStarUI();
+    
+    // Attach event listeners
+    attachScriptActionEvents();
+    
+    // Update coach UI state
+    if (typeof updateCoachUI === 'function') {
+        updateCoachUI(ScriptCoachState?.analysisComplete || false);
+    }
+}
+
+function updateFavoriteStarUI() {
+    const star = document.getElementById('favoriteScriptBtn');
+    if (star) {
+        const isFavorite = AppState.scriptFavorites.includes(AppState.currentScriptId);
+        star.innerHTML = `<i class="fas fa-star" style="color:${isFavorite ? 'var(--favorite-color)' : 'var(--text-muted)'}"></i>`;
+        star.title = isFavorite ? 'Remove from favorites' : 'Add to favorites';
+    }
+}
+
+function attachScriptActionEvents() {
+    // Edit Script
+    const editScriptBtn = document.getElementById('editScriptBtn');
+    if (editScriptBtn) {
+        editScriptBtn.removeEventListener('click', Scripts.startEdit);
+        editScriptBtn.addEventListener('click', () => Scripts.startEdit());
+    }
+    
+    // Save Script
+    const saveScriptBtn = document.getElementById('saveScriptBtn');
+    if (saveScriptBtn) {
+        saveScriptBtn.removeEventListener('click', handleSaveScript);
+        saveScriptBtn.addEventListener('click', handleSaveScript);
+    }
+    
+    // Cancel Edit
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    if (cancelEditBtn) {
+        cancelEditBtn.removeEventListener('click', () => Scripts.cancelEdit());
+        cancelEditBtn.addEventListener('click', () => Scripts.cancelEdit());
+    }
+    
+    // Copy Script
+    const copyScriptBtn = document.getElementById('copyScriptBtn');
+    if (copyScriptBtn) {
+        copyScriptBtn.removeEventListener('click', handleCopyScript);
+        copyScriptBtn.addEventListener('click', handleCopyScript);
+    }
+    
+    // Reset Script
+    const resetScriptBtn = document.getElementById('resetScriptBtn');
+    if (resetScriptBtn) {
+        resetScriptBtn.removeEventListener('click', () => Scripts.resetScript());
+        resetScriptBtn.addEventListener('click', () => Scripts.resetScript());
+    }
+    
+    // Favorite Script
+    const favoriteScriptBtn = document.getElementById('favoriteScriptBtn');
+    if (favoriteScriptBtn) {
+        favoriteScriptBtn.removeEventListener('click', handleFavoriteScript);
+        favoriteScriptBtn.addEventListener('click', handleFavoriteScript);
+    }
+    
+    // Coach Scan
+    const coachScanBtn = document.getElementById('coachScanBtn');
+    if (coachScanBtn) {
+        coachScanBtn.removeEventListener('click', handleCoachScan);
+        coachScanBtn.addEventListener('click', handleCoachScan);
+    }
+    
+    // Coach Play
+    const coachPlayBtn = document.getElementById('coachPlayBtn');
+    if (coachPlayBtn) {
+        coachPlayBtn.removeEventListener('click', handleCoachPlay);
+        coachPlayBtn.addEventListener('click', handleCoachPlay);
+    }
+    
+    // Objection Toggle
+    const objectionToggleBtn = document.getElementById('objectionToggleBtn');
+    if (objectionToggleBtn && window.ObjectionHandler) {
+        objectionToggleBtn.removeEventListener('click', handleObjectionToggle);
+        objectionToggleBtn.addEventListener('click', handleObjectionToggle);
+    }
+}
+
+// Handler functions for script actions
+function handleSaveScript() {
+    const textarea = document.getElementById('editTextarea');
+    if (textarea) {
+        Scripts.saveScriptContent(textarea.value);
+        Scripts.finishEdit();
+    }
+}
+
+function handleCopyScript() {
+    const script = AppState.scripts[AppState.currentScriptId];
+    if (script) copyToClipboard(script.content);
+}
+
+function handleFavoriteScript() {
+    Scripts.toggleFavorite(AppState.currentScriptId);
+}
+
+function handleCoachScan() {
+    if (typeof window.runScriptAnalysis === 'function') {
+        const script = AppState.scripts[AppState.currentScriptId];
+        if (script) {
+            window.runScriptAnalysis(script.content);
+        } else {
+            showToast('No script to analyze', 'warning');
+        }
+    } else {
+        showToast('Script Coach not loaded', 'warning');
+    }
+}
+
+function handleCoachPlay() {
+    if (typeof window.startScriptPlayback === 'function') {
+        window.startScriptPlayback();
+    } else {
+        showToast('Script Coach not loaded', 'warning');
+    }
+}
+
+function handleObjectionToggle() {
+    if (window.ObjectionHandler) {
+        window.ObjectionHandler.toggleBanner();
+    }
+}
+
+// ================================================================
+// ENHANCED SMART IMPORT FUNCTIONS
 // ================================================================
 
 let _isImportSaving = false;
@@ -5345,6 +5522,9 @@ function initApp() {
         Scripts.loadScript('opening');
     });
 
+    // Render script actions on load
+    renderScriptActions();
+
     const quickReportBtn = DOM.get('quickReportBtn');
     const parseBtn = DOM.get('parseImportBtn');
     const closeImportBtn = DOM.get('closeImportBtn');
@@ -5391,7 +5571,6 @@ function initApp() {
         collapseAllBtn.addEventListener('click', collapseAllRecords);
     }
 
-    // Make expand/collapse available globally
     window.expandAllRecords = expandAllRecords;
     window.collapseAllRecords = collapseAllRecords;
 
@@ -5452,62 +5631,7 @@ function initApp() {
 
     if (closeDetailBtn) closeDetailBtn.addEventListener('click', closeAppointmentDetail);
 
-    const editScriptBtn = DOM.get('editScriptBtn');
-    const saveScriptBtn = DOM.get('saveScriptBtn');
-    const cancelEditBtn = DOM.get('cancelEditBtn');
-    const copyScriptBtn = DOM.get('copyScriptBtn');
-    const resetScriptBtn = DOM.get('resetScriptBtn');
-    const favoriteScriptBtn = DOM.get('favoriteScriptBtn');
-
-    if (editScriptBtn) editScriptBtn.addEventListener('click', () => Scripts.startEdit());
-    if (saveScriptBtn) saveScriptBtn.addEventListener('click', () => {
-        const textarea = DOM.get('editTextarea');
-        if (textarea) { Scripts.saveScriptContent(textarea.value); Scripts.finishEdit(); }
-    });
-    if (cancelEditBtn) cancelEditBtn.addEventListener('click', () => Scripts.cancelEdit());
-    if (copyScriptBtn) copyScriptBtn.addEventListener('click', () => {
-        const script = AppState.scripts[AppState.currentScriptId];
-        if (script) copyToClipboard(script.content);
-    });
-    if (resetScriptBtn) resetScriptBtn.addEventListener('click', () => Scripts.resetScript());
-    if (favoriteScriptBtn) favoriteScriptBtn.addEventListener('click', () => Scripts.toggleFavorite(AppState.currentScriptId));
-
-    // Script Coach buttons
-    const coachScanBtn = DOM.get('coachScanBtn');
-    const coachPlayBtn = DOM.get('coachPlayBtn');
-    
-    if (coachScanBtn) {
-        coachScanBtn.addEventListener('click', () => {
-            if (typeof window.runScriptAnalysis === 'function') {
-                const script = AppState.scripts[AppState.currentScriptId];
-                if (script) {
-                    window.runScriptAnalysis(script.content);
-                } else {
-                    showToast('No script to analyze', 'warning');
-                }
-            } else {
-                showToast('Script Coach not loaded', 'warning');
-            }
-        });
-    }
-    
-    if (coachPlayBtn) {
-        coachPlayBtn.addEventListener('click', () => {
-            if (typeof window.startScriptPlayback === 'function') {
-                window.startScriptPlayback();
-            } else {
-                showToast('Script Coach not loaded', 'warning');
-            }
-        });
-    }
-
-    // Objection Handler toggle button
-    const objectionToggleBtn = DOM.get('objectionToggleBtn');
-    if (objectionToggleBtn && window.ObjectionHandler) {
-        objectionToggleBtn.addEventListener('click', () => {
-            window.ObjectionHandler.toggleBanner();
-        });
-    }
+    // Script actions are now handled by renderScriptActions()
 
     const bulkActionsBtn = DOM.get('bulkActionsBtn');
     const closeBulkBtn = DOM.get('closeBulkModalBtn');
@@ -5689,6 +5813,8 @@ function initApp() {
                             Stats.updateAll();
                             Scripts.renderSidebar();
                             Scripts.loadScript('opening');
+                            // Render script actions after loading
+                            setTimeout(renderScriptActions, 100);
                             showToast('Loaded offline data', 'info');
                         } catch (e) {}
                     }
@@ -5716,6 +5842,7 @@ function initApp() {
                     Stats.updateAll();
                     Scripts.renderSidebar();
                     Scripts.loadScript('opening');
+                    setTimeout(renderScriptActions, 100);
                 } catch (e) {}
             }
             const loadingScreen = DOM.get('loadingScreen');
@@ -5804,6 +5931,7 @@ window.quickImportFromClipboard = quickImportFromClipboard;
 window.expandAllRecords = expandAllRecords;
 window.collapseAllRecords = collapseAllRecords;
 window.Utils = Utils;
+window.renderScriptActions = renderScriptActions;
 
 // Start the app
 document.addEventListener('DOMContentLoaded', initApp);

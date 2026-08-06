@@ -134,16 +134,8 @@
                             <span class="version-chip"><i class="fas fa-key"></i> Key: <span id="activeShortcutHint">—</span></span>
                             <span class="version-chip" id="editStatusBadge" style="display:none; background:var(--warning); color:#1e293b;"><i class="fas fa-pen"></i> Editing</span>
                         </div>
-                        <div class="script-actions">
-                            <button class="btn-icon" id="editScriptBtn"><i class="fas fa-pen"></i> Edit</button>
-                            <button class="btn-icon" id="saveScriptBtn" style="display:none; background:var(--success);"><i class="fas fa-save"></i> Save</button>
-                            <button class="btn-icon" id="cancelEditBtn" style="display:none;"><i class="fas fa-times"></i> Cancel</button>
-                            <button class="btn-icon" id="copyScriptBtn"><i class="fas fa-copy"></i> Copy</button>
-                            <button class="btn-icon" id="resetScriptBtn"><i class="fas fa-undo-alt"></i> Reset</button>
-                            <button class="btn-icon" id="favoriteScriptBtn"><i class="fas fa-star"></i></button>
-                            <button class="btn-icon coach-scan-btn" id="coachScanBtn" title="Analyze Script"><i class="fas fa-brain"></i> Scan</button>
-                            <button class="btn-icon coach-play-btn" id="coachPlayBtn" title="Play Script" disabled><i class="fas fa-play"></i> Play</button>
-                            <button class="btn-icon" id="objectionToggleBtn" style="background:var(--secondary); color:white;" title="Toggle Objection Handler"><i class="fas fa-shield-alt"></i> Objections</button>
+                        <div class="script-actions" id="scriptActionsContainer">
+                            <!-- All script buttons will be rendered by JavaScript to avoid duplicates -->
                         </div>
                     </div>
                     <div class="script-body" id="scriptBody">
