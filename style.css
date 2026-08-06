@@ -735,16 +735,17 @@ body {
 .script-coach-btn-group {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
+    gap: 4px;
+    padding: 2px 6px;
     background: var(--bg-primary);
     border-radius: 30px;
     border: 1px solid var(--border-color);
 }
 
 .script-coach-btn-group .btn-icon {
-    padding: 6px 12px;
-    font-size: 0.75rem;
+    padding: 4px 10px;
+    font-size: 0.7rem;
+    min-height: 30px;
 }
 
 .coach-scan-btn {
@@ -770,10 +771,29 @@ body {
 .coach-play-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+    transform: none !important;
 }
 
+.coach-status-btn {
+    font-size: 0.65rem;
+    padding: 4px 10px;
+    background: var(--success);
+    color: white;
+    border-radius: 20px;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ============================================================
+   SCRIPT COACH - TONE SELECTOR
+   ============================================================ */
 .coach-tone-selector {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 4px;
 }
 
 .coach-tone-select {
@@ -786,6 +806,7 @@ body {
     cursor: pointer;
     transition: var(--transition);
     min-width: 100px;
+    height: 32px;
 }
 
 .coach-tone-select:focus {
@@ -793,9 +814,9 @@ body {
     border-color: var(--primary);
 }
 
-.coach-status-btn {
-    font-size: 0.65rem;
-    padding: 4px 10px;
+.coach-tone-select option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
 }
 
 /* ============================================================
@@ -3298,14 +3319,26 @@ body {
     .report-metrics { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .script-actions { justify-content: flex-start; }
     
-    .script-coach-btn-group {
+    .script-actions .btn-icon {
+        font-size: 0.65rem;
+        padding: 4px 8px;
+    }
+    
+    .script-header-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    
+    .script-title-area {
         flex-wrap: wrap;
+    }
+    
+    .script-actions {
+        justify-content: flex-start;
         gap: 4px;
     }
-    .script-coach-btn-group .btn-icon {
-        padding: 4px 10px;
-        font-size: 0.65rem;
-    }
+    
     .coach-tone-select {
         min-width: 80px;
         font-size: 0.65rem;
@@ -3441,8 +3474,10 @@ body {
     .toast {
         bottom: 12px;
         right: 12px;
+        left: 12px;
+        max-width: none;
+        font-size: 0.8rem;
         padding: 10px 16px;
-        font-size: 0.85rem;
     }
     .menu-toggle {
         width: 36px;
@@ -3558,838 +3593,9 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
 
 /* ============================================================
-   OBJECTION HANDLER BANNER - SENIOR SETTER/BOOKER
+   OBJECTION HANDLER - INTEGRATED STYLES
    ============================================================ */
 
-.objection-banner {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 16px;
-    margin: 12px 0 20px 0;
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
-    transition: var(--transition);
-    animation: fadeIn 0.4s ease;
-}
-
-.objection-banner:hover {
-    border-color: var(--primary);
-    box-shadow: var(--shadow-md);
-}
-
-.objection-banner-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 20px;
-    cursor: pointer;
-    background: var(--bg-card);
-    border-bottom: 1px solid var(--border-color);
-    transition: var(--transition);
-    user-select: none;
-    position: relative;
-}
-
-.objection-banner-header:hover {
-    background: var(--bg-primary);
-}
-
-.objection-banner-title {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.objection-banner-icon {
-    font-size: 1.3rem;
-    display: flex;
-    align-items: center;
-}
-
-.objection-banner-text {
-    font-weight: 600;
-    font-size: 0.95rem;
-    color: var(--text-primary);
-}
-
-.objection-banner-badge {
-    background: var(--primary);
-    color: white;
-    padding: 2px 12px;
-    border-radius: 20px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.objection-banner-controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.objection-banner-toggle-btn {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 50%;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    color: var(--text-secondary);
-    transition: var(--transition);
-}
-
-.objection-banner-toggle-btn:hover {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-
-.objection-banner-body {
-    background: var(--bg-primary);
-    padding: 16px 20px 20px;
-    animation: fadeIn 0.3s ease;
-}
-
-.objection-banner-content {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-/* Category Navigation */
-.objection-category-nav {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.objection-category-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    border-radius: 30px;
-    border: 2px solid transparent;
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: var(--transition);
-    font-size: 0.8rem;
-    font-weight: 500;
-    position: relative;
-}
-
-.objection-category-btn:hover {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    transform: translateY(-2px);
-}
-
-.objection-category-btn.active {
-    background: var(--bg-card);
-    border-color: var(--primary);
-    color: var(--text-primary);
-    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.15);
-}
-
-.objection-category-btn .category-icon {
-    font-size: 0.9rem;
-}
-
-.objection-category-btn .category-label {
-    font-size: 0.75rem;
-}
-
-.objection-category-btn .category-count {
-    background: var(--bg-primary);
-    color: var(--text-muted);
-    padding: 0 8px;
-    border-radius: 12px;
-    font-size: 0.6rem;
-    font-weight: 600;
-    line-height: 1.6;
-}
-
-.objection-category-btn.active .category-count {
-    background: var(--primary);
-    color: white;
-}
-
-/* Cards Container */
-.objection-cards-container {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 500px;
-    overflow-y: auto;
-    padding-right: 4px;
-}
-
-.objection-cards-container::-webkit-scrollbar {
-    width: 4px;
-}
-
-.objection-cards-container::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.objection-cards-container::-webkit-scrollbar-thumb {
-    background: var(--primary);
-    border-radius: 4px;
-}
-
-/* Individual Card */
-.objection-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    overflow: hidden;
-    transition: var(--transition);
-    animation: slideIn 0.3s ease;
-}
-
-.objection-card:hover {
-    border-color: var(--primary);
-}
-
-.objection-card.expanded {
-    border-color: var(--primary);
-    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.1);
-}
-
-.objection-card-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    cursor: pointer;
-    transition: var(--transition);
-    user-select: none;
-}
-
-.objection-card-header:hover {
-    background: var(--bg-primary);
-}
-
-.objection-card-icon {
-    font-size: 0.9rem;
-    flex-shrink: 0;
-}
-
-.objection-card-objection {
-    flex: 1;
-    font-weight: 500;
-    font-size: 0.85rem;
-    color: var(--text-primary);
-}
-
-.objection-card-toggle {
-    color: var(--text-muted);
-    font-size: 0.7rem;
-    transition: var(--transition);
-    flex-shrink: 0;
-}
-
-.objection-card.expanded .objection-card-toggle {
-    color: var(--primary);
-}
-
-/* Card Body */
-.objection-card-body {
-    padding: 0 16px 16px;
-    border-top: 1px solid var(--border-color);
-    animation: fadeIn 0.3s ease;
-}
-
-.objection-response {
-    padding: 12px 14px;
-    background: var(--bg-primary);
-    border-radius: 8px;
-    margin-bottom: 10px;
-    border-left: 3px solid var(--success);
-}
-
-.objection-response-label {
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
-}
-
-.objection-response-text {
-    font-size: 0.85rem;
-    color: var(--text-primary);
-    line-height: 1.6;
-}
-
-.objection-tip {
-    padding: 10px 14px;
-    background: rgba(245, 158, 11, 0.08);
-    border-radius: 8px;
-    margin-bottom: 12px;
-    border-left: 3px solid var(--warning);
-}
-
-.objection-tip-label {
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: var(--warning);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 2px;
-}
-
-.objection-tip-text {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    line-height: 1.5;
-}
-
-.objection-card-actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    padding-top: 8px;
-    border-top: 1px solid var(--border-color);
-}
-
-.objection-card-actions .btn-icon,
-.objection-copy-btn,
-.objection-practice-btn {
-    padding: 6px 14px;
-    border-radius: 20px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 0.7rem;
-    font-weight: 500;
-    transition: var(--transition);
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.objection-card-actions .btn-icon:hover,
-.objection-copy-btn:hover {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-
-.objection-practice-btn:hover {
-    background: var(--secondary);
-    color: white;
-    border-color: var(--secondary);
-}
-
-/* Footer */
-.objection-banner-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    padding-top: 12px;
-    border-top: 1px solid var(--border-color);
-}
-
-.objection-footer-tip {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    flex: 1;
-}
-
-.objection-footer-tip i {
-    color: var(--warning);
-    font-size: 0.9rem;
-}
-
-.objection-footer-actions {
-    display: flex;
-    gap: 8px;
-}
-
-.objection-expand-all-btn,
-.objection-collapse-all-btn {
-    padding: 4px 12px;
-    border-radius: 16px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 0.7rem;
-    transition: var(--transition);
-}
-
-.objection-expand-all-btn:hover {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-
-.objection-collapse-all-btn:hover {
-    background: var(--danger);
-    color: white;
-    border-color: var(--danger);
-}
-
-/* Practice Modal */
-.objection-practice-modal {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(12px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    padding: 20px;
-}
-
-.objection-practice-modal.active {
-    opacity: 1;
-}
-
-.objection-practice-content {
-    background: var(--bg-secondary);
-    border-radius: 24px;
-    max-width: 600px;
-    width: 100%;
-    max-height: 85vh;
-    overflow-y: auto;
-    border: 1px solid var(--border-color);
-    box-shadow: var(--shadow-lg);
-    transform: scale(0.9);
-    transition: transform 0.3s ease;
-}
-
-.objection-practice-modal.active .objection-practice-content {
-    transform: scale(1);
-}
-
-.objection-practice-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border-color);
-    background: var(--bg-card);
-    border-radius: 24px 24px 0 0;
-}
-
-.objection-practice-header h3 {
-    font-size: 1.1rem;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.objection-practice-close {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 1.2rem;
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 8px;
-    transition: var(--transition);
-}
-
-.objection-practice-close:hover {
-    background: var(--bg-primary);
-    color: var(--text-primary);
-}
-
-.objection-practice-body {
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.objection-practice-label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
-}
-
-.objection-practice-scenario {
-    background: var(--bg-primary);
-    padding: 14px 16px;
-    border-radius: 12px;
-    border-left: 4px solid var(--danger);
-}
-
-.objection-practice-objection {
-    font-size: 0.95rem;
-    color: var(--text-primary);
-    font-weight: 500;
-}
-
-.objection-practice-response-area {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.objection-practice-input {
-    width: 100%;
-    padding: 12px 16px;
-    border-radius: 12px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-card);
-    color: var(--text-primary);
-    font-size: 0.9rem;
-    resize: vertical;
-    transition: var(--transition);
-}
-
-.objection-practice-input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-}
-
-.objection-practice-recommended {
-    background: var(--bg-card);
-    padding: 14px 16px;
-    border-radius: 12px;
-    border: 1px solid var(--border-color);
-}
-
-.objection-practice-recommended-text {
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-    line-height: 1.6;
-    display: none;
-    padding: 8px 0;
-}
-
-.objection-practice-reveal-btn {
-    padding: 6px 16px;
-    border-radius: 20px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 0.75rem;
-    transition: var(--transition);
-    margin-top: 6px;
-}
-
-.objection-practice-reveal-btn:hover {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-
-.objection-practice-actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    padding-top: 12px;
-    border-top: 1px solid var(--border-color);
-}
-
-.objection-practice-copy-btn {
-    padding: 8px 18px;
-    border-radius: 20px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 0.8rem;
-    transition: var(--transition);
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.objection-practice-copy-btn:hover {
-    background: var(--success);
-    color: white;
-    border-color: var(--success);
-}
-
-/* Responsive for Objection Handler */
-@media (max-width: 768px) {
-    .objection-banner-header {
-        padding: 10px 14px;
-        flex-wrap: wrap;
-    }
-    
-    .objection-banner-title {
-        gap: 8px;
-    }
-    
-    .objection-banner-text {
-        font-size: 0.8rem;
-    }
-    
-    .objection-banner-body {
-        padding: 12px 14px 16px;
-    }
-    
-    .objection-category-nav {
-        gap: 6px;
-        overflow-x: auto;
-        flex-wrap: nowrap;
-        padding-bottom: 8px;
-    }
-    
-    .objection-category-btn {
-        padding: 6px 12px;
-        font-size: 0.7rem;
-        flex-shrink: 0;
-    }
-    
-    .objection-category-btn .category-label {
-        font-size: 0.65rem;
-    }
-    
-    .objection-category-btn .category-count {
-        font-size: 0.5rem;
-        padding: 0 6px;
-    }
-    
-    .objection-card-header {
-        padding: 10px 12px;
-        gap: 8px;
-    }
-    
-    .objection-card-objection {
-        font-size: 0.8rem;
-    }
-    
-    .objection-card-body {
-        padding: 0 12px 12px;
-    }
-    
-    .objection-response-text {
-        font-size: 0.8rem;
-    }
-    
-    .objection-tip-text {
-        font-size: 0.75rem;
-    }
-    
-    .objection-banner-footer {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 8px;
-    }
-    
-    .objection-footer-tip {
-        font-size: 0.7rem;
-    }
-    
-    .objection-footer-actions {
-        justify-content: flex-start;
-    }
-    
-    .objection-practice-content {
-        max-width: 100%;
-        margin: 10px;
-        max-height: 90vh;
-    }
-    
-    .objection-practice-body {
-        padding: 14px;
-    }
-    
-    .objection-practice-objection {
-        font-size: 0.85rem;
-    }
-    
-    .objection-practice-input {
-        font-size: 0.8rem;
-        padding: 10px 12px;
-    }
-}
-
-@media (max-width: 480px) {
-    .objection-banner-badge {
-        font-size: 0.6rem;
-        padding: 1px 8px;
-    }
-    
-    .objection-cards-container {
-        max-height: 350px;
-    }
-    
-    .objection-card-actions {
-        flex-direction: column;
-    }
-    
-    .objection-card-actions .btn-icon,
-    .objection-copy-btn,
-    .objection-practice-btn {
-        width: 100%;
-        justify-content: center;
-    }
-}
-
-/* Dark/Light Theme Support for Objection Handler */
-body.light .objection-banner {
-    background: var(--bg-secondary);
-}
-
-body.light .objection-banner-header {
-    background: var(--bg-card);
-}
-
-body.light .objection-banner-body {
-    background: var(--bg-primary);
-}
-
-body.light .objection-category-btn {
-    background: var(--bg-card);
-}
-
-body.light .objection-category-btn.active {
-    background: var(--bg-card);
-}
-
-body.light .objection-card {
-    background: var(--bg-card);
-}
-
-body.light .objection-response {
-    background: var(--bg-primary);
-}
-
-body.light .objection-practice-content {
-    background: var(--bg-secondary);
-}
-
-body.light .objection-practice-header {
-    background: var(--bg-card);
-}
-
-body.light .objection-practice-scenario {
-    background: var(--bg-primary);
-}
-
-body.light .objection-practice-input {
-    background: var(--bg-card);
-}
-
-body.light .objection-practice-recommended {
-    background: var(--bg-card);
-}
-
-/* ============================================================
-   ADDITIONAL FIXES & ENHANCEMENTS
-   ============================================================ */
-
-/* Script Coach Tone Selector */
-.coach-tone-selector {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin-left: 4px;
-}
-
-.coach-tone-select {
-    padding: 4px 10px;
-    border-radius: 20px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    font-size: 0.7rem;
-    cursor: pointer;
-    transition: var(--transition);
-    min-width: 100px;
-    height: 32px;
-}
-
-.coach-tone-select:focus {
-    outline: 2px solid var(--primary);
-    border-color: var(--primary);
-}
-
-.coach-tone-select option {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-}
-
-/* Script Coach Button Group Enhancements */
-.script-coach-btn-group {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 6px;
-    background: var(--bg-primary);
-    border-radius: 30px;
-    border: 1px solid var(--border-color);
-}
-
-.script-coach-btn-group .btn-icon {
-    padding: 4px 10px;
-    font-size: 0.7rem;
-    min-height: 30px;
-}
-
-.coach-scan-btn {
-    background: var(--primary);
-    color: white;
-}
-
-.coach-scan-btn:hover {
-    background: var(--secondary);
-    transform: scale(1.05);
-}
-
-.coach-play-btn {
-    background: var(--success);
-    color: white;
-}
-
-.coach-play-btn:hover:not(:disabled) {
-    background: #059669;
-    transform: scale(1.05);
-}
-
-.coach-play-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    transform: none !important;
-}
-
-.coach-status-btn {
-    font-size: 0.65rem;
-    padding: 4px 10px;
-    background: var(--success);
-    color: white;
-    border-radius: 20px;
-    border: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-/* Objection Handler Integrated Styles */
 .objection-integrated {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -4743,7 +3949,9 @@ body.light .objection-practice-recommended {
     border-color: var(--danger);
 }
 
-/* Responsive fixes for objection handler */
+/* ============================================================
+   OBJECTION HANDLER - RESPONSIVE
+   ============================================================ */
 @media (max-width: 768px) {
     .objection-integrated-body .objection-category-nav {
         gap: 4px;
@@ -4810,7 +4018,9 @@ body.light .objection-practice-recommended {
     }
 }
 
-/* Practice Modal Fixes */
+/* ============================================================
+   PRACTICE MODAL
+   ============================================================ */
 .objection-practice-modal {
     position: fixed;
     inset: 0;
@@ -4980,7 +4190,9 @@ body.light .objection-practice-recommended {
     border-color: var(--success);
 }
 
-/* Script Actions - better spacing for many buttons */
+/* ============================================================
+   SCRIPT ACTIONS - RESPONSIVE FIXES
+   ============================================================ */
 @media (max-width: 1024px) {
     .script-actions {
         flex-wrap: wrap;
@@ -5013,7 +4225,9 @@ body.light .objection-practice-recommended {
     }
 }
 
-/* Toast fixes for mobile */
+/* ============================================================
+   TOAST - MOBILE FIXES
+   ============================================================ */
 @media (max-width: 480px) {
     .toast {
         bottom: 12px;
