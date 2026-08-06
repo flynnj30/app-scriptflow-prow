@@ -1,8 +1,9 @@
-// ============================================================
-// FIREBASE CONFIGURATION
-// ============================================================
+// ================================================================
+// FIREBASE CONFIGURATION - WITH ERROR HANDLING & FALLBACK
+// ================================================================
 
-const FIREBASE_CONFIG = {
+// Replace with your Firebase project configuration
+const firebaseConfig = {
     apiKey: "AIzaSyD_Ry0pM7EKSDJeTegt0rY5muiw-xCgrhw",
     authDomain: "scriptflow-pro-2cf4c.firebaseapp.com",
     projectId: "scriptflow-pro-2cf4c",
@@ -11,91 +12,110 @@ const FIREBASE_CONFIG = {
     appId: "1:250157640936:web:cd6218470c302b305aed5d"
 };
 
-// Initialize Firebase with error handling
-(function initFirebase() {
+// Initialize Firebase with error handling and retry logic
+let firebaseInitialized = false;
+let firebaseInitAttempts = 0;
+const MAX_INIT_ATTEMPTS = 3;
+
+function initFirebase() {
     try {
-        if (!firebase.apps.length) {
-            firebase.initializeApp(FIREBASE_CONFIG);
-            console.log('✅ Firebase initialized successfully');
+        if (typeof firebase === 'undefined') {
+            console.warn('⚠️ Firebase SDK not loaded');
+            return false;
         }
-    } catch (error) {
-        console.error('❌ Firebase initialization error:', error);
-        // Show user-friendly error
-        showToast('Failed to connect to Firebase. Please check your connection.', 'error');
+        
+        if (firebase.apps && firebase.apps.length > 0) {
+            console.log('✅ Firebase already initialized');
+            firebaseInitialized = true;
+            return true;
+        }
+        
+        // Try to initialize with a timeout to prevent blocking
+        firebase.initializeApp(firebaseConfig);
+        firebaseInitialized = true;
+        console.log('✅ Firebase initialized successfully');
+        
+        // Enable offline persistence with error handling
+        try {
+            firebase.firestore().enablePersistence({ synchronizeTabs: true })
+                .then(() => console.log('✅ Firebase persistence enabled'))
+                .catch(err => {
+                    if (err.code === 'failed-precondition') {
+                        console.warn('⚠️ Firebase persistence: multiple tabs open, persistence disabled');
+                    } else if (err.code === 'unimplemented') {
+                        console.warn('⚠️ Firebase persistence not supported in this browser');
+                    } else {
+                        console.warn('⚠️ Firebase persistence error:', err.message);
+                    }
+                });
+        } catch (persistErr) {
+            console.warn('⚠️ Firebase persistence setup failed:', persistErr.message);
+        }
+        
+        return true;
+        
+    } catch (e) {
+        console.warn('⚠️ Firebase initialization failed:', e.message);
+        
+        if (firebaseInitAttempts < MAX_INIT_ATTEMPTS) {
+            firebaseInitAttempts++;
+            console.log(`🔄 Retrying Firebase init (attempt ${firebaseInitAttempts}/${MAX_INIT_ATTEMPTS})...`);
+            // Retry after delay
+            setTimeout(initFirebase, 2000);
+        }
+        return false;
     }
-})();
-
-const db = firebase.firestore();
-
-// Configure Firestore with security best practices
-try {
-    db.settings({
-        cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
-        merge: true,
-        ignoreUndefinedProperties: true
-    });
-} catch (error) {
-    console.warn('Firestore settings already applied:', error);
 }
 
-// Enable offline persistence with error handling
-try {
-    db.enablePersistence({ 
-        synchronizeTabs: true,
-        experimentalForceOwningTab: true
-    }).catch(err => {
-        if (err.code !== 'failed-precondition' && err.code !== 'unavailable') {
-            console.warn('Firebase persistence error:', err);
-        }
-    });
-} catch (err) {
-    console.warn('Firebase persistence setup:', err);
-}
+// Try to initialize immediately
+initFirebase();
 
-const auth = firebase.auth();
-
-// Configure auth persistence
-try {
-    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
-        .catch(err => {
-            console.warn('Auth persistence error:', err);
-        });
-} catch (err) {
-    console.warn('Auth persistence setup:', err);
-}
-
-// Auth state logging (for debugging)
-auth.onAuthStateChanged(user => {
-    if (user) {
-        console.log('👤 User authenticated:', user.email);
-    } else {
-        console.log('👤 No user authenticated');
+// Retry on page load if needed
+document.addEventListener('DOMContentLoaded', function() {
+    if (!firebaseInitialized) {
+        setTimeout(initFirebase, 1000);
     }
 });
 
-// Export for global use
-window.db = db;
-window.auth = auth;
-window.firebase = firebase;
-
-// Security: Add request validation
-const validateFirebaseData = (data) => {
-    const MAX_STRING_LENGTH = 10000;
-    const MAX_ARRAY_LENGTH = 100;
-    
-    for (const [key, value] of Object.entries(data)) {
-        if (typeof value === 'string' && value.length > MAX_STRING_LENGTH) {
-            console.warn(`⚠️ Field "${key}" exceeds maximum length`);
-            return false;
-        }
-        if (Array.isArray(value) && value.length > MAX_ARRAY_LENGTH) {
-            console.warn(`⚠️ Array "${key}" exceeds maximum length`);
-            return false;
-        }
-    }
-    return true;
+// Export for use in other files
+window.isFirebaseReady = function() {
+    return firebaseInitialized && typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
 };
 
-window.validateFirebaseData = validateFirebaseData;
+// Helper to get Firebase with fallback
+window.getFirebase = function() {
+    if (window.isFirebaseReady()) {
+        return firebase;
+    }
+    return null;
+};
 
-console.log('✅ Firebase services ready');
+// Helper to get Firestore with fallback
+window.getFirestore = function() {
+    const fb = window.getFirebase();
+    if (fb) {
+        try {
+            return fb.firestore();
+        } catch (e) {
+            console.warn('⚠️ Firestore not available:', e.message);
+            return null;
+        }
+    }
+    return null;
+};
+
+// Helper to get Auth with fallback
+window.getAuth = function() {
+    const fb = window.getFirebase();
+    if (fb) {
+        try {
+            return fb.auth();
+        } catch (e) {
+            console.warn('⚠️ Auth not available:', e.message);
+            return null;
+        }
+    }
+    return null;
+};
+
+console.log('🔧 Firebase config loaded with fallback support');
