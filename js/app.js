@@ -524,6 +524,53 @@ const Utils = {
         if (!dateStr) return false;
         const d = new Date(dateStr + 'T00:00:00');
         return !isNaN(d.getTime());
+    },
+
+    // Enhanced email extraction from text
+    extractEmail(text) {
+        if (!text) return null;
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+        const matches = text.match(emailRegex);
+        if (matches && matches.length > 0) {
+            return matches[0].toLowerCase().trim();
+        }
+        return null;
+    },
+
+    // Enhanced phone extraction
+    extractPhone(text) {
+        if (!text) return null;
+        // Try to find a phone number pattern
+        const phoneRegex = /(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g;
+        const matches = text.match(phoneRegex);
+        if (matches && matches.length > 0) {
+            return matches[0].trim();
+        }
+        return null;
+    },
+
+    // Determine if a time is set (not empty or 'No time')
+    hasTimeSet(timeStr) {
+        return timeStr && timeStr.trim() && timeStr.trim() !== 'No time' && timeStr.trim() !== 'No time set';
+    },
+
+    // Auto-set status based on appointment data
+    determineAutoStatus(appointment) {
+        const hasTime = this.hasTimeSet(appointment.time);
+        const hasDate = appointment.date && this.isValidDate(appointment.date);
+        
+        // If there's a time set, mark as Meeting Booked
+        if (hasTime && hasDate) {
+            return 'Meeting Booked';
+        }
+        
+        // If there's a date but no time, keep as Pending
+        if (hasDate && !hasTime) {
+            return 'Pending';
+        }
+        
+        // Default
+        return 'Pending';
     }
 };
 
@@ -629,7 +676,7 @@ function handleError(error, context = '') {
 }
 
 // ================================================================
-// AUTHENTICATION - FIXED
+// AUTHENTICATION
 // ================================================================
 
 const Auth = {
@@ -978,7 +1025,7 @@ const Auth = {
 };
 
 // ================================================================
-// DATA LAYER - WITH OFFLINE SUPPORT - FIXED
+// DATA LAYER - WITH OFFLINE SUPPORT
 // ================================================================
 
 const Data = {
@@ -1281,6 +1328,21 @@ const Data = {
             closer = defaultCloser ? defaultCloser.name : 'Kailan';
         }
         
+        // Extract email from notes if not provided
+        let email = '';
+        if (notes) {
+            const extractedEmail = Utils.extractEmail(notes);
+            if (extractedEmail) {
+                email = extractedEmail;
+            }
+        }
+        
+        // Auto-set status to Meeting Booked if time is present
+        let finalStatus = status;
+        if (Utils.hasTimeSet(time) && status === 'Pending') {
+            finalStatus = 'Meeting Booked';
+        }
+        
         const newAppt = {
             id: editId || Utils.generateId(),
             business: business || 'Unknown Business',
@@ -1290,21 +1352,14 @@ const Data = {
             time: time || '',
             notes: notes || '',
             assigned: assigned || 'Daniel',
-            status: status,
+            status: finalStatus,
             crmLink: crmLink || '',
             tags: tags || [],
             closer: closer,
             date: dateStr,
-            email: '',
+            email: email,
             createdAt: new Date().toISOString()
         };
-        
-        if (notes && notes.includes('Email:')) {
-            const emailMatch = notes.match(/Email:\s*([^\s\n]+)/);
-            if (emailMatch) {
-                newAppt.email = emailMatch[1];
-            }
-        }
         
         this.syncAppointment(newAppt);
         return newAppt;
@@ -2112,14 +2167,13 @@ const Scripts = {
 };
 
 // ================================================================
-// SCRIPT ACTIONS RENDERER - FIXED (No Duplicates, No Coach)
+// SCRIPT ACTIONS RENDERER
 // ================================================================
 
 function renderScriptActions() {
     const container = document.getElementById('scriptActionsContainer');
     if (!container) return;
     
-    // Clear container to avoid duplicates
     container.innerHTML = '';
     
     const buttons = [
@@ -2427,6 +2481,7 @@ function showAppointmentDetail(appointmentId) {
                     <div>
                         <div style="font-size:1.1rem; font-weight:700;">${Utils.escapeHtml(appt.business)}</div>
                         <div style="font-size:0.9rem; color:var(--text-secondary);">${Utils.escapeHtml(appt.contactName)}</div>
+                        ${appt.email ? `<div style="font-size:0.8rem; color:var(--text-muted);">✉️ ${Utils.escapeHtml(appt.email)}</div>` : ''}
                     </div>
                     <div style="display:flex; align-items:center; gap:8px;">
                         <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
@@ -2585,7 +2640,7 @@ function cancelAppointment(appointmentId) {
 }
 
 // ================================================================
-// SMART IMPORT FUNCTIONS - FULL IMPLEMENTATION
+// SMART IMPORT FUNCTIONS - ENHANCED
 // ================================================================
 
 let _isImportSaving = false;
@@ -2625,6 +2680,7 @@ function openSmartImportEnhanced() {
 Business Name/Company : Correa and Son's Landscaping LLC
 Name : Kelvin
 Role : Owner
+Email: kelvin@correa.com
 Phone Number: +12678808990
 Best Time for Warm Callback: Tomorrow at 1pm EDT
 Notes: Custom website preview offered + no website currently + high interest, positive and booked a manager callback to review the website.`;
@@ -2735,6 +2791,11 @@ function renderImportResultsEnhanced(records) {
         const synonyms = record.context?.synonyms || {};
         const hasSynonyms = Object.values(synonyms).some(arr => arr && arr.length > 0);
         
+        // Show email if present
+        const emailDisplay = record.parsed.email || record.validated.email || '';
+        const timeDisplay = record.parsed.time || record.validated.time || '';
+        const statusDisplay = record.parsed.status || record.validated.status || 'Pending';
+        
         resultsHtml += `
             <div class="import-record ${statusClass} ${hasDuplicate ? 'duplicate' : ''}">
                 <div class="record-header" onclick="toggleImportRecord(this)">
@@ -2746,8 +2807,10 @@ function renderImportResultsEnhanced(records) {
                         <span class="record-name">${Utils.escapeHtml(record.validated.name || record.parsed.name || 'Unknown')}</span>
                         <span class="record-business">${Utils.escapeHtml(record.validated.business || record.parsed.business || 'Unknown Business')}</span>
                         ${record.parsed.date ? `<span class="record-date">📅 ${Utils.escapeHtml(record.parsed.date)}</span>` : ''}
+                        ${timeDisplay ? `<span class="record-date" style="margin-left:6px;">🕐 ${Utils.escapeHtml(timeDisplay)}</span>` : ''}
                     </div>
                     <div class="record-badges">
+                        ${emailDisplay ? `<span class="badge" style="background:var(--primary); color:white;">✉️</span>` : ''}
                         ${hasSynonyms ? `<span class="badge synonym">🔍 Synonyms</span>` : ''}
                         ${hasDuplicate ? '<span class="badge duplicate">🔄 Duplicate</span>' : ''}
                         ${hasWarnings ? `<span class="badge warning">⚠️ ${record.warnings.length}</span>` : ''}
@@ -3068,8 +3131,21 @@ function parseKeyValueFormatEnhanced(lines, result, confidence, context) {
                             confidence['date'] = 0.95;
                         }
                     }
+                    // Extract email from any field
+                    if (matchedField !== 'email') {
+                        const extractedEmail = Utils.extractEmail(value);
+                        if (extractedEmail && !result.email) {
+                            result.email = extractedEmail;
+                            confidence.email = 0.8;
+                        }
+                    }
                 } else {
-                    if (!result['notes']) {
+                    // Check if this line contains an email
+                    const extractedEmail = Utils.extractEmail(value);
+                    if (extractedEmail && !result.email) {
+                        result.email = extractedEmail;
+                        confidence.email = 0.7;
+                    } else if (!result['notes']) {
                         result['notes'] = '';
                     }
                     result['notes'] += (result['notes'] ? '\n' : '') + `${key}: ${value}`;
@@ -3077,7 +3153,12 @@ function parseKeyValueFormatEnhanced(lines, result, confidence, context) {
                 }
             }
         } else if (line.trim()) {
-            if (!result['notes']) {
+            // Check for email in standalone line
+            const extractedEmail = Utils.extractEmail(line);
+            if (extractedEmail && !result.email) {
+                result.email = extractedEmail;
+                confidence.email = 0.6;
+            } else if (!result['notes']) {
                 result['notes'] = '';
             }
             result['notes'] += (result['notes'] ? '\n' : '') + line.trim();
@@ -3094,6 +3175,13 @@ function parseBulletPointFormat(lines, result, confidence) {
         const match = line.match(bulletPattern);
         if (match) {
             const content = match[1].trim();
+            
+            // Check for email in content
+            const extractedEmail = Utils.extractEmail(content);
+            if (extractedEmail && !result.email) {
+                result.email = extractedEmail;
+                confidence.email = 0.7;
+            }
             
             const fieldMatch = content.match(/^([^:]+):\s*(.*)$/);
             if (fieldMatch) {
@@ -3182,6 +3270,15 @@ function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
             result.email = match[1].trim().toLowerCase();
             confidence.email = 0.9;
             break;
+        }
+    }
+    
+    // Also try to find email anywhere in the text
+    if (!result.email) {
+        const emailMatch = Utils.extractEmail(fullText);
+        if (emailMatch) {
+            result.email = emailMatch;
+            confidence.email = 0.6;
         }
     }
     
@@ -3320,6 +3417,15 @@ function enhanceParsedDataEnhanced(result, confidence, fullText, context, defaul
     
     if (result.email) {
         result.email = result.email.toLowerCase().trim();
+    } else {
+        // Try to extract email from notes
+        if (result.notes) {
+            const extractedEmail = Utils.extractEmail(result.notes);
+            if (extractedEmail) {
+                result.email = extractedEmail;
+                confidence.email = 0.6;
+            }
+        }
     }
     
     if (result.date) {
@@ -3341,6 +3447,12 @@ function enhanceParsedDataEnhanced(result, confidence, fullText, context, defaul
             result.time = normalizedTime;
             confidence.time = Math.max(confidence.time || 0, 0.9);
         }
+    }
+    
+    // Auto-set status based on time
+    if (Utils.hasTimeSet(result.time) && (!result.status || result.status === 'Pending')) {
+        result.status = 'Meeting Booked';
+        confidence.status = 0.9;
     }
     
     if (!result.role && result.notes) {
@@ -3562,8 +3674,9 @@ function validateAppointmentData(data) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(data.email)) {
             warnings.push({ field: 'email', message: 'Email format seems invalid.' });
+        } else {
+            validated.email = data.email.toLowerCase().trim();
         }
-        validated.email = data.email.toLowerCase().trim();
     }
     
     if (data.date) {
@@ -3610,7 +3723,12 @@ function validateAppointmentData(data) {
             validated.status = 'Pending';
         }
     } else {
-        validated.status = 'Pending';
+        // Auto-set status based on time
+        if (Utils.hasTimeSet(data.time)) {
+            validated.status = 'Meeting Booked';
+        } else {
+            validated.status = 'Pending';
+        }
     }
     
     ['assigned', 'role', 'notes', 'tags', 'email'].forEach(field => {
@@ -3870,6 +3988,7 @@ function generateImportTemplate() {
     const template = `Business Name/Company : [Enter Business Name]
 Name : [Enter Contact Name]
 Role : [Owner/Manager/Decision Maker]
+Email: [Enter Email Address]
 Phone Number: [Enter Phone Number]
 Best Time for Warm Callback: ${formattedDate} at [Time] [Timezone]
 
@@ -4189,6 +4308,12 @@ function saveSingleRecord(index) {
         }
     }
     
+    // Determine status - auto-set to Meeting Booked if time is present
+    let finalStatus = data.status || 'Pending';
+    if (Utils.hasTimeSet(data.time) && finalStatus === 'Pending') {
+        finalStatus = 'Meeting Booked';
+    }
+    
     const result = Data.addAppointment(
         data.date || Utils.getTodayStr(),
         data.business,
@@ -4199,7 +4324,7 @@ function saveSingleRecord(index) {
         data.notes || '',
         data.assigned || 'Daniel',
         null,
-        data.status || 'Pending',
+        finalStatus,
         '',
         data.tags || []
     );
@@ -4211,7 +4336,10 @@ function saveSingleRecord(index) {
         renderImportResultsEnhanced(ImportState.parsedRecords);
         FeaturePanel.refreshCurrentView();
         Stats.updateAll();
-        Utils.syncCalendarToDate(result.date);
+        // Sync calendar to the appointment date
+        if (result.date) {
+            Utils.syncCalendarToDate(result.date);
+        }
     }
 }
 
@@ -4276,6 +4404,12 @@ function saveAllImportedAppointments() {
             }
         }
         
+        // Determine status - auto-set to Meeting Booked if time is present
+        let finalStatus = data.status || 'Pending';
+        if (Utils.hasTimeSet(data.time) && finalStatus === 'Pending') {
+            finalStatus = 'Meeting Booked';
+        }
+        
         const result = Data.addAppointment(
             data.date || Utils.getTodayStr(),
             data.business,
@@ -4286,7 +4420,7 @@ function saveAllImportedAppointments() {
             data.notes || '',
             data.assigned || 'Daniel',
             null,
-            data.status || 'Pending',
+            finalStatus,
             '',
             data.tags || []
         );
@@ -4316,6 +4450,14 @@ function saveAllImportedAppointments() {
     closeSmartImportEnhanced();
     FeaturePanel.refreshCurrentView();
     Stats.updateAll();
+    
+    // Refresh calendar view to show new appointments
+    if (AppState.currentView === 'calendar') {
+        const body = DOM.get('featurePanelBody');
+        if (body) {
+            CalendarView.render(body);
+        }
+    }
 }
 
 // ================================================================
@@ -4888,8 +5030,14 @@ const FeaturePanel = {
                     if (dateInput) dateInput.value = finalDate;
                 }
 
+                // Auto-set status based on time
+                let finalStatus = status;
+                if (Utils.hasTimeSet(time) && status === 'Pending') {
+                    finalStatus = 'Meeting Booked';
+                }
+
                 const member = AppState.teamMembers.find(m => m.id === assigned);
-                Data.addAppointment(finalDate, bus, contact, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), member ? member.name : 'Daniel', null, status, '', [], closer);
+                Data.addAppointment(finalDate, bus, contact, 'Owner', phone, time, notes + (email ? `\nEmail: ${email}` : ''), member ? member.name : 'Daniel', null, finalStatus, '', [], closer);
                 modal.style.display = 'none';
                 Utils.setActiveDate(finalDate);
                 showToast('Appointment added successfully! 🎉', 'success');
@@ -5283,6 +5431,7 @@ const CalendarView = {
                         <div class="day-event-content">
                             <div class="day-event-business">${Utils.escapeHtml(appt.business)}</div>
                             <div class="day-event-contact">${Utils.escapeHtml(appt.contactName)}</div>
+                            ${appt.email ? `<div class="day-event-contact" style="font-size:0.7rem; color:var(--text-muted);">✉️ ${Utils.escapeHtml(appt.email)}</div>` : ''}
                             <div class="day-event-meta">
                                 <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
                                 <span class="day-event-assigned">👤 ${Utils.escapeHtml(appt.assigned || 'Unassigned')}</span>
@@ -5360,6 +5509,7 @@ const CalendarView = {
                             <span class="list-event-time">${appt.time || 'No time'}</span>
                             <span class="list-event-business">${Utils.escapeHtml(appt.business)}</span>
                             <span class="list-event-contact">${Utils.escapeHtml(appt.contactName)}</span>
+                            ${appt.email ? `<span class="list-event-contact" style="font-size:0.65rem; color:var(--text-muted);">✉️ ${Utils.escapeHtml(appt.email)}</span>` : ''}
                             <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
                             <span class="list-event-actions">
                                 <button class="btn-icon-sm" onclick="event.stopPropagation(); window.showAppointmentDetail('${appt.id}')"><i class="fas fa-eye"></i></button>
@@ -5599,6 +5749,7 @@ function performGlobalSearch(query) {
                         <span style="font-size:0.75rem; color:var(--text-muted);">${Utils.formatDate(result.data.date)}</span>
                     </div>
                     <div style="font-size:0.8rem; color:var(--text-secondary);">${Utils.escapeHtml(result.data.contactName)}</div>
+                    ${result.data.email ? `<div style="font-size:0.7rem; color:var(--text-muted);">✉️ ${Utils.escapeHtml(result.data.email)}</div>` : ''}
                     <div style="font-size:0.7rem; color:var(--text-muted);">Status: ${Utils.getStatus(result.data)}</div>
                 </div>
             `;
@@ -5844,13 +5995,12 @@ function renderClosersListHTML() {
 }
 
 // ================================================================
-// INITIALIZATION - FIXED
+// INITIALIZATION
 // ================================================================
 
 function initApp() {
     console.log('🚀 Initializing ScriptFlow Pro...');
     
-    // Wait for Firebase to be ready
     const waitForFirebase = async function() {
         if (typeof FirebaseManager !== 'undefined') {
             try {
@@ -6287,7 +6437,7 @@ function setupEventListeners() {
 }
 
 // ================================================================
-// START APPLICATION - FIXED
+// START APPLICATION
 // ================================================================
 
 function startApp() {
