@@ -172,7 +172,9 @@ const AppState = {
     isImportSaving: false,
     importSaveComplete: false,
     
-    isAppReady: false
+    isAppReady: false,
+    _firebaseReadyResolve: null,
+    _firebaseReadyPromise: null
 };
 
 // ================================================================
@@ -627,17 +629,58 @@ function handleError(error, context = '') {
 }
 
 // ================================================================
-// AUTHENTICATION
+// AUTHENTICATION - FIXED
 // ================================================================
 
 const Auth = {
+    _authInstance: null,
+    _isInitialized: false,
+
+    _getAuth: function() {
+        if (this._authInstance) return this._authInstance;
+        if (typeof FirebaseManager !== 'undefined' && FirebaseManager.isReady()) {
+            this._authInstance = FirebaseManager.getAuth();
+            return this._authInstance;
+        }
+        return null;
+    },
+
+    _ensureFirebase: async function() {
+        if (typeof FirebaseManager !== 'undefined') {
+            try {
+                await FirebaseManager.waitForReady();
+                AppState.isFirebaseReady = FirebaseManager.isReady();
+                return AppState.isFirebaseReady;
+            } catch (e) {
+                console.warn('Firebase wait failed:', e);
+                AppState.isFirebaseReady = false;
+                return false;
+            }
+        }
+        AppState.isFirebaseReady = false;
+        return false;
+    },
+
     signInWithGoogle: async function() {
-        if (AppState.authInProgress || !AppState.isFirebaseReady) return false;
+        if (AppState.authInProgress) return false;
+        
+        await this._ensureFirebase();
+        if (!AppState.isFirebaseReady) {
+            showToast('Firebase unavailable. Please try again.', 'error');
+            return false;
+        }
+
+        const auth = this._getAuth();
+        if (!auth) {
+            showToast('Authentication service unavailable', 'error');
+            return false;
+        }
+
         AppState.authInProgress = true;
         try {
             const provider = new firebase.auth.GoogleAuthProvider();
             provider.setCustomParameters({ prompt: 'select_account' });
-            const result = await firebase.auth().signInWithPopup(provider);
+            const result = await auth.signInWithPopup(provider);
             if (result.user) {
                 AppState.currentUser = result.user;
                 this.updateUI();
@@ -656,25 +699,43 @@ const Auth = {
             }
             return false;
         }
+        AppState.authInProgress = false;
+        return false;
     },
 
     signUp: async function(email, password, username) {
-        if (AppState.authInProgress || !AppState.isFirebaseReady) return false;
+        if (AppState.authInProgress) return false;
+        
+        await this._ensureFirebase();
+        if (!AppState.isFirebaseReady) {
+            showToast('Firebase unavailable. Please try again.', 'error');
+            return false;
+        }
+
+        const auth = this._getAuth();
+        if (!auth) {
+            showToast('Authentication service unavailable', 'error');
+            return false;
+        }
+
         AppState.authInProgress = true;
         try {
-            const result = await firebase.auth().createUserWithEmailAndPassword(email, password);
+            const result = await auth.createUserWithEmailAndPassword(email, password);
             if (result.user) {
                 await result.user.updateProfile({ displayName: username });
-                await firebase.firestore().collection('users').doc(result.user.uid).set({
-                    uid: result.user.uid,
-                    email: email,
-                    username: username,
-                    displayName: username,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    goals: { daily: 3, weekly: 15, monthly: 60 },
-                    scriptOrder: ['opening'],
-                    closers: CONFIG.DEFAULT_CLOSERS
-                });
+                const db = FirebaseManager.getFirestore();
+                if (db) {
+                    await db.collection('users').doc(result.user.uid).set({
+                        uid: result.user.uid,
+                        email: email,
+                        username: username,
+                        displayName: username,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        goals: { daily: 3, weekly: 15, monthly: 60 },
+                        scriptOrder: ['opening'],
+                        closers: CONFIG.DEFAULT_CLOSERS
+                    });
+                }
                 showToast('Account created! 🎉', 'success');
                 AppState.currentUser = result.user;
                 this.updateUI();
@@ -688,13 +749,28 @@ const Auth = {
             handleError(error, 'Sign Up');
             return false;
         }
+        AppState.authInProgress = false;
+        return false;
     },
 
     signIn: async function(email, password) {
-        if (AppState.authInProgress || !AppState.isFirebaseReady) return false;
+        if (AppState.authInProgress) return false;
+        
+        await this._ensureFirebase();
+        if (!AppState.isFirebaseReady) {
+            showToast('Firebase unavailable. Please try again.', 'error');
+            return false;
+        }
+
+        const auth = this._getAuth();
+        if (!auth) {
+            showToast('Authentication service unavailable', 'error');
+            return false;
+        }
+
         AppState.authInProgress = true;
         try {
-            const result = await firebase.auth().signInWithEmailAndPassword(email, password);
+            const result = await auth.signInWithEmailAndPassword(email, password);
             if (result.user) {
                 AppState.currentUser = result.user;
                 this.updateUI();
@@ -709,6 +785,8 @@ const Auth = {
             handleError(error, 'Sign In');
             return false;
         }
+        AppState.authInProgress = false;
+        return false;
     },
 
     signOut: async function() {
@@ -739,7 +817,8 @@ const Auth = {
             Scripts.renderSidebar();
             
             if (AppState.isFirebaseReady) {
-                await firebase.auth().signOut();
+                const auth = this._getAuth();
+                if (auth) await auth.signOut();
             }
             
             showToast('Signed out successfully', 'info');
@@ -767,6 +846,8 @@ const Auth = {
         const existing = DOM.get('authModal');
         if (existing) existing.remove();
 
+        const isFirebaseReady = AppState.isFirebaseReady;
+
         const modal = DOM.createElement('div', 'modal-overlay');
         modal.id = 'authModal';
         modal.innerHTML = `
@@ -778,7 +859,7 @@ const Auth = {
                 <p style="text-align:center; color:var(--text-muted); margin-bottom:20px; font-size:0.9rem;">
                     Sign in to manage and hand off your leads
                 </p>
-                ${AppState.isFirebaseReady ? `
+                ${isFirebaseReady ? `
                     <button id="googleSignInBtn" class="btn-icon" style="width:100%; justify-content:center; background:#ffffff; color:#333; border:1px solid #dadce0; margin-bottom:16px; padding:10px;">
                         <svg style="width:18px; height:18px; margin-right:8px;" viewBox="0 0 48 48">
                             <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -792,6 +873,7 @@ const Auth = {
                 ` : `
                     <div style="padding:16px; background:var(--warning); border-radius:12px; margin-bottom:16px; color:#1e293b;">
                         ⚠️ Offline Mode - Firebase connection unavailable
+                        <br><small>Please check your internet connection and refresh.</small>
                     </div>
                 `}
                 <div id="authFormContainer">
@@ -802,13 +884,13 @@ const Auth = {
                     <div id="loginForm">
                         <div class="form-group"><label>Email</label><input type="email" id="loginEmailInput" placeholder="you@example.com" /></div>
                         <div class="form-group"><label>Password</label><input type="password" id="loginPasswordInput" placeholder="••••••••" /></div>
-                        <button id="loginBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--primary); color:white;" ${!AppState.isFirebaseReady ? 'disabled' : ''}><i class="fas fa-sign-in-alt"></i> Sign In</button>
+                        <button id="loginBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--primary); color:white;" ${!isFirebaseReady ? 'disabled' : ''}><i class="fas fa-sign-in-alt"></i> Sign In</button>
                     </div>
                     <div id="signupForm" style="display:none;">
                         <div class="form-group"><label>Username</label><input type="text" id="signupUsernameInput" placeholder="Choose a username" /></div>
                         <div class="form-group"><label>Email</label><input type="email" id="signupEmailInput" placeholder="you@example.com" /></div>
                         <div class="form-group"><label>Password</label><input type="password" id="signupPasswordInput" placeholder="•••••••• (min 6 chars)" /></div>
-                        <button id="signupBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--success); color:white;" ${!AppState.isFirebaseReady ? 'disabled' : ''}><i class="fas fa-user-plus"></i> Create Account</button>
+                        <button id="signupBtn" class="btn-icon" style="width:100%; justify-content:center; background:var(--success); color:white;" ${!isFirebaseReady ? 'disabled' : ''}><i class="fas fa-user-plus"></i> Create Account</button>
                     </div>
                 </div>
                 <div style="margin-top:16px; text-align:center; font-size:0.8rem; color:var(--text-muted);">🔒 Secure Cloud Data Integration</div>
@@ -816,7 +898,7 @@ const Auth = {
         `;
         document.body.appendChild(modal);
 
-        if (AppState.isFirebaseReady) {
+        if (isFirebaseReady) {
             const googleBtn = DOM.get('googleSignInBtn');
             const loginTab = DOM.get('loginTabBtn');
             const signupTab = DOM.get('signupTabBtn');
@@ -865,14 +947,62 @@ const Auth = {
         const modal = DOM.get('authModal');
         if (modal) modal.remove();
         AppState.authModalOpen = false;
+    },
+
+    // Initialize auth listener
+    initAuthListener: function() {
+        if (this._isInitialized) return;
+        this._isInitialized = true;
+
+        if (AppState.isFirebaseReady) {
+            const auth = this._getAuth();
+            if (auth) {
+                auth.onAuthStateChanged(async (user) => {
+                    if (user) {
+                        AppState.currentUser = user;
+                        this.updateUI();
+                        await Data.loadUserData();
+                    } else {
+                        AppState.currentUser = null;
+                        this.updateUI();
+                        // Show auth modal after a short delay
+                        setTimeout(() => {
+                            this.showModal();
+                        }, 500);
+                    }
+                });
+                console.log('✅ Auth listener initialized');
+            }
+        }
     }
 };
 
 // ================================================================
-// DATA LAYER - WITH OFFLINE SUPPORT
+// DATA LAYER - WITH OFFLINE SUPPORT - FIXED
 // ================================================================
 
 const Data = {
+    _db: null,
+    _auth: null,
+
+    _getDb: function() {
+        if (this._db) return this._db;
+        if (AppState.isFirebaseReady && typeof FirebaseManager !== 'undefined') {
+            this._db = FirebaseManager.getFirestore();
+            return this._db;
+        }
+        return null;
+    },
+
+    _getAuth: function() {
+        if (this._auth) return this._auth;
+        if (AppState.isFirebaseReady && typeof FirebaseManager !== 'undefined') {
+            this._auth = FirebaseManager.getAuth();
+            return this._auth;
+        }
+        return null;
+    },
+
     loadUserData: async function(showLoading = true) {
         if (!AppState.currentUser) {
             const localData = localStorage.getItem('userData_fallback');
@@ -902,11 +1032,16 @@ const Data = {
             return;
         }
 
+        const db = this._getDb();
+        if (!db) {
+            showToast('Database unavailable', 'error');
+            return;
+        }
+
         try {
             const statusEl = DOM.get('saveStatus');
             if (statusEl && showLoading) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
 
-            const db = firebase.firestore();
             const userRef = db.collection('users').doc(AppState.currentUser.uid);
             const userDoc = await userRef.get();
             const userData = userDoc.data();
@@ -1001,8 +1136,10 @@ const Data = {
         if (AppState.tasksUnsubscribe) AppState.tasksUnsubscribe();
         if (AppState.teamMembersUnsubscribe) AppState.teamMembersUnsubscribe();
 
+        const db = this._getDb();
+        if (!db) return;
+
         try {
-            const db = firebase.firestore();
             const userRef = db.collection('users').doc(AppState.currentUser.uid);
 
             AppState.appointmentsUnsubscribe = userRef.collection('appointments').orderBy('createdAt', 'desc').onSnapshot(snap => {
@@ -1078,6 +1215,9 @@ const Data = {
 
     createDefaultScripts: async function() {
         if (!AppState.currentUser || !AppState.isFirebaseReady) return;
+        const db = this._getDb();
+        if (!db) return;
+
         const defaultScripts = {
             "opening": { name: "🎯 Opening Script", content: '"Hey, is this [Company Name]?"\n\n"Awesome — this is Flynn. We created a free, modern preview version inspired by your current site. There\'s no cost or obligation. Would you be open to taking a quick look later today and sharing your thoughts?"' },
             "owner_yes": { name: "👑 Owner - Yes", content: "Perfect! Daniel will call you shortly to showcase your preview concept. Is this the best number to connect with you?" },
@@ -1086,8 +1226,8 @@ const Data = {
             "objection_cost": { name: "💰 Objection - Cost", content: "Great question about pricing. The preview is completely free—there's no cost or obligation. We believe in showing value first." },
             "closing": { name: "🤝 Closing Script", content: "Thank you for your time today! I'll have our team prepare the preview and reach out with next steps." }
         };
-        const batch = firebase.firestore().batch();
-        const ref = firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts');
+        const batch = db.batch();
+        const ref = db.collection('users').doc(AppState.currentUser.uid).collection('scripts');
         for (const [id, script] of Object.entries(defaultScripts)) {
             batch.set(ref.doc(id), {
                 name: script.name,
@@ -1101,8 +1241,10 @@ const Data = {
 
     saveScriptOrder: async function() {
         if (!AppState.currentUser || !AppState.isFirebaseReady) return;
+        const db = this._getDb();
+        if (!db) return;
         try {
-            await firebase.firestore().collection('users').doc(AppState.currentUser.uid).update({ scriptOrder: AppState.scriptOrder });
+            await db.collection('users').doc(AppState.currentUser.uid).update({ scriptOrder: AppState.scriptOrder });
         } catch (error) {
             console.error('Error saving script order:', error);
         }
@@ -1110,8 +1252,10 @@ const Data = {
 
     saveClosers: async function() {
         if (!AppState.currentUser || !AppState.isFirebaseReady) return;
+        const db = this._getDb();
+        if (!db) return;
         try {
-            await firebase.firestore().collection('users').doc(AppState.currentUser.uid).update({ closers: AppState.closers });
+            await db.collection('users').doc(AppState.currentUser.uid).update({ closers: AppState.closers });
             localStorage.setItem('userData_fallback', JSON.stringify({
                 scripts: AppState.scripts,
                 scriptOrder: AppState.scriptOrder,
@@ -1168,9 +1312,10 @@ const Data = {
 
     syncAppointment: async function(appointment) {
         if (!AppState.currentUser) return;
-        if (AppState.isFirebaseReady) {
+        const db = this._getDb();
+        if (AppState.isFirebaseReady && db) {
             try {
-                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('appointments').doc(appointment.id.toString()).set(appointment, { merge: true });
+                await db.collection('users').doc(AppState.currentUser.uid).collection('appointments').doc(appointment.id.toString()).set(appointment, { merge: true });
             } catch (e) {
                 console.error('Error syncing appointment:', e);
                 this.saveAppointmentsToLocal();
@@ -1192,8 +1337,9 @@ const Data = {
         if (AppState.appointments[dateStr]?.reports) {
             AppState.appointments[dateStr].reports = AppState.appointments[dateStr].reports.filter(r => r.id !== id);
             if (AppState.appointments[dateStr].reports.length === 0) delete AppState.appointments[dateStr];
-            if (AppState.isFirebaseReady && AppState.currentUser) {
-                firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('appointments').doc(id.toString()).delete().catch(e => console.warn('Delete error:', e));
+            const db = this._getDb();
+            if (AppState.isFirebaseReady && AppState.currentUser && db) {
+                db.collection('users').doc(AppState.currentUser.uid).collection('appointments').doc(id.toString()).delete().catch(e => console.warn('Delete error:', e));
             }
             this.saveAppointmentsToLocal();
             Stats.updateAll();
@@ -1249,8 +1395,9 @@ const Data = {
             completed: false,
             createdAt: new Date().toISOString()
         };
-        if (AppState.isFirebaseReady && AppState.currentUser) {
-            firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('tasks').doc(task.id).set(task).catch(e => console.warn('Task save error:', e));
+        const db = this._getDb();
+        if (AppState.isFirebaseReady && AppState.currentUser && db) {
+            db.collection('users').doc(AppState.currentUser.uid).collection('tasks').doc(task.id).set(task).catch(e => console.warn('Task save error:', e));
         }
         AppState.tasks.push(task);
         localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
@@ -1262,8 +1409,9 @@ const Data = {
         const task = AppState.tasks.find(t => t.id === id);
         if (task) {
             task.completed = !task.completed;
-            if (AppState.isFirebaseReady && AppState.currentUser) {
-                firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('tasks').doc(id).update({ completed: task.completed }).catch(e => console.warn('Task update error:', e));
+            const db = this._getDb();
+            if (AppState.isFirebaseReady && AppState.currentUser && db) {
+                db.collection('users').doc(AppState.currentUser.uid).collection('tasks').doc(id).update({ completed: task.completed }).catch(e => console.warn('Task update error:', e));
             }
             localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
             Stats.updateTaskStats();
@@ -1273,8 +1421,9 @@ const Data = {
 
     deleteTask: function(id) {
         AppState.tasks = AppState.tasks.filter(t => t.id !== id);
-        if (AppState.isFirebaseReady && AppState.currentUser) {
-            firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('tasks').doc(id).delete().catch(e => console.warn('Task delete error:', e));
+        const db = this._getDb();
+        if (AppState.isFirebaseReady && AppState.currentUser && db) {
+            db.collection('users').doc(AppState.currentUser.uid).collection('tasks').doc(id).delete().catch(e => console.warn('Task delete error:', e));
         }
         localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
         Stats.updateTaskStats();
@@ -1338,9 +1487,10 @@ const Data = {
             createdAt: new Date().toISOString()
         };
         
-        if (AppState.isFirebaseReady && AppState.currentUser) {
+        const db = this._getDb();
+        if (AppState.isFirebaseReady && AppState.currentUser && db) {
             try {
-                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('teamMembers').doc(newMember.id).set(newMember);
+                await db.collection('users').doc(AppState.currentUser.uid).collection('teamMembers').doc(newMember.id).set(newMember);
             } catch (e) {
                 console.error('Error adding team member:', e);
                 AppState.teamMembers.push(newMember);
@@ -1361,9 +1511,10 @@ const Data = {
         
         Object.assign(member, updates);
         
-        if (AppState.isFirebaseReady && AppState.currentUser) {
+        const db = this._getDb();
+        if (AppState.isFirebaseReady && AppState.currentUser && db) {
             try {
-                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('teamMembers').doc(id).update(updates);
+                await db.collection('users').doc(AppState.currentUser.uid).collection('teamMembers').doc(id).update(updates);
             } catch (e) {
                 console.error('Error updating team member:', e);
                 localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
@@ -1383,9 +1534,10 @@ const Data = {
         
         AppState.teamMembers = AppState.teamMembers.filter(m => m.id !== id);
         
-        if (AppState.isFirebaseReady && AppState.currentUser) {
+        const db = this._getDb();
+        if (AppState.isFirebaseReady && AppState.currentUser && db) {
             try {
-                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('teamMembers').doc(id).delete();
+                await db.collection('users').doc(AppState.currentUser.uid).collection('teamMembers').doc(id).delete();
             } catch (e) {
                 console.error('Error deleting team member:', e);
                 localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
@@ -1586,9 +1738,9 @@ const Scripts = {
             
             AppState.scripts[id] = { ...script, name: updatedName };
             
-            if (AppState.isFirebaseReady && AppState.currentUser) {
-                firebase.firestore()
-                    .collection('users')
+            const db = Data._getDb();
+            if (AppState.isFirebaseReady && AppState.currentUser && db) {
+                db.collection('users')
                     .doc(AppState.currentUser.uid)
                     .collection('scripts')
                     .doc(id)
@@ -1641,9 +1793,9 @@ const Scripts = {
         AppState.scriptOrder = AppState.scriptOrder.filter(scriptId => scriptId !== id);
         AppState.scriptFavorites = AppState.scriptFavorites.filter(scriptId => scriptId !== id);
 
-        if (AppState.isFirebaseReady && AppState.currentUser) {
-            firebase.firestore()
-                .collection('users')
+        const db = Data._getDb();
+        if (AppState.isFirebaseReady && AppState.currentUser && db) {
+            db.collection('users')
                 .doc(AppState.currentUser.uid)
                 .collection('scripts')
                 .doc(id)
@@ -1657,7 +1809,7 @@ const Scripts = {
                         }
                     }
                     Scripts.renderSidebar();
-                    Scripts.saveScriptOrder();
+                    Data.saveScriptOrder();
                 })
                 .catch(err => {
                     handleError(err, 'Deleting script');
@@ -1678,7 +1830,7 @@ const Scripts = {
                 }
             }
             Scripts.renderSidebar();
-            Scripts.saveScriptOrder();
+            Data.saveScriptOrder();
         }
     },
 
@@ -1822,8 +1974,9 @@ const Scripts = {
             version: (script.version || 1) + 1
         };
 
-        if (AppState.isFirebaseReady) {
-            firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts').doc(AppState.currentScriptId).set(updatedScript, { merge: true })
+        const db = Data._getDb();
+        if (AppState.isFirebaseReady && db) {
+            db.collection('users').doc(AppState.currentUser.uid).collection('scripts').doc(AppState.currentScriptId).set(updatedScript, { merge: true })
                 .then(() => {
                     AppState.scripts[AppState.currentScriptId] = updatedScript;
                 })
@@ -1874,8 +2027,9 @@ const Scripts = {
         if (!confirm('Reset this script to its original content?')) return;
         if (AppState.currentUser && AppState.currentScriptId) {
             const script = AppState.scripts[AppState.currentScriptId];
-            if (AppState.isFirebaseReady) {
-                firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('scripts').doc(AppState.currentScriptId).set({
+            const db = Data._getDb();
+            if (AppState.isFirebaseReady && db) {
+                db.collection('users').doc(AppState.currentUser.uid).collection('scripts').doc(AppState.currentScriptId).set({
                     name: script.name,
                     content: script.content,
                     version: 1
@@ -1912,9 +2066,9 @@ const Scripts = {
         AppState.scripts[id] = newScript;
         AppState.scriptOrder.push(id);
 
-        if (AppState.isFirebaseReady) {
-            firebase.firestore()
-                .collection('users')
+        const db = Data._getDb();
+        if (AppState.isFirebaseReady && db) {
+            db.collection('users')
                 .doc(AppState.currentUser.uid)
                 .collection('scripts')
                 .doc(id)
@@ -1944,22 +2098,12 @@ const Scripts = {
             showToast(`Script "${scriptName}" created! 🎉`, 'success');
             Scripts.renderSidebar();
             Scripts.loadScript(id);
-            Scripts.saveScriptOrder();
+            Data.saveScriptOrder();
         }
     },
 
     saveScriptOrder: function() {
-        if (AppState.isFirebaseReady && AppState.currentUser) {
-            firebase.firestore()
-                .collection('users')
-                .doc(AppState.currentUser.uid)
-                .update({ scriptOrder: AppState.scriptOrder })
-                .catch(err => console.warn('Error saving script order:', err));
-        } else {
-            const fallback = JSON.parse(localStorage.getItem('scripts_fallback') || '{}');
-            fallback.scriptOrder = AppState.scriptOrder;
-            localStorage.setItem('scripts_fallback', JSON.stringify(fallback));
-        }
+        Data.saveScriptOrder();
     },
 
     isEditing: function() {
@@ -5700,12 +5844,30 @@ function renderClosersListHTML() {
 }
 
 // ================================================================
-// INITIALIZATION
+// INITIALIZATION - FIXED
 // ================================================================
 
 function initApp() {
     console.log('🚀 Initializing ScriptFlow Pro...');
     
+    // Wait for Firebase to be ready
+    const waitForFirebase = async function() {
+        if (typeof FirebaseManager !== 'undefined') {
+            try {
+                await FirebaseManager.waitForReady();
+                AppState.isFirebaseReady = FirebaseManager.isReady();
+                console.log('✅ Firebase ready:', AppState.isFirebaseReady);
+            } catch (e) {
+                console.warn('Firebase wait failed:', e);
+                AppState.isFirebaseReady = false;
+            }
+        } else {
+            console.warn('FirebaseManager not found');
+            AppState.isFirebaseReady = false;
+        }
+        return AppState.isFirebaseReady;
+    };
+
     // Load shortcuts
     const savedShortcuts = localStorage.getItem('customShortcuts');
     if (savedShortcuts) {
@@ -5753,34 +5915,19 @@ function initApp() {
         AppState.closers = CONFIG.DEFAULT_CLOSERS;
     }
     
-    // Check Firebase readiness
-    AppState.isFirebaseReady = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
-    
-    // Auth state listener
-    if (AppState.isFirebaseReady) {
-        firebase.auth().onAuthStateChanged(user => {
-            if (user) {
-                AppState.currentUser = user;
-                Auth.updateUI();
-                Data.loadUserData(true);
-            } else {
-                AppState.currentUser = null;
-                Auth.updateUI();
+    // Wait for Firebase then initialize auth
+    waitForFirebase().then(() => {
+        // Initialize auth listener
+        Auth.initAuthListener();
+        
+        // If Firebase is not ready, show auth modal with offline mode
+        if (!AppState.isFirebaseReady) {
+            console.warn('⚠️ Firebase not ready, showing offline mode');
+            setTimeout(() => {
                 Auth.showModal();
-            }
-        });
-    } else {
-        // Offline mode - show auth modal with offline notice
-        setTimeout(() => {
-            Auth.showModal();
-            const googleBtn = document.getElementById('googleSignInBtn');
-            if (googleBtn) {
-                googleBtn.style.opacity = '0.5';
-                googleBtn.style.cursor = 'not-allowed';
-                googleBtn.title = 'Firebase unavailable - offline mode';
-            }
-        }, 500);
-    }
+            }, 500);
+        }
+    });
     
     // Setup UI event listeners
     setupEventListeners();
@@ -5797,6 +5944,7 @@ function initApp() {
     // Update closer selects
     updateCloserSelects();
     
+    AppState.isAppReady = true;
     console.log('✅ App initialized successfully');
 }
 
@@ -6139,7 +6287,7 @@ function setupEventListeners() {
 }
 
 // ================================================================
-// START APPLICATION
+// START APPLICATION - FIXED
 // ================================================================
 
 function startApp() {
@@ -6148,7 +6296,7 @@ function startApp() {
     const loadingScreen = document.getElementById('loadingScreen');
     const appWrapper = document.getElementById('appWrapper');
     
-    // Safety timeout - force hide loading screen after 3 seconds max
+    // Safety timeout - force hide loading screen after 5 seconds max
     const safetyTimeout = setTimeout(function() {
         if (loadingScreen && loadingScreen.style.display !== 'none') {
             console.log('⚠️ Safety timeout: forcing loading screen hide');
@@ -6160,7 +6308,7 @@ function startApp() {
                 appWrapper.style.opacity = '1';
             }
         }
-    }, 3000);
+    }, 5000);
     
     // If LoadingManager exists, use it
     if (typeof LoadingManager !== 'undefined' && LoadingManager) {
@@ -6172,13 +6320,13 @@ function startApp() {
             console.log('✅ Loading sequence completed');
         });
         
-        // Force complete after 2 seconds if not already done
+        // Force complete after 3 seconds if not already done
         setTimeout(function() {
             if (LoadingManager && !LoadingManager.isComplete()) {
                 console.log('⏱️ Force completing loading');
                 LoadingManager.forceComplete();
             }
-        }, 2000);
+        }, 3000);
     } else {
         // Fallback: hide loading screen manually
         console.log('⚠️ LoadingManager not found, using fallback');
@@ -6215,7 +6363,14 @@ function startApp() {
 // Start the app
 document.addEventListener('DOMContentLoaded', function() {
     console.log('📄 DOM ready, starting app...');
-    setTimeout(startApp, 50);
+    // Short delay to ensure everything is loaded
+    setTimeout(startApp, 100);
 });
+
+// Also try to start if DOM is already loaded
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    console.log('📄 DOM already ready, starting app...');
+    setTimeout(startApp, 100);
+}
 
 console.log('🚀 App bundle loaded');

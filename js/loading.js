@@ -21,7 +21,8 @@ const LoadingManager = {
         onComplete: null,
         isComplete: false,
         isStarted: false,
-        isHidden: false
+        isHidden: false,
+        isForced: false
     },
 
     init: function() {
@@ -31,6 +32,7 @@ const LoadingManager = {
             return this;
         }
         
+        // Ensure loading screen is visible
         loadingScreen.style.display = 'flex';
         loadingScreen.style.opacity = '1';
         loadingScreen.style.visibility = 'visible';
@@ -85,16 +87,24 @@ const LoadingManager = {
             this.state.intervalId = null;
         }
         
+        // Show first step immediately
         this.nextStep();
+        
+        // Progress through steps with variable timing
+        let stepDelay = 300;
+        const totalSteps = this.state.steps.length;
         
         this.state.intervalId = setInterval(() => {
             const hasMore = this.nextStep();
             if (!hasMore) {
                 clearInterval(this.state.intervalId);
                 this.state.intervalId = null;
-                this.complete();
+                // Wait a moment before completing
+                setTimeout(() => {
+                    this.complete();
+                }, 300);
             }
-        }, 500);
+        }, stepDelay);
         
         return this;
     },
@@ -108,6 +118,12 @@ const LoadingManager = {
         
         this.updateProgress(100, 'Ready! 🚀');
         
+        // Ensure app wrapper is visible
+        if (appWrapper) {
+            appWrapper.style.display = 'flex';
+            appWrapper.style.opacity = '1';
+        }
+        
         if (loadingScreen) {
             loadingScreen.style.opacity = '0';
             loadingScreen.style.transition = 'opacity 0.4s ease';
@@ -119,11 +135,6 @@ const LoadingManager = {
                 this.state.isHidden = true;
                 this.state.isVisible = false;
             }, 450);
-        }
-        
-        if (appWrapper) {
-            appWrapper.style.display = 'flex';
-            appWrapper.style.opacity = '1';
         }
         
         if (typeof this.state.onComplete === 'function') {
@@ -139,6 +150,9 @@ const LoadingManager = {
     },
 
     forceComplete: function() {
+        if (this.state.isForced) return this;
+        this.state.isForced = true;
+        
         if (this.state.intervalId) {
             clearInterval(this.state.intervalId);
             this.state.intervalId = null;

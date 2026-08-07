@@ -1,5 +1,5 @@
 // ================================================================
-// FIREBASE CONFIGURATION - SINGLETON PATTERN
+// FIREBASE CONFIGURATION - SINGLETON PATTERN WITH READY PROMISE
 // ================================================================
 
 const firebaseConfig = {
@@ -15,27 +15,32 @@ const firebaseConfig = {
 const FirebaseManager = {
     initialized: false,
     initAttempts: 0,
-    maxAttempts: 3,
+    maxAttempts: 5,
     firebaseApp: null,
     firestoreInstance: null,
     authInstance: null,
     isInitializing: false,
+    readyPromise: null,
+    readyResolve: null,
+    readyReject: null,
+    _isReady: false,
 
     init: function() {
         if (this.initialized && this.firebaseApp) {
             console.log('✅ Firebase already initialized');
-            return this.firebaseApp;
+            return Promise.resolve(this.firebaseApp);
         }
 
         if (this.isInitializing) {
             console.log('⏳ Firebase initialization in progress...');
-            return null;
+            return this.readyPromise;
         }
 
-        if (this.initAttempts >= this.maxAttempts) {
-            console.error('❌ Firebase initialization failed after', this.maxAttempts, 'attempts');
-            return null;
-        }
+        // Create the ready promise
+        this.readyPromise = new Promise((resolve, reject) => {
+            this.readyResolve = resolve;
+            this.readyReject = reject;
+        });
 
         this.isInitializing = true;
         this.initAttempts++;
@@ -50,20 +55,28 @@ const FirebaseManager = {
                 this.firebaseApp = firebase.apps[0];
                 this.initialized = true;
                 this.isInitializing = false;
+                this._isReady = true;
                 console.log('✅ Using existing Firebase app');
-                return this.firebaseApp;
+                if (this.readyResolve) this.readyResolve(this.firebaseApp);
+                // Enable persistence
+                this.enablePersistence();
+                return this.readyPromise;
             }
 
             // Initialize Firebase
             this.firebaseApp = firebase.initializeApp(firebaseConfig);
             this.initialized = true;
             this.isInitializing = false;
+            this._isReady = true;
             console.log('✅ Firebase initialized successfully');
 
-            // Enable offline persistence with retry
+            // Enable offline persistence
             this.enablePersistence();
 
-            return this.firebaseApp;
+            // Resolve the ready promise
+            if (this.readyResolve) this.readyResolve(this.firebaseApp);
+
+            return this.readyPromise;
 
         } catch (e) {
             this.isInitializing = false;
@@ -71,9 +84,14 @@ const FirebaseManager = {
 
             if (this.initAttempts < this.maxAttempts) {
                 console.log(`🔄 Retrying Firebase init (attempt ${this.initAttempts + 1}/${this.maxAttempts})...`);
-                setTimeout(() => this.init(), 2000);
+                setTimeout(() => {
+                    this.init();
+                }, 1000);
+            } else {
+                if (this.readyReject) this.readyReject(e);
+                console.error('❌ Firebase initialization failed after', this.maxAttempts, 'attempts');
             }
-            return null;
+            return this.readyPromise;
         }
     },
 
@@ -103,8 +121,8 @@ const FirebaseManager = {
     getFirestore: function() {
         if (!this.firebaseApp) {
             this.init();
+            return null;
         }
-        if (!this.firebaseApp) return null;
 
         try {
             if (!this.firestoreInstance) {
@@ -120,8 +138,8 @@ const FirebaseManager = {
     getAuth: function() {
         if (!this.firebaseApp) {
             this.init();
+            return null;
         }
-        if (!this.firebaseApp) return null;
 
         try {
             if (!this.authInstance) {
@@ -135,7 +153,17 @@ const FirebaseManager = {
     },
 
     isReady: function() {
-        return this.initialized && this.firebaseApp !== null;
+        return this.initialized && this.firebaseApp !== null && this._isReady;
+    },
+
+    waitForReady: function() {
+        if (this.isReady()) {
+            return Promise.resolve(this.firebaseApp);
+        }
+        if (this.readyPromise) {
+            return this.readyPromise;
+        }
+        return this.init();
     },
 
     reset: function() {
@@ -145,16 +173,23 @@ const FirebaseManager = {
         this.authInstance = null;
         this.initAttempts = 0;
         this.isInitializing = false;
+        this._isReady = false;
+        this.readyPromise = null;
+        this.readyResolve = null;
+        this.readyReject = null;
     }
 };
 
 // Initialize Firebase when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    // Wait a tick for other scripts to load
-    setTimeout(function() {
-        FirebaseManager.init();
-    }, 100);
+    // Initialize immediately
+    FirebaseManager.init();
 });
+
+// Also try to initialize if script loads after DOM
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    FirebaseManager.init();
+}
 
 // Expose for global use
 window.FirebaseManager = FirebaseManager;
@@ -162,5 +197,6 @@ window.isFirebaseReady = function() { return FirebaseManager.isReady(); };
 window.getFirebase = function() { return FirebaseManager.firebaseApp; };
 window.getFirestore = function() { return FirebaseManager.getFirestore(); };
 window.getAuth = function() { return FirebaseManager.getAuth(); };
+window.waitForFirebase = function() { return FirebaseManager.waitForReady(); };
 
 console.log('🔧 Firebase config loaded (singleton pattern)');
