@@ -32,6 +32,7 @@ const LoadingManager = {
             return this;
         }
         
+        // Ensure loading screen is visible
         loadingScreen.style.display = 'flex';
         loadingScreen.style.opacity = '1';
         loadingScreen.style.visibility = 'visible';
@@ -86,15 +87,19 @@ const LoadingManager = {
             this.state.intervalId = null;
         }
         
+        // Show first step immediately
         this.nextStep();
         
+        // Progress through steps with variable timing
         let stepDelay = 300;
+        const totalSteps = this.state.steps.length;
         
         this.state.intervalId = setInterval(() => {
             const hasMore = this.nextStep();
             if (!hasMore) {
                 clearInterval(this.state.intervalId);
                 this.state.intervalId = null;
+                // Wait a moment before completing
                 setTimeout(() => {
                     this.complete();
                 }, 300);
@@ -113,6 +118,7 @@ const LoadingManager = {
         
         this.updateProgress(100, 'Ready! 🚀');
         
+        // Ensure app wrapper is visible
         if (appWrapper) {
             appWrapper.style.display = 'flex';
             appWrapper.style.opacity = '1';
@@ -231,16 +237,6 @@ const LoadingManager = {
     }
 };
 
-// Ensure LoadingManager is globally accessible
 window.LoadingManager = LoadingManager;
 
-// Auto-init when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-        LoadingManager.init();
-    });
-} else {
-    LoadingManager.init();
-}
-
-console.log('📦 Loading module loaded');
+console.log('📦 Loading module initialized');

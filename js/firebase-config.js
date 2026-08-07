@@ -25,7 +25,6 @@ const FirebaseManager = {
     readyReject: null,
     _isReady: false,
     _settingsApplied: false,
-    _initTimer: null,
 
     init: function() {
         if (this.initialized && this.firebaseApp) {
@@ -36,12 +35,6 @@ const FirebaseManager = {
         if (this.isInitializing) {
             console.log('⏳ Firebase initialization in progress...');
             return this.readyPromise;
-        }
-
-        // Clear any pending timer
-        if (this._initTimer) {
-            clearTimeout(this._initTimer);
-            this._initTimer = null;
         }
 
         // Create the ready promise
@@ -65,6 +58,7 @@ const FirebaseManager = {
                 this.isInitializing = false;
                 this._isReady = true;
                 console.log('✅ Using existing Firebase app');
+                // Apply settings to existing app
                 this.applyFirestoreSettings();
                 if (this.readyResolve) this.readyResolve(this.firebaseApp);
                 return this.readyPromise;
@@ -77,8 +71,10 @@ const FirebaseManager = {
             this._isReady = true;
             console.log('✅ Firebase initialized successfully');
 
+            // Apply Firestore settings with cache
             this.applyFirestoreSettings();
 
+            // Resolve the ready promise
             if (this.readyResolve) this.readyResolve(this.firebaseApp);
 
             return this.readyPromise;
@@ -89,7 +85,7 @@ const FirebaseManager = {
 
             if (this.initAttempts < this.maxAttempts) {
                 console.log(`🔄 Retrying Firebase init (attempt ${this.initAttempts + 1}/${this.maxAttempts})...`);
-                this._initTimer = setTimeout(() => {
+                setTimeout(() => {
                     this.init();
                 }, 1000);
             } else {
@@ -104,25 +100,29 @@ const FirebaseManager = {
         if (!this.firebaseApp || this._settingsApplied) return;
 
         try {
+            // Get Firestore instance
             const db = this.firebaseApp.firestore();
             
+            // Apply settings with the new cache approach
+            // This replaces the deprecated enablePersistence() method
             try {
-                // Try to apply cache settings
                 db.settings({
                     cacheSettings: {
                         localCache: {
                             kind: 'persistent',
                             tabManager: {
                                 kind: 'synchronize',
-                                cacheSize: 104857600
+                                cacheSize: 104857600 // 100 MB cache size
                             }
                         }
                     }
                 });
-                console.log('✅ Firestore cache settings applied');
+                console.log('✅ Firestore cache settings applied (persistent, synchronize tabs)');
                 this._settingsApplied = true;
             } catch (settingsError) {
-                console.warn('⚠️ Firestore cache settings not supported:', settingsError.message);
+                // Some browsers/contexts may not support cache settings
+                console.warn('⚠️ Firestore cache settings not supported, using default:', settingsError.message);
+                // Try without cache settings
                 try {
                     db.settings({});
                     console.log('✅ Firestore default settings applied');
@@ -132,13 +132,16 @@ const FirebaseManager = {
                 }
             }
             
+            // Store the instance
             this.firestoreInstance = db;
         } catch (err) {
             console.warn('⚠️ Firestore settings failed:', err.message);
+            
+            // Fallback: try without cache settings
             try {
                 const db = this.firebaseApp.firestore();
                 this.firestoreInstance = db;
-                console.log('⚠️ Firestore using default settings');
+                console.log('⚠️ Firestore using default settings (no cache)');
             } catch (e) {
                 console.warn('⚠️ Firestore fallback failed:', e.message);
             }
@@ -154,6 +157,7 @@ const FirebaseManager = {
         try {
             if (!this.firestoreInstance) {
                 this.firestoreInstance = this.firebaseApp.firestore();
+                // Apply settings if not already applied
                 if (!this._settingsApplied) {
                     this.applyFirestoreSettings();
                 }
@@ -197,10 +201,6 @@ const FirebaseManager = {
     },
 
     reset: function() {
-        if (this._initTimer) {
-            clearTimeout(this._initTimer);
-            this._initTimer = null;
-        }
         this.initialized = false;
         this.firebaseApp = null;
         this.firestoreInstance = null;
@@ -215,16 +215,18 @@ const FirebaseManager = {
     }
 };
 
-// Auto-init when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-        FirebaseManager.init();
-    });
-} else {
+// Initialize Firebase when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize immediately
+    FirebaseManager.init();
+});
+
+// Also try to initialize if script loads after DOM
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
     FirebaseManager.init();
 }
 
-// Ensure global access
+// Expose for global use
 window.FirebaseManager = FirebaseManager;
 window.isFirebaseReady = function() { return FirebaseManager.isReady(); };
 window.getFirebase = function() { return FirebaseManager.firebaseApp; };
@@ -232,4 +234,4 @@ window.getFirestore = function() { return FirebaseManager.getFirestore(); };
 window.getAuth = function() { return FirebaseManager.getAuth(); };
 window.waitForFirebase = function() { return FirebaseManager.waitForReady(); };
 
-console.log('🔧 Firebase config loaded');
+console.log('🔧 Firebase config loaded (singleton pattern)');
