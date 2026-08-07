@@ -2380,19 +2380,39 @@ function attachScriptActionEvents() {
         favoriteScriptBtn.addEventListener('click', handleFavoriteScript);
     }
     
-    // Objection button - use direct event binding with a fresh listener
+    // OBJECTION BUTTON - FIXED with proper error handling
     const objectionBtn = document.getElementById('objectionToggleBtn');
     if (objectionBtn) {
-        // Remove all existing listeners by cloning
+        // Remove existing listeners by cloning
         const newBtn = objectionBtn.cloneNode(true);
         objectionBtn.parentNode.replaceChild(newBtn, objectionBtn);
         newBtn.addEventListener('click', function(e) {
             e.stopPropagation();
             e.preventDefault();
+            
+            // Check if ObjectionHandler exists and has openModal method
             if (typeof ObjectionHandler !== 'undefined' && ObjectionHandler) {
-                ObjectionHandler.openModal();
+                if (typeof ObjectionHandler.openModal === 'function') {
+                    ObjectionHandler.openModal();
+                } else {
+                    console.warn('ObjectionHandler.openModal not a function, reinitializing...');
+                    // Try to reinitialize
+                    if (typeof ObjectionHandler.init === 'function') {
+                        ObjectionHandler.init();
+                        // Try again after init
+                        setTimeout(function() {
+                            if (typeof ObjectionHandler.openModal === 'function') {
+                                ObjectionHandler.openModal();
+                            } else {
+                                showToast('Objection handler is loading. Please try again.', 'warning');
+                            }
+                        }, 200);
+                    } else {
+                        showToast('Objection handler not available. Please refresh.', 'warning');
+                    }
+                }
             } else {
-                showToast('Objection handler not loaded', 'warning');
+                showToast('Objection handler not loaded. Please refresh.', 'warning');
             }
         });
         console.log('🎯 Objection button attached from script actions');
