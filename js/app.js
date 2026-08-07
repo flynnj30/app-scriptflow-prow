@@ -3,6 +3,55 @@
 // ================================================================
 
 // ================================================================
+// ERROR SUPPRESSION - BROWSER EXTENSION ERRORS
+// ================================================================
+
+// Suppress the chrome-extension://invalid/ error that comes from browser extensions
+// This is a browser extension issue, not an application error
+(function suppressExtensionErrors() {
+    // Save original console error
+    const originalConsoleError = console.error;
+    
+    console.error = function() {
+        const args = Array.from(arguments);
+        const message = args.join(' ');
+        
+        // Suppress extension-related errors
+        if (message && (
+            message.includes('chrome-extension://invalid') ||
+            message.includes('message channel closed') ||
+            message.includes('listener indicated an asynchronous response') ||
+            message.includes('Extension context invalidated') ||
+            message.includes('Could not establish connection') ||
+            message.includes('ERR_BLOCKED_BY_CLIENT')
+        )) {
+            // Silently ignore these extension-related errors
+            return;
+        }
+        
+        // Pass through all other errors
+        originalConsoleError.apply(console, arguments);
+    };
+    
+    // Also suppress unhandled promise rejections from extensions
+    window.addEventListener('unhandledrejection', function(event) {
+        if (event.reason && (
+            String(event.reason).includes('chrome-extension') ||
+            String(event.reason).includes('message channel closed') ||
+            String(event.reason).includes('listener indicated an asynchronous response') ||
+            String(event.reason).includes('Extension context invalidated') ||
+            String(event.reason).includes('ERR_BLOCKED_BY_CLIENT')
+        )) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+        }
+    });
+    
+    console.log('🛡️ Extension error suppression enabled');
+})();
+
+// ================================================================
 // CONFIGURATION
 // ================================================================
 
@@ -741,6 +790,8 @@ const Auth = {
             AppState.authInProgress = false;
             if (error.code === 'auth/popup-closed-by-user') {
                 showToast('Sign in cancelled', 'info');
+            } else if (error.code === 'auth/network-request-failed') {
+                showToast('Network error. Please check your connection.', 'error');
             } else {
                 handleError(error, 'Google Sign-In');
             }
@@ -1025,7 +1076,7 @@ const Auth = {
 };
 
 // ================================================================
-// DATA LAYER - WITH OFFLINE SUPPORT - UPDATED
+// DATA LAYER - WITH OFFLINE SUPPORT
 // ================================================================
 
 const Data = {
@@ -1195,9 +1246,10 @@ const Data = {
         try {
             const userRef = db.collection('users').doc(AppState.currentUser.uid);
 
-            // Use a small delay to ensure Firestore is fully initialized
+            // Use a more robust subscription setup with error handling
             const setupSubscriptions = () => {
                 try {
+                    // Appointments subscription with error handling for message channel errors
                     AppState.appointmentsUnsubscribe = userRef.collection('appointments')
                         .orderBy('createdAt', 'desc')
                         .onSnapshot(snap => {
@@ -1214,9 +1266,20 @@ const Data = {
                             FeaturePanel.refreshCurrentView();
                             localStorage.setItem('appointments_fallback', JSON.stringify(AppState.appointments));
                         }, error => {
+                            // Silently handle message channel errors (usually from extensions)
+                            if (error.message && (
+                                error.message.includes('message channel closed') ||
+                                error.message.includes('listener indicated an asynchronous response') ||
+                                error.message.includes('Extension context invalidated') ||
+                                error.message.includes('ERR_BLOCKED_BY_CLIENT')
+                            )) {
+                                // This is an extension error, ignore it
+                                return;
+                            }
                             console.warn('Appointments subscription error:', error);
                         });
 
+                    // Tasks subscription
                     AppState.tasksUnsubscribe = userRef.collection('tasks')
                         .orderBy('createdAt', 'desc')
                         .onSnapshot(snap => {
@@ -1226,9 +1289,18 @@ const Data = {
                             FeaturePanel.refreshCurrentView();
                             localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
                         }, error => {
+                            if (error.message && (
+                                error.message.includes('message channel closed') ||
+                                error.message.includes('listener indicated an asynchronous response') ||
+                                error.message.includes('Extension context invalidated') ||
+                                error.message.includes('ERR_BLOCKED_BY_CLIENT')
+                            )) {
+                                return;
+                            }
                             console.warn('Tasks subscription error:', error);
                         });
 
+                    // Team members subscription
                     AppState.teamMembersUnsubscribe = userRef.collection('teamMembers')
                         .onSnapshot(snap => {
                             if (snap.empty) {
@@ -1244,12 +1316,28 @@ const Data = {
                             }
                             localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
                         }, error => {
+                            if (error.message && (
+                                error.message.includes('message channel closed') ||
+                                error.message.includes('listener indicated an asynchronous response') ||
+                                error.message.includes('Extension context invalidated') ||
+                                error.message.includes('ERR_BLOCKED_BY_CLIENT')
+                            )) {
+                                return;
+                            }
                             console.warn('Team members subscription error:', error);
                         });
                         
                     console.log('✅ Firestore subscriptions active');
                 } catch (setupError) {
-                    console.warn('Error setting up subscriptions:', setupError);
+                    // Only log non-extension errors
+                    if (setupError.message && !(
+                        setupError.message.includes('message channel closed') ||
+                        setupError.message.includes('listener indicated an asynchronous response') ||
+                        setupError.message.includes('Extension context invalidated') ||
+                        setupError.message.includes('ERR_BLOCKED_BY_CLIENT')
+                    )) {
+                        console.warn('Error setting up subscriptions:', setupError);
+                    }
                     // Retry once after a delay
                     setTimeout(() => {
                         if (AppState.currentUser && AppState.isFirebaseReady) {
@@ -1261,10 +1349,20 @@ const Data = {
             };
 
             // Small delay to ensure Firestore is ready
-            setTimeout(setupSubscriptions, 100);
+            setTimeout(setupSubscriptions, 200);
             
         } catch (error) {
-            console.warn('Subscription setup error:', error);
+            // Only log non-extension errors
+            if (error.message && !(
+                error.message.includes('message channel closed') ||
+                error.message.includes('listener indicated an asynchronous response') ||
+                error.message.includes('Extension context invalidated') ||
+                error.message.includes('ERR_BLOCKED_BY_CLIENT')
+            )) {
+                console.warn('Subscription setup error:', error);
+            }
+            
+            // Load from local storage as fallback
             const appointmentsLocal = localStorage.getItem('appointments_fallback');
             const tasksLocal = localStorage.getItem('tasks_fallback');
             const teamLocal = localStorage.getItem('teamMembers_fallback');
@@ -2198,7 +2296,7 @@ const Scripts = {
 };
 
 // ================================================================
-// SCRIPT ACTIONS RENDERER
+// SCRIPT ACTIONS RENDERER - UPDATED WITH OBJECTION BUTTON FIX
 // ================================================================
 
 function renderScriptActions() {
@@ -2214,7 +2312,7 @@ function renderScriptActions() {
         { id: 'copyScriptBtn', icon: 'fa-copy', text: 'Copy', style: '', extraClass: '' },
         { id: 'resetScriptBtn', icon: 'fa-undo-alt', text: 'Reset', style: '', extraClass: '' },
         { id: 'favoriteScriptBtn', icon: 'fa-star', text: '', style: '', extraClass: '' },
-        { id: 'objectionToggleBtn', icon: 'fa-shield-alt', text: 'Objections', style: 'background:var(--secondary); color:white;', extraClass: '' }
+        { id: 'objectionToggleBtn', icon: 'fa-shield-alt', text: 'Objections', style: 'background:var(--secondary); color:white;', extraClass: 'objection-btn' }
     ];
     
     buttons.forEach(btn => {
@@ -2227,6 +2325,7 @@ function renderScriptActions() {
         if (btn.disabled) {
             button.disabled = true;
         }
+        button.setAttribute('data-action', btn.id.replace('Btn', '').replace('Script', '').toLowerCase());
         button.innerHTML = `<i class="fas ${btn.icon}"></i> ${btn.text}`;
         container.appendChild(button);
     });
@@ -2281,10 +2380,22 @@ function attachScriptActionEvents() {
         favoriteScriptBtn.addEventListener('click', handleFavoriteScript);
     }
     
-    const objectionToggleBtn = document.getElementById('objectionToggleBtn');
-    if (objectionToggleBtn && window.ObjectionHandler) {
-        objectionToggleBtn.removeEventListener('click', handleObjectionToggle);
-        objectionToggleBtn.addEventListener('click', handleObjectionToggle);
+    // Objection button - use direct event binding with a fresh listener
+    const objectionBtn = document.getElementById('objectionToggleBtn');
+    if (objectionBtn) {
+        // Remove all existing listeners by cloning
+        const newBtn = objectionBtn.cloneNode(true);
+        objectionBtn.parentNode.replaceChild(newBtn, objectionBtn);
+        newBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            if (typeof ObjectionHandler !== 'undefined' && ObjectionHandler) {
+                ObjectionHandler.openModal();
+            } else {
+                showToast('Objection handler not loaded', 'warning');
+            }
+        });
+        console.log('🎯 Objection button attached from script actions');
     }
 }
 
@@ -2303,12 +2414,6 @@ function handleCopyScript() {
 
 function handleFavoriteScript() {
     Scripts.toggleFavorite(AppState.currentScriptId);
-}
-
-function handleObjectionToggle() {
-    if (window.ObjectionHandler) {
-        window.ObjectionHandler.toggleBanner();
-    }
 }
 
 // ================================================================
@@ -2671,7 +2776,7 @@ function cancelAppointment(appointmentId) {
 }
 
 // ================================================================
-// SMART IMPORT FUNCTIONS - ENHANCED
+// SMART IMPORT FUNCTIONS
 // ================================================================
 
 let _isImportSaving = false;
@@ -2822,10 +2927,8 @@ function renderImportResultsEnhanced(records) {
         const synonyms = record.context?.synonyms || {};
         const hasSynonyms = Object.values(synonyms).some(arr => arr && arr.length > 0);
         
-        // Show email if present
         const emailDisplay = record.parsed.email || record.validated.email || '';
         const timeDisplay = record.parsed.time || record.validated.time || '';
-        const statusDisplay = record.parsed.status || record.validated.status || 'Pending';
         
         resultsHtml += `
             <div class="import-record ${statusClass} ${hasDuplicate ? 'duplicate' : ''}">
@@ -2910,33 +3013,28 @@ function renderImportResultsEnhanced(records) {
     
     resultsContainer.innerHTML = resultsHtml;
     
-    // Attach event listeners to all buttons using event delegation
     resultsContainer.addEventListener('click', function(e) {
         const target = e.target.closest('button');
         if (!target) return;
         
-        // Edit button
         if (target.classList.contains('edit-btn')) {
             const index = parseInt(target.dataset.index);
             editImportRecord(index);
             return;
         }
         
-        // Skip button
         if (target.classList.contains('skip-btn')) {
             const index = parseInt(target.dataset.index);
             skipImportRecord(index);
             return;
         }
         
-        // Save single button
         if (target.classList.contains('save-single-btn')) {
             const index = parseInt(target.dataset.index);
             saveSingleRecord(index);
             return;
         }
         
-        // Merge button
         if (target.classList.contains('merge-btn')) {
             const index = parseInt(target.dataset.index);
             mergeDuplicate(index);
@@ -2949,7 +3047,6 @@ function renderImportResultsEnhanced(records) {
         saveBtn.style.display = 'inline-flex';
         saveBtn.disabled = false;
         saveBtn.textContent = `Save ${validRecords.length} Record(s)`;
-        // Remove existing listeners
         const newSaveBtn = saveBtn.cloneNode(true);
         saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
         newSaveBtn.onclick = function(e) {
@@ -3162,7 +3259,6 @@ function parseKeyValueFormatEnhanced(lines, result, confidence, context) {
                             confidence['date'] = 0.95;
                         }
                     }
-                    // Extract email from any field
                     if (matchedField !== 'email') {
                         const extractedEmail = Utils.extractEmail(value);
                         if (extractedEmail && !result.email) {
@@ -3171,7 +3267,6 @@ function parseKeyValueFormatEnhanced(lines, result, confidence, context) {
                         }
                     }
                 } else {
-                    // Check if this line contains an email
                     const extractedEmail = Utils.extractEmail(value);
                     if (extractedEmail && !result.email) {
                         result.email = extractedEmail;
@@ -3184,7 +3279,6 @@ function parseKeyValueFormatEnhanced(lines, result, confidence, context) {
                 }
             }
         } else if (line.trim()) {
-            // Check for email in standalone line
             const extractedEmail = Utils.extractEmail(line);
             if (extractedEmail && !result.email) {
                 result.email = extractedEmail;
@@ -3207,7 +3301,6 @@ function parseBulletPointFormat(lines, result, confidence) {
         if (match) {
             const content = match[1].trim();
             
-            // Check for email in content
             const extractedEmail = Utils.extractEmail(content);
             if (extractedEmail && !result.email) {
                 result.email = extractedEmail;
@@ -3304,7 +3397,6 @@ function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
         }
     }
     
-    // Also try to find email anywhere in the text
     if (!result.email) {
         const emailMatch = Utils.extractEmail(fullText);
         if (emailMatch) {
@@ -3449,7 +3541,6 @@ function enhanceParsedDataEnhanced(result, confidence, fullText, context, defaul
     if (result.email) {
         result.email = result.email.toLowerCase().trim();
     } else {
-        // Try to extract email from notes
         if (result.notes) {
             const extractedEmail = Utils.extractEmail(result.notes);
             if (extractedEmail) {
@@ -3480,7 +3571,6 @@ function enhanceParsedDataEnhanced(result, confidence, fullText, context, defaul
         }
     }
     
-    // Auto-set status based on time
     if (Utils.hasTimeSet(result.time) && (!result.status || result.status === 'Pending')) {
         result.status = 'Meeting Booked';
         confidence.status = 0.9;
@@ -3754,7 +3844,6 @@ function validateAppointmentData(data) {
             validated.status = 'Pending';
         }
     } else {
-        // Auto-set status based on time
         if (Utils.hasTimeSet(data.time)) {
             validated.status = 'Meeting Booked';
         } else {
@@ -4339,7 +4428,6 @@ function saveSingleRecord(index) {
         }
     }
     
-    // Determine status - auto-set to Meeting Booked if time is present
     let finalStatus = data.status || 'Pending';
     if (Utils.hasTimeSet(data.time) && finalStatus === 'Pending') {
         finalStatus = 'Meeting Booked';
@@ -4367,7 +4455,6 @@ function saveSingleRecord(index) {
         renderImportResultsEnhanced(ImportState.parsedRecords);
         FeaturePanel.refreshCurrentView();
         Stats.updateAll();
-        // Sync calendar to the appointment date
         if (result.date) {
             Utils.syncCalendarToDate(result.date);
         }
@@ -4435,7 +4522,6 @@ function saveAllImportedAppointments() {
             }
         }
         
-        // Determine status - auto-set to Meeting Booked if time is present
         let finalStatus = data.status || 'Pending';
         if (Utils.hasTimeSet(data.time) && finalStatus === 'Pending') {
             finalStatus = 'Meeting Booked';
@@ -4482,7 +4568,6 @@ function saveAllImportedAppointments() {
     FeaturePanel.refreshCurrentView();
     Stats.updateAll();
     
-    // Refresh calendar view to show new appointments
     if (AppState.currentView === 'calendar') {
         const body = DOM.get('featurePanelBody');
         if (body) {
@@ -5061,7 +5146,6 @@ const FeaturePanel = {
                     if (dateInput) dateInput.value = finalDate;
                 }
 
-                // Auto-set status based on time
                 let finalStatus = status;
                 if (Utils.hasTimeSet(time) && status === 'Pending') {
                     finalStatus = 'Meeting Booked';
@@ -6026,6 +6110,51 @@ function renderClosersListHTML() {
 }
 
 // ================================================================
+// STICKY NAVIGATION - Calculate hero height for script panel positioning
+// ================================================================
+
+function updateStickyPositions() {
+    const heroWrapper = document.querySelector('.hero-sticky-wrapper');
+    const scriptWrapper = document.querySelector('.script-panel-wrapper');
+    
+    if (heroWrapper && scriptWrapper) {
+        const heroHeight = heroWrapper.offsetHeight;
+        document.documentElement.style.setProperty('--hero-height', heroHeight + 'px');
+        
+        // Update script panel top position
+        scriptWrapper.style.top = heroHeight + 'px';
+    }
+}
+
+// Debounced resize handler
+const debouncedUpdateSticky = Utils.debounce(updateStickyPositions, 100);
+
+// Listen for scroll to add shadow effect
+function handleHeroScroll() {
+    const heroWrapper = document.querySelector('.hero-sticky-wrapper');
+    if (heroWrapper) {
+        if (window.scrollY > 10) {
+            heroWrapper.classList.add('scrolled');
+        } else {
+            heroWrapper.classList.remove('scrolled');
+        }
+    }
+}
+
+// Update on load and resize
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(updateStickyPositions, 100);
+});
+
+window.addEventListener('resize', debouncedUpdateSticky);
+window.addEventListener('scroll', handleHeroScroll);
+
+// Also update when sidebar toggles
+document.addEventListener('sidebarToggle', function() {
+    setTimeout(updateStickyPositions, 300);
+});
+
+// ================================================================
 // INITIALIZATION
 // ================================================================
 
@@ -6125,6 +6254,16 @@ function initApp() {
     // Update closer selects
     updateCloserSelects();
     
+    // Initialize Objection Handler (modal mode)
+    if (typeof ObjectionHandler !== 'undefined') {
+        setTimeout(function() {
+            ObjectionHandler.init();
+        }, 200);
+    }
+    
+    // Update sticky positions after render
+    setTimeout(updateStickyPositions, 200);
+    
     AppState.isAppReady = true;
     console.log('✅ App initialized successfully');
 }
@@ -6143,6 +6282,8 @@ function setupEventListeners() {
             if (icon) {
                 icon.className = sidebar.classList.contains('closed') ? 'fas fa-bars' : 'fas fa-times';
             }
+            // Dispatch event for sticky positioning
+            document.dispatchEvent(new CustomEvent('sidebarToggle'));
         });
     }
     
@@ -6424,19 +6565,16 @@ function setupEventListeners() {
     document.addEventListener('keydown', (e) => {
         if (!AppState.shortcutsEnabled) return;
         
-        // Don't trigger if in input/textarea
         const target = e.target;
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
             return;
         }
         
-        // Escape key
         if (e.key === 'Escape') {
             handleEscapeKey();
             return;
         }
         
-        // Number keys 1-9 for scripts
         if (e.key >= '1' && e.key <= '9' && !e.ctrlKey && !e.metaKey) {
             const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
             const idx = parseInt(e.key) - 1;
@@ -6447,7 +6585,6 @@ function setupEventListeners() {
             return;
         }
         
-        // Check custom shortcuts
         const ctrlKey = e.ctrlKey || e.metaKey;
         const shiftKey = e.shiftKey;
         const key = e.key;
@@ -6477,7 +6614,6 @@ function startApp() {
     const loadingScreen = document.getElementById('loadingScreen');
     const appWrapper = document.getElementById('appWrapper');
     
-    // Safety timeout - force hide loading screen after 5 seconds max
     const safetyTimeout = setTimeout(function() {
         if (loadingScreen && loadingScreen.style.display !== 'none') {
             console.log('⚠️ Safety timeout: forcing loading screen hide');
@@ -6491,17 +6627,14 @@ function startApp() {
         }
     }, 5000);
     
-    // If LoadingManager exists, use it
     if (typeof LoadingManager !== 'undefined' && LoadingManager) {
         console.log('📦 Using LoadingManager');
         LoadingManager.init();
         
-        // Start the loading sequence
         LoadingManager.start(function() {
             console.log('✅ Loading sequence completed');
         });
         
-        // Force complete after 3 seconds if not already done
         setTimeout(function() {
             if (LoadingManager && !LoadingManager.isComplete()) {
                 console.log('⏱️ Force completing loading');
@@ -6509,7 +6642,6 @@ function startApp() {
             }
         }, 3000);
     } else {
-        // Fallback: hide loading screen manually
         console.log('⚠️ LoadingManager not found, using fallback');
         if (loadingScreen) {
             loadingScreen.style.display = 'none';
@@ -6522,12 +6654,10 @@ function startApp() {
         }
     }
     
-    // Initialize the app
     try {
         initApp();
     } catch (e) {
         console.error('App initialization error:', e);
-        // Still try to hide loading screen
         if (loadingScreen) {
             loadingScreen.style.display = 'none';
             loadingScreen.style.visibility = 'hidden';
@@ -6544,11 +6674,9 @@ function startApp() {
 // Start the app
 document.addEventListener('DOMContentLoaded', function() {
     console.log('📄 DOM ready, starting app...');
-    // Short delay to ensure everything is loaded
     setTimeout(startApp, 100);
 });
 
-// Also try to start if DOM is already loaded
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
     console.log('📄 DOM already ready, starting app...');
     setTimeout(startApp, 100);

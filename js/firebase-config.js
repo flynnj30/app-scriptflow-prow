@@ -105,7 +105,6 @@ const FirebaseManager = {
             
             // Apply settings with the new cache approach
             // This replaces the deprecated enablePersistence() method
-            // Using a more conservative settings approach to avoid message channel issues
             try {
                 db.settings({
                     cacheSettings: {
