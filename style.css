@@ -132,6 +132,11 @@ body {
     50% { opacity: 0.6; }
 }
 
+@keyframes wordGlow {
+    0%, 100% { box-shadow: 0 0 20px rgba(250, 204, 21, 0.2); }
+    50% { box-shadow: 0 0 40px rgba(250, 204, 21, 0.5); }
+}
+
 .fade-in { animation: fadeIn 0.4s ease forwards; }
 .fade-in-up { animation: fadeInUp 0.5s ease forwards; }
 .scale-in { animation: scaleIn 0.4s ease forwards; }
