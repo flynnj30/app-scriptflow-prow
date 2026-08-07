@@ -1,5 +1,5 @@
 // ================================================================
-// OBJECTION HANDLER - INTEGRATED INTO SCRIPT MODAL
+// OBJECTION HANDLER - MODAL/POPUP VERSION (FULLY IMPLEMENTED)
 // ================================================================
 
 const ObjectionHandler = {
@@ -7,6 +7,7 @@ const ObjectionHandler = {
     currentCategory: 'reflex',
     expandedCards: new Set(),
     initialized: false,
+    _modalInstance: null,
     
     categories: {
         reflex: {
@@ -150,94 +151,181 @@ const ObjectionHandler = {
     init: function() {
         if (this.initialized) return;
         this.initialized = true;
-        this.createIntegratedUI();
-        this.attachEvents();
-        console.log('🎯 Objection Handler initialized');
+        this.attachButtonEvents();
+        console.log('🎯 Objection Handler initialized (modal mode)');
+    },
+
+    attachButtonEvents: function() {
+        // Use mutation observer to watch for the button being added
+        const observer = new MutationObserver(() => {
+            const toggleBtn = document.getElementById('objectionToggleBtn');
+            if (toggleBtn && !toggleBtn._handlerAttached) {
+                this._attachButtonHandler(toggleBtn);
+            }
+        });
+        
+        observer.observe(document.body, { childList: true, subtree: true });
+        
+        // Also check immediately
+        const toggleBtn = document.getElementById('objectionToggleBtn');
+        if (toggleBtn && !toggleBtn._handlerAttached) {
+            this._attachButtonHandler(toggleBtn);
+        }
+        
+        // Store observer for cleanup if needed
+        this._observer = observer;
     },
     
-    createIntegratedUI: function() {
-        const container = document.getElementById('objectionHandlerContainer');
-        if (!container) return;
+    _attachButtonHandler: function(button) {
+        button._handlerAttached = true;
+        const newBtn = button.cloneNode(true);
+        button.parentNode.replaceChild(newBtn, button);
+        newBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            this.openModal();
+        });
+        console.log('🎯 Objection button attached');
+    },
+    
+    openModal: function() {
+        // Remove existing modal if any
+        const existing = document.getElementById('objectionModalOverlay');
+        if (existing) {
+            existing.remove();
+        }
         
-        container.innerHTML = `
-            <div class="objection-integrated">
-                <div class="objection-integrated-header" id="objectionIntegratedToggle">
-                    <div class="objection-integrated-title">
-                        <span class="objection-icon">🛡️</span>
-                        <span class="objection-title">Objection Handling Scripts</span>
-                        <span class="objection-badge">${this.getTotalObjectionCount()} scripts</span>
+        // Create modal overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'objectionModalOverlay';
+        overlay.className = 'objection-modal-overlay';
+        
+        overlay.innerHTML = this.buildModalHTML();
+        document.body.appendChild(overlay);
+        
+        // Trigger animation
+        setTimeout(() => {
+            overlay.classList.add('active');
+        }, 10);
+        
+        // Attach events
+        this.attachModalEvents(overlay);
+        
+        // Focus search input
+        const searchInput = overlay.querySelector('#objectionSearchInput');
+        if (searchInput) {
+            setTimeout(() => searchInput.focus(), 200);
+        }
+        
+        this._modalInstance = overlay;
+        this.isOpen = true;
+    },
+    
+    closeModal: function() {
+        const overlay = document.getElementById('objectionModalOverlay');
+        if (overlay) {
+            overlay.classList.remove('active');
+            setTimeout(() => {
+                if (overlay.parentNode) overlay.remove();
+            }, 350);
+        }
+        this._modalInstance = null;
+        this.isOpen = false;
+    },
+    
+    buildModalHTML: function() {
+        const categoriesHtml = Object.entries(this.categories).map(([key, cat]) => `
+            <button class="objection-category-tab ${key === this.currentCategory ? 'active' : ''}" data-category="${key}" style="border-color:${cat.color};">
+                <span class="cat-icon">${cat.icon}</span>
+                <span>${cat.label}</span>
+                <span class="cat-count">${cat.objections.length}</span>
+            </button>
+        `).join('');
+        
+        const cardsHtml = this.renderModalCards(this.currentCategory);
+        
+        return `
+            <div class="objection-modal-content">
+                <div class="objection-modal-header">
+                    <div class="objection-modal-title">
+                        <h2>🛡️ Objection Handling</h2>
+                        <span class="badge">${this.getTotalObjectionCount()} scripts</span>
                     </div>
-                    <div class="objection-integrated-controls">
-                        <button class="objection-minimize-btn" id="objectionMinimizeBtn" title="Minimize">
-                            <i class="fas fa-chevron-up"></i>
-                        </button>
+                    <button class="objection-modal-close" id="objectionModalClose" aria-label="Close modal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="objection-modal-search">
+                    <div class="objection-search-wrapper">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="objectionSearchInput" placeholder="Search objections..." autocomplete="off" />
+                        <span class="objection-search-count" id="objectionSearchCount"></span>
                     </div>
                 </div>
-                <div class="objection-integrated-body" id="objectionIntegratedBody">
-                    <div class="objection-category-nav" id="objectionCategoryNav">
-                        ${Object.entries(this.categories).map(([key, cat]) => `
-                            <button class="objection-category-btn ${key === this.currentCategory ? 'active' : ''}" data-category="${key}" style="border-color:${cat.color};">
-                                <span class="category-icon">${cat.icon}</span>
-                                <span class="category-label">${cat.label}</span>
-                                <span class="category-count">${cat.objections.length}</span>
-                            </button>
-                        `).join('')}
+                
+                <div class="objection-modal-body">
+                    <div class="objection-modal-categories" id="objectionModalCategories">
+                        ${categoriesHtml}
                     </div>
-                    <div class="objection-cards-container" id="objectionCardsContainer">
-                        ${this.renderCards(this.currentCategory)}
+                    <div class="objection-cards-container" id="objectionModalCards">
+                        ${cardsHtml}
                     </div>
-                    <div class="objection-footer">
-                        <div class="objection-footer-tip">
-                            <i class="fas fa-lightbulb"></i>
-                            <span>Your single best tool is the offer itself. The website is already built, it's free, and there's no obligation.</span>
-                        </div>
-                        <div class="objection-footer-actions">
-                            <button class="objection-expand-all-btn" id="objectionExpandAll">
-                                <i class="fas fa-expand"></i> Expand All
-                            </button>
-                            <button class="objection-collapse-all-btn" id="objectionCollapseAll">
-                                <i class="fas fa-compress"></i> Collapse All
-                            </button>
-                        </div>
+                </div>
+                
+                <div class="objection-modal-footer">
+                    <div class="objection-modal-footer-tip">
+                        <i class="fas fa-lightbulb"></i>
+                        <span>Your single best tool is the offer itself. The website is already built, it's free, and there's no obligation.</span>
+                    </div>
+                    <div class="objection-modal-footer-actions">
+                        <button class="objection-expand-all-btn-modal" id="objectionModalExpandAll">
+                            <i class="fas fa-expand"></i> Expand All
+                        </button>
+                        <button class="objection-collapse-all-btn-modal" id="objectionModalCollapseAll">
+                            <i class="fas fa-compress"></i> Collapse All
+                        </button>
                     </div>
                 </div>
             </div>
         `;
     },
     
-    renderCards: function(categoryKey) {
+    renderModalCards: function(categoryKey) {
         const category = this.categories[categoryKey];
-        if (!category) return '<div class="objection-empty">No objections in this category.</div>';
+        if (!category) return '<div class="objection-empty-modal"><i class="fas fa-shield-alt"></i><p>No objections in this category.</p></div>';
         
-        return category.objections.map(obj => `
-            <div class="objection-card ${this.expandedCards.has(obj.id) ? 'expanded' : ''}" data-id="${obj.id}">
-                <div class="objection-card-header" data-id="${obj.id}">
-                    <span class="objection-card-icon">💬</span>
-                    <span class="objection-card-objection">${obj.objection}</span>
-                    <span class="objection-card-toggle">
-                        <i class="fas ${this.expandedCards.has(obj.id) ? 'fa-chevron-up' : 'fa-chevron-down'}"></i>
+        return category.objections.map(obj => {
+            const isExpanded = this.expandedCards.has(obj.id);
+            return `
+            <div class="objection-card-modal ${isExpanded ? 'expanded' : ''}" data-id="${obj.id}">
+                <div class="objection-card-modal-header" data-id="${obj.id}">
+                    <span class="objection-card-modal-icon">💬</span>
+                    <span class="objection-card-modal-objection">${obj.objection}</span>
+                    <span class="objection-card-modal-toggle">
+                        <i class="fas ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}"></i>
                     </span>
                 </div>
-                <div class="objection-card-body" style="${this.expandedCards.has(obj.id) ? 'display:block;' : 'display:none;'}">
-                    <div class="objection-response">
-                        <div class="objection-response-label">🎯 Recommended Response</div>
-                        <div class="objection-response-text">${obj.response}</div>
+                <div class="objection-card-modal-body" style="${isExpanded ? 'display:block;' : 'display:none;'}">
+                    <div class="objection-response-modal">
+                        <div class="objection-response-label-modal">🎯 Recommended Response</div>
+                        <div class="objection-response-text-modal">${obj.response}</div>
                     </div>
-                    <div class="objection-tip">
-                        <div class="objection-tip-label">💡 Pro Tip</div>
-                        <div class="objection-tip-text">${obj.tip}</div>
+                    <div class="objection-tip-modal">
+                        <div class="objection-tip-label-modal">💡 Pro Tip</div>
+                        <div class="objection-tip-text-modal">${obj.tip}</div>
                     </div>
-                    <div class="objection-card-actions">
-                        <button class="objection-copy-btn" data-response="${obj.response.replace(/"/g, '&quot;')}">
+                    <div class="objection-card-actions-modal">
+                        <button class="objection-copy-btn-modal" data-response="${obj.response.replace(/"/g, '&quot;')}">
                             <i class="fas fa-copy"></i> Copy Response
                         </button>
-                        <button class="objection-practice-btn" data-objection="${obj.objection.replace(/"/g, '&quot;')}" data-response="${obj.response.replace(/"/g, '&quot;')}">
+                        <button class="objection-practice-btn-modal" data-objection="${obj.objection.replace(/"/g, '&quot;')}" data-response="${obj.response.replace(/"/g, '&quot;')}">
                             <i class="fas fa-microphone"></i> Practice
                         </button>
                     </div>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
     },
     
     getTotalObjectionCount: function() {
@@ -248,55 +336,197 @@ const ObjectionHandler = {
         return count;
     },
     
-    toggleBanner: function() {
-        this.isOpen = !this.isOpen;
-        const body = document.getElementById('objectionIntegratedBody');
-        const container = document.getElementById('objectionHandlerContainer');
-        const toggleBtn = document.getElementById('objectionToggleBtn');
-        const minimizeBtn = document.getElementById('objectionMinimizeBtn');
+    attachModalEvents: function(overlay) {
+        const closeBtn = overlay.querySelector('#objectionModalClose');
+        const expandAll = overlay.querySelector('#objectionModalExpandAll');
+        const collapseAll = overlay.querySelector('#objectionModalCollapseAll');
+        const searchInput = overlay.querySelector('#objectionSearchInput');
+        const searchCount = overlay.querySelector('#objectionSearchCount');
+        const categoriesContainer = overlay.querySelector('#objectionModalCategories');
+        const cardsContainer = overlay.querySelector('#objectionModalCards');
         
-        if (container) {
-            container.style.display = this.isOpen ? 'block' : 'none';
-        }
+        // Close modal
+        const closeModal = () => {
+            this.closeModal();
+        };
         
-        if (body) {
-            body.style.display = this.isOpen ? 'block' : 'none';
-        }
+        if (closeBtn) closeBtn.addEventListener('click', closeModal);
         
-        if (toggleBtn) {
-            toggleBtn.style.background = this.isOpen ? 'var(--success)' : 'var(--secondary)';
-            toggleBtn.innerHTML = this.isOpen ? '<i class="fas fa-shield-alt"></i> Hide' : '<i class="fas fa-shield-alt"></i> Objections';
-        }
-        
-        if (minimizeBtn) {
-            minimizeBtn.innerHTML = this.isOpen ? '<i class="fas fa-chevron-up"></i>' : '<i class="fas fa-chevron-down"></i>';
-        }
-    },
-    
-    toggleMinimize: function() {
-        const body = document.getElementById('objectionIntegratedBody');
-        const minimizeBtn = document.getElementById('objectionMinimizeBtn');
-        
-        if (body) {
-            const isMinimized = body.style.display === 'none';
-            body.style.display = isMinimized ? 'block' : 'none';
-            if (minimizeBtn) {
-                minimizeBtn.innerHTML = isMinimized ? '<i class="fas fa-chevron-up"></i>' : '<i class="fas fa-chevron-down"></i>';
-            }
-        }
-    },
-    
-    switchCategory: function(categoryKey) {
-        this.currentCategory = categoryKey;
-        
-        document.querySelectorAll('.objection-category-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.category === categoryKey);
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closeModal();
         });
         
-        const container = document.getElementById('objectionCardsContainer');
-        if (container) {
-            container.innerHTML = this.renderCards(categoryKey);
-            this.attachCardEvents();
+        // Escape key
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                document.removeEventListener('keydown', escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+        
+        // Category tabs - using event delegation
+        if (categoriesContainer) {
+            categoriesContainer.addEventListener('click', (e) => {
+                const tab = e.target.closest('.objection-category-tab');
+                if (!tab) return;
+                
+                const category = tab.dataset.category;
+                if (!category) return;
+                
+                this.currentCategory = category;
+                
+                // Update active tab
+                categoriesContainer.querySelectorAll('.objection-category-tab').forEach(t => {
+                    t.classList.remove('active');
+                });
+                tab.classList.add('active');
+                
+                // Update cards
+                if (cardsContainer) {
+                    cardsContainer.innerHTML = this.renderModalCards(category);
+                    this.attachCardEvents(overlay);
+                    this.updateSearchCount(overlay);
+                }
+            });
+        }
+        
+        // Expand/Collapse all
+        if (expandAll) {
+            expandAll.addEventListener('click', () => {
+                const cards = overlay.querySelectorAll('.objection-card-modal');
+                cards.forEach(card => {
+                    const id = card.dataset.id;
+                    if (id) {
+                        this.expandedCards.add(id);
+                        card.classList.add('expanded');
+                        const body = card.querySelector('.objection-card-modal-body');
+                        const toggle = card.querySelector('.objection-card-modal-toggle i');
+                        if (body) body.style.display = 'block';
+                        if (toggle) toggle.className = 'fas fa-chevron-up';
+                    }
+                });
+            });
+        }
+        
+        if (collapseAll) {
+            collapseAll.addEventListener('click', () => {
+                const cards = overlay.querySelectorAll('.objection-card-modal');
+                cards.forEach(card => {
+                    const id = card.dataset.id;
+                    if (id) {
+                        this.expandedCards.delete(id);
+                        card.classList.remove('expanded');
+                        const body = card.querySelector('.objection-card-modal-body');
+                        const toggle = card.querySelector('.objection-card-modal-toggle i');
+                        if (body) body.style.display = 'none';
+                        if (toggle) toggle.className = 'fas fa-chevron-down';
+                    }
+                });
+            });
+        }
+        
+        // Search
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase().trim();
+                const cards = overlay.querySelectorAll('.objection-card-modal');
+                let visibleCount = 0;
+                
+                cards.forEach(card => {
+                    const objectionText = card.querySelector('.objection-card-modal-objection')?.textContent?.toLowerCase() || '';
+                    const responseText = card.querySelector('.objection-response-text-modal')?.textContent?.toLowerCase() || '';
+                    const tipText = card.querySelector('.objection-tip-text-modal')?.textContent?.toLowerCase() || '';
+                    
+                    const matches = !query || 
+                        objectionText.includes(query) || 
+                        responseText.includes(query) || 
+                        tipText.includes(query);
+                    
+                    card.style.display = matches ? '' : 'none';
+                    if (matches) visibleCount++;
+                });
+                
+                if (searchCount) {
+                    searchCount.textContent = `${visibleCount} results`;
+                }
+            });
+            
+            // Clear search on Escape in search input
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    searchInput.value = '';
+                    searchInput.dispatchEvent(new Event('input'));
+                    searchInput.blur();
+                }
+            });
+        }
+        
+        // Initial search count
+        this.updateSearchCount(overlay);
+        
+        // Attach card events
+        this.attachCardEvents(overlay);
+    },
+    
+    attachCardEvents: function(overlay) {
+        // Card header toggle - using event delegation
+        const cardsContainer = overlay.querySelector('#objectionModalCards');
+        if (!cardsContainer) return;
+        
+        cardsContainer.addEventListener('click', (e) => {
+            // Check if click is on a copy or practice button
+            if (e.target.closest('.objection-copy-btn-modal') || e.target.closest('.objection-practice-btn-modal')) {
+                return;
+            }
+            
+            const header = e.target.closest('.objection-card-modal-header');
+            if (!header) return;
+            
+            const id = header.dataset.id;
+            if (!id) return;
+            
+            // Toggle card
+            this.toggleCard(id);
+            
+            // Update the card in the modal
+            const card = cardsContainer.querySelector(`.objection-card-modal[data-id="${id}"]`);
+            if (card) {
+                const isExpanded = this.expandedCards.has(id);
+                card.classList.toggle('expanded', isExpanded);
+                const body = card.querySelector('.objection-card-modal-body');
+                const toggle = card.querySelector('.objection-card-modal-toggle i');
+                if (body) body.style.display = isExpanded ? 'block' : 'none';
+                if (toggle) toggle.className = `fas fa-chevron-${isExpanded ? 'up' : 'down'}`;
+            }
+        });
+        
+        // Copy buttons
+        cardsContainer.querySelectorAll('.objection-copy-btn-modal').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const response = btn.dataset.response;
+                this.copyResponse(response);
+            });
+        });
+        
+        // Practice buttons
+        cardsContainer.querySelectorAll('.objection-practice-btn-modal').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const objection = btn.dataset.objection;
+                const response = btn.dataset.response;
+                this.practiceMode(objection, response);
+            });
+        });
+    },
+    
+    updateSearchCount: function(overlay) {
+        const searchCount = overlay.querySelector('#objectionSearchCount');
+        const cards = overlay.querySelectorAll('.objection-card-modal');
+        const visible = Array.from(cards).filter(c => c.style.display !== 'none').length;
+        if (searchCount) {
+            searchCount.textContent = `${visible} results`;
         }
     },
     
@@ -306,64 +536,35 @@ const ObjectionHandler = {
         } else {
             this.expandedCards.add(id);
         }
-        
-        const card = document.querySelector(`.objection-card[data-id="${id}"]`);
-        if (card) {
-            card.classList.toggle('expanded');
-            const body = card.querySelector('.objection-card-body');
-            const toggle = card.querySelector('.objection-card-toggle i');
-            if (body) {
-                body.style.display = this.expandedCards.has(id) ? 'block' : 'none';
-            }
-            if (toggle) {
-                toggle.className = `fas fa-chevron-${this.expandedCards.has(id) ? 'up' : 'down'}`;
-            }
-        }
-    },
-    
-    expandAll: function() {
-        const cards = document.querySelectorAll('.objection-card');
-        cards.forEach(card => {
-            const id = card.dataset.id;
-            if (id) {
-                this.expandedCards.add(id);
-                card.classList.add('expanded');
-                const body = card.querySelector('.objection-card-body');
-                const toggle = card.querySelector('.objection-card-toggle i');
-                if (body) body.style.display = 'block';
-                if (toggle) toggle.className = 'fas fa-chevron-up';
-            }
-        });
-    },
-    
-    collapseAll: function() {
-        const cards = document.querySelectorAll('.objection-card');
-        cards.forEach(card => {
-            const id = card.dataset.id;
-            if (id) {
-                this.expandedCards.delete(id);
-                card.classList.remove('expanded');
-                const body = card.querySelector('.objection-card-body');
-                const toggle = card.querySelector('.objection-card-toggle i');
-                if (body) body.style.display = 'none';
-                if (toggle) toggle.className = 'fas fa-chevron-down';
-            }
-        });
     },
     
     copyResponse: function(response) {
         const text = response.replace(/&quot;/g, '"');
-        navigator.clipboard.writeText(text).then(() => {
-            showToast('Response copied to clipboard! 📋', 'success');
-        }).catch(() => {
-            const ta = document.createElement('textarea');
-            ta.value = text;
-            document.body.appendChild(ta);
-            ta.select();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Response copied to clipboard! 📋', 'success');
+            }).catch(() => {
+                this._fallbackCopy(text);
+            });
+        } else {
+            this._fallbackCopy(text);
+        }
+    },
+    
+    _fallbackCopy: function(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
             document.execCommand('copy');
-            document.body.removeChild(ta);
             showToast('Response copied to clipboard! 📋', 'success');
-        });
+        } catch (e) {
+            showToast('Could not copy. Please select and copy manually.', 'warning');
+        }
+        document.body.removeChild(ta);
     },
     
     practiceMode: function(objection, response) {
@@ -447,78 +648,23 @@ const ObjectionHandler = {
                 this.copyResponse(response);
             });
         }
-    },
-    
-    attachEvents: function() {
-        const toggleBtn = document.getElementById('objectionToggleBtn');
-        if (toggleBtn) {
-            const newToggleBtn = toggleBtn.cloneNode(true);
-            toggleBtn.parentNode.replaceChild(newToggleBtn, toggleBtn);
-            newToggleBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.toggleBanner();
-            });
-        }
-        
-        const minimizeBtn = document.getElementById('objectionMinimizeBtn');
-        if (minimizeBtn) {
-            minimizeBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.toggleMinimize();
-            });
-        }
-        
-        document.querySelectorAll('.objection-category-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.switchCategory(btn.dataset.category);
-            });
-        });
-        
-        const expandAll = document.getElementById('objectionExpandAll');
-        const collapseAll = document.getElementById('objectionCollapseAll');
-        if (expandAll) expandAll.addEventListener('click', () => this.expandAll());
-        if (collapseAll) collapseAll.addEventListener('click', () => this.collapseAll());
-        
-        this.attachCardEvents();
-        
-        const container = document.getElementById('objectionHandlerContainer');
-        if (container) container.style.display = 'none';
-    },
-    
-    attachCardEvents: function() {
-        document.querySelectorAll('.objection-card-header').forEach(header => {
-            header.addEventListener('click', () => {
-                const id = header.dataset.id;
-                if (id) this.toggleCard(id);
-            });
-        });
-        
-        document.querySelectorAll('.objection-copy-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const response = btn.dataset.response;
-                this.copyResponse(response);
-            });
-        });
-        
-        document.querySelectorAll('.objection-practice-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const objection = btn.dataset.objection;
-                const response = btn.dataset.response;
-                this.practiceMode(objection, response);
-            });
-        });
     }
 };
+
+// Make sure showToast is available
+if (typeof showToast === 'undefined') {
+    window.showToast = function(message, type = 'success') {
+        console.log(`[Toast] ${type}: ${message}`);
+    };
+}
 
 window.ObjectionHandler = ObjectionHandler;
 
 // Auto-initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    if (document.getElementById('objectionHandlerContainer')) {
-        setTimeout(function() {
-            ObjectionHandler.init();
-        }, 500);
-    }
+    setTimeout(function() {
+        ObjectionHandler.init();
+    }, 300);
 });
+
+console.log('📦 Objection Handler module loaded');
