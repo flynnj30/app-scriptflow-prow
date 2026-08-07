@@ -1025,7 +1025,7 @@ const Auth = {
 };
 
 // ================================================================
-// DATA LAYER - WITH OFFLINE SUPPORT
+// DATA LAYER - WITH OFFLINE SUPPORT - UPDATED
 // ================================================================
 
 const Data = {
@@ -1088,6 +1088,9 @@ const Data = {
         try {
             const statusEl = DOM.get('saveStatus');
             if (statusEl && showLoading) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+
+            // Ensure Firestore is ready with a small delay for cache initialization
+            await new Promise(resolve => setTimeout(resolve, 100));
 
             const userRef = db.collection('users').doc(AppState.currentUser.uid);
             const userDoc = await userRef.get();
@@ -1184,56 +1187,84 @@ const Data = {
         if (AppState.teamMembersUnsubscribe) AppState.teamMembersUnsubscribe();
 
         const db = this._getDb();
-        if (!db) return;
+        if (!db) {
+            console.warn('⚠️ Firestore not available, skipping subscriptions');
+            return;
+        }
 
         try {
             const userRef = db.collection('users').doc(AppState.currentUser.uid);
 
-            AppState.appointmentsUnsubscribe = userRef.collection('appointments').orderBy('createdAt', 'desc').onSnapshot(snap => {
-                AppState.appointments = {};
-                snap.forEach(doc => {
-                    const appt = doc.data();
-                    if (!AppState.appointments[appt.date]) {
-                        AppState.appointments[appt.date] = { count: 0, note: '', reports: [] };
-                    }
-                    AppState.appointments[appt.date].reports.push({ ...appt, id: doc.id });
-                    AppState.appointments[appt.date].count = AppState.appointments[appt.date].reports.length;
-                });
-                Stats.updateAll();
-                FeaturePanel.refreshCurrentView();
-                localStorage.setItem('appointments_fallback', JSON.stringify(AppState.appointments));
-            }, error => {
-                console.warn('Appointments subscription error:', error);
-            });
+            // Use a small delay to ensure Firestore is fully initialized
+            const setupSubscriptions = () => {
+                try {
+                    AppState.appointmentsUnsubscribe = userRef.collection('appointments')
+                        .orderBy('createdAt', 'desc')
+                        .onSnapshot(snap => {
+                            AppState.appointments = {};
+                            snap.forEach(doc => {
+                                const appt = doc.data();
+                                if (!AppState.appointments[appt.date]) {
+                                    AppState.appointments[appt.date] = { count: 0, note: '', reports: [] };
+                                }
+                                AppState.appointments[appt.date].reports.push({ ...appt, id: doc.id });
+                                AppState.appointments[appt.date].count = AppState.appointments[appt.date].reports.length;
+                            });
+                            Stats.updateAll();
+                            FeaturePanel.refreshCurrentView();
+                            localStorage.setItem('appointments_fallback', JSON.stringify(AppState.appointments));
+                        }, error => {
+                            console.warn('Appointments subscription error:', error);
+                        });
 
-            AppState.tasksUnsubscribe = userRef.collection('tasks').orderBy('createdAt', 'desc').onSnapshot(snap => {
-                AppState.tasks = [];
-                snap.forEach(doc => AppState.tasks.push({ ...doc.data(), id: doc.id }));
-                Stats.updateTaskStats();
-                FeaturePanel.refreshCurrentView();
-                localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
-            }, error => {
-                console.warn('Tasks subscription error:', error);
-            });
+                    AppState.tasksUnsubscribe = userRef.collection('tasks')
+                        .orderBy('createdAt', 'desc')
+                        .onSnapshot(snap => {
+                            AppState.tasks = [];
+                            snap.forEach(doc => AppState.tasks.push({ ...doc.data(), id: doc.id }));
+                            Stats.updateTaskStats();
+                            FeaturePanel.refreshCurrentView();
+                            localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
+                        }, error => {
+                            console.warn('Tasks subscription error:', error);
+                        });
 
-            AppState.teamMembersUnsubscribe = userRef.collection('teamMembers').onSnapshot(snap => {
-                if (snap.empty) {
-                    AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
-                    AppState.teamMembers.forEach(member => {
-                        userRef.collection('teamMembers').doc(member.id).set(member);
-                    });
-                } else {
-                    AppState.teamMembers = [];
-                    snap.forEach(doc => {
-                        AppState.teamMembers.push({ ...doc.data(), id: doc.id });
-                    });
+                    AppState.teamMembersUnsubscribe = userRef.collection('teamMembers')
+                        .onSnapshot(snap => {
+                            if (snap.empty) {
+                                AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
+                                AppState.teamMembers.forEach(member => {
+                                    userRef.collection('teamMembers').doc(member.id).set(member);
+                                });
+                            } else {
+                                AppState.teamMembers = [];
+                                snap.forEach(doc => {
+                                    AppState.teamMembers.push({ ...doc.data(), id: doc.id });
+                                });
+                            }
+                            localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
+                        }, error => {
+                            console.warn('Team members subscription error:', error);
+                        });
+                        
+                    console.log('✅ Firestore subscriptions active');
+                } catch (setupError) {
+                    console.warn('Error setting up subscriptions:', setupError);
+                    // Retry once after a delay
+                    setTimeout(() => {
+                        if (AppState.currentUser && AppState.isFirebaseReady) {
+                            console.log('🔄 Retrying subscription setup...');
+                            this.subscribeToChanges();
+                        }
+                    }, 2000);
                 }
-                localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
-            }, error => {
-                console.warn('Team members subscription error:', error);
-            });
+            };
+
+            // Small delay to ensure Firestore is ready
+            setTimeout(setupSubscriptions, 100);
+            
         } catch (error) {
-            console.warn('Subscription error:', error);
+            console.warn('Subscription setup error:', error);
             const appointmentsLocal = localStorage.getItem('appointments_fallback');
             const tasksLocal = localStorage.getItem('tasks_fallback');
             const teamLocal = localStorage.getItem('teamMembers_fallback');

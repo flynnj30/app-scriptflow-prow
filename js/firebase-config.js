@@ -57,9 +57,9 @@ const FirebaseManager = {
                 this.isInitializing = false;
                 this._isReady = true;
                 console.log('✅ Using existing Firebase app');
+                // Apply settings to existing app
+                this.applyFirestoreSettings();
                 if (this.readyResolve) this.readyResolve(this.firebaseApp);
-                // Enable persistence
-                this.enablePersistence();
                 return this.readyPromise;
             }
 
@@ -70,8 +70,8 @@ const FirebaseManager = {
             this._isReady = true;
             console.log('✅ Firebase initialized successfully');
 
-            // Enable offline persistence
-            this.enablePersistence();
+            // Apply Firestore settings with cache
+            this.applyFirestoreSettings();
 
             // Resolve the ready promise
             if (this.readyResolve) this.readyResolve(this.firebaseApp);
@@ -95,26 +95,41 @@ const FirebaseManager = {
         }
     },
 
-    enablePersistence: function() {
+    applyFirestoreSettings: function() {
         if (!this.firebaseApp) return;
 
         try {
-            const db = this.getFirestore();
-            if (db) {
-                db.enablePersistence({ synchronizeTabs: true })
-                    .then(() => console.log('✅ Firebase persistence enabled'))
-                    .catch(err => {
-                        if (err.code === 'failed-precondition') {
-                            console.warn('⚠️ Firebase persistence: multiple tabs open, persistence disabled');
-                        } else if (err.code === 'unimplemented') {
-                            console.warn('⚠️ Firebase persistence not supported in this browser');
-                        } else {
-                            console.warn('⚠️ Firebase persistence error:', err.message);
+            const db = this.firebaseApp.firestore();
+            
+            // Apply settings with the new cache approach
+            // This replaces the deprecated enablePersistence() method
+            db.settings({
+                cacheSettings: {
+                    localCache: {
+                        kind: 'persistent',
+                        tabManager: {
+                            kind: 'synchronize',
+                            cacheSize: 104857600 // 100 MB cache size
                         }
-                    });
+                    }
+                }
+            });
+            
+            console.log('✅ Firestore cache settings applied (persistent, synchronize tabs)');
+            
+            // Store the instance
+            this.firestoreInstance = db;
+        } catch (err) {
+            console.warn('⚠️ Firestore settings failed:', err.message);
+            
+            // Fallback: try without cache settings
+            try {
+                const db = this.firebaseApp.firestore();
+                this.firestoreInstance = db;
+                console.log('⚠️ Firestore using default settings (no cache)');
+            } catch (e) {
+                console.warn('⚠️ Firestore fallback failed:', e.message);
             }
-        } catch (persistErr) {
-            console.warn('⚠️ Firebase persistence setup failed:', persistErr.message);
         }
     },
 
@@ -127,6 +142,22 @@ const FirebaseManager = {
         try {
             if (!this.firestoreInstance) {
                 this.firestoreInstance = this.firebaseApp.firestore();
+                // Apply settings if not already applied
+                try {
+                    this.firestoreInstance.settings({
+                        cacheSettings: {
+                            localCache: {
+                                kind: 'persistent',
+                                tabManager: {
+                                    kind: 'synchronize',
+                                    cacheSize: 104857600
+                                }
+                            }
+                        }
+                    });
+                } catch (e) {
+                    // Settings already applied or not needed
+                }
             }
             return this.firestoreInstance;
         } catch (e) {
