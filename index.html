@@ -102,29 +102,31 @@
 
         <!-- Main Content -->
         <div class="main-content" id="mainContent">
-            <!-- Top Bar -->
-            <div class="top-bar">
-                <div class="stats-row">
-                    <div class="stat"><span class="stat-label"><i class="fas fa-calendar-day"></i> Today</span><span class="stat-number" id="statToday">0</span><span class="stat-label">/<span id="goalDaily">3</span></span></div>
-                    <div class="stat"><span class="stat-label"><i class="fas fa-calendar-week"></i> Week</span><span class="stat-number" id="statWeek">0</span><span class="stat-label">/<span id="goalWeekly">15</span></span></div>
-                    <div class="stat"><span class="stat-label"><i class="fas fa-calendar-alt"></i> Month</span><span class="stat-number" id="statMonth">0</span><span class="stat-label">/<span id="goalMonthly">60</span></span></div>
-                    <div class="stat"><span class="stat-label"><i class="fas fa-star"></i> Avg Score</span><span class="stat-number" id="avgScore">0</span></div>
-                    <div class="stat"><span class="stat-label"><i class="fas fa-tasks"></i> Tasks</span><span class="stat-number" id="pendingTasks">0</span></div>
-                </div>
-                <div class="action-buttons" id="actionButtons">
-                    <button class="btn-icon" id="quickReportBtn"><i class="fas fa-magic"></i> Smart Import</button>
-                    <button class="btn-icon" id="bulkActionsBtn"><i class="fas fa-check-double"></i> Bulk Actions</button>
-                    <label class="btn-icon csv-upload-btn"><i class="fas fa-file-upload"></i> CSV<input type="file" id="csvFileInput" accept=".csv" /></label>
-                    <button class="btn-icon" id="historyBtn"><i class="fas fa-history"></i> History</button>
-                    <button class="btn-icon" id="searchGlobalBtn"><i class="fas fa-search"></i> Search</button>
-                    <button class="btn-icon" id="refreshBtn" style="padding:8px 12px;"><i class="fas fa-sync-alt"></i></button>
-                    <span class="badge-auto" id="saveStatus"><i class="fas fa-save"></i> Auto</span>
+            <!-- HERO / STICKY NAVIGATION -->
+            <div class="hero-sticky-wrapper" id="heroWrapper">
+                <!-- Top Bar -->
+                <div class="top-bar">
+                    <div class="stats-row">
+                        <div class="stat"><span class="stat-label"><i class="fas fa-calendar-day"></i> Today</span><span class="stat-number" id="statToday">0</span><span class="stat-label">/<span id="goalDaily">3</span></span></div>
+                        <div class="stat"><span class="stat-label"><i class="fas fa-calendar-week"></i> Week</span><span class="stat-number" id="statWeek">0</span><span class="stat-label">/<span id="goalWeekly">15</span></span></div>
+                        <div class="stat"><span class="stat-label"><i class="fas fa-calendar-alt"></i> Month</span><span class="stat-number" id="statMonth">0</span><span class="stat-label">/<span id="goalMonthly">60</span></span></div>
+                        <div class="stat"><span class="stat-label"><i class="fas fa-star"></i> Avg Score</span><span class="stat-number" id="avgScore">0</span></div>
+                        <div class="stat"><span class="stat-label"><i class="fas fa-tasks"></i> Tasks</span><span class="stat-number" id="pendingTasks">0</span></div>
+                    </div>
+                    <div class="action-buttons" id="actionButtons">
+                        <button class="btn-icon" id="quickReportBtn"><i class="fas fa-magic"></i> Smart Import</button>
+                        <button class="btn-icon" id="bulkActionsBtn"><i class="fas fa-check-double"></i> Bulk Actions</button>
+                        <label class="btn-icon csv-upload-btn"><i class="fas fa-file-upload"></i> CSV<input type="file" id="csvFileInput" accept=".csv" /></label>
+                        <button class="btn-icon" id="historyBtn"><i class="fas fa-history"></i> History</button>
+                        <button class="btn-icon" id="searchGlobalBtn"><i class="fas fa-search"></i> Search</button>
+                        <button class="btn-icon" id="refreshBtn" style="padding:8px 12px;"><i class="fas fa-sync-alt"></i></button>
+                        <span class="badge-auto" id="saveStatus"><i class="fas fa-save"></i> Auto</span>
+                    </div>
                 </div>
             </div>
 
-            <!-- Right Panel -->
-            <div id="rightPanel">
-                <!-- Script Panel -->
+            <!-- SCRIPT PANEL - PINNED BELOW HERO -->
+            <div class="script-panel-wrapper" id="scriptPanelWrapper">
                 <div id="scriptPanel" class="script-card">
                     <div class="script-header-bar">
                         <div class="script-title-area">
@@ -139,23 +141,19 @@
                         </div>
                     </div>
                     <div class="script-body" id="scriptBody">
-                        <!-- Objection Handler Integrated -->
-                        <div id="objectionHandlerContainer" style="display:none; margin-bottom:16px;">
-                            <div id="objectionHandlerContent"></div>
-                        </div>
                         <div id="scriptContent"></div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Feature Panel -->
-                <div id="featurePanel" class="feature-panel" style="display:none;">
-                    <div class="feature-panel-header">
-                        <h2 id="featurePanelTitle">Feature</h2>
-                        <div id="viewToggleContainer"></div>
-                        <button id="closeFeaturePanelBtn" class="btn-icon"><i class="fas fa-times"></i> Close</button>
-                    </div>
-                    <div class="feature-panel-body" id="featurePanelBody"></div>
+            <!-- Feature Panel -->
+            <div id="featurePanel" class="feature-panel" style="display:none;">
+                <div class="feature-panel-header">
+                    <h2 id="featurePanelTitle">Feature</h2>
+                    <div id="viewToggleContainer"></div>
+                    <button id="closeFeaturePanelBtn" class="btn-icon"><i class="fas fa-times"></i> Close</button>
                 </div>
+                <div class="feature-panel-body" id="featurePanelBody"></div>
             </div>
 
             <div class="footer-note"><i class="fas fa-chart-line"></i> Full-featured CRM · Drag appointments to reschedule · Lead scoring · Follow-up tasks · Bulk actions</div>

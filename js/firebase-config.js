@@ -24,6 +24,7 @@ const FirebaseManager = {
     readyResolve: null,
     readyReject: null,
     _isReady: false,
+    _settingsApplied: false,
 
     init: function() {
         if (this.initialized && this.firebaseApp) {
@@ -96,26 +97,41 @@ const FirebaseManager = {
     },
 
     applyFirestoreSettings: function() {
-        if (!this.firebaseApp) return;
+        if (!this.firebaseApp || this._settingsApplied) return;
 
         try {
+            // Get Firestore instance
             const db = this.firebaseApp.firestore();
             
             // Apply settings with the new cache approach
             // This replaces the deprecated enablePersistence() method
-            db.settings({
-                cacheSettings: {
-                    localCache: {
-                        kind: 'persistent',
-                        tabManager: {
-                            kind: 'synchronize',
-                            cacheSize: 104857600 // 100 MB cache size
+            // Using a more conservative settings approach to avoid message channel issues
+            try {
+                db.settings({
+                    cacheSettings: {
+                        localCache: {
+                            kind: 'persistent',
+                            tabManager: {
+                                kind: 'synchronize',
+                                cacheSize: 104857600 // 100 MB cache size
+                            }
                         }
                     }
+                });
+                console.log('✅ Firestore cache settings applied (persistent, synchronize tabs)');
+                this._settingsApplied = true;
+            } catch (settingsError) {
+                // Some browsers/contexts may not support cache settings
+                console.warn('⚠️ Firestore cache settings not supported, using default:', settingsError.message);
+                // Try without cache settings
+                try {
+                    db.settings({});
+                    console.log('✅ Firestore default settings applied');
+                    this._settingsApplied = true;
+                } catch (fallbackError) {
+                    console.warn('⚠️ Firestore settings fallback failed:', fallbackError.message);
                 }
-            });
-            
-            console.log('✅ Firestore cache settings applied (persistent, synchronize tabs)');
+            }
             
             // Store the instance
             this.firestoreInstance = db;
@@ -143,20 +159,8 @@ const FirebaseManager = {
             if (!this.firestoreInstance) {
                 this.firestoreInstance = this.firebaseApp.firestore();
                 // Apply settings if not already applied
-                try {
-                    this.firestoreInstance.settings({
-                        cacheSettings: {
-                            localCache: {
-                                kind: 'persistent',
-                                tabManager: {
-                                    kind: 'synchronize',
-                                    cacheSize: 104857600
-                                }
-                            }
-                        }
-                    });
-                } catch (e) {
-                    // Settings already applied or not needed
+                if (!this._settingsApplied) {
+                    this.applyFirestoreSettings();
                 }
             }
             return this.firestoreInstance;
@@ -205,6 +209,7 @@ const FirebaseManager = {
         this.initAttempts = 0;
         this.isInitializing = false;
         this._isReady = false;
+        this._settingsApplied = false;
         this.readyPromise = null;
         this.readyResolve = null;
         this.readyReject = null;
