@@ -14,15 +14,22 @@ services:
       - key: NODE_ENV
         value: production
     headers:
+      # JavaScript files - explicit MIME type
       - path: /*.js
         name: Content-Type
         value: application/javascript
       - path: /*.mjs
         name: Content-Type
         value: application/javascript
+      # CSS files
       - path: /*.css
         name: Content-Type
         value: text/css
+      # HTML files
+      - path: /*.html
+        name: Content-Type
+        value: text/html
+      # Security headers
       - path: /*
         name: X-Content-Type-Options
         value: nosniff

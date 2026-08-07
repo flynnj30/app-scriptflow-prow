@@ -4,7 +4,7 @@
   "description": "ScriptFlow Pro - Smart CRM with Handoff Integration",
   "main": "index.html",
   "scripts": {
-    "start": "npx serve . -p $PORT --cors",
+    "start": "npx serve . -p $PORT --cors -l tcp://0.0.0.0:$PORT",
     "dev": "npx serve . -p 3000 --cors",
     "build": "echo 'Static site - no build needed'"
   },

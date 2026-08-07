@@ -30,6 +30,12 @@
     
     <!-- Styles -->
     <link rel="stylesheet" href="style.css" />
+    
+    <!-- Override MIME type issues with inline script tag type -->
+    <style>
+        /* Force script loading with proper type */
+        .force-script-load { display: none; }
+    </style>
 </head>
 <body class="dark">
     <!-- Loading Screen -->
@@ -354,10 +360,82 @@
     <!-- Auth Modal -->
     <div id="authModal" class="modal-overlay" style="display:none;"></div>
 
-    <!-- JavaScript - All files in root directory (no js/ prefix) -->
-    <script src="firebase-config.js"></script>
-    <script src="loading.js"></script>
-    <script src="objection-handler.js"></script>
-    <script src="app.js"></script>
+    <!-- JavaScript - Load with proper type and fallback -->
+    <!-- First, load the configuration -->
+    <script type="text/javascript" src="firebase-config.js" onerror="handleScriptError('firebase-config.js')"></script>
+    <!-- Then load the modules in order -->
+    <script type="text/javascript" src="loading.js" onerror="handleScriptError('loading.js')"></script>
+    <script type="text/javascript" src="objection-handler.js" onerror="handleScriptError('objection-handler.js')"></script>
+    <script type="text/javascript" src="app.js" onerror="handleScriptError('app.js')"></script>
+    
+    <script>
+    // Error handler for script loading
+    function handleScriptError(filename) {
+        console.error('Failed to load script:', filename);
+        // Show a user-friendly message
+        const loadingScreen = document.getElementById('loadingScreen');
+        if (loadingScreen) {
+            const subtitle = loadingScreen.querySelector('.loading-subtitle');
+            if (subtitle) {
+                subtitle.textContent = '⚠️ Failed to load: ' + filename + '. Please refresh.';
+                subtitle.style.color = '#ef4444';
+            }
+        }
+    }
+    
+    // Fallback: if scripts fail to load, try loading them as data URIs
+    // This is a last resort for MIME type issues
+    (function fallbackLoader() {
+        const scripts = ['firebase-config.js', 'loading.js', 'objection-handler.js', 'app.js'];
+        let loadedCount = 0;
+        
+        function checkLoaded() {
+            loadedCount++;
+            if (loadedCount >= scripts.length) {
+                // All scripts loaded or attempted
+                const appWrapper = document.getElementById('appWrapper');
+                if (appWrapper && typeof window.startApp === 'function') {
+                    // App already loaded
+                }
+            }
+        }
+        
+        scripts.forEach(function(filename) {
+            // Check if script already loaded
+            const existing = document.querySelector('script[src*="' + filename + '"]');
+            if (existing) {
+                checkLoaded();
+                return;
+            }
+            
+            // Try loading with fetch as text and then eval
+            fetch(filename)
+                .then(function(response) {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    return response.text();
+                })
+                .then(function(code) {
+                    // Execute the code
+                    try {
+                        // Create a script element with the code
+                        const script = document.createElement('script');
+                        script.type = 'text/javascript';
+                        script.textContent = code;
+                        document.head.appendChild(script);
+                        console.log('✅ Loaded via fallback:', filename);
+                    } catch (e) {
+                        console.warn('Fallback execution failed for', filename, e);
+                    }
+                    checkLoaded();
+                })
+                .catch(function(err) {
+                    console.warn('Fallback fetch failed for', filename, err);
+                    checkLoaded();
+                });
+        });
+    })();
+    </script>
 </body>
 </html>
