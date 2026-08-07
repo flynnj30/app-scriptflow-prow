@@ -25,6 +25,7 @@ const FirebaseManager = {
     readyReject: null,
     _isReady: false,
     _settingsApplied: false,
+    _initTimer: null,
 
     init: function() {
         if (this.initialized && this.firebaseApp) {
@@ -35,6 +36,12 @@ const FirebaseManager = {
         if (this.isInitializing) {
             console.log('⏳ Firebase initialization in progress...');
             return this.readyPromise;
+        }
+
+        // Clear any pending timer
+        if (this._initTimer) {
+            clearTimeout(this._initTimer);
+            this._initTimer = null;
         }
 
         // Create the ready promise
@@ -82,7 +89,7 @@ const FirebaseManager = {
 
             if (this.initAttempts < this.maxAttempts) {
                 console.log(`🔄 Retrying Firebase init (attempt ${this.initAttempts + 1}/${this.maxAttempts})...`);
-                setTimeout(() => {
+                this._initTimer = setTimeout(() => {
                     this.init();
                 }, 1000);
             } else {
@@ -100,6 +107,7 @@ const FirebaseManager = {
             const db = this.firebaseApp.firestore();
             
             try {
+                // Try to apply cache settings
                 db.settings({
                     cacheSettings: {
                         localCache: {
@@ -189,6 +197,10 @@ const FirebaseManager = {
     },
 
     reset: function() {
+        if (this._initTimer) {
+            clearTimeout(this._initTimer);
+            this._initTimer = null;
+        }
         this.initialized = false;
         this.firebaseApp = null;
         this.firestoreInstance = null;
@@ -203,14 +215,16 @@ const FirebaseManager = {
     }
 };
 
-document.addEventListener('DOMContentLoaded', function() {
-    FirebaseManager.init();
-});
-
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
+// Auto-init when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+        FirebaseManager.init();
+    });
+} else {
     FirebaseManager.init();
 }
 
+// Ensure global access
 window.FirebaseManager = FirebaseManager;
 window.isFirebaseReady = function() { return FirebaseManager.isReady(); };
 window.getFirebase = function() { return FirebaseManager.firebaseApp; };

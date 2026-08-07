@@ -89,7 +89,6 @@ const LoadingManager = {
         this.nextStep();
         
         let stepDelay = 300;
-        const totalSteps = this.state.steps.length;
         
         this.state.intervalId = setInterval(() => {
             const hasMore = this.nextStep();
@@ -232,6 +231,16 @@ const LoadingManager = {
     }
 };
 
+// Ensure LoadingManager is globally accessible
 window.LoadingManager = LoadingManager;
 
-console.log('📦 Loading module initialized');
+// Auto-init when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+        LoadingManager.init();
+    });
+} else {
+    LoadingManager.init();
+}
+
+console.log('📦 Loading module loaded');

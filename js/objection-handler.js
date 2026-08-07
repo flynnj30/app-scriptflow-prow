@@ -12,6 +12,8 @@
         initialized: false,
         _modalInstance: null,
         _observer: null,
+        _initAttempts: 0,
+        _maxInitAttempts: 5,
         
         categories: {
             reflex: {
@@ -153,10 +155,29 @@
         },
         
         init: function() {
-            if (this.initialized) return;
-            this.initialized = true;
-            this.attachButtonEvents();
-            console.log('🎯 Objection Handler initialized (modal mode)');
+            if (this.initialized) {
+                console.log('🎯 Objection Handler already initialized');
+                return true;
+            }
+            
+            this._initAttempts++;
+            
+            try {
+                this.attachButtonEvents();
+                this.initialized = true;
+                console.log('🎯 Objection Handler initialized (modal mode)');
+                return true;
+            } catch (e) {
+                console.warn('Objection Handler init error:', e);
+                
+                if (this._initAttempts < this._maxInitAttempts) {
+                    console.log(`🔄 Retrying Objection Handler init (attempt ${this._initAttempts + 1}/${this._maxInitAttempts})...`);
+                    setTimeout(() => {
+                        this.init();
+                    }, 500);
+                }
+                return false;
+            }
         },
 
         attachButtonEvents: function() {
@@ -575,7 +596,6 @@
                 showToast(message, type);
             } else {
                 console.log(`[${type}] ${message}`);
-                // Fallback alert if showToast is not available
                 alert(message);
             }
         },
