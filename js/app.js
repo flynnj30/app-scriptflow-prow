@@ -7,16 +7,13 @@
 // ================================================================
 
 // Suppress the chrome-extension://invalid/ error that comes from browser extensions
-// This is a browser extension issue, not an application error
 (function suppressExtensionErrors() {
-    // Save original console error
     const originalConsoleError = console.error;
     
     console.error = function() {
         const args = Array.from(arguments);
         const message = args.join(' ');
         
-        // Suppress extension-related errors
         if (message && (
             message.includes('chrome-extension://invalid') ||
             message.includes('message channel closed') ||
@@ -25,15 +22,12 @@
             message.includes('Could not establish connection') ||
             message.includes('ERR_BLOCKED_BY_CLIENT')
         )) {
-            // Silently ignore these extension-related errors
             return;
         }
         
-        // Pass through all other errors
         originalConsoleError.apply(console, arguments);
     };
     
-    // Also suppress unhandled promise rejections from extensions
     window.addEventListener('unhandledrejection', function(event) {
         if (event.reason && (
             String(event.reason).includes('chrome-extension') ||
@@ -221,9 +215,7 @@ const AppState = {
     isImportSaving: false,
     importSaveComplete: false,
     
-    isAppReady: false,
-    _firebaseReadyResolve: null,
-    _firebaseReadyPromise: null
+    isAppReady: false
 };
 
 // ================================================================
@@ -575,7 +567,6 @@ const Utils = {
         return !isNaN(d.getTime());
     },
 
-    // Enhanced email extraction from text
     extractEmail(text) {
         if (!text) return null;
         const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
@@ -586,10 +577,8 @@ const Utils = {
         return null;
     },
 
-    // Enhanced phone extraction
     extractPhone(text) {
         if (!text) return null;
-        // Try to find a phone number pattern
         const phoneRegex = /(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g;
         const matches = text.match(phoneRegex);
         if (matches && matches.length > 0) {
@@ -598,27 +587,22 @@ const Utils = {
         return null;
     },
 
-    // Determine if a time is set (not empty or 'No time')
     hasTimeSet(timeStr) {
         return timeStr && timeStr.trim() && timeStr.trim() !== 'No time' && timeStr.trim() !== 'No time set';
     },
 
-    // Auto-set status based on appointment data
     determineAutoStatus(appointment) {
         const hasTime = this.hasTimeSet(appointment.time);
         const hasDate = appointment.date && this.isValidDate(appointment.date);
         
-        // If there's a time set, mark as Meeting Booked
         if (hasTime && hasDate) {
             return 'Meeting Booked';
         }
         
-        // If there's a date but no time, keep as Pending
         if (hasDate && !hasTime) {
             return 'Pending';
         }
         
-        // Default
         return 'Pending';
     }
 };
@@ -1047,7 +1031,6 @@ const Auth = {
         AppState.authModalOpen = false;
     },
 
-    // Initialize auth listener
     initAuthListener: function() {
         if (this._isInitialized) return;
         this._isInitialized = true;
@@ -1063,7 +1046,6 @@ const Auth = {
                     } else {
                         AppState.currentUser = null;
                         this.updateUI();
-                        // Show auth modal after a short delay
                         setTimeout(() => {
                             this.showModal();
                         }, 500);
@@ -1140,7 +1122,6 @@ const Data = {
             const statusEl = DOM.get('saveStatus');
             if (statusEl && showLoading) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
 
-            // Ensure Firestore is ready with a small delay for cache initialization
             await new Promise(resolve => setTimeout(resolve, 100));
 
             const userRef = db.collection('users').doc(AppState.currentUser.uid);
@@ -1246,10 +1227,8 @@ const Data = {
         try {
             const userRef = db.collection('users').doc(AppState.currentUser.uid);
 
-            // Use a more robust subscription setup with error handling
             const setupSubscriptions = () => {
                 try {
-                    // Appointments subscription with error handling for message channel errors
                     AppState.appointmentsUnsubscribe = userRef.collection('appointments')
                         .orderBy('createdAt', 'desc')
                         .onSnapshot(snap => {
@@ -1266,20 +1245,17 @@ const Data = {
                             FeaturePanel.refreshCurrentView();
                             localStorage.setItem('appointments_fallback', JSON.stringify(AppState.appointments));
                         }, error => {
-                            // Silently handle message channel errors (usually from extensions)
                             if (error.message && (
                                 error.message.includes('message channel closed') ||
                                 error.message.includes('listener indicated an asynchronous response') ||
                                 error.message.includes('Extension context invalidated') ||
                                 error.message.includes('ERR_BLOCKED_BY_CLIENT')
                             )) {
-                                // This is an extension error, ignore it
                                 return;
                             }
                             console.warn('Appointments subscription error:', error);
                         });
 
-                    // Tasks subscription
                     AppState.tasksUnsubscribe = userRef.collection('tasks')
                         .orderBy('createdAt', 'desc')
                         .onSnapshot(snap => {
@@ -1300,7 +1276,6 @@ const Data = {
                             console.warn('Tasks subscription error:', error);
                         });
 
-                    // Team members subscription
                     AppState.teamMembersUnsubscribe = userRef.collection('teamMembers')
                         .onSnapshot(snap => {
                             if (snap.empty) {
@@ -1329,7 +1304,6 @@ const Data = {
                         
                     console.log('✅ Firestore subscriptions active');
                 } catch (setupError) {
-                    // Only log non-extension errors
                     if (setupError.message && !(
                         setupError.message.includes('message channel closed') ||
                         setupError.message.includes('listener indicated an asynchronous response') ||
@@ -1338,7 +1312,6 @@ const Data = {
                     )) {
                         console.warn('Error setting up subscriptions:', setupError);
                     }
-                    // Retry once after a delay
                     setTimeout(() => {
                         if (AppState.currentUser && AppState.isFirebaseReady) {
                             console.log('🔄 Retrying subscription setup...');
@@ -1348,11 +1321,9 @@ const Data = {
                 }
             };
 
-            // Small delay to ensure Firestore is ready
             setTimeout(setupSubscriptions, 200);
             
         } catch (error) {
-            // Only log non-extension errors
             if (error.message && !(
                 error.message.includes('message channel closed') ||
                 error.message.includes('listener indicated an asynchronous response') ||
@@ -1362,7 +1333,6 @@ const Data = {
                 console.warn('Subscription setup error:', error);
             }
             
-            // Load from local storage as fallback
             const appointmentsLocal = localStorage.getItem('appointments_fallback');
             const tasksLocal = localStorage.getItem('tasks_fallback');
             const teamLocal = localStorage.getItem('teamMembers_fallback');
@@ -1457,7 +1427,6 @@ const Data = {
             closer = defaultCloser ? defaultCloser.name : 'Kailan';
         }
         
-        // Extract email from notes if not provided
         let email = '';
         if (notes) {
             const extractedEmail = Utils.extractEmail(notes);
@@ -1466,7 +1435,6 @@ const Data = {
             }
         }
         
-        // Auto-set status to Meeting Booked if time is present
         let finalStatus = status;
         if (Utils.hasTimeSet(time) && status === 'Pending') {
             finalStatus = 'Meeting Booked';
@@ -2296,7 +2264,7 @@ const Scripts = {
 };
 
 // ================================================================
-// SCRIPT ACTIONS RENDERER - UPDATED WITH OBJECTION BUTTON FIX
+// SCRIPT ACTIONS RENDERER
 // ================================================================
 
 function renderScriptActions() {
@@ -2380,56 +2348,38 @@ function attachScriptActionEvents() {
         favoriteScriptBtn.addEventListener('click', handleFavoriteScript);
     }
     
-    // ============================================================
-    // FIXED: Objection button - proper error handling and fallback
-    // ============================================================
+    // OBJECTION BUTTON - FIXED with proper error handling
     const objectionBtn = document.getElementById('objectionToggleBtn');
     if (objectionBtn) {
-        // Remove all existing listeners by cloning
         const newBtn = objectionBtn.cloneNode(true);
         objectionBtn.parentNode.replaceChild(newBtn, objectionBtn);
-        
         newBtn.addEventListener('click', function(e) {
             e.stopPropagation();
             e.preventDefault();
             
-            try {
-                // Check if ObjectionHandler exists
-                if (typeof ObjectionHandler === 'undefined' || !ObjectionHandler) {
-                    console.warn('ObjectionHandler not defined');
-                    if (typeof showToast !== 'undefined') {
-                        showToast('Objection handler not available', 'warning');
-                    }
-                    return;
-                }
-                
-                // Ensure initialized
-                if (!ObjectionHandler.initialized) {
-                    console.log('🔄 Initializing ObjectionHandler...');
-                    ObjectionHandler.init();
-                }
-                
-                // Use toggleModal (handles both open and close)
-                if (typeof ObjectionHandler.toggleModal === 'function') {
-                    ObjectionHandler.toggleModal();
-                } else if (typeof ObjectionHandler.openModal === 'function') {
+            if (typeof ObjectionHandler !== 'undefined' && ObjectionHandler) {
+                if (typeof ObjectionHandler.openModal === 'function') {
                     ObjectionHandler.openModal();
                 } else {
-                    // Ultimate fallback - force open
-                    console.warn('Using fallback to open objection modal');
-                    ObjectionHandler.isModalOpen = false;
-                    ObjectionHandler.openModal();
+                    console.warn('ObjectionHandler.openModal not a function, reinitializing...');
+                    if (typeof ObjectionHandler.init === 'function') {
+                        ObjectionHandler.init();
+                        setTimeout(function() {
+                            if (typeof ObjectionHandler.openModal === 'function') {
+                                ObjectionHandler.openModal();
+                            } else {
+                                showToast('Objection handler is loading. Please try again.', 'warning');
+                            }
+                        }, 200);
+                    } else {
+                        showToast('Objection handler not available. Please refresh.', 'warning');
+                    }
                 }
-                
-            } catch (err) {
-                console.error('Error in objection button handler:', err);
-                if (typeof showToast !== 'undefined') {
-                    showToast('Error opening objection handler', 'error');
-                }
+            } else {
+                showToast('Objection handler not loaded. Please refresh.', 'warning');
             }
         });
-        
-        console.log('🎯 Objection button attached successfully');
+        console.log('🎯 Objection button attached from script actions');
     }
 }
 
@@ -6288,11 +6238,18 @@ function initApp() {
     // Update closer selects
     updateCloserSelects();
     
-    // Initialize Objection Handler (modal mode)
+    // Initialize Objection Handler with better error handling
     if (typeof ObjectionHandler !== 'undefined') {
         setTimeout(function() {
-            ObjectionHandler.init();
-        }, 200);
+            try {
+                ObjectionHandler.init();
+                console.log('✅ ObjectionHandler initialized successfully');
+            } catch (e) {
+                console.warn('⚠️ ObjectionHandler initialization error:', e);
+            }
+        }, 300);
+    } else {
+        console.warn('⚠️ ObjectionHandler not found');
     }
     
     // Update sticky positions after render
@@ -6316,7 +6273,6 @@ function setupEventListeners() {
             if (icon) {
                 icon.className = sidebar.classList.contains('closed') ? 'fas fa-bars' : 'fas fa-times';
             }
-            // Dispatch event for sticky positioning
             document.dispatchEvent(new CustomEvent('sidebarToggle'));
         });
     }
