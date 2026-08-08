@@ -2380,7 +2380,7 @@ function attachScriptActionEvents() {
         favoriteScriptBtn.addEventListener('click', handleFavoriteScript);
     }
     
-    // Objection button - use direct event binding with a fresh listener
+    // UPDATED: Objection button - use toggleModal with proper error handling
     const objectionBtn = document.getElementById('objectionToggleBtn');
     if (objectionBtn) {
         // Remove all existing listeners by cloning
@@ -2389,10 +2389,34 @@ function attachScriptActionEvents() {
         newBtn.addEventListener('click', function(e) {
             e.stopPropagation();
             e.preventDefault();
-            if (typeof ObjectionHandler !== 'undefined' && ObjectionHandler) {
-                ObjectionHandler.openModal();
-            } else {
-                showToast('Objection handler not loaded', 'warning');
+            try {
+                if (typeof ObjectionHandler !== 'undefined' && ObjectionHandler) {
+                    // Ensure initialized
+                    if (!ObjectionHandler.initialized) {
+                        ObjectionHandler.init();
+                    }
+                    // Use toggleModal which handles open/close logic
+                    if (ObjectionHandler.toggleModal) {
+                        ObjectionHandler.toggleModal();
+                    } else if (ObjectionHandler.openModal) {
+                        ObjectionHandler.openModal();
+                    } else {
+                        // Fallback: force open
+                        ObjectionHandler.isModalOpen = false;
+                        ObjectionHandler.openModal();
+                    }
+                } else {
+                    if (typeof showToast !== 'undefined') {
+                        showToast('Objection handler not loaded', 'warning');
+                    } else {
+                        console.warn('Objection handler not loaded');
+                    }
+                }
+            } catch (err) {
+                console.error('Error opening objection handler:', err);
+                if (typeof showToast !== 'undefined') {
+                    showToast('Error opening objections', 'error');
+                }
             }
         });
         console.log('🎯 Objection button attached from script actions');
