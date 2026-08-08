@@ -1,5 +1,5 @@
 // ================================================================
-// OBJECTION HANDLER - INTEGRATED INTO SCRIPT MODAL
+// OBJECTION HANDLER - COMPLETE FIXED VERSION
 // ================================================================
 
 const ObjectionHandler = {
@@ -9,6 +9,7 @@ const ObjectionHandler = {
     initialized: false,
     isModalOpen: false,
     _eventListenersAttached: false,
+    _containerCreated: false,
     
     categories: {
         reflex: {
@@ -149,170 +150,103 @@ const ObjectionHandler = {
         }
     },
     
+    // ============================================================
+    // INITIALIZATION
+    // ============================================================
+    
     init: function() {
-        if (this.initialized) return;
-        this.initialized = true;
-        
-        // Create the integrated UI if it doesn't exist
-        if (!document.getElementById('objectionIntegratedBody')) {
-            this.createIntegratedUI();
+        if (this.initialized) {
+            return this;
         }
         
-        // Always attach events to ensure they're available
-        this.attachEvents();
-        console.log('🎯 Objection Handler initialized');
+        // Ensure the UI container exists
+        this._ensureContainer();
+        
+        // Attach all event listeners
+        this._attachEvents();
+        
+        this.initialized = true;
+        console.log('🎯 Objection Handler initialized successfully');
         return this;
     },
     
-    // Open modal method - called from app.js
-    openModal: function() {
-        // Ensure initialization
-        if (!this.initialized) {
-            this.init();
-        }
-        
-        // If already open, just bring it to focus
-        if (this.isModalOpen) {
-            const container = document.getElementById('objectionHandlerContainer');
-            if (container) {
-                container.style.display = 'block';
-                const body = document.getElementById('objectionIntegratedBody');
-                if (body) body.style.display = 'block';
-            }
-            return;
-        }
-        
-        // Check if container exists, create if not
+    // ============================================================
+    // CONTAINER MANAGEMENT
+    // ============================================================
+    
+    _ensureContainer: function() {
         let container = document.getElementById('objectionHandlerContainer');
-        if (!container) {
-            this.createIntegratedUI();
-            container = document.getElementById('objectionHandlerContainer');
-        }
         
-        if (!container) {
-            console.warn('Objection handler container not found');
-            if (typeof showToast !== 'undefined') {
-                showToast('Objection handler not available', 'warning');
-            }
-            return;
-        }
-        
-        // Show the container
-        container.style.display = 'block';
-        const body = document.getElementById('objectionIntegratedBody');
-        if (body) body.style.display = 'block';
-        
-        // Update button state
-        const toggleBtn = document.getElementById('objectionToggleBtn');
-        if (toggleBtn) {
-            toggleBtn.innerHTML = '<i class="fas fa-shield-alt"></i> Hide Objections';
-            toggleBtn.style.background = 'var(--success)';
-        }
-        
-        // Update minimize button
-        const minimizeBtn = document.getElementById('objectionMinimizeBtn');
-        if (minimizeBtn) {
-            minimizeBtn.innerHTML = '<i class="fas fa-chevron-up"></i>';
-        }
-        
-        this.isOpen = true;
-        this.isModalOpen = true;
-        
-        // Ensure current category is rendered
-        this.switchCategory(this.currentCategory);
-        
-        // Scroll to the container if needed
-        container.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        
-        // Dispatch event for analytics
-        document.dispatchEvent(new CustomEvent('objectionModalOpened'));
-    },
-    
-    // Close modal method
-    closeModal: function() {
-        const container = document.getElementById('objectionHandlerContainer');
-        if (container) {
-            container.style.display = 'none';
-        }
-        
-        // Update button state
-        const toggleBtn = document.getElementById('objectionToggleBtn');
-        if (toggleBtn) {
-            toggleBtn.innerHTML = '<i class="fas fa-shield-alt"></i> Objections';
-            toggleBtn.style.background = 'var(--secondary)';
-        }
-        
-        this.isOpen = false;
-        this.isModalOpen = false;
-        
-        document.dispatchEvent(new CustomEvent('objectionModalClosed'));
-    },
-    
-    // Toggle between open and closed
-    toggleModal: function() {
-        if (this.isModalOpen) {
-            this.closeModal();
-        } else {
-            this.openModal();
-        }
-    },
-    
-    createIntegratedUI: function() {
-        // Check if container already exists
-        let container = document.getElementById('objectionHandlerContainer');
         if (!container) {
             container = document.createElement('div');
             container.id = 'objectionHandlerContainer';
             container.style.display = 'none';
-            // Insert after the script panel or in a suitable location
+            
+            // Find a good place to insert - after script panel
             const scriptPanel = document.getElementById('scriptPanel');
             if (scriptPanel && scriptPanel.parentNode) {
                 scriptPanel.parentNode.insertBefore(container, scriptPanel.nextSibling);
             } else {
-                document.body.appendChild(container);
+                // Fallback: insert after the main content
+                const mainContent = document.getElementById('mainContent');
+                if (mainContent) {
+                    mainContent.appendChild(container);
+                } else {
+                    document.body.appendChild(container);
+                }
             }
+            this._containerCreated = true;
         }
         
+        // Only build the UI if the container is empty or needs rebuilding
+        if (!container.querySelector('.objection-integrated')) {
+            this._buildUI(container);
+        }
+        
+        return container;
+    },
+    
+    _buildUI: function(container) {
         container.innerHTML = `
-            <div class="objection-integrated" style="margin-top:16px;">
-                <div class="objection-integrated-header" id="objectionIntegratedToggle" style="display:flex; justify-content:space-between; align-items:center; padding:12px 20px; background:var(--bg-card); border-radius:16px 16px 0 0; border:1px solid var(--border-color); border-bottom:none; cursor:pointer;">
-                    <div class="objection-integrated-title" style="display:flex; align-items:center; gap:12px;">
-                        <span class="objection-icon" style="font-size:1.2rem;">🛡️</span>
-                        <span class="objection-title" style="font-weight:600; font-size:1rem;">Objection Handling Scripts</span>
-                        <span class="objection-badge" style="background:var(--primary); color:white; padding:2px 12px; border-radius:20px; font-size:0.7rem; font-weight:600;">${this.getTotalObjectionCount()} scripts</span>
+            <div class="objection-integrated">
+                <div class="objection-integrated-header" id="objectionIntegratedToggle">
+                    <div class="objection-integrated-title">
+                        <span class="objection-icon">🛡️</span>
+                        <span class="objection-title">Objection Handling Scripts</span>
+                        <span class="objection-badge">${this.getTotalObjectionCount()} scripts</span>
                     </div>
-                    <div class="objection-integrated-controls" style="display:flex; gap:8px;">
-                        <button class="objection-minimize-btn" id="objectionMinimizeBtn" title="Minimize" style="background:var(--bg-primary); border:1px solid var(--border-color); border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-secondary);">
+                    <div class="objection-integrated-controls">
+                        <button class="objection-minimize-btn" id="objectionMinimizeBtn" title="Minimize">
                             <i class="fas fa-chevron-up"></i>
                         </button>
-                        <button class="objection-close-btn" id="objectionCloseBtn" title="Close" style="background:var(--bg-primary); border:1px solid var(--border-color); border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-secondary);">
+                        <button class="objection-close-btn" id="objectionCloseBtn" title="Close">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
                 </div>
-                <div class="objection-integrated-body" id="objectionIntegratedBody" style="border:1px solid var(--border-color); border-top:none; border-radius:0 0 16px 16px; background:var(--bg-card); overflow:hidden;">
-                    <div class="objection-category-nav" id="objectionCategoryNav" style="display:flex; gap:8px; padding:12px 16px; background:var(--bg-primary); border-bottom:1px solid var(--border-color); flex-wrap:wrap;">
+                <div class="objection-integrated-body" id="objectionIntegratedBody">
+                    <div class="objection-category-nav" id="objectionCategoryNav">
                         ${Object.entries(this.categories).map(([key, cat]) => `
-                            <button class="objection-category-btn ${key === this.currentCategory ? 'active' : ''}" data-category="${key}" style="display:flex; align-items:center; gap:8px; padding:6px 14px; border-radius:20px; border:2px solid ${key === this.currentCategory ? cat.color : 'var(--border-color)'}; background:${key === this.currentCategory ? 'var(--bg-card)' : 'transparent'}; color:${key === this.currentCategory ? 'var(--text-primary)' : 'var(--text-secondary)'}; cursor:pointer; transition:all 0.2s; font-size:0.8rem;">
+                            <button class="objection-category-btn ${key === this.currentCategory ? 'active' : ''}" data-category="${key}">
                                 <span class="category-icon">${cat.icon}</span>
                                 <span class="category-label">${cat.label}</span>
-                                <span class="category-count" style="background:var(--bg-primary); padding:0 8px; border-radius:10px; font-size:0.6rem; font-weight:600;">${cat.objections.length}</span>
+                                <span class="category-count">${cat.objections.length}</span>
                             </button>
                         `).join('')}
                     </div>
-                    <div class="objection-cards-container" id="objectionCardsContainer" style="padding:12px 16px; max-height:450px; overflow-y:auto;">
+                    <div class="objection-cards-container" id="objectionCardsContainer">
                         ${this.renderCards(this.currentCategory)}
                     </div>
-                    <div class="objection-footer" style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-top:1px solid var(--border-color); background:var(--bg-primary); flex-wrap:wrap; gap:8px;">
-                        <div class="objection-footer-tip" style="display:flex; align-items:center; gap:8px; font-size:0.75rem; color:var(--text-muted);">
-                            <i class="fas fa-lightbulb" style="color:var(--warning);"></i>
+                    <div class="objection-footer">
+                        <div class="objection-footer-tip">
+                            <i class="fas fa-lightbulb"></i>
                             <span>Your single best tool is the offer itself. The website is already built, it's free, and there's no obligation.</span>
                         </div>
-                        <div class="objection-footer-actions" style="display:flex; gap:8px;">
-                            <button class="objection-expand-all-btn" id="objectionExpandAll" style="padding:4px 12px; border-radius:16px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-secondary); cursor:pointer; font-size:0.7rem; transition:all 0.2s;">
+                        <div class="objection-footer-actions">
+                            <button class="objection-expand-all-btn" id="objectionExpandAll">
                                 <i class="fas fa-expand"></i> Expand All
                             </button>
-                            <button class="objection-collapse-all-btn" id="objectionCollapseAll" style="padding:4px 12px; border-radius:16px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-secondary); cursor:pointer; font-size:0.7rem; transition:all 0.2s;">
+                            <button class="objection-collapse-all-btn" id="objectionCollapseAll">
                                 <i class="fas fa-compress"></i> Collapse All
                             </button>
                         </div>
@@ -321,20 +255,152 @@ const ObjectionHandler = {
             </div>
         `;
         
-        // Add styles for the integrated component
+        // Add styles if not already present
+        this._injectStyles();
+    },
+    
+    _injectStyles: function() {
+        if (document.getElementById('objection-handler-styles')) return;
+        
         const styleEl = document.createElement('style');
+        styleEl.id = 'objection-handler-styles';
         styleEl.textContent = `
             .objection-integrated {
+                margin-top: 16px;
                 animation: fadeIn 0.3s ease;
+                border-radius: 16px;
+                overflow: hidden;
+                border: 1px solid var(--border-color);
+                background: var(--bg-card);
+            }
+            .objection-integrated-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 12px 20px;
+                background: var(--bg-card);
+                border-bottom: 1px solid var(--border-color);
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+            .objection-integrated-header:hover {
+                background: var(--bg-primary);
+            }
+            .objection-integrated-title {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            .objection-icon {
+                font-size: 1.2rem;
+            }
+            .objection-title {
+                font-weight: 600;
+                font-size: 1rem;
+                color: var(--text-primary);
+            }
+            .objection-badge {
+                background: var(--primary);
+                color: white;
+                padding: 2px 12px;
+                border-radius: 20px;
+                font-size: 0.7rem;
+                font-weight: 600;
+            }
+            .objection-integrated-controls {
+                display: flex;
+                gap: 8px;
+            }
+            .objection-minimize-btn,
+            .objection-close-btn {
+                background: var(--bg-primary);
+                border: 1px solid var(--border-color);
+                border-radius: 50%;
+                width: 32px;
+                height: 32px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                color: var(--text-secondary);
+                transition: all 0.2s;
+            }
+            .objection-minimize-btn:hover,
+            .objection-close-btn:hover {
+                background: var(--border-color);
+                color: var(--text-primary);
+            }
+            .objection-close-btn:hover {
+                background: var(--danger);
+                color: white;
+                border-color: var(--danger);
+            }
+            .objection-integrated-body {
+                border-top: none;
+                background: var(--bg-card);
+                overflow: hidden;
+            }
+            .objection-category-nav {
+                display: flex;
+                gap: 8px;
+                padding: 12px 16px;
+                background: var(--bg-primary);
+                border-bottom: 1px solid var(--border-color);
+                flex-wrap: wrap;
+            }
+            .objection-category-btn {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 14px;
+                border-radius: 20px;
+                border: 2px solid var(--border-color);
+                background: transparent;
+                color: var(--text-secondary);
+                cursor: pointer;
+                transition: all 0.2s;
+                font-size: 0.8rem;
+                font-family: inherit;
             }
             .objection-category-btn:hover {
-                border-color: var(--primary) !important;
-                color: var(--text-primary) !important;
+                border-color: var(--primary);
+                color: var(--text-primary);
             }
             .objection-category-btn.active {
-                border-color: var(--primary) !important;
-                background: var(--bg-primary) !important;
-                color: var(--text-primary) !important;
+                border-color: var(--primary);
+                background: var(--bg-card);
+                color: var(--text-primary);
+            }
+            .objection-category-btn .category-icon {
+                font-size: 0.9rem;
+            }
+            .objection-category-btn .category-count {
+                background: var(--bg-primary);
+                padding: 0 8px;
+                border-radius: 10px;
+                font-size: 0.6rem;
+                font-weight: 600;
+                color: var(--text-muted);
+            }
+            .objection-category-btn.active .category-count {
+                background: var(--primary);
+                color: white;
+            }
+            .objection-cards-container {
+                padding: 12px 16px;
+                max-height: 450px;
+                overflow-y: auto;
+            }
+            .objection-cards-container::-webkit-scrollbar {
+                width: 4px;
+            }
+            .objection-cards-container::-webkit-scrollbar-track {
+                background: var(--scrollbar-track);
+                border-radius: 4px;
+            }
+            .objection-cards-container::-webkit-scrollbar-thumb {
+                background: var(--primary);
+                border-radius: 4px;
             }
             .objection-card {
                 background: var(--bg-card);
@@ -343,6 +409,9 @@ const ObjectionHandler = {
                 margin-bottom: 8px;
                 overflow: hidden;
                 transition: all 0.2s ease;
+            }
+            .objection-card:last-child {
+                margin-bottom: 0;
             }
             .objection-card:hover {
                 border-color: var(--primary);
@@ -444,6 +513,7 @@ const ObjectionHandler = {
                 display: inline-flex;
                 align-items: center;
                 gap: 6px;
+                font-family: inherit;
             }
             .objection-copy-btn:hover {
                 background: var(--primary);
@@ -454,6 +524,52 @@ const ObjectionHandler = {
                 background: var(--secondary);
                 color: white;
                 border-color: var(--secondary);
+            }
+            .objection-footer {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 12px 16px;
+                border-top: 1px solid var(--border-color);
+                background: var(--bg-primary);
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .objection-footer-tip {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 0.75rem;
+                color: var(--text-muted);
+                flex: 1;
+                min-width: 200px;
+            }
+            .objection-footer-tip i {
+                color: var(--warning);
+                font-size: 0.9rem;
+                flex-shrink: 0;
+            }
+            .objection-footer-actions {
+                display: flex;
+                gap: 8px;
+            }
+            .objection-expand-all-btn,
+            .objection-collapse-all-btn {
+                padding: 4px 12px;
+                border-radius: 16px;
+                border: 1px solid var(--border-color);
+                background: var(--bg-card);
+                color: var(--text-secondary);
+                cursor: pointer;
+                font-size: 0.7rem;
+                transition: all 0.2s;
+                font-family: inherit;
+            }
+            .objection-expand-all-btn:hover,
+            .objection-collapse-all-btn:hover {
+                background: var(--primary);
+                color: white;
+                border-color: var(--primary);
             }
             .objection-empty {
                 text-align: center;
@@ -466,9 +582,173 @@ const ObjectionHandler = {
                 margin-bottom: 12px;
                 opacity: 0.3;
             }
+            
+            /* Practice Modal */
+            .objection-practice-modal {
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.7);
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10001;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                padding: 20px;
+            }
+            .objection-practice-modal.active {
+                opacity: 1;
+            }
+            .objection-practice-content {
+                background: var(--bg-secondary);
+                border-radius: 24px;
+                max-width: 600px;
+                width: 100%;
+                max-height: 85vh;
+                overflow-y: auto;
+                border: 1px solid var(--border-color);
+                box-shadow: var(--shadow-lg);
+                transform: scale(0.9);
+                transition: transform 0.3s ease;
+            }
+            .objection-practice-modal.active .objection-practice-content {
+                transform: scale(1);
+            }
+            .objection-practice-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 14px 20px;
+                border-bottom: 1px solid var(--border-color);
+                background: var(--bg-card);
+                border-radius: 24px 24px 0 0;
+            }
+            .objection-practice-header h3 {
+                font-size: 1rem;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin: 0;
+                color: var(--text-primary);
+            }
+            .objection-practice-close {
+                background: none;
+                border: none;
+                color: var(--text-muted);
+                font-size: 1.1rem;
+                cursor: pointer;
+                padding: 4px 8px;
+                border-radius: 8px;
+                transition: all 0.2s;
+            }
+            .objection-practice-close:hover {
+                background: var(--bg-primary);
+                color: var(--text-primary);
+            }
+            .objection-practice-body {
+                padding: 16px 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+            }
+            .objection-practice-label {
+                font-size: 0.65rem;
+                font-weight: 600;
+                color: var(--text-muted);
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+                margin-bottom: 2px;
+            }
+            .objection-practice-scenario {
+                background: var(--bg-primary);
+                padding: 12px 16px;
+                border-radius: 10px;
+                border-left: 4px solid var(--danger);
+            }
+            .objection-practice-objection {
+                font-size: 0.9rem;
+                color: var(--text-primary);
+                font-weight: 500;
+            }
+            .objection-practice-input {
+                width: 100%;
+                padding: 10px 14px;
+                border-radius: 10px;
+                border: 1px solid var(--border-color);
+                background: var(--bg-card);
+                color: var(--text-primary);
+                font-size: 0.85rem;
+                resize: vertical;
+                transition: all 0.2s;
+                font-family: inherit;
+            }
+            .objection-practice-input:focus {
+                outline: none;
+                border-color: var(--primary);
+                box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+            }
+            .objection-practice-recommended {
+                background: var(--bg-card);
+                padding: 12px 16px;
+                border-radius: 10px;
+                border: 1px solid var(--border-color);
+            }
+            .objection-practice-recommended-text {
+                font-size: 0.85rem;
+                color: var(--text-secondary);
+                line-height: 1.5;
+                display: none;
+                padding: 6px 0;
+            }
+            .objection-practice-reveal-btn {
+                padding: 5px 14px;
+                border-radius: 16px;
+                border: 1px solid var(--border-color);
+                background: var(--bg-primary);
+                color: var(--text-secondary);
+                cursor: pointer;
+                font-size: 0.7rem;
+                transition: all 0.2s;
+                margin-top: 4px;
+                font-family: inherit;
+            }
+            .objection-practice-reveal-btn:hover {
+                background: var(--primary);
+                color: white;
+                border-color: var(--primary);
+            }
+            .objection-practice-actions {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+            .objection-practice-copy-btn {
+                padding: 6px 16px;
+                border-radius: 16px;
+                border: 1px solid var(--border-color);
+                background: var(--bg-card);
+                color: var(--text-secondary);
+                cursor: pointer;
+                font-size: 0.75rem;
+                transition: all 0.2s;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                font-family: inherit;
+            }
+            .objection-practice-copy-btn:hover {
+                background: var(--success);
+                color: white;
+                border-color: var(--success);
+            }
+            
             @media (max-width: 768px) {
                 .objection-category-nav {
                     gap: 4px;
+                    padding: 8px 12px;
                 }
                 .objection-category-btn {
                     font-size: 0.7rem;
@@ -480,9 +760,11 @@ const ObjectionHandler = {
                 .objection-footer {
                     flex-direction: column;
                     align-items: stretch;
+                    gap: 8px;
                 }
                 .objection-footer-tip {
                     font-size: 0.7rem;
+                    min-width: auto;
                 }
                 .objection-footer-actions {
                     justify-content: center;
@@ -495,6 +777,20 @@ const ObjectionHandler = {
                 }
                 .objection-tip-text {
                     font-size: 0.75rem;
+                }
+                .objection-cards-container {
+                    max-height: 350px;
+                    padding: 8px 12px;
+                }
+                .objection-integrated-header {
+                    padding: 10px 16px;
+                }
+                .objection-integrated-title {
+                    gap: 8px;
+                }
+                .objection-badge {
+                    font-size: 0.6rem;
+                    padding: 1px 8px;
                 }
             }
             @media (max-width: 480px) {
@@ -517,17 +813,34 @@ const ObjectionHandler = {
                     font-size: 0.65rem;
                     padding: 3px 10px;
                 }
+                .objection-cards-container {
+                    max-height: 280px;
+                }
+                .objection-practice-content {
+                    max-width: 100%;
+                    border-radius: 16px;
+                }
+                .objection-practice-body {
+                    padding: 12px 16px;
+                }
             }
         `;
         document.head.appendChild(styleEl);
-        
-        // Attach events after creating UI
-        this.attachEvents();
     },
+    
+    // ============================================================
+    // RENDER METHODS
+    // ============================================================
     
     renderCards: function(categoryKey) {
         const category = this.categories[categoryKey];
-        if (!category) return '<div class="objection-empty">No objections in this category.</div>';
+        if (!category) {
+            return '<div class="objection-empty"><i class="fas fa-folder-open"></i><p>No objections in this category.</p></div>';
+        }
+        
+        if (category.objections.length === 0) {
+            return '<div class="objection-empty"><i class="fas fa-check-circle"></i><p>All clear! No objections here.</p></div>';
+        }
         
         return category.objections.map(obj => `
             <div class="objection-card ${this.expandedCards.has(obj.id) ? 'expanded' : ''}" data-id="${obj.id}">
@@ -568,6 +881,125 @@ const ObjectionHandler = {
         return count;
     },
     
+    // ============================================================
+    // MODAL OPERATIONS - MAIN ENTRY POINTS
+    // ============================================================
+    
+    /**
+     * PRIMARY ENTRY POINT - Called from app.js when Objections button is clicked
+     */
+    openModal: function() {
+        try {
+            // Ensure initialization
+            if (!this.initialized) {
+                this.init();
+            }
+            
+            // If already open, just ensure visibility
+            if (this.isModalOpen) {
+                const container = document.getElementById('objectionHandlerContainer');
+                if (container) {
+                    container.style.display = 'block';
+                    const body = document.getElementById('objectionIntegratedBody');
+                    if (body) body.style.display = 'block';
+                }
+                return;
+            }
+            
+            // Ensure container exists
+            const container = this._ensureContainer();
+            if (!container) {
+                console.warn('Objection handler container not found');
+                if (typeof showToast !== 'undefined') {
+                    showToast('Objection handler not available', 'warning');
+                }
+                return;
+            }
+            
+            // Show the container
+            container.style.display = 'block';
+            const body = document.getElementById('objectionIntegratedBody');
+            if (body) body.style.display = 'block';
+            
+            // Update button state
+            const toggleBtn = document.getElementById('objectionToggleBtn');
+            if (toggleBtn) {
+                toggleBtn.innerHTML = '<i class="fas fa-shield-alt"></i> Hide Objections';
+                toggleBtn.style.background = 'var(--success)';
+            }
+            
+            // Update minimize button
+            const minimizeBtn = document.getElementById('objectionMinimizeBtn');
+            if (minimizeBtn) {
+                minimizeBtn.innerHTML = '<i class="fas fa-chevron-up"></i>';
+            }
+            
+            this.isOpen = true;
+            this.isModalOpen = true;
+            
+            // Ensure current category is rendered
+            this.switchCategory(this.currentCategory);
+            
+            // Scroll to the container smoothly
+            setTimeout(() => {
+                container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+            
+            // Dispatch event
+            document.dispatchEvent(new CustomEvent('objectionModalOpened'));
+            
+            console.log('✅ Objection modal opened');
+            
+        } catch (error) {
+            console.error('Error opening objection modal:', error);
+            if (typeof showToast !== 'undefined') {
+                showToast('Error opening objections', 'error');
+            }
+        }
+    },
+    
+    /**
+     * Close the objection modal
+     */
+    closeModal: function() {
+        try {
+            const container = document.getElementById('objectionHandlerContainer');
+            if (container) {
+                container.style.display = 'none';
+            }
+            
+            // Update button state
+            const toggleBtn = document.getElementById('objectionToggleBtn');
+            if (toggleBtn) {
+                toggleBtn.innerHTML = '<i class="fas fa-shield-alt"></i> Objections';
+                toggleBtn.style.background = 'var(--secondary)';
+            }
+            
+            this.isOpen = false;
+            this.isModalOpen = false;
+            
+            document.dispatchEvent(new CustomEvent('objectionModalClosed'));
+            
+        } catch (error) {
+            console.error('Error closing objection modal:', error);
+        }
+    },
+    
+    /**
+     * Toggle modal open/close state
+     */
+    toggleModal: function() {
+        if (this.isModalOpen) {
+            this.closeModal();
+        } else {
+            this.openModal();
+        }
+    },
+    
+    // ============================================================
+    // UI CONTROL METHODS
+    // ============================================================
+    
     toggleBanner: function() {
         this.toggleModal();
     },
@@ -588,6 +1020,7 @@ const ObjectionHandler = {
     switchCategory: function(categoryKey) {
         this.currentCategory = categoryKey;
         
+        // Update category buttons
         document.querySelectorAll('.objection-category-btn').forEach(btn => {
             const isActive = btn.dataset.category === categoryKey;
             btn.classList.toggle('active', isActive);
@@ -603,10 +1036,11 @@ const ObjectionHandler = {
             }
         });
         
+        // Update cards
         const container = document.getElementById('objectionCardsContainer');
         if (container) {
             container.innerHTML = this.renderCards(categoryKey);
-            this.attachCardEvents();
+            this._attachCardEvents();
         }
     },
     
@@ -661,16 +1095,31 @@ const ObjectionHandler = {
         });
     },
     
+    // ============================================================
+    // ACTION METHODS
+    // ============================================================
+    
     copyResponse: function(response) {
         const text = response.replace(/&quot;/g, '"');
+        
+        if (!text || text.trim() === '') {
+            if (typeof showToast !== 'undefined') {
+                showToast('Nothing to copy', 'warning');
+            }
+            return;
+        }
+        
+        // Try modern clipboard API first
         if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text).then(() => {
-                if (typeof showToast !== 'undefined') {
-                    showToast('Response copied to clipboard! 📋', 'success');
-                }
-            }).catch(() => {
-                this._fallbackCopy(text);
-            });
+            navigator.clipboard.writeText(text)
+                .then(() => {
+                    if (typeof showToast !== 'undefined') {
+                        showToast('Response copied to clipboard! 📋', 'success');
+                    }
+                })
+                .catch(() => {
+                    this._fallbackCopy(text);
+                });
         } else {
             this._fallbackCopy(text);
         }
@@ -702,39 +1151,40 @@ const ObjectionHandler = {
         const cleanObjection = objection.replace(/&quot;/g, '"');
         const cleanResponse = response.replace(/&quot;/g, '"');
         
+        // Remove existing practice modal
         const existing = document.getElementById('objectionPracticeModal');
         if (existing) existing.remove();
         
+        // Create modal
         const modal = document.createElement('div');
         modal.id = 'objectionPracticeModal';
         modal.className = 'objection-practice-modal';
-        modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center; z-index:10001; opacity:0; transition:opacity 0.3s ease; padding:20px;';
         modal.innerHTML = `
-            <div class="objection-practice-content" style="background:var(--bg-secondary); border-radius:24px; max-width:600px; width:100%; max-height:85vh; overflow-y:auto; border:1px solid var(--border-color); box-shadow:var(--shadow-lg); transform:scale(0.9); transition:transform 0.3s ease;">
-                <div class="objection-practice-header" style="display:flex; justify-content:space-between; align-items:center; padding:14px 20px; border-bottom:1px solid var(--border-color); background:var(--bg-card); border-radius:24px 24px 0 0;">
-                    <h3 style="font-size:1rem; font-weight:600; display:flex; align-items:center; gap:8px; margin:0;">🎯 Practice Session</h3>
-                    <button class="objection-practice-close" id="objectionPracticeClose" style="background:none; border:none; color:var(--text-muted); font-size:1.1rem; cursor:pointer; padding:4px 8px; border-radius:8px; transition:all 0.2s;">
+            <div class="objection-practice-content">
+                <div class="objection-practice-header">
+                    <h3>🎯 Practice Session</h3>
+                    <button class="objection-practice-close" id="objectionPracticeClose">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
-                <div class="objection-practice-body" style="padding:16px 20px; display:flex; flex-direction:column; gap:14px;">
-                    <div class="objection-practice-scenario" style="background:var(--bg-primary); padding:12px 16px; border-radius:10px; border-left:4px solid var(--danger);">
-                        <div class="objection-practice-label" style="font-size:0.65rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.3px; margin-bottom:2px;">Customer Says:</div>
-                        <div class="objection-practice-objection" style="font-size:0.9rem; color:var(--text-primary); font-weight:500;">${cleanObjection}</div>
+                <div class="objection-practice-body">
+                    <div class="objection-practice-scenario">
+                        <div class="objection-practice-label">Customer Says:</div>
+                        <div class="objection-practice-objection">${cleanObjection}</div>
                     </div>
                     <div class="objection-practice-response-area">
-                        <div class="objection-practice-label" style="font-size:0.65rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.3px; margin-bottom:2px;">Your Response (Practice):</div>
-                        <textarea class="objection-practice-input" rows="4" placeholder="Type your response here..." style="width:100%; padding:10px 14px; border-radius:10px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-primary); font-size:0.85rem; resize:vertical; transition:all 0.2s; font-family:inherit;"></textarea>
+                        <div class="objection-practice-label">Your Response (Practice):</div>
+                        <textarea class="objection-practice-input" rows="4" placeholder="Type your response here..."></textarea>
                     </div>
-                    <div class="objection-practice-recommended" style="background:var(--bg-card); padding:12px 16px; border-radius:10px; border:1px solid var(--border-color);">
-                        <div class="objection-practice-label" style="font-size:0.65rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.3px; margin-bottom:2px;">💡 Recommended Response:</div>
-                        <div class="objection-practice-recommended-text" style="font-size:0.85rem; color:var(--text-secondary); line-height:1.5; display:none; padding:6px 0;">${cleanResponse}</div>
-                        <button class="objection-practice-reveal-btn" id="objectionRevealResponse" style="padding:5px 14px; border-radius:16px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-secondary); cursor:pointer; font-size:0.7rem; transition:all 0.2s; margin-top:4px;">
+                    <div class="objection-practice-recommended">
+                        <div class="objection-practice-label">💡 Recommended Response:</div>
+                        <div class="objection-practice-recommended-text">${cleanResponse}</div>
+                        <button class="objection-practice-reveal-btn" id="objectionRevealResponse">
                             <i class="fas fa-eye"></i> Show Recommended Response
                         </button>
                     </div>
-                    <div class="objection-practice-actions" style="display:flex; gap:8px; flex-wrap:wrap;">
-                        <button class="objection-practice-copy-btn" data-response="${cleanResponse.replace(/"/g, '&quot;')}" style="padding:6px 16px; border-radius:16px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-secondary); cursor:pointer; font-size:0.75rem; transition:all 0.2s; display:inline-flex; align-items:center; gap:6px;">
+                    <div class="objection-practice-actions">
+                        <button class="objection-practice-copy-btn" data-response="${cleanResponse.replace(/"/g, '&quot;')}">
                             <i class="fas fa-copy"></i> Copy Response
                         </button>
                     </div>
@@ -743,35 +1193,33 @@ const ObjectionHandler = {
         `;
         
         document.body.appendChild(modal);
-        setTimeout(() => {
-            modal.style.opacity = '1';
-            const content = modal.querySelector('.objection-practice-content');
-            if (content) content.style.transform = 'scale(1)';
-        }, 10);
         
+        // Animate in
+        requestAnimationFrame(() => {
+            modal.classList.add('active');
+        });
+        
+        // Close handlers
         const closeBtn = document.getElementById('objectionPracticeClose');
         if (closeBtn) {
             closeBtn.addEventListener('click', () => {
-                modal.style.opacity = '0';
-                const content = modal.querySelector('.objection-practice-content');
-                if (content) content.style.transform = 'scale(0.9)';
+                modal.classList.remove('active');
                 setTimeout(() => modal.remove(), 300);
             });
         }
         
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
-                modal.style.opacity = '0';
-                const content = modal.querySelector('.objection-practice-content');
-                if (content) content.style.transform = 'scale(0.9)';
+                modal.classList.remove('active');
                 setTimeout(() => modal.remove(), 300);
             }
         });
         
+        // Reveal handler
         const revealBtn = document.getElementById('objectionRevealResponse');
         if (revealBtn) {
             revealBtn.addEventListener('click', () => {
-                const recommendedText = document.querySelector('.objection-practice-recommended-text');
+                const recommendedText = modal.querySelector('.objection-practice-recommended-text');
                 if (recommendedText) {
                     const isHidden = recommendedText.style.display === 'none' || !recommendedText.style.display;
                     recommendedText.style.display = isHidden ? 'block' : 'none';
@@ -782,20 +1230,24 @@ const ObjectionHandler = {
             });
         }
         
-        const copyBtn = document.querySelector('.objection-practice-copy-btn');
+        // Copy handler
+        const copyBtn = modal.querySelector('.objection-practice-copy-btn');
         if (copyBtn) {
             copyBtn.addEventListener('click', () => {
-                const response = copyBtn.dataset.response.replace(/&quot;/g, '"');
-                this.copyResponse(response);
+                const responseText = copyBtn.dataset.response.replace(/&quot;/g, '"');
+                this.copyResponse(responseText);
             });
         }
     },
     
-    attachEvents: function() {
+    // ============================================================
+    // EVENT ATTACHMENT
+    // ============================================================
+    
+    _attachEvents: function() {
         // Prevent duplicate event listeners
         if (this._eventListenersAttached) {
-            // Still need to ensure category buttons work
-            this.attachCardEvents();
+            this._attachCardEvents(); // Still need card events
             return;
         }
         this._eventListenersAttached = true;
@@ -803,9 +1255,7 @@ const ObjectionHandler = {
         // Close button
         const closeBtn = document.getElementById('objectionCloseBtn');
         if (closeBtn) {
-            const newCloseBtn = closeBtn.cloneNode(true);
-            closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
-            newCloseBtn.addEventListener('click', (e) => {
+            closeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.closeModal();
             });
@@ -814,51 +1264,45 @@ const ObjectionHandler = {
         // Minimize button
         const minimizeBtn = document.getElementById('objectionMinimizeBtn');
         if (minimizeBtn) {
-            const newMinimizeBtn = minimizeBtn.cloneNode(true);
-            minimizeBtn.parentNode.replaceChild(newMinimizeBtn, minimizeBtn);
-            newMinimizeBtn.addEventListener('click', (e) => {
+            minimizeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.toggleMinimize();
             });
         }
         
-        // Header toggle
+        // Header toggle - only on header click, not on buttons
         const headerToggle = document.getElementById('objectionIntegratedToggle');
         if (headerToggle) {
-            // Only toggle on header click, not on button clicks
             headerToggle.addEventListener('click', (e) => {
-                // Don't toggle if clicking on a button
                 if (e.target.closest('button')) return;
                 this.toggleModal();
             });
         }
         
-        // Category buttons
-        document.querySelectorAll('.objection-category-btn').forEach(btn => {
-            const newBtn = btn.cloneNode(true);
-            btn.parentNode.replaceChild(newBtn, btn);
-            newBtn.addEventListener('click', () => {
-                this.switchCategory(newBtn.dataset.category);
+        // Category buttons - use event delegation for dynamic elements
+        const nav = document.getElementById('objectionCategoryNav');
+        if (nav) {
+            nav.addEventListener('click', (e) => {
+                const btn = e.target.closest('.objection-category-btn');
+                if (btn) {
+                    this.switchCategory(btn.dataset.category);
+                }
             });
-        });
+        }
         
         // Expand/Collapse buttons
         const expandAll = document.getElementById('objectionExpandAll');
         if (expandAll) {
-            const newExpandAll = expandAll.cloneNode(true);
-            expandAll.parentNode.replaceChild(newExpandAll, expandAll);
-            newExpandAll.addEventListener('click', () => this.expandAll());
+            expandAll.addEventListener('click', () => this.expandAll());
         }
         
         const collapseAll = document.getElementById('objectionCollapseAll');
         if (collapseAll) {
-            const newCollapseAll = collapseAll.cloneNode(true);
-            collapseAll.parentNode.replaceChild(newCollapseAll, collapseAll);
-            newCollapseAll.addEventListener('click', () => this.collapseAll());
+            collapseAll.addEventListener('click', () => this.collapseAll());
         }
         
         // Card events
-        this.attachCardEvents();
+        this._attachCardEvents();
         
         // Keyboard shortcut for closing (Escape)
         document.addEventListener('keydown', (e) => {
@@ -866,47 +1310,70 @@ const ObjectionHandler = {
                 this.closeModal();
             }
         });
+        
+        console.log('🎯 Objection Handler events attached');
     },
     
-    attachCardEvents: function() {
-        document.querySelectorAll('.objection-card-header').forEach(header => {
-            // Remove existing listeners to prevent duplicates
-            const newHeader = header.cloneNode(true);
-            header.parentNode.replaceChild(newHeader, header);
-            
-            newHeader.addEventListener('click', () => {
-                const id = newHeader.dataset.id;
+    _attachCardEvents: function() {
+        // Use event delegation for card interactions
+        const container = document.getElementById('objectionCardsContainer');
+        if (!container) return;
+        
+        // Remove existing listeners by cloning the container
+        const newContainer = container.cloneNode(true);
+        container.parentNode.replaceChild(newContainer, container);
+        newContainer.id = 'objectionCardsContainer';
+        
+        // Card header clicks (expand/collapse)
+        newContainer.addEventListener('click', (e) => {
+            const header = e.target.closest('.objection-card-header');
+            if (header) {
+                const id = header.dataset.id;
                 if (id) this.toggleCard(id);
-            });
+            }
         });
         
-        document.querySelectorAll('.objection-copy-btn').forEach(btn => {
-            const newBtn = btn.cloneNode(true);
-            btn.parentNode.replaceChild(newBtn, btn);
-            
-            newBtn.addEventListener('click', (e) => {
+        // Copy button clicks
+        newContainer.addEventListener('click', (e) => {
+            const btn = e.target.closest('.objection-copy-btn');
+            if (btn) {
                 e.stopPropagation();
-                const response = newBtn.dataset.response;
-                this.copyResponse(response);
-            });
+                const response = btn.dataset.response;
+                if (response) this.copyResponse(response);
+            }
         });
         
-        document.querySelectorAll('.objection-practice-btn').forEach(btn => {
-            const newBtn = btn.cloneNode(true);
-            btn.parentNode.replaceChild(newBtn, btn);
-            
-            newBtn.addEventListener('click', (e) => {
+        // Practice button clicks
+        newContainer.addEventListener('click', (e) => {
+            const btn = e.target.closest('.objection-practice-btn');
+            if (btn) {
                 e.stopPropagation();
-                const objection = newBtn.dataset.objection;
-                const response = newBtn.dataset.response;
-                this.practiceMode(objection, response);
-            });
+                const objection = btn.dataset.objection;
+                const response = btn.dataset.response;
+                if (objection && response) {
+                    this.practiceMode(objection, response);
+                }
+            }
         });
     },
     
-    // Safe initialization check
+    // ============================================================
+    // UTILITY METHODS
+    // ============================================================
+    
     isReady: function() {
         return this.initialized;
+    },
+    
+    getState: function() {
+        return {
+            initialized: this.initialized,
+            isOpen: this.isOpen,
+            isModalOpen: this.isModalOpen,
+            currentCategory: this.currentCategory,
+            expandedCount: this.expandedCards.size,
+            totalObjections: this.getTotalObjectionCount()
+        };
     }
 };
 

@@ -2380,46 +2380,56 @@ function attachScriptActionEvents() {
         favoriteScriptBtn.addEventListener('click', handleFavoriteScript);
     }
     
-    // UPDATED: Objection button - use toggleModal with proper error handling
+    // ============================================================
+    // FIXED: Objection button - proper error handling and fallback
+    // ============================================================
     const objectionBtn = document.getElementById('objectionToggleBtn');
     if (objectionBtn) {
         // Remove all existing listeners by cloning
         const newBtn = objectionBtn.cloneNode(true);
         objectionBtn.parentNode.replaceChild(newBtn, objectionBtn);
+        
         newBtn.addEventListener('click', function(e) {
             e.stopPropagation();
             e.preventDefault();
+            
             try {
-                if (typeof ObjectionHandler !== 'undefined' && ObjectionHandler) {
-                    // Ensure initialized
-                    if (!ObjectionHandler.initialized) {
-                        ObjectionHandler.init();
-                    }
-                    // Use toggleModal which handles open/close logic
-                    if (ObjectionHandler.toggleModal) {
-                        ObjectionHandler.toggleModal();
-                    } else if (ObjectionHandler.openModal) {
-                        ObjectionHandler.openModal();
-                    } else {
-                        // Fallback: force open
-                        ObjectionHandler.isModalOpen = false;
-                        ObjectionHandler.openModal();
-                    }
-                } else {
+                // Check if ObjectionHandler exists
+                if (typeof ObjectionHandler === 'undefined' || !ObjectionHandler) {
+                    console.warn('ObjectionHandler not defined');
                     if (typeof showToast !== 'undefined') {
-                        showToast('Objection handler not loaded', 'warning');
-                    } else {
-                        console.warn('Objection handler not loaded');
+                        showToast('Objection handler not available', 'warning');
                     }
+                    return;
                 }
+                
+                // Ensure initialized
+                if (!ObjectionHandler.initialized) {
+                    console.log('🔄 Initializing ObjectionHandler...');
+                    ObjectionHandler.init();
+                }
+                
+                // Use toggleModal (handles both open and close)
+                if (typeof ObjectionHandler.toggleModal === 'function') {
+                    ObjectionHandler.toggleModal();
+                } else if (typeof ObjectionHandler.openModal === 'function') {
+                    ObjectionHandler.openModal();
+                } else {
+                    // Ultimate fallback - force open
+                    console.warn('Using fallback to open objection modal');
+                    ObjectionHandler.isModalOpen = false;
+                    ObjectionHandler.openModal();
+                }
+                
             } catch (err) {
-                console.error('Error opening objection handler:', err);
+                console.error('Error in objection button handler:', err);
                 if (typeof showToast !== 'undefined') {
-                    showToast('Error opening objections', 'error');
+                    showToast('Error opening objection handler', 'error');
                 }
             }
         });
-        console.log('🎯 Objection button attached from script actions');
+        
+        console.log('🎯 Objection button attached successfully');
     }
 }
 
