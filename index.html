@@ -1,44 +1,642 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>ScriptFlow Pro</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScriptFlow Pro - Smart CRM</title>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
-    <h1>🎯 ScriptFlow Pro</h1>
-    <p>Smart Call Scripts · Demo</p>
-    
-    <div>
-        <span>Today: 12</span>
-        <span>Week: 47</span>
-        <span>Month: 183</span>
-        <span>Avg Score: 89</span>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-container">
+            <div class="loading-logo">
+                <i class="fas fa-rocket"></i>
+                <span>ScriptFlow Pro</span>
+            </div>
+            <div class="loading-progress">
+                <div class="loading-bar" id="loadingBar"></div>
+            </div>
+            <div class="loading-status" id="loadingStatus">Initializing...</div>
+            <div class="loading-steps">
+                <div class="loading-step" data-step="firebase">Firebase</div>
+                <div class="loading-step" data-step="auth">Authentication</div>
+                <div class="loading-step" data-step="data">Data</div>
+                <div class="loading-step" data-step="scripts">Scripts</div>
+                <div class="loading-step" data-step="calendar">Calendar</div>
+                <div class="loading-step" data-step="features">Features</div>
+            </div>
+        </div>
     </div>
-    
-    <h3>📜 Call Scripts</h3>
-    
-    <div>▶ 🎯 Opening Script [1] ⭐</div>
-    <div>  👑 Owner - Yes [2]</div>
-    <div>  🤤 Not Owner [3]</div>
-    <div>  💻 Objection - Website [4]</div>
-    <div>  💰 Objection - Cost [5]</div>
-    <div>  🤝 Closing Script [6]</div>
-    
-    <h3>📜 Opening Script v3</h3>
-    <p>
-        "Hey, is this [Company Name]?"<br>
-        "Awesome — this is Flynn. We created a free, modern preview version inspired by your current site. There's no cost or obligation. Would you be open to taking a quick look later today and sharing your thoughts?"
-    </p>
-    
-    <div>
-        <button>Edit</button>
-        <button>Save</button>
-        <button>Copy</button>
-        <button>Objections</button>
-        <button>Favorite</button>
-        <button>Smart Import</button>
+
+    <!-- App Container -->
+    <div id="app" style="display:none;">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fas fa-rocket"></i>
+                    <span>ScriptFlow Pro</span>
+                </div>
+                <button class="sidebar-toggle" id="sidebarToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-view="dashboard">
+                    <i class="fas fa-chart-pie"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-view="calendar">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>Calendar</span>
+                    <span class="nav-badge" id="calendarBadge">0</span>
+                </a>
+                <a href="#" class="nav-item" data-view="scripts">
+                    <i class="fas fa-file-alt"></i>
+                    <span>Scripts</span>
+                </a>
+                <a href="#" class="nav-item" data-view="import">
+                    <i class="fas fa-upload"></i>
+                    <span>Smart Import</span>
+                </a>
+                <a href="#" class="nav-item" data-view="tasks">
+                    <i class="fas fa-tasks"></i>
+                    <span>Tasks</span>
+                    <span class="nav-badge" id="taskBadge">0</span>
+                </a>
+                <a href="#" class="nav-item" data-view="closers">
+                    <i class="fas fa-user-tie"></i>
+                    <span>Closers</span>
+                </a>
+                <a href="#" class="nav-item" data-view="analytics">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Analytics</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-profile" id="userProfile">
+                    <img src="" alt="User" id="userAvatar" class="user-avatar">
+                    <div class="user-info">
+                        <span class="user-name" id="userName">User</span>
+                        <span class="user-email" id="userEmail">user@email.com</span>
+                    </div>
+                </div>
+                <button class="btn-logout" id="logoutBtn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Sign Out</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Bar -->
+            <header class="top-bar">
+                <div class="top-bar-left">
+                    <button class="mobile-menu-toggle" id="mobileMenuToggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1 class="page-title" id="pageTitle">Dashboard</h1>
+                </div>
+                <div class="top-bar-right">
+                    <div class="search-container">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="globalSearch" placeholder="Search... (Ctrl+F)" class="search-input">
+                    </div>
+                    <div class="top-bar-actions">
+                        <button class="btn-icon" id="shortcutsHelpBtn" title="Keyboard Shortcuts (?)">
+                            <i class="fas fa-keyboard"></i>
+                        </button>
+                        <button class="btn-icon" id="themeToggle" title="Toggle Theme (Ctrl+Shift+T)">
+                            <i class="fas fa-moon"></i>
+                        </button>
+                        <button class="btn-icon" id="refreshBtn" title="Refresh (R)">
+                            <i class="fas fa-sync"></i>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- View Container -->
+            <div class="view-container">
+                <!-- Dashboard View -->
+                <div class="view-panel active" id="view-dashboard">
+                    <div class="dashboard-stats" id="dashboardStats">
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-users"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="totalPipeline">0</span>
+                                <span class="stat-label">Total Pipeline</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-phone"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="hotTransfers">0</span>
+                                <span class="stat-label">Hot Transfers</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="warmCallbacks">0</span>
+                                <span class="stat-label">Warm Callbacks</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="completedAppointments">0</span>
+                                <span class="stat-label">Completed</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-hourglass-half"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="pendingAppointments">0</span>
+                                <span class="stat-label">Pending</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-ban"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="canceledAppointments">0</span>
+                                <span class="stat-label">Canceled</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-percentage"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="conversionRate">0%</span>
+                                <span class="stat-label">Conversion Rate</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-bullseye"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="goalProgress">0%</span>
+                                <span class="stat-label">Goal Progress</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dashboard-charts">
+                        <div class="chart-container">
+                            <h3>Status Distribution</h3>
+                            <canvas id="statusDonutChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>Weekly Trend</h3>
+                            <canvas id="weeklyTrendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Calendar View -->
+                <div class="view-panel" id="view-calendar">
+                    <div class="calendar-header">
+                        <div class="calendar-nav">
+                            <button class="btn-icon" id="calendarPrev"><i class="fas fa-chevron-left"></i></button>
+                            <h2 id="calendarTitle">March 2026</h2>
+                            <button class="btn-icon" id="calendarNext"><i class="fas fa-chevron-right"></i></button>
+                        </div>
+                        <div class="calendar-views">
+                            <button class="btn-view active" data-view="month">Month</button>
+                            <button class="btn-view" data-view="week">Week</button>
+                            <button class="btn-view" data-view="day">Day</button>
+                            <button class="btn-view" data-view="list">List</button>
+                        </div>
+                        <div class="calendar-actions">
+                            <button class="btn-primary" id="quickAddBtn"><i class="fas fa-plus"></i> Quick Add</button>
+                        </div>
+                    </div>
+                    <div class="calendar-grid" id="calendarGrid"></div>
+                </div>
+
+                <!-- Scripts View -->
+                <div class="view-panel" id="view-scripts">
+                    <div class="scripts-container">
+                        <div class="scripts-sidebar">
+                            <div class="scripts-sidebar-header">
+                                <h3>Call Scripts</h3>
+                                <button class="btn-primary-sm" id="newScriptBtn"><i class="fas fa-plus"></i> New</button>
+                            </div>
+                            <div class="scripts-list" id="scriptsList"></div>
+                        </div>
+                        <div class="scripts-editor">
+                            <div class="scripts-editor-header">
+                                <input type="text" id="scriptName" placeholder="Script name..." class="script-name-input">
+                                <div class="scripts-editor-actions">
+                                    <button class="btn-icon" id="favoriteScriptBtn" title="Toggle Favorite">
+                                        <i class="far fa-star"></i>
+                                    </button>
+                                    <button class="btn-icon" id="copyScriptBtn" title="Copy Script">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                    <button class="btn-icon" id="resetScriptBtn" title="Reset Script">
+                                        <i class="fas fa-undo"></i>
+                                    </button>
+                                    <button class="btn-icon" id="deleteScriptBtn" title="Delete Script">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <textarea id="scriptContent" class="script-content" placeholder="Write your call script here..."></textarea>
+                            <div class="scripts-editor-footer">
+                                <span class="script-version" id="scriptVersion">Version 1</span>
+                                <span class="script-status" id="scriptStatus">Saved</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Import View -->
+                <div class="view-panel" id="view-import">
+                    <div class="import-container">
+                        <div class="import-header">
+                            <h2><i class="fas fa-upload"></i> Smart Import</h2>
+                            <p class="import-description">Paste sales call transcripts, CSV data, or key-value pairs for intelligent parsing</p>
+                        </div>
+                        <div class="import-input-section">
+                            <textarea id="importText" class="import-textarea" placeholder="Paste your data here..."></textarea>
+                            <div class="import-actions">
+                                <button class="btn-primary" id="parseImportBtn"><i class="fas fa-brain"></i> Parse & Extract</button>
+                                <button class="btn-secondary" id="clearImportBtn"><i class="fas fa-eraser"></i> Clear</button>
+                            </div>
+                        </div>
+                        <div class="import-results" id="importResults"></div>
+                    </div>
+                </div>
+
+                <!-- Tasks View -->
+                <div class="view-panel" id="view-tasks">
+                    <div class="tasks-container">
+                        <div class="tasks-header">
+                            <h2>Tasks & Follow-ups</h2>
+                            <button class="btn-primary" id="newTaskBtn"><i class="fas fa-plus"></i> New Task</button>
+                        </div>
+                        <div class="tasks-filters">
+                            <button class="filter-btn active" data-filter="all">All</button>
+                            <button class="filter-btn" data-filter="pending">Pending</button>
+                            <button class="filter-btn" data-filter="today">Today</button>
+                        </div>
+                        <div class="tasks-list" id="tasksList"></div>
+                    </div>
+                </div>
+
+                <!-- Closers View -->
+                <div class="view-panel" id="view-closers">
+                    <div class="closers-container">
+                        <div class="closers-header">
+                            <h2>Closer Management</h2>
+                            <button class="btn-primary" id="newCloserBtn"><i class="fas fa-plus"></i> Add Closer</button>
+                        </div>
+                        <div class="closers-grid" id="closersGrid"></div>
+                    </div>
+                </div>
+
+                <!-- Analytics View -->
+                <div class="view-panel" id="view-analytics">
+                    <div class="analytics-container">
+                        <div class="analytics-header">
+                            <h2>Analytics & Reports</h2>
+                            <button class="btn-secondary" id="exportCSVBtn"><i class="fas fa-file-csv"></i> Export CSV</button>
+                        </div>
+                        <div class="analytics-stats" id="analyticsStats"></div>
+                        <div class="analytics-charts">
+                            <div class="chart-container">
+                                <h3>Appointment Trends</h3>
+                                <canvas id="analyticsTrendChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
-    
-    <hr>
-    <small>Full-featured CRM · Drag appointments · Lead scoring · Ctrl+Shift+I Import · 1-9 Scripts</small>
+
+    <!-- Modals -->
+    <div class="modal-overlay" id="modalOverlay"></div>
+
+    <!-- Import Results Modal -->
+    <div class="modal" id="importResultsModal">
+        <div class="modal-header">
+            <h2>Import Results</h2>
+            <button class="modal-close" data-modal="importResultsModal"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body" id="importResultsBody"></div>
+        <div class="modal-footer">
+            <button class="btn-secondary" data-modal="importResultsModal">Close</button>
+            <button class="btn-primary" id="saveAllImportBtn">Save All Valid</button>
+        </div>
+    </div>
+
+    <!-- Appointment Detail Modal -->
+    <div class="modal" id="appointmentModal">
+        <div class="modal-header">
+            <h2>Appointment Details</h2>
+            <button class="modal-close" data-modal="appointmentModal"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body" id="appointmentModalBody"></div>
+        <div class="modal-footer">
+            <button class="btn-danger" id="deleteAppointmentBtn">Delete</button>
+            <button class="btn-secondary" data-modal="appointmentModal">Close</button>
+            <button class="btn-primary" id="saveAppointmentBtn">Save Changes</button>
+        </div>
+    </div>
+
+    <!-- Quick Add Modal -->
+    <div class="modal" id="quickAddModal">
+        <div class="modal-header">
+            <h2>Quick Add Appointment</h2>
+            <button class="modal-close" data-modal="quickAddModal"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <form id="quickAddForm">
+                <div class="form-group">
+                    <label>Business Name *</label>
+                    <input type="text" id="qaBusiness" required>
+                </div>
+                <div class="form-group">
+                    <label>Contact Name *</label>
+                    <input type="text" id="qaContactName" required>
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="tel" id="qaPhone">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="qaEmail">
+                </div>
+                <div class="form-group">
+                    <label>Date *</label>
+                    <input type="date" id="qaDate" required>
+                </div>
+                <div class="form-group">
+                    <label>Time *</label>
+                    <input type="time" id="qaTime" required>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="qaStatus">
+                        <option value="Pending">Pending</option>
+                        <option value="Hot Transfer">Hot Transfer</option>
+                        <option value="Warm Callback">Warm Callback</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Canceled">Canceled</option>
+                        <option value="Meeting Booked">Meeting Booked</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Closer</label>
+                    <select id="qaCloser"></select>
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="qaNotes" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Tags</label>
+                    <input type="text" id="qaTags" placeholder="Comma separated tags">
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" data-modal="quickAddModal">Cancel</button>
+            <button class="btn-primary" id="saveQuickAddBtn">Save Appointment</button>
+        </div>
+    </div>
+
+    <!-- Task Modal -->
+    <div class="modal" id="taskModal">
+        <div class="modal-header">
+            <h2>Task Details</h2>
+            <button class="modal-close" data-modal="taskModal"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <form id="taskForm">
+                <div class="form-group">
+                    <label>Description *</label>
+                    <input type="text" id="taskDescription" required>
+                </div>
+                <div class="form-group">
+                    <label>Due Date *</label>
+                    <input type="date" id="taskDueDate" required>
+                </div>
+                <div class="form-group">
+                    <label>Priority</label>
+                    <select id="taskPriority">
+                        <option value="High">High</option>
+                        <option value="Medium" selected>Medium</option>
+                        <option value="Low">Low</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Related Appointment</label>
+                    <select id="taskAppointment"></select>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-danger" id="deleteTaskBtn">Delete</button>
+            <button class="btn-secondary" data-modal="taskModal">Cancel</button>
+            <button class="btn-primary" id="saveTaskBtn">Save Task</button>
+        </div>
+    </div>
+
+    <!-- Closer Modal -->
+    <div class="modal" id="closerModal">
+        <div class="modal-header">
+            <h2>Closer Details</h2>
+            <button class="modal-close" data-modal="closerModal"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <form id="closerForm">
+                <div class="form-group">
+                    <label>Name *</label>
+                    <input type="text" id="closerName" required>
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="closerEmail">
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="tel" id="closerPhone">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="closerActive" checked> Active
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="closerDefault"> Set as Default
+                    </label>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-danger" id="deleteCloserBtn">Delete</button>
+            <button class="btn-secondary" data-modal="closerModal">Cancel</button>
+            <button class="btn-primary" id="saveCloserBtn">Save Closer</button>
+        </div>
+    </div>
+
+    <!-- Objection Handler Modal -->
+    <div class="modal modal-lg" id="objectionModal">
+        <div class="modal-header">
+            <h2><i class="fas fa-comment-dots"></i> Objection Handler</h2>
+            <button class="modal-close" data-modal="objectionModal"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="objection-search">
+                <i class="fas fa-search"></i>
+                <input type="text" id="objectionSearch" placeholder="Search objections...">
+                <span class="objection-count" id="objectionCount">0 results</span>
+            </div>
+            <div class="objection-categories">
+                <button class="category-btn active" data-category="all">All</button>
+                <button class="category-btn" data-category="reflex">Reflex Brush-Offs</button>
+                <button class="category-btn" data-category="need">We Don't Need It</button>
+                <button class="category-btn" data-category="skeptical">Skeptical Questions</button>
+                <button class="category-btn" data-category="gatekeeper">Gatekeepers</button>
+            </div>
+            <div class="objection-actions">
+                <button class="btn-secondary-sm" id="expandAllObj"><i class="fas fa-expand"></i> Expand All</button>
+                <button class="btn-secondary-sm" id="collapseAllObj"><i class="fas fa-compress"></i> Collapse All</button>
+                <button class="btn-secondary-sm" id="practiceModeBtn"><i class="fas fa-microphone"></i> Practice Mode</button>
+            </div>
+            <div class="objection-list" id="objectionList"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" data-modal="objectionModal">Close</button>
+            <span class="shortcut-hint">Ctrl+Shift+O</span>
+        </div>
+    </div>
+
+    <!-- Shortcuts Help Modal -->
+    <div class="modal modal-sm" id="shortcutsModal">
+        <div class="modal-header">
+            <h2>Keyboard Shortcuts</h2>
+            <button class="modal-close" data-modal="shortcutsModal"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="shortcuts-grid">
+                <div class="shortcut-item">
+                    <kbd>Ctrl+Shift+I</kbd>
+                    <span>Smart Import</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>C</kbd>
+                    <span>Calendar</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>S</kbd>
+                    <span>Scripts</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>F</kbd>
+                    <span>Search</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>A</kbd>
+                    <span>Quick Add</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>H</kbd>
+                    <span>Analytics</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>M</kbd>
+                    <span>Closers</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>?</kbd>
+                    <span>Shortcut Help</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>E</kbd>
+                    <span>Export</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>Ctrl+Shift+T</kbd>
+                    <span>Toggle Theme</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>R</kbd>
+                    <span>Refresh</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>B</kbd>
+                    <span>Bulk Actions</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>Ctrl+Shift+O</kbd>
+                    <span>Objection Handler</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>1-9</kbd>
+                    <span>Switch Script</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>Esc</kbd>
+                    <span>Close Modal</span>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" data-modal="shortcutsModal">Close</button>
+        </div>
+    </div>
+
+    <!-- Bulk Actions Modal -->
+    <div class="modal modal-sm" id="bulkModal">
+        <div class="modal-header">
+            <h2>Bulk Actions</h2>
+            <button class="modal-close" data-modal="bulkModal"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="bulk-actions">
+                <button class="bulk-action-btn" data-action="status"><i class="fas fa-tag"></i> Change Status</button>
+                <button class="bulk-action-btn" data-action="tag"><i class="fas fa-hashtag"></i> Add Tag</button>
+                <button class="bulk-action-btn" data-action="delete"><i class="fas fa-trash"></i> Delete Selected</button>
+                <button class="bulk-action-btn" data-action="export"><i class="fas fa-file-export"></i> Export Selected</button>
+            </div>
+            <div id="bulkActionContent"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" data-modal="bulkModal">Cancel</button>
+            <button class="btn-primary" id="executeBulkBtn">Execute</button>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Scripts -->
+    <script src="assets/js/firebase-config.js"></script>
+    <script src="assets/js/loading.js"></script>
+    <script src="assets/js/objection-handler.js"></script>
+    <script src="assets/js/import-enhancements.js"></script>
+    <script src="assets/js/app.js"></script>
 </body>
 </html>
