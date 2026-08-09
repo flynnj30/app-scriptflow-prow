@@ -2,7 +2,6 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Firebase](https://img.shields.io/badge/Firebase-039BE5?style=flat&logo=Firebase&logoColor=white)](https://firebase.google.com/)
-[![Gemini AI](https://img.shields.io/badge/Gemini_AI-4285F4?style=flat&logo=google&logoColor=white)](https://ai.google.dev/)
 [![Render](https://img.shields.io/badge/Render-46E3B7?style=flat&logo=render&logoColor=white)](https://render.com/)
 
 ScriptFlow Pro is a powerful, AI-powered CRM application designed for sales teams to manage leads, appointments, and call scripts efficiently.
@@ -32,6 +31,7 @@ ScriptFlow Pro is a powerful, AI-powered CRM application designed for sales team
 - Filter by Meeting/Callback/Follow-up
 - Quick add appointments
 - Appointment details with edit/complete/cancel actions
+- Drag to reschedule
 
 ### 👥 Prospect Management
 - Full CRUD operations
@@ -46,19 +46,18 @@ ScriptFlow Pro is a powerful, AI-powered CRM application designed for sales team
 - Weekly trends
 - Show rate tracking
 - Quality score distribution
-- Drill-down data exploration
 
 ### 🛡️ Objection Handler
 - 4 categories: Reflex, We Don't Need It, Skeptical, Gatekeepers
 - Quick search
 - Copy responses
-- Favorite responses
+- Practice mode
 - Keyboard shortcut (Ctrl+Shift+O)
 
 ### 🔒 Security & Error Handling
 - Global error handler with user-friendly error page
 - Secure API key management
-- Environment variable support
+- Offline mode support
 - CORS headers for security
 
 ## 🛠️ Technology Stack
@@ -66,7 +65,6 @@ ScriptFlow Pro is a powerful, AI-powered CRM application designed for sales team
 | Technology | Purpose |
 |------------|---------|
 | **HTML5, CSS3, JavaScript** | Frontend |
-| **Google Gemini API** | AI transcript parsing |
 | **Firebase** | Database & Authentication |
 | **Chart.js** | Data visualization |
 | **SortableJS** | Drag-and-drop |
@@ -79,11 +77,10 @@ ScriptFlow Pro is a powerful, AI-powered CRM application designed for sales team
 
 - Node.js (v18 or higher)
 - Firebase account
-- Google Gemini API key
 
 ### Setup
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/scriptflow-pro.git
+git clone https://github.com/flynnj30/app-scriptflow-prow.git
 cd scriptflow-pro

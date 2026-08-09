@@ -7,7 +7,12 @@
 
     console.log('🚀 ScriptFlow Pro main entry point loaded');
 
-    // Wait for DOM to be ready
+    // Check if app is already initialized
+    if (window.__appInitialized) {
+        console.log('⚠️ App already initialized, skipping...');
+        return;
+    }
+
     function ready(fn) {
         if (document.readyState !== 'loading') {
             fn();
@@ -25,7 +30,12 @@
             LoadingManager: typeof LoadingManager !== 'undefined',
             ObjectionHandler: typeof ObjectionHandler !== 'undefined',
             AppState: typeof AppState !== 'undefined',
-            Data: typeof Data !== 'undefined'
+            Data: typeof Data !== 'undefined',
+            Scripts: typeof Scripts !== 'undefined',
+            FeaturePanel: typeof FeaturePanel !== 'undefined',
+            CalendarView: typeof CalendarView !== 'undefined',
+            Stats: typeof Stats !== 'undefined',
+            Utils: typeof Utils !== 'undefined'
         };
 
         const missingDeps = Object.entries(dependencies)
@@ -40,23 +50,20 @@
 
         console.log('✅ All dependencies loaded');
 
+        // Mark as initialized
+        window.__appInitialized = true;
+
         // Start the app
-        if (typeof initApp === 'function') {
+        if (typeof startApp === 'function') {
+            startApp();
+        } else if (typeof initApp === 'function') {
             initApp();
         } else {
-            console.warn('⚠️ initApp not found, trying startApp...');
-            if (typeof startApp === 'function') {
-                startApp();
-            } else {
-                console.error('❌ No app initialization function found');
-                showCriticalError('App initialization failed. Please refresh the page.');
-            }
+            console.error('❌ No app initialization function found');
+            showCriticalError('App initialization failed. Please refresh the page.');
         }
     });
 
-    /**
-     * Show a critical error message
-     */
     function showCriticalError(message) {
         const loadingScreen = document.getElementById('loadingScreen');
         if (loadingScreen) {
@@ -71,7 +78,6 @@
                 subtitle.style.color = '#ef4444';
             }
             
-            // Add retry button
             const content = loadingScreen.querySelector('.loading-content');
             if (content && !content.querySelector('.error-retry-btn')) {
                 const btn = document.createElement('button');
@@ -83,13 +89,11 @@
             }
         }
         
-        // Also show as toast if available
         if (typeof showToast === 'function') {
             showToast(message, 'error');
         }
     }
 
-    // Export for debugging
     window.__mainReady = true;
     console.log('✅ Main entry point ready');
 })();

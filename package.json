@@ -6,12 +6,16 @@
   "scripts": {
     "start": "npx serve . -p $PORT",
     "dev": "npx serve . -p 3000",
-    "build": "echo 'Static site - no build needed'"
+    "build": "echo 'Static site - no build needed'",
+    "test": "echo 'No tests specified'"
   },
   "dependencies": {
     "serve": "^14.2.0"
   },
   "engines": {
     "node": ">=18.0.0"
-  }
+  },
+  "keywords": ["crm", "sales", "scripts", "appointments", "leads"],
+  "author": "ScriptFlow Pro",
+  "license": "MIT"
 }

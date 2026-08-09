@@ -82,6 +82,38 @@ const CONFIG = {
         { id: 'seif', name: 'Seif', email: 'seif@company.com', phone: '+1-555-0202', active: true, default: false },
         { id: 'seun', name: 'Seun', email: 'seun@company.com', phone: '+1-555-0203', active: true, default: false }
     ],
+    DEFAULT_SCRIPTS: {
+        "opening": { 
+            name: "🎯 Opening Script", 
+            content: '"Hey, is this [Company Name]?"\n\n"Awesome — this is Flynn. We created a free, modern preview version inspired by your current site. There\'s no cost or obligation. Would you be open to taking a quick look later today and sharing your thoughts?"', 
+            version: 1 
+        },
+        "owner_yes": { 
+            name: "👑 Owner - Yes", 
+            content: "Perfect! Daniel will call you shortly to showcase your preview concept. Is this the best number to connect with you?", 
+            version: 1 
+        },
+        "owner_no": { 
+            name: "🤤 Not Owner", 
+            content: "No worries! Who usually drives your design or advertising decisions? What is the best coordinate to reach them today?", 
+            version: 1 
+        },
+        "objection_website": { 
+            name: "💻 Objection - Website", 
+            content: "I completely understand your concern about the website. Our preview is designed to show you what's possible without any commitment.", 
+            version: 1 
+        },
+        "objection_cost": { 
+            name: "💰 Objection - Cost", 
+            content: "Great question about pricing. The preview is completely free—there's no cost or obligation. We believe in showing value first.", 
+            version: 1 
+        },
+        "closing": { 
+            name: "🤝 Closing Script", 
+            content: "Thank you for your time today! I'll have our team prepare the preview and reach out with next steps.", 
+            version: 1 
+        }
+    },
     FIELD_MAPPINGS: {
         'business': ['business', 'company', 'organization', 'org', 'firm', 'brand', 'store', 'business name', 'company name'],
         'name': ['name', 'client', 'prospect', 'contact', 'customer', 'person', 'full name', 'contact name', 'client name'],
@@ -250,7 +282,11 @@ const AppState = {
     isDraggingAppointment: false,
     draggedAppointmentId: null,
     
-    shortcutsHelpOpen: false
+    shortcutsHelpOpen: false,
+    
+    // Flag to prevent multiple initializations
+    _initialized: false,
+    _loadingComplete: false
 };
 
 // ================================================================
@@ -639,6 +675,67 @@ const Utils = {
         }
         
         return 'Pending';
+    },
+
+    // ================================================================
+    // DEFAULT SCRIPTS - FALLBACK WHEN FIREBASE IS UNAVAILABLE
+    // ================================================================
+    getDefaultScripts: function() {
+        return {
+            "opening": { 
+                name: "🎯 Opening Script", 
+                content: '"Hey, is this [Company Name]?"\n\n"Awesome — this is Flynn. We created a free, modern preview version inspired by your current site. There\'s no cost or obligation. Would you be open to taking a quick look later today and sharing your thoughts?"', 
+                version: 1 
+            },
+            "owner_yes": { 
+                name: "👑 Owner - Yes", 
+                content: "Perfect! Daniel will call you shortly to showcase your preview concept. Is this the best number to connect with you?", 
+                version: 1 
+            },
+            "owner_no": { 
+                name: "🤤 Not Owner", 
+                content: "No worries! Who usually drives your design or advertising decisions? What is the best coordinate to reach them today?", 
+                version: 1 
+            },
+            "objection_website": { 
+                name: "💻 Objection - Website", 
+                content: "I completely understand your concern about the website. Our preview is designed to show you what's possible without any commitment.", 
+                version: 1 
+            },
+            "objection_cost": { 
+                name: "💰 Objection - Cost", 
+                content: "Great question about pricing. The preview is completely free—there's no cost or obligation. We believe in showing value first.", 
+                version: 1 
+            },
+            "closing": { 
+                name: "🤝 Closing Script", 
+                content: "Thank you for your time today! I'll have our team prepare the preview and reach out with next steps.", 
+                version: 1 
+            }
+        };
+    },
+
+    // ================================================================
+    // ENSURE SCRIPTS EXIST - FIX FOR "NO SCRIPTS AVAILABLE"
+    // ================================================================
+    ensureScriptsExist: function() {
+        if (!AppState.scripts || Object.keys(AppState.scripts).length === 0) {
+            console.log('📝 No scripts found, loading defaults...');
+            const defaultScripts = this.getDefaultScripts();
+            AppState.scripts = defaultScripts;
+            AppState.scriptOrder = Object.keys(defaultScripts);
+            
+            // Save to localStorage for offline use
+            try {
+                localStorage.setItem('scripts_fallback', JSON.stringify(defaultScripts));
+                localStorage.setItem('scriptOrder', JSON.stringify(AppState.scriptOrder));
+            } catch (e) {
+                console.warn('Could not save scripts to localStorage:', e);
+            }
+            
+            return true;
+        }
+        return false;
     }
 };
 
@@ -1119,6 +1216,9 @@ const Data = {
     },
 
     loadUserData: async function(showLoading = true) {
+        // Ensure scripts exist before anything else
+        Utils.ensureScriptsExist();
+
         if (!AppState.currentUser) {
             const localData = localStorage.getItem('userData_fallback');
             if (localData) {
@@ -1130,6 +1230,10 @@ const Data = {
                     AppState.tasks = data.tasks || {};
                     AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
                     AppState.closers = data.closers || CONFIG.DEFAULT_CLOSERS;
+                    
+                    // Ensure scripts exist after loading
+                    Utils.ensureScriptsExist();
+                    
                     showToast('Loaded offline data', 'info');
                     Stats.updateAll();
                     Scripts.renderSidebar();
@@ -1139,17 +1243,31 @@ const Data = {
                     console.warn('Failed to load offline data:', e);
                 }
             }
+            
+            // If no user and no data, load defaults
+            Utils.ensureScriptsExist();
+            Stats.updateAll();
+            Scripts.renderSidebar();
+            Scripts.loadScript('opening');
             return;
         }
 
         if (!AppState.isFirebaseReady) {
             showToast('Firebase unavailable - using offline mode', 'warning');
+            Utils.ensureScriptsExist();
+            Stats.updateAll();
+            Scripts.renderSidebar();
+            Scripts.loadScript('opening');
             return;
         }
 
         const db = this._getDb();
         if (!db) {
             showToast('Database unavailable', 'error');
+            Utils.ensureScriptsExist();
+            Stats.updateAll();
+            Scripts.renderSidebar();
+            Scripts.loadScript('opening');
             return;
         }
 
@@ -1196,10 +1314,21 @@ const Data = {
                 AppState.scripts[doc.id] = { name: data.name, content: data.content, version: data.version || 1 };
             });
             
+            // CRITICAL FIX: If no scripts found in Firebase, use defaults
             if (Object.keys(AppState.scripts).length === 0) {
+                console.log('📝 No scripts found in Firebase, creating defaults...');
                 await this.createDefaultScripts();
-                return this.loadUserData();
+                // Reload scripts after creation
+                const reloadedScripts = await userRef.collection('scripts').get();
+                AppState.scripts = {};
+                reloadedScripts.forEach(doc => {
+                    const data = doc.data();
+                    AppState.scripts[doc.id] = { name: data.name, content: data.content, version: data.version || 1 };
+                });
             }
+            
+            // Ensure scripts exist after all loading
+            Utils.ensureScriptsExist();
 
             const teamSnapshot = await userRef.collection('teamMembers').get();
             if (!teamSnapshot.empty) {
@@ -1226,6 +1355,8 @@ const Data = {
         } catch (error) {
             console.error('Data Load Error:', error);
             handleError(error, 'Loading Data');
+            
+            // Fallback to localStorage
             const localData = localStorage.getItem('userData_fallback');
             if (localData) {
                 try {
@@ -1236,13 +1367,28 @@ const Data = {
                     AppState.tasks = data.tasks || {};
                     AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
                     AppState.closers = data.closers || CONFIG.DEFAULT_CLOSERS;
+                    
+                    // Ensure scripts exist
+                    Utils.ensureScriptsExist();
+                    
                     showToast('Using offline data', 'info');
                     Stats.updateAll();
                     Scripts.renderSidebar();
                     Scripts.loadScript('opening');
                 } catch (e) {
                     console.warn('Failed to load offline data:', e);
+                    // Ultimate fallback - load defaults
+                    Utils.ensureScriptsExist();
+                    Stats.updateAll();
+                    Scripts.renderSidebar();
+                    Scripts.loadScript('opening');
                 }
+            } else {
+                // No localStorage data - load defaults
+                Utils.ensureScriptsExist();
+                Stats.updateAll();
+                Scripts.renderSidebar();
+                Scripts.loadScript('opening');
             }
         }
     },
@@ -1399,25 +1545,19 @@ const Data = {
         const db = this._getDb();
         if (!db) return;
 
-        const defaultScripts = {
-            "opening": { name: "🎯 Opening Script", content: '"Hey, is this [Company Name]?"\n\n"Awesome — this is Flynn. We created a free, modern preview version inspired by your current site. There\'s no cost or obligation. Would you be open to taking a quick look later today and sharing your thoughts?"' },
-            "owner_yes": { name: "👑 Owner - Yes", content: "Perfect! Daniel will call you shortly to showcase your preview concept. Is this the best number to connect with you?" },
-            "owner_no": { name: "🤤 Not Owner", content: "No worries! Who usually drives your design or advertising decisions? What is the best coordinate to reach them today?" },
-            "objection_website": { name: "💻 Objection - Website", content: "I completely understand your concern about the website. Our preview is designed to show you what's possible without any commitment." },
-            "objection_cost": { name: "💰 Objection - Cost", content: "Great question about pricing. The preview is completely free—there's no cost or obligation. We believe in showing value first." },
-            "closing": { name: "🤝 Closing Script", content: "Thank you for your time today! I'll have our team prepare the preview and reach out with next steps." }
-        };
+        const defaultScripts = Utils.getDefaultScripts();
         const batch = db.batch();
         const ref = db.collection('users').doc(AppState.currentUser.uid).collection('scripts');
         for (const [id, script] of Object.entries(defaultScripts)) {
             batch.set(ref.doc(id), {
                 name: script.name,
                 content: script.content,
-                version: 1,
+                version: script.version || 1,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         }
         await batch.commit();
+        console.log('✅ Default scripts created in Firebase');
     },
 
     saveScriptOrder: async function() {
@@ -1812,6 +1952,9 @@ const Scripts = {
         const container = DOM.get('scriptListContainer');
         if (!container) return;
 
+        // Ensure scripts exist
+        Utils.ensureScriptsExist();
+
         const scripts = AppState.scripts || {};
         const scriptOrder = AppState.scriptOrder || [];
         
@@ -2041,13 +2184,23 @@ const Scripts = {
     },
 
     loadScript: function(id) {
+        // Ensure scripts exist
+        Utils.ensureScriptsExist();
+        
         if (!AppState.scripts[id]) {
             const ids = Object.keys(AppState.scripts);
             if (ids.length > 0) {
                 id = ids[0];
             } else {
-                showToast('No scripts available. Create a new script.', 'warning');
-                return;
+                // If still no scripts, create defaults
+                Utils.ensureScriptsExist();
+                const newIds = Object.keys(AppState.scripts);
+                if (newIds.length > 0) {
+                    id = newIds[0];
+                } else {
+                    showToast('No scripts available. Create a new script.', 'warning');
+                    return;
+                }
             }
         }
         if (AppState.isEditing) {
@@ -2056,6 +2209,21 @@ const Scripts = {
         }
         AppState.currentScriptId = id;
         const script = AppState.scripts[id];
+        if (!script) {
+            Utils.ensureScriptsExist();
+            const newIds = Object.keys(AppState.scripts);
+            if (newIds.length > 0) {
+                AppState.currentScriptId = newIds[0];
+                const newScript = AppState.scripts[newIds[0]];
+                DOM.setText('currentScriptName', newScript.name);
+                DOM.setHTML('scriptContent', `<div class="script-display">${Utils.escapeHtml(newScript.content).replace(/\n/g, '<br>')}</div>`);
+                DOM.setText('versionNumber', newScript.version || 1);
+            }
+            this.renderSidebar();
+            this.updateKeyHints();
+            setTimeout(() => { renderScriptActions(); }, 50);
+            return;
+        }
         DOM.setText('currentScriptName', script.name);
         DOM.setHTML('scriptContent', `<div class="script-display">${Utils.escapeHtml(script.content).replace(/\n/g, '<br>')}</div>`);
         DOM.setText('versionNumber', script.version || 1);
@@ -6269,86 +6437,20 @@ function handleHeroScroll() {
 // ================================================================
 
 function initApp() {
+    // Prevent multiple initializations
+    if (AppState._initialized) {
+        console.log('⚠️ App already initialized, skipping...');
+        return;
+    }
+    AppState._initialized = true;
+    
     console.log('🚀 Initializing ScriptFlow Pro...');
     
-    const waitForFirebase = async function() {
-        if (typeof FirebaseManager !== 'undefined') {
-            try {
-                await FirebaseManager.waitForReady();
-                AppState.isFirebaseReady = FirebaseManager.isReady();
-                console.log('✅ Firebase ready:', AppState.isFirebaseReady);
-            } catch (e) {
-                console.warn('Firebase wait failed:', e);
-                AppState.isFirebaseReady = false;
-            }
-        } else {
-            console.warn('FirebaseManager not found');
-            AppState.isFirebaseReady = false;
-        }
-        return AppState.isFirebaseReady;
-    };
-
-    // Load shortcuts
-    const savedShortcuts = localStorage.getItem('customShortcuts');
-    if (savedShortcuts) {
-        try {
-            AppState.customShortcuts = JSON.parse(savedShortcuts);
-            AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS, ...AppState.customShortcuts };
-        } catch (e) {
-            AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS };
-        }
-    } else {
-        AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS };
-    }
-    
-    // Load favorites
-    const savedFavorites = localStorage.getItem('scriptFavorites');
-    if (savedFavorites) {
-        try {
-            AppState.scriptFavorites = JSON.parse(savedFavorites);
-        } catch (e) {
-            AppState.scriptFavorites = [];
-        }
-    }
-    
-    // Load team members
-    const savedTeam = localStorage.getItem('teamMembers_fallback');
-    if (savedTeam) {
-        try {
-            AppState.teamMembers = JSON.parse(savedTeam);
-        } catch (e) {
-            AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
-        }
-    } else {
-        AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
-    }
-    
-    // Load closers
-    const savedClosers = localStorage.getItem('closers_fallback');
-    if (savedClosers) {
-        try {
-            AppState.closers = JSON.parse(savedClosers);
-        } catch (e) {
-            AppState.closers = CONFIG.DEFAULT_CLOSERS;
-        }
-    } else {
-        AppState.closers = CONFIG.DEFAULT_CLOSERS;
-    }
+    // Ensure scripts exist immediately
+    Utils.ensureScriptsExist();
     
     // Load theme
     ThemeManager.load();
-    
-    // Wait for Firebase then initialize auth
-    waitForFirebase().then(() => {
-        Auth.initAuthListener();
-        
-        if (!AppState.isFirebaseReady) {
-            console.warn('⚠️ Firebase not ready, showing offline mode');
-            setTimeout(() => {
-                Auth.showModal();
-            }, 500);
-        }
-    });
     
     // Setup UI event listeners
     setupEventListeners();
@@ -6375,15 +6477,69 @@ function initApp() {
                 console.warn('⚠️ ObjectionHandler initialization error:', e);
             }
         }, 300);
-    } else {
-        console.warn('⚠️ ObjectionHandler not found');
     }
     
     // Update sticky positions after render
     setTimeout(updateStickyPositions, 200);
     
+    // Mark app as ready and hide loading screen
     AppState.isAppReady = true;
+    AppState._loadingComplete = true;
+    
+    // Hide loading screen
+    const loadingScreen = document.getElementById('loadingScreen');
+    if (loadingScreen) {
+        loadingScreen.style.opacity = '0';
+        loadingScreen.style.transition = 'opacity 0.5s ease';
+        setTimeout(() => {
+            loadingScreen.style.display = 'none';
+            loadingScreen.style.visibility = 'hidden';
+        }, 500);
+    }
+    
+    // Show app wrapper
+    const appWrapper = document.getElementById('appWrapper');
+    if (appWrapper) {
+        appWrapper.style.display = 'flex';
+        appWrapper.style.opacity = '1';
+    }
+    
     console.log('✅ App initialized successfully');
+    
+    // Initialize Firebase and auth after app is ready
+    initFirebaseAndAuth();
+}
+
+function initFirebaseAndAuth() {
+    // Wait for Firebase then initialize auth
+    const waitForFirebase = async function() {
+        if (typeof FirebaseManager !== 'undefined') {
+            try {
+                await FirebaseManager.waitForReady();
+                AppState.isFirebaseReady = FirebaseManager.isReady();
+                console.log('✅ Firebase ready:', AppState.isFirebaseReady);
+            } catch (e) {
+                console.warn('Firebase wait failed:', e);
+                AppState.isFirebaseReady = false;
+            }
+        } else {
+            console.warn('FirebaseManager not found');
+            AppState.isFirebaseReady = false;
+        }
+        
+        // Initialize auth regardless of Firebase status
+        Auth.initAuthListener();
+        
+        if (!AppState.isFirebaseReady) {
+            console.warn('⚠️ Firebase not ready, showing offline mode');
+            // Still show auth modal for offline mode
+            setTimeout(() => {
+                Auth.showModal();
+            }, 500);
+        }
+    };
+    
+    waitForFirebase();
 }
 
 function setupEventListeners() {
@@ -6736,58 +6892,37 @@ function setupEventListeners() {
 function startApp() {
     console.log('🚀 Starting ScriptFlow Pro...');
     
-    const loadingScreen = document.getElementById('loadingScreen');
-    const appWrapper = document.getElementById('appWrapper');
-    
+    // Set a timeout to force hide loading screen if something goes wrong
     const safetyTimeout = setTimeout(function() {
+        const loadingScreen = document.getElementById('loadingScreen');
         if (loadingScreen && loadingScreen.style.display !== 'none') {
             console.log('⚠️ Safety timeout: forcing loading screen hide');
             loadingScreen.style.display = 'none';
             loadingScreen.style.visibility = 'hidden';
             loadingScreen.style.opacity = '0';
+            const appWrapper = document.getElementById('appWrapper');
             if (appWrapper) {
                 appWrapper.style.display = 'flex';
                 appWrapper.style.opacity = '1';
             }
         }
-    }, 5000);
-    
-    if (typeof LoadingManager !== 'undefined' && LoadingManager) {
-        console.log('📦 Using LoadingManager');
-        LoadingManager.init();
-        
-        LoadingManager.start(function() {
-            console.log('✅ Loading sequence completed');
-        });
-        
-        setTimeout(function() {
-            if (LoadingManager && !LoadingManager.isComplete()) {
-                console.log('⏱️ Force completing loading');
-                LoadingManager.forceComplete();
-            }
-        }, 3000);
-    } else {
-        console.log('⚠️ LoadingManager not found, using fallback');
-        if (loadingScreen) {
-            loadingScreen.style.display = 'none';
-            loadingScreen.style.visibility = 'hidden';
-            loadingScreen.style.opacity = '0';
-        }
-        if (appWrapper) {
-            appWrapper.style.display = 'flex';
-            appWrapper.style.opacity = '1';
-        }
-    }
+    }, 8000);
     
     try {
         initApp();
+        // Clear safety timeout if app initializes successfully
+        clearTimeout(safetyTimeout);
     } catch (e) {
         console.error('App initialization error:', e);
+        clearTimeout(safetyTimeout);
+        
+        const loadingScreen = document.getElementById('loadingScreen');
         if (loadingScreen) {
             loadingScreen.style.display = 'none';
             loadingScreen.style.visibility = 'hidden';
             loadingScreen.style.opacity = '0';
         }
+        const appWrapper = document.getElementById('appWrapper');
         if (appWrapper) {
             appWrapper.style.display = 'flex';
             appWrapper.style.opacity = '1';
@@ -6797,12 +6932,12 @@ function startApp() {
 }
 
 // Start the app
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('📄 DOM ready, starting app...');
-    setTimeout(startApp, 100);
-});
-
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('📄 DOM ready, starting app...');
+        setTimeout(startApp, 100);
+    });
+} else {
     console.log('📄 DOM already ready, starting app...');
     setTimeout(startApp, 100);
 }

@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: app-scriptflow-pro
+    name: scriptflow-pro
     runtime: static
     buildCommand: echo "Static site - no build needed"
     staticPublishPath: ./
@@ -14,12 +14,12 @@ services:
       - key: NODE_ENV
         value: production
     headers:
-      - path: /*.js
-        name: Content-Type
-        value: application/javascript
-      - path: /*.css
+      - path: /assets/css/*.css
         name: Content-Type
         value: text/css
+      - path: /assets/js/*.js
+        name: Content-Type
+        value: application/javascript
       - path: /*
         name: X-Content-Type-Options
         value: nosniff
