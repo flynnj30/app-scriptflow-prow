@@ -1,86 +1,237 @@
-// Loading Screen Management
-class LoadingManager {
-    constructor() {
-        this.steps = [
-            'firebase', 
-            'auth', 
-            'data', 
-            'scripts', 
-            'calendar', 
-            'features'
-        ];
-        this.currentStep = 0;
-        this.progress = 0;
-        this.totalSteps = this.steps.length;
-        this.isComplete = false;
-    }
+// ================================================================
+// LOADING MODULE - CENTRALIZED LOADING SCREEN MANAGEMENT
+// ================================================================
 
-    show() {
-        const screen = document.getElementById('loadingScreen');
-        if (screen) {
-            screen.classList.remove('hidden');
+const LoadingManager = {
+    state: {
+        isVisible: true,
+        progress: 0,
+        steps: [
+            { id: 'init', label: 'Initializing...', progress: 10 },
+            { id: 'firebase', label: 'Connecting to Firebase...', progress: 25 },
+            { id: 'auth', label: 'Checking authentication...', progress: 40 },
+            { id: 'data', label: 'Loading your data...', progress: 60 },
+            { id: 'scripts', label: 'Loading scripts...', progress: 75 },
+            { id: 'calendar', label: 'Preparing calendar...', progress: 85 },
+            { id: 'features', label: 'Loading features...', progress: 95 },
+            { id: 'complete', label: 'Ready!', progress: 100 }
+        ],
+        currentStepIndex: 0,
+        intervalId: null,
+        onComplete: null,
+        isComplete: false,
+        isStarted: false,
+        isHidden: false,
+        isForced: false
+    },
+
+    init: function() {
+        const loadingScreen = document.getElementById('loadingScreen');
+        if (!loadingScreen) {
+            console.warn('Loading screen not found');
+            return this;
         }
-        this.updateProgress(0, 'Initializing...');
-    }
-
-    hide() {
-        const screen = document.getElementById('loadingScreen');
-        if (screen) {
-            screen.classList.add('hidden');
-        }
-        document.getElementById('app').style.display = 'flex';
-    }
-
-    updateProgress(percent, status) {
-        const bar = document.getElementById('loadingBar');
-        const statusEl = document.getElementById('loadingStatus');
         
-        if (bar) {
-            bar.style.width = Math.min(percent, 100) + '%';
-        }
-        if (statusEl) {
-            statusEl.textContent = status || 'Loading...';
-        }
-    }
+        loadingScreen.style.display = 'flex';
+        loadingScreen.style.opacity = '1';
+        loadingScreen.style.visibility = 'visible';
+        loadingScreen.style.pointerEvents = 'auto';
+        
+        this.updateProgress(0, 'Starting ScriptFlow Pro...');
+        console.log('🎯 Loading Manager initialized');
+        return this;
+    },
 
-    advanceStep(stepName, status) {
-        const stepIndex = this.steps.indexOf(stepName);
-        if (stepIndex === -1) return;
+    updateProgress: function(percent, message) {
+        const progressBar = document.getElementById('loadingProgress');
+        const loadingSubtitle = document.querySelector('.loading-subtitle');
+        
+        if (progressBar) {
+            progressBar.style.width = Math.min(percent, 100) + '%';
+            progressBar.style.transition = 'width 0.5s ease';
+        }
+        
+        if (loadingSubtitle && message) {
+            loadingSubtitle.textContent = message;
+            loadingSubtitle.style.color = '';
+        }
+        
+        this.state.progress = Math.min(percent, 100);
+        return this;
+    },
 
-        // Mark step as done
-        const steps = document.querySelectorAll('.loading-step');
-        steps.forEach((el, index) => {
-            if (index === stepIndex) {
-                el.classList.add('done');
-                el.classList.remove('active');
+    nextStep: function() {
+        const steps = this.state.steps;
+        const currentIndex = this.state.currentStepIndex;
+        
+        if (currentIndex < steps.length) {
+            const step = steps[currentIndex];
+            this.updateProgress(step.progress, step.label);
+            this.state.currentStepIndex = currentIndex + 1;
+            return true;
+        }
+        return false;
+    },
+
+    start: function(onComplete) {
+        if (this.state.isStarted) return this;
+        this.state.isStarted = true;
+        this.state.onComplete = onComplete || null;
+        this.state.currentStepIndex = 0;
+        this.state.isComplete = false;
+        this.state.isHidden = false;
+        
+        if (this.state.intervalId) {
+            clearInterval(this.state.intervalId);
+            this.state.intervalId = null;
+        }
+        
+        this.nextStep();
+        
+        let stepDelay = 300;
+        const totalSteps = this.state.steps.length;
+        
+        this.state.intervalId = setInterval(() => {
+            const hasMore = this.nextStep();
+            if (!hasMore) {
+                clearInterval(this.state.intervalId);
+                this.state.intervalId = null;
+                setTimeout(() => {
+                    this.complete();
+                }, 300);
             }
-        });
+        }, stepDelay);
+        
+        return this;
+    },
 
-        // Calculate progress
-        this.currentStep = Math.max(this.currentStep, stepIndex + 1);
-        const progress = (this.currentStep / this.totalSteps) * 100;
-        this.progress = progress;
+    complete: function() {
+        if (this.state.isComplete || this.state.isHidden) return this;
+        this.state.isComplete = true;
         
-        this.updateProgress(progress, status || `Loading ${stepName}...`);
+        const loadingScreen = document.getElementById('loadingScreen');
+        const appWrapper = document.getElementById('appWrapper');
         
-        // Activate next step
-        if (stepIndex < this.totalSteps - 1) {
-            const nextStep = steps[stepIndex + 1];
-            if (nextStep) {
-                nextStep.classList.add('active');
+        this.updateProgress(100, 'Ready! 🚀');
+        
+        if (appWrapper) {
+            appWrapper.style.display = 'flex';
+            appWrapper.style.opacity = '1';
+        }
+        
+        if (loadingScreen) {
+            loadingScreen.style.opacity = '0';
+            loadingScreen.style.transition = 'opacity 0.4s ease';
+            loadingScreen.style.pointerEvents = 'none';
+            
+            setTimeout(() => {
+                loadingScreen.style.display = 'none';
+                loadingScreen.style.visibility = 'hidden';
+                this.state.isHidden = true;
+                this.state.isVisible = false;
+            }, 450);
+        }
+        
+        if (typeof this.state.onComplete === 'function') {
+            try {
+                this.state.onComplete();
+            } catch (e) {
+                console.warn('Loading complete callback error:', e);
             }
         }
-    }
+        
+        console.log('✅ Loading complete');
+        return this;
+    },
 
-    complete() {
-        this.isComplete = true;
-        this.updateProgress(100, 'Ready!');
-        setTimeout(() => {
-            this.hide();
-        }, 500);
-    }
-}
+    forceComplete: function() {
+        if (this.state.isForced) return this;
+        this.state.isForced = true;
+        
+        if (this.state.intervalId) {
+            clearInterval(this.state.intervalId);
+            this.state.intervalId = null;
+        }
+        
+        const loadingScreen = document.getElementById('loadingScreen');
+        const appWrapper = document.getElementById('appWrapper');
+        
+        if (loadingScreen) {
+            loadingScreen.style.display = 'none';
+            loadingScreen.style.visibility = 'hidden';
+            loadingScreen.style.opacity = '0';
+            this.state.isHidden = true;
+            this.state.isVisible = false;
+        }
+        
+        if (appWrapper) {
+            appWrapper.style.display = 'flex';
+            appWrapper.style.opacity = '1';
+        }
+        
+        this.state.isComplete = true;
+        this.state.isStarted = true;
+        
+        console.log('✅ Loading force completed');
+        return this;
+    },
 
-// Create global instance
-const loadingManager = new LoadingManager();
-window.loadingManager = loadingManager;
+    showError: function(message) {
+        const loadingSubtitle = document.querySelector('.loading-subtitle');
+        const loadingIcon = document.querySelector('.loading-icon');
+        const loadingTitle = document.querySelector('.loading-title');
+        
+        if (loadingSubtitle) {
+            loadingSubtitle.textContent = '⚠️ ' + message;
+            loadingSubtitle.style.color = 'var(--danger)';
+        }
+        
+        if (loadingIcon) {
+            loadingIcon.textContent = '⚠️';
+        }
+        
+        if (loadingTitle) {
+            loadingTitle.textContent = 'Error Loading';
+        }
+        
+        const loadingContent = document.querySelector('.loading-content');
+        if (loadingContent && !loadingContent.querySelector('.retry-btn')) {
+            const retryBtn = document.createElement('button');
+            retryBtn.className = 'btn-icon retry-btn';
+            retryBtn.style.cssText = 'margin-top:16px; background:var(--primary); color:white; padding:8px 24px; border-radius:40px; cursor:pointer; border:none; font-weight:600;';
+            retryBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Retry';
+            retryBtn.onclick = function() {
+                location.reload();
+            };
+            loadingContent.appendChild(retryBtn);
+        }
+        
+        console.error('Loading error:', message);
+        return this;
+    },
+
+    setMessage: function(message) {
+        const loadingSubtitle = document.querySelector('.loading-subtitle');
+        if (loadingSubtitle) {
+            loadingSubtitle.textContent = message;
+            loadingSubtitle.style.color = '';
+        }
+        return this;
+    },
+
+    getProgress: function() {
+        return this.state.progress;
+    },
+
+    isComplete: function() {
+        return this.state.isComplete;
+    },
+    
+    isHidden: function() {
+        return this.state.isHidden;
+    }
+};
+
+window.LoadingManager = LoadingManager;
+
+console.log('📦 Loading module initialized');
