@@ -29,7 +29,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     
     <!-- Styles -->
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="assets/css/style.css" />
 </head>
 <body class="dark">
     <!-- Loading Screen -->
@@ -351,13 +351,69 @@
         </div>
     </div>
 
+    <!-- Shortcuts Help Modal -->
+    <div id="shortcutsHelpModal" class="modal-overlay" style="display:none;">
+        <div class="modal-card" style="max-width: 700px;">
+            <h3><i class="fas fa-keyboard"></i> Keyboard Shortcuts</h3>
+            <p style="color:var(--text-muted); margin-bottom:16px;">Quick actions to speed up your workflow.</p>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; max-height:400px; overflow-y:auto;">
+                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
+                    <span>Smart Import</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+I</kbd>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
+                    <span>Calendar</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+C</kbd>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
+                    <span>Scripts</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+S</kbd>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
+                    <span>Search</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+F</kbd>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
+                    <span>Quick Add</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+A</kbd>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
+                    <span>Analytics</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+H</kbd>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
+                    <span>Closers</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+M</kbd>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
+                    <span>Objection Handler</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+O</kbd>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
+                    <span>Export</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+E</kbd>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
+                    <span>Theme Toggle</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+T</kbd>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
+                    <span>Bulk Actions</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+B</kbd>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
+                    <span>Refresh</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+R</kbd>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
+                    <span>Switch Script</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">1-9</kbd>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
+                    <span>Close Panel</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Escape</kbd>
+                </div>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px; border-top:1px solid var(--border-color); padding-top:16px;">
+                <button id="closeShortcutsHelpBtn" class="btn-icon">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Auth Modal -->
     <div id="authModal" class="modal-overlay" style="display:none;"></div>
 
-    <!-- JavaScript - ORDER MATTERS! -->
-    <script src="js/firebase-config.js"></script>
-    <script src="js/loading.js"></script>
-    <script src="js/objection-handler.js"></script>
-    <script src="js/app.js"></script>
+    <!-- JavaScript -->
+    <script src="assets/js/firebase-config.js"></script>
+    <script src="assets/js/loading.js"></script>
+    <script src="assets/js/objection-handler.js"></script>
+    <script src="assets/js/import-enhancements.js"></script>
+    <script src="assets/js/app.js"></script>
 </body>
 </html>
