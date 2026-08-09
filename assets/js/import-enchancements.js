@@ -70,7 +70,8 @@ class SmartImport {
                     const values = lines[j].split(',').map(s => s.trim());
                     const record = {};
                     headers.forEach((h, idx) => {
-                        record[h.toLowerCase().replace(/[^a-z]/g, '')] = values[idx] || '';
+                        const key = h.toLowerCase().replace(/[^a-z]/g, '');
+                        record[key] = values[idx] || '';
                     });
                     records.push(this.extractFields(record));
                 }
@@ -435,5 +436,5 @@ class SmartImport {
 }
 
 // Create global instance
-const smartImport = new SmartImport();
-window.smartImport = smartImport;
+window.SmartImport = SmartImport;
+window.smartImport = new SmartImport();

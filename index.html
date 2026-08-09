@@ -34,7 +34,7 @@
             </div>
             <div class="loading-status" id="loadingStatus">Initializing...</div>
             <div class="loading-steps">
-                <div class="loading-step" data-step="firebase">Firebase</div>
+                <div class="loading-step active" data-step="firebase">Firebase</div>
                 <div class="loading-step" data-step="auth">Authentication</div>
                 <div class="loading-step" data-step="data">Data</div>
                 <div class="loading-step" data-step="scripts">Scripts</div>
@@ -130,6 +130,9 @@
                         </button>
                         <button class="btn-icon" id="refreshBtn" title="Refresh (R)">
                             <i class="fas fa-sync"></i>
+                        </button>
+                        <button class="btn-icon" id="bulkBtn" title="Bulk Actions (B)">
+                            <i class="fas fa-check-double"></i>
                         </button>
                     </div>
                 </div>
@@ -632,11 +635,95 @@
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <!-- Scripts -->
+    <!-- ============================================ -->
+    <!-- SCRIPTS - FIXED LOADING ORDER WITH ERROR HANDLING -->
+    <!-- ============================================ -->
+    
+    <!-- 1. Firebase Configuration (must load first) -->
     <script src="assets/js/firebase-config.js"></script>
+    
+    <!-- 2. Loading Manager -->
     <script src="assets/js/loading.js"></script>
-    <script src="assets/js/objection-handler.js"></script>
+    
+    <!-- 3. Smart Import Engine -->
     <script src="assets/js/import-enhancements.js"></script>
+    
+    <!-- 4. Objection Handler -->
+    <script src="assets/js/objection-handler.js"></script>
+    
+    <!-- 5. Main Application (loads last) -->
     <script src="assets/js/app.js"></script>
+    
+    <!-- 6. Global Error Handler for Script Loading -->
+    <script>
+        // Handle script loading errors gracefully
+        window.addEventListener('error', function(e) {
+            if (e.target.tagName === 'SCRIPT') {
+                console.error('Failed to load script:', e.target.src);
+                const loadingStatus = document.getElementById('loadingStatus');
+                if (loadingStatus) {
+                    loadingStatus.textContent = '⚠️ Error loading application. Please refresh the page.';
+                    loadingStatus.style.color = '#f87171';
+                }
+                // Show a toast notification
+                const container = document.getElementById('toastContainer');
+                if (container) {
+                    const toast = document.createElement('div');
+                    toast.className = 'toast error';
+                    toast.innerHTML = `
+                        <i class="fas fa-exclamation-circle"></i>
+                        <span>Failed to load application. Please refresh.</span>
+                    `;
+                    container.appendChild(toast);
+                }
+            }
+        }, true);
+
+        // Handle unhandled promise rejections
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('Unhandled promise rejection:', e.reason);
+            if (e.reason && e.reason.message) {
+                const container = document.getElementById('toastContainer');
+                if (container) {
+                    const toast = document.createElement('div');
+                    toast.className = 'toast error';
+                    toast.innerHTML = `
+                        <i class="fas fa-exclamation-circle"></i>
+                        <span>Error: ${e.reason.message}</span>
+                    `;
+                    container.appendChild(toast);
+                }
+            }
+        });
+
+        // Check if all scripts loaded successfully
+        function checkScriptsLoaded() {
+            const scripts = document.querySelectorAll('script[src]');
+            let allLoaded = true;
+            scripts.forEach(script => {
+                if (!script.src) return;
+                // Check if script loaded by verifying a global variable exists
+                if (script.src.includes('firebase-config') && typeof firebase === 'undefined') {
+                    allLoaded = false;
+                }
+                if (script.src.includes('app.js') && typeof ScriptFlowApp === 'undefined') {
+                    allLoaded = false;
+                }
+            });
+            return allLoaded;
+        }
+
+        // Check after 3 seconds if everything loaded
+        setTimeout(() => {
+            if (!checkScriptsLoaded()) {
+                console.warn('Some scripts may not have loaded correctly');
+                const loadingStatus = document.getElementById('loadingStatus');
+                if (loadingStatus && !document.getElementById('app').style.display === 'flex') {
+                    loadingStatus.textContent = '⚠️ Some features may not work correctly. Please refresh.';
+                    loadingStatus.style.color = '#fbbf24';
+                }
+            }
+        }, 3000);
+    </script>
 </body>
 </html>
