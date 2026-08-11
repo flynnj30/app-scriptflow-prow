@@ -1964,6 +1964,72 @@ const Data = {
 };
 
 // ================================================================
+// STATISTICS
+// ================================================================
+
+const Stats = {
+    getTodayCount: function() {
+        return AppState.appointments[Utils.getTodayStr()]?.reports?.length || 0;
+    },
+
+    getWeekCount: function() {
+        const now = new Date();
+        const start = new Date(now);
+        start.setDate(now.getDate() - now.getDay());
+        let total = 0;
+        for (let d in AppState.appointments) {
+            const date = new Date(d);
+            if (date >= start && AppState.appointments[d].reports) {
+                total += AppState.appointments[d].reports.length;
+            }
+        }
+        return total;
+    },
+
+    getMonthCount: function() {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        let total = 0;
+        for (let d in AppState.appointments) {
+            const date = new Date(d);
+            if (date >= start && AppState.appointments[d].reports) {
+                total += AppState.appointments[d].reports.length;
+            }
+        }
+        return total;
+    },
+
+    getAverageScore: function() {
+        let total = 0, count = 0;
+        for (let date in AppState.appointments) {
+            if (AppState.appointments[date].reports) {
+                AppState.appointments[date].reports.forEach(appt => {
+                    total += Utils.calculateLeadScore(appt);
+                    count++;
+                });
+            }
+        }
+        return count > 0 ? Math.round(total / count) : 0;
+    },
+
+    updateAll: function() {
+        DOM.setText('statToday', this.getTodayCount());
+        DOM.setText('statWeek', this.getWeekCount());
+        DOM.setText('statMonth', this.getMonthCount());
+        DOM.setText('avgScore', this.getAverageScore());
+        this.updateTaskStats();
+        DOM.setText('goalDaily', AppState.goals.daily || 3);
+        DOM.setText('goalWeekly', AppState.goals.weekly || 15);
+        DOM.setText('goalMonthly', AppState.goals.monthly || 60);
+    },
+
+    updateTaskStats: function() {
+        const pending = AppState.tasks.filter(t => !t.completed).length;
+        DOM.setText('pendingTasks', pending);
+    }
+};
+
+// ================================================================
 // STATUS CUSTOMIZATION FUNCTIONS
 // ================================================================
 
@@ -1982,7 +2048,6 @@ function updateStatusSelects() {
             return `<option value="${name}" style="color:${color};">${name}${isDefault ? ' ★' : ''}</option>`;
         }).join('');
         if (isMulti) {
-            // For multi-select, preserve selected values
             const selectedValues = Array.from(select.selectedOptions).map(o => o.value);
             select.innerHTML = options;
             Array.from(select.options).forEach(opt => {
@@ -6271,7 +6336,6 @@ function editAppointment(appointmentId) {
         if (emailInput) emailInput.value = appt.email || '';
         if (timeInput) timeInput.value = appt.time || '';
         if (statusSelect) {
-            // Check if current status exists in custom statuses
             const statusNames = Utils.getStatusNames();
             if (statusNames.includes(appt.status)) {
                 statusSelect.value = appt.status;
