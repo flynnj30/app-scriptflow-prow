@@ -1,0 +1,178 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================================
+    // HELPER FUNCTIONS
+    // ============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isValidStatus(status) {
+      return status in ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'];
+    }
+    
+    function isValidDate(date) {
+      return date != null && date is string && date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+    
+    function isValidEmail(email) {
+      return email == null || (email is string && email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$'));
+    }
+    
+    function isValidPhone(phone) {
+      return phone == null || (phone is string && phone.matches('^[\\+\\d\\s\\-\\(\\)]{7,20}$'));
+    }
+    
+    function isUserData(userId) {
+      return isAuthenticated() && isOwner(userId);
+    }
+    
+    // ============================================================
+    // USER DOCUMENTS
+    // ============================================================
+    match /users/{userId} {
+      allow get: if isAuthenticated() && isOwner(userId);
+      allow list: if isAuthenticated() && isOwner(userId);
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && isOwner(userId) 
+        && request.resource.data is map;
+      allow delete: if false;
+      
+      allow write: if isAuthenticated() && isOwner(userId)
+        && request.resource.data.keys().hasAll(['uid', 'email', 'displayName', 'createdAt'])
+        && request.resource.data.uid == userId
+        && request.resource.data.email is string
+        && request.resource.data.displayName is string;
+      
+      // ============================================================
+      // SCRIPTS SUB-COLLECTION
+      // ============================================================
+      match /scripts/{scriptId} {
+        allow get: if isUserData(userId);
+        allow list: if isUserData(userId);
+        allow create: if isUserData(userId)
+          && request.resource.data is map
+          && request.resource.data.keys().hasAll(['name', 'content', 'version'])
+          && request.resource.data.name is string
+          && request.resource.data.content is string
+          && request.resource.data.version is number;
+        allow update: if isUserData(userId)
+          && request.resource.data is map
+          && request.resource.data.name is string
+          && request.resource.data.content is string
+          && request.resource.data.version is number;
+        allow delete: if isUserData(userId);
+      }
+      
+      // ============================================================
+      // APPOINTMENTS SUB-COLLECTION
+      // ============================================================
+      match /appointments/{appointmentId} {
+        allow get: if isUserData(userId);
+        allow list: if isUserData(userId);
+        allow create: if isUserData(userId)
+          && request.resource.data is map
+          && request.resource.data.keys().hasAll(['id', 'business', 'contactName', 'status', 'date', 'createdAt'])
+          && request.resource.data.business is string
+          && request.resource.data.business.size() > 0
+          && request.resource.data.contactName is string
+          && request.resource.data.contactName.size() > 0
+          && isValidStatus(request.resource.data.status)
+          && isValidDate(request.resource.data.date)
+          && (request.resource.data.email is string || request.resource.data.email == null)
+          && (request.resource.data.phone is string || request.resource.data.phone == null)
+          && (request.resource.data.time is string || request.resource.data.time == null)
+          && (request.resource.data.notes is string || request.resource.data.notes == null);
+        allow update: if isUserData(userId)
+          && request.resource.data is map
+          && (!request.resource.data.status || isValidStatus(request.resource.data.status))
+          && (!request.resource.data.date || isValidDate(request.resource.data.date))
+          && (!request.resource.data.email || isValidEmail(request.resource.data.email))
+          && (!request.resource.data.phone || isValidPhone(request.resource.data.phone));
+        allow delete: if isUserData(userId);
+      }
+      
+      // ============================================================
+      // TASKS SUB-COLLECTION
+      // ============================================================
+      match /tasks/{taskId} {
+        allow get: if isUserData(userId);
+        allow list: if isUserData(userId);
+        allow create: if isUserData(userId)
+          && request.resource.data is map
+          && request.resource.data.keys().hasAll(['id', 'description', 'createdAt'])
+          && request.resource.data.description is string
+          && request.resource.data.description.size() > 0;
+        allow update: if isUserData(userId)
+          && request.resource.data is map;
+        allow delete: if isUserData(userId);
+      }
+      
+      // ============================================================
+      // TEAM MEMBERS SUB-COLLECTION
+      // ============================================================
+      match /teamMembers/{memberId} {
+        allow get: if isUserData(userId);
+        allow list: if isUserData(userId);
+        allow create: if isUserData(userId)
+          && request.resource.data is map
+          && request.resource.data.keys().hasAll(['id', 'name', 'active'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.active is bool;
+        allow update: if isUserData(userId)
+          && request.resource.data is map;
+        allow delete: if isUserData(userId);
+      }
+      
+      // ============================================================
+      // CLOSERS SUB-COLLECTION
+      // ============================================================
+      match /closers/{closerId} {
+        allow get: if isUserData(userId);
+        allow list: if isUserData(userId);
+        allow create: if isUserData(userId)
+          && request.resource.data is map
+          && request.resource.data.keys().hasAll(['id', 'name', 'active'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.active is bool;
+        allow update: if isUserData(userId)
+          && request.resource.data is map;
+        allow delete: if isUserData(userId);
+      }
+      
+      // ============================================================
+      // CUSTOM STATUSES SUB-COLLECTION
+      // ============================================================
+      match /statuses/{statusId} {
+        allow get: if isUserData(userId);
+        allow list: if isUserData(userId);
+        allow create: if isUserData(userId)
+          && request.resource.data is map
+          && request.resource.data.keys().hasAll(['id', 'name', 'color'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.color is string
+          && request.resource.data.color.matches('^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$');
+        allow update: if isUserData(userId)
+          && request.resource.data is map;
+        allow delete: if isUserData(userId);
+      }
+    }
+    
+    // ============================================================
+    // BLOCK ALL OTHER ACCESS
+    // ============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

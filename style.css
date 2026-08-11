@@ -1926,6 +1926,11 @@ body {
 .status-overdue-sm { background: #8b5cf6; color: white; }
 .status-held-sm { background: #06b6d4; color: white; }
 
+/* Custom status styles - will be overridden by inline styles */
+.status-custom {
+    color: white;
+}
+
 .score-badge {
     font-size: 0.7rem;
     padding: 2px 10px;
@@ -3312,86 +3317,252 @@ body {
     color: var(--text-muted);
 }
 
-/* ============================================================
-   RESPONSIVE DESIGN
-   ============================================================ */
-@media (max-width: 1024px) {
-    .top-bar {
-        flex-direction: column;
-        align-items: stretch;
-        padding: 16px 20px;
-    }
-    .stats-row { justify-content: space-between; gap: 12px; }
-    .action-buttons { justify-content: center; flex-wrap: wrap; }
-    .modal-card { max-width: 95%; padding: 20px; }
-    
-    .calendar-toolbar {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .calendar-toolbar-left { flex-wrap: wrap; }
-    .calendar-toolbar-right { flex-wrap: wrap; }
-    
-    .list-event-item {
-        grid-template-columns: 60px 1fr 80px 60px;
-        font-size: 0.7rem;
-    }
-    .list-event-item .list-event-contact { display: none; }
-    
-    .feature-panel-body { padding: 20px; }
+/* Status Customization Styles */
+.status-customization-section {
+    background: var(--bg-primary);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    border: 1px solid var(--border-color);
+    margin: 8px 0;
 }
 
+.status-customization-section h4 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-list-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.status-editor-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    transition: var(--transition);
+}
+
+.status-editor-item:hover {
+    border-color: var(--primary);
+}
+
+.status-editor-item .drag-handle {
+    cursor: grab;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    opacity: 0.5;
+}
+
+.status-editor-item .drag-handle:hover {
+    opacity: 1;
+}
+
+.status-editor-item .status-color-preview {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.status-editor-item .status-name-input {
+    flex: 1;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    transition: var(--transition);
+}
+
+.status-editor-item .status-name-input:focus {
+    border-color: var(--primary);
+    outline: none;
+}
+
+.status-editor-item .status-color-input {
+    width: 30px;
+    height: 30px;
+    padding: 2px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    cursor: pointer;
+}
+
+.status-editor-item .status-delete-btn {
+    background: none;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: var(--transition);
+    opacity: 0.5;
+}
+
+.status-editor-item .status-delete-btn:hover {
+    opacity: 1;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.status-editor-item .status-make-default {
+    font-size: 0.6rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.status-editor-item .status-make-default:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.status-editor-item .status-default-badge {
+    font-size: 0.6rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--success);
+    color: white;
+}
+
+.status-add-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    border: 2px dashed var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: 0.85rem;
+    margin-top: 8px;
+}
+
+.status-add-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: rgba(59, 130, 246, 0.05);
+}
+
+/* Timezone-aware status display */
+.status-overdue {
+    background: var(--danger);
+    color: white;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.status-scheduled {
+    background: var(--primary);
+    color: white;
+}
+
+.status-completed {
+    background: var(--success);
+    color: white;
+}
+
+.status-canceled {
+    background: var(--text-muted);
+    color: white;
+}
+
+/* Appointment workflow badges */
+.workflow-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.65rem;
+    font-weight: 500;
+}
+
+.workflow-badge.booking {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--primary);
+}
+
+.workflow-badge.followup {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warning);
+}
+
+.workflow-badge.completed {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+}
+
+/* Responsive adjustments */
 @media (max-width: 768px) {
-    .sidebar { width: 280px; }
-    .main-content {
-        margin-left: 0;
-        padding: 16px;
-    }
-    .main-content.expanded { margin-left: 0; }
-    .feature-panel-body { padding: 16px; }
-    .feature-panel-header {
-        padding: 16px;
+    .callback-options {
         flex-direction: column;
         align-items: stretch;
     }
-    .feature-panel-header h2 { font-size: 1.1rem; }
-    .view-toggle { flex-wrap: wrap; }
     
+    .callback-custom-input {
+        flex-wrap: wrap;
+    }
+    
+    .callback-notification {
+        right: 12px;
+        left: 12px;
+        max-width: none;
+        bottom: 70px;
+    }
+    
+    .timestamp-row {
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .status-editor-item {
+        flex-wrap: wrap;
+    }
+    
+    .status-editor-item .status-name-input {
+        min-width: 100px;
+    }
+    
+    /* Calendar responsive fixes */
     .calendar-day {
-        min-height: 60px;
-        padding: 4px;
+        min-height: 70px;
     }
-    .calendar-day .day-number {
-        font-size: 0.7rem;
-        width: 20px;
-        height: 20px;
-        line-height: 20px;
-    }
-    .day-event {
-        font-size: 0.55rem;
-        padding: 1px 4px;
-    }
-    .day-event .event-time { display: none; }
     
     .calendar-week-view {
         grid-template-columns: 35px repeat(7, 1fr);
         min-height: 400px;
     }
+    
     .time-slot-label {
         font-size: 0.5rem;
         height: 40px;
     }
-    .week-time-slot { height: 40px; }
+    
+    .week-time-slot {
+        height: 40px;
+    }
+    
     .week-event {
         font-size: 0.5rem;
-        padding: 1px 4px;
-    }
-    .week-event .event-time { display: none; }
-    .week-event .event-status { display: none; }
-    
-    .calendar-toolbar-right .search-wrapper input {
-        width: 120px;
-        font-size: 0.7rem;
     }
     
     .list-event-item {
@@ -3399,62 +3570,75 @@ body {
         gap: 4px;
         padding: 8px 12px;
     }
-    .list-event-item .list-event-time { font-size: 0.6rem; }
     
-    .day-view-header h3 { font-size: 0.9rem; }
-    .day-event-card { flex-direction: column; gap: 4px; }
+    .list-event-item .list-event-time {
+        font-size: 0.6rem;
+    }
+    
+    .day-view-header h3 {
+        font-size: 0.9rem;
+    }
+    
+    .day-event-card {
+        flex-direction: column;
+        gap: 4px;
+    }
+    
     .day-event-time {
         min-width: auto;
         font-size: 0.7rem;
     }
     
-    .script-header-bar { flex-direction: column; align-items: stretch; padding: 12px 16px; }
-    .script-title-area h2 { font-size: 1.1rem; }
+    .modal-card {
+        padding: 16px;
+        max-width: 98%;
+    }
+    
+    .modal-card h3 {
+        font-size: 1.1rem;
+    }
+    
+    .top-bar {
+        padding: 12px 16px;
+        border-radius: 20px;
+    }
+    
+    .stats-row {
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    
+    .stat-number {
+        font-size: 1rem;
+    }
+    
+    .stat-label {
+        font-size: 0.6rem;
+    }
+    
+    .action-buttons {
+        gap: 6px;
+    }
+    
+    .btn-icon {
+        padding: 6px 12px;
+        font-size: 0.7rem;
+    }
+    
     .script-body {
         padding: 16px;
         min-height: 300px;
         max-height: 400px;
     }
-    .modal-card { padding: 16px; max-width: 98%; }
-    .modal-card h3 { font-size: 1.1rem; }
-    .top-bar {
-        padding: 12px 16px;
-        border-radius: 20px;
-    }
-    .stats-row { gap: 8px; flex-wrap: wrap; }
-    .stat-number { font-size: 1rem; }
-    .stat-label { font-size: 0.6rem; }
-    .action-buttons { gap: 6px; }
-    .btn-icon { padding: 6px 12px; font-size: 0.7rem; }
-    
-    .list-view-container .list-item,
-    .list-view-container .list-header {
-        grid-template-columns: 1fr;
-        gap: 6px;
-        padding: 10px 12px;
-    }
-    .list-view-container .list-header { display: none; }
-    .list-view-container .list-item { border-left: 3px solid var(--border-color); }
-    
-    .analytics-filters { flex-direction: column; align-items: stretch; }
-    .analytics-filters input,
-    .analytics-filters select { width: 100%; }
-    .report-metrics { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-    .script-actions { justify-content: flex-start; }
-    
-    .script-actions .btn-icon {
-        font-size: 0.65rem;
-        padding: 4px 8px;
-    }
     
     .script-header-bar {
         flex-direction: column;
         align-items: stretch;
-        gap: 8px;
+        padding: 12px 16px;
     }
     
-    .script-title-area {
-        flex-wrap: wrap;
+    .script-title-area h2 {
+        font-size: 1.1rem;
     }
     
     .script-actions {
@@ -3462,13 +3646,92 @@ body {
         gap: 4px;
     }
     
+    .script-actions .btn-icon {
+        font-size: 0.65rem;
+        padding: 4px 8px;
+    }
+    
+    .sidebar {
+        width: 280px;
+    }
+    
+    .main-content {
+        margin-left: 0;
+        padding: 16px;
+    }
+    
+    .main-content.expanded {
+        margin-left: 0;
+    }
+    
+    .feature-panel-body {
+        padding: 16px;
+    }
+    
+    .feature-panel-header {
+        padding: 16px;
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .feature-panel-header h2 {
+        font-size: 1.1rem;
+    }
+    
+    .view-toggle {
+        flex-wrap: wrap;
+    }
+    
+    /* Import responsive */
     .import-date-selector {
         flex-direction: column;
         align-items: stretch;
         gap: 10px;
     }
+    
     .import-date-selector input[type="date"] {
         width: 100%;
+    }
+    
+    .record-fields {
+        grid-template-columns: 1fr;
+    }
+    
+    .edit-fields {
+        grid-template-columns: 1fr;
+    }
+    
+    .report-metrics {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+    
+    .analytics-filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .analytics-filters input,
+    .analytics-filters select {
+        width: 100%;
+    }
+    
+    .calendar-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .calendar-toolbar-left {
+        flex-wrap: wrap;
+    }
+    
+    .calendar-toolbar-right {
+        flex-wrap: wrap;
+    }
+    
+    .calendar-toolbar-right .search-wrapper input {
+        width: 120px;
+        font-size: 0.7rem;
     }
     
     .objection-integrated-body .objection-category-nav {
@@ -3541,73 +3804,95 @@ body {
         padding: 4px 8px;
     }
     
-    /* Callback responsive */
-    .callback-options {
+    /* Appointment card responsive */
+    .appointment-card .card-row {
         flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .callback-custom-input {
-        flex-wrap: wrap;
-    }
-    
-    .callback-notification {
-        right: 12px;
-        left: 12px;
-        max-width: none;
-        bottom: 70px;
-    }
-    
-    .timestamp-row {
-        flex-direction: column;
+        align-items: flex-start;
         gap: 4px;
+    }
+    
+    .appointment-card .business-name {
+        font-size: 0.85rem;
+    }
+    
+    .appointment-card .card-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+    
+    .appointment-card .card-actions button {
+        font-size: 0.65rem;
+        padding: 2px 8px;
+    }
+    
+    .list-view-container .list-item,
+    .list-view-container .list-header {
+        grid-template-columns: 1fr;
+        gap: 6px;
+        padding: 10px 12px;
+    }
+    
+    .list-view-container .list-header {
+        display: none;
+    }
+    
+    .list-view-container .list-item {
+        border-left: 3px solid var(--border-color);
+    }
+    
+    /* Status editor responsive */
+    .status-editor-item {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    
+    .status-editor-item .status-name-input {
+        min-width: 80px;
+        flex-basis: 40%;
     }
 }
 
 @media (max-width: 480px) {
-    .sidebar { width: 260px; }
-    .main-content { padding: 12px; }
+    .sidebar {
+        width: 260px;
+    }
     
-    .calendar-toolbar-left {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 8px;
+    .main-content {
+        padding: 12px;
     }
-    .view-selector { width: 100%; justify-content: center; }
-    .calendar-nav-group { justify-content: center; }
-    .calendar-current-month { text-align: center; }
-    .calendar-toolbar-right {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .calendar-toolbar-right .search-wrapper { width: 100%; }
-    .calendar-toolbar-right .search-wrapper input { width: 100%; }
     
-    .calendar-month-grid { gap: 1px; }
-    .calendar-day {
-        min-height: 50px;
-        padding: 2px;
+    .stats-row {
+        gap: 4px;
     }
-    .calendar-day .day-number {
+    
+    .stat {
+        gap: 2px;
+    }
+    
+    .stat-number {
+        font-size: 0.85rem;
+    }
+    
+    .stat-label {
+        font-size: 0.55rem;
+    }
+    
+    .btn-icon {
+        padding: 4px 8px;
         font-size: 0.6rem;
-        width: 16px;
-        height: 16px;
-        line-height: 16px;
+        gap: 4px;
     }
-    .calendar-day .day-event-indicator {
-        font-size: 0.5rem;
-        padding: 1px 4px;
+    
+    .badge-auto {
+        padding: 4px 10px;
+        font-size: 0.6rem;
     }
-    .calendar-filter-chips { justify-content: center; }
     
-    .stats-row { gap: 6px; }
-    .stat { gap: 4px; }
-    .stat-number { font-size: 0.9rem; }
+    .modal-card {
+        padding: 12px;
+        border-radius: 20px;
+    }
     
-    .report-metrics { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-    .metric-value { font-size: 1.4rem; }
-    
-    .modal-card { padding: 12px; border-radius: 20px; }
     .modal-card .form-group input,
     .modal-card .form-group textarea,
     .modal-card .form-group select {
@@ -3615,33 +3900,201 @@ body {
         font-size: 0.8rem;
     }
     
-    .appointment-card { padding: 10px 12px; }
-    .appointment-card .business-name { font-size: 0.8rem; }
-    
     .script-body {
         padding: 12px;
         min-height: 200px;
         max-height: 300px;
     }
+    
     .script-display {
         font-size: 0.8rem;
         line-height: 1.5;
     }
     
-    .btn-icon { padding: 4px 10px; font-size: 0.65rem; gap: 4px; }
-    .badge-auto { padding: 4px 12px; font-size: 0.65rem; }
+    .script-title-area h2 {
+        font-size: 0.95rem;
+    }
     
-    .task-card { padding: 10px 12px; }
-    .task-card .task-title { font-size: 0.85rem; }
+    .version-chip {
+        font-size: 0.6rem;
+        padding: 2px 8px;
+    }
     
-    .shortcut-item {
+    .menu-toggle {
+        width: 36px;
+        height: 36px;
+        top: 12px;
+        left: 12px;
+        font-size: 1rem;
+    }
+    
+    .feature-panel-body {
+        padding: 12px;
+    }
+    
+    .feature-panel-header {
+        padding: 12px;
+    }
+    
+    .feature-panel-header h2 {
+        font-size: 0.95rem;
+    }
+    
+    .view-btn {
+        font-size: 0.7rem;
+        padding: 4px 10px;
+    }
+    
+    .calendar-day {
+        min-height: 45px;
+        padding: 2px 4px;
+    }
+    
+    .calendar-day .day-number {
+        font-size: 0.6rem;
+        width: 18px;
+        height: 18px;
+        line-height: 18px;
+    }
+    
+    .calendar-day .day-event-indicator {
+        font-size: 0.5rem;
+        padding: 0px 4px;
+        top: 2px;
+        right: 2px;
+    }
+    
+    .day-event {
+        font-size: 0.5rem;
+        padding: 1px 4px;
+    }
+    
+    .day-event .event-time {
+        display: none;
+    }
+    
+    .day-view-header h3 {
+        font-size: 0.85rem;
+    }
+    
+    .day-event-card {
+        padding: 8px 12px;
+    }
+    
+    .day-event-business {
+        font-size: 0.8rem;
+    }
+    
+    .day-event-contact {
+        font-size: 0.7rem;
+    }
+    
+    .week-event .event-time {
+        display: none;
+    }
+    
+    .week-event .event-status {
+        display: none;
+    }
+    
+    .calendar-toolbar-right .search-wrapper input {
+        width: 100px;
+        font-size: 0.65rem;
+        padding: 4px 8px 4px 28px;
+    }
+    
+    .calendar-toolbar-right .search-wrapper i {
+        font-size: 0.7rem;
+        left: 8px;
+    }
+    
+    .timezone-select {
+        font-size: 0.65rem;
+        padding: 4px 8px;
+    }
+    
+    .calendar-nav-group .btn-icon {
+        padding: 2px 8px;
+        font-size: 0.65rem;
+    }
+    
+    .list-event-item {
+        padding: 6px 10px;
+    }
+    
+    .list-event-business {
+        font-size: 0.8rem;
+    }
+    
+    .list-event-contact {
+        font-size: 0.7rem;
+    }
+    
+    .list-date-header {
+        padding: 4px 8px;
+        font-size: 0.8rem;
+    }
+    
+    .list-date-label {
+        font-size: 0.75rem;
+    }
+    
+    .report-metrics {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+    }
+    
+    .metric-card {
+        padding: 10px;
+    }
+    
+    .metric-value {
+        font-size: 1.2rem;
+    }
+    
+    .metric-label {
+        font-size: 0.6rem;
+    }
+    
+    .import-date-selector label {
+        font-size: 0.7rem;
+    }
+    
+    .import-date-selector input[type="date"] {
+        font-size: 0.7rem;
+        padding: 4px 8px;
+        min-width: 100px;
+    }
+    
+    .import-stat .stat-number {
+        font-size: 1.2rem;
+    }
+    
+    .record-summary {
         flex-direction: column;
         align-items: flex-start;
-        gap: 8px;
     }
-    .shortcut-item .shortcut-keys {
-        width: 100%;
-        justify-content: flex-start;
+    
+    .record-name {
+        font-size: 0.8rem;
+    }
+    
+    .record-business {
+        font-size: 0.7rem;
+    }
+    
+    .record-date {
+        font-size: 0.6rem;
+        margin-left: 0;
+    }
+    
+    .record-badges {
+        gap: 3px;
+    }
+    
+    .badge {
+        font-size: 0.5rem;
+        padding: 1px 6px;
     }
     
     .toast {
@@ -3652,84 +4105,91 @@ body {
         font-size: 0.8rem;
         padding: 10px 16px;
     }
-    .menu-toggle {
-        width: 36px;
-        height: 36px;
-        top: 12px;
-        left: 12px;
-        font-size: 1rem;
-    }
-    .feature-panel-body { padding: 12px; }
     
-    .script-item .script-edit-btn,
-    .script-item .script-delete-btn {
-        font-size: 0.6rem;
-        padding: 1px 3px;
-    }
-    .script-item .key-hint {
-        font-size: 0.6rem;
-        padding: 1px 6px;
+    .callback-notification {
+        right: 8px;
+        left: 8px;
+        bottom: 60px;
+        max-width: none;
+        padding: 12px 16px;
     }
     
-    .import-date-selector {
-        padding: 10px 12px;
+    .callback-notification .notification-title {
+        font-size: 0.8rem;
     }
-    .import-date-selector label {
+    
+    .callback-notification .notification-body {
         font-size: 0.75rem;
     }
-    .import-date-selector input[type="date"] {
-        font-size: 0.75rem;
-        padding: 6px 10px;
-        min-width: 120px;
-    }
-    .record-summary {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    .record-date {
-        font-size: 0.65rem;
-        margin-left: 0;
-    }
-    .record-fields {
-        grid-template-columns: 1fr;
+    
+    .callback-notification .notification-actions .btn-icon {
+        font-size: 0.6rem;
+        padding: 2px 10px;
     }
     
-    .objection-integrated-title .objection-badge {
+    .status-editor-item {
+        padding: 4px 8px;
+        gap: 4px;
+    }
+    
+    .status-editor-item .status-name-input {
+        font-size: 0.75rem;
+        padding: 2px 6px;
+        min-width: 60px;
+    }
+    
+    .status-editor-item .status-color-input {
+        width: 24px;
+        height: 24px;
+    }
+    
+    .status-editor-item .status-delete-btn {
+        font-size: 0.7rem;
+        padding: 2px;
+    }
+    
+    .status-editor-item .status-make-default {
         font-size: 0.5rem;
         padding: 1px 6px;
     }
     
-    .objection-integrated-body .objection-cards-container {
-        max-height: 300px;
+    .status-editor-item .status-default-badge {
+        font-size: 0.5rem;
+        padding: 1px 6px;
+    }
+    
+    .status-add-btn {
+        font-size: 0.75rem;
+        padding: 6px 12px;
     }
     
     .closer-item {
-        padding: 10px 12px;
+        padding: 8px 10px;
     }
     
     .closer-avatar {
-        width: 32px;
-        height: 32px;
-        font-size: 1rem;
+        width: 28px;
+        height: 28px;
+        font-size: 0.8rem;
     }
     
     .closer-name {
-        font-size: 0.85rem;
+        font-size: 0.8rem;
     }
     
     .closer-email,
     .closer-phone {
-        font-size: 0.7rem;
+        font-size: 0.65rem;
     }
     
     .closer-actions .btn-icon {
-        font-size: 0.6rem;
-        padding: 3px 6px;
+        font-size: 0.55rem;
+        padding: 2px 6px;
     }
     
     .status-badge {
-        font-size: 0.6rem;
-        padding: 1px 8px;
+        font-size: 0.55rem;
+        padding: 1px 6px;
     }
 }
 
@@ -3758,3 +4218,41 @@ body {
 ::-webkit-scrollbar-track { background: var(--scrollbar-track); border-radius: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+/* ============================================================
+   PRINT STYLES
+   ============================================================ */
+@media print {
+    .sidebar,
+    .menu-toggle,
+    .top-bar .action-buttons,
+    .script-actions,
+    .footer-note,
+    .btn-icon {
+        display: none !important;
+    }
+    
+    .main-content {
+        margin-left: 0 !important;
+        padding: 20px !important;
+    }
+    
+    .script-card {
+        border: 1px solid #ccc !important;
+        box-shadow: none !important;
+    }
+    
+    .script-body {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+    
+    .modal-overlay {
+        display: none !important;
+    }
+    
+    body {
+        background: white !important;
+        color: black !important;
+    }
+}

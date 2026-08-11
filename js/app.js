@@ -7,6 +7,18 @@
 // ================================================================
 
 const CONFIG = {
+    // Default statuses - will be customized by user
+    DEFAULT_STATUSES: [
+        { id: 'hot_transfer', name: 'Hot Transfer', color: '#dc2626', default: false },
+        { id: 'warm_callback', name: 'Warm Callback', color: '#f59e0b', default: false },
+        { id: 'meeting_booked', name: 'Meeting Booked', color: '#3b82f6', default: false },
+        { id: 'pending', name: 'Pending', color: '#94a3b8', default: true },
+        { id: 'rescheduled', name: 'Rescheduled', color: '#f97316', default: false },
+        { id: 'held', name: 'Held', color: '#06b6d4', default: false },
+        { id: 'completed', name: 'Completed', color: '#10b981', default: false },
+        { id: 'canceled', name: 'Canceled', color: '#ef4444', default: false },
+        { id: 'overdue', name: 'Overdue', color: '#8b5cf6', default: false }
+    ],
     PRIMARY_STATUSES: ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled'],
     SECONDARY_STATUSES: ['Meeting Booked', 'Rescheduled', 'Overdue', 'Held'],
     STATUS_OPTIONS: ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'],
@@ -78,11 +90,22 @@ const CONFIG = {
         '24h': 24 * 60 * 60 * 1000,
         '4h': 4 * 60 * 60 * 1000,
         '1h': 60 * 60 * 1000
+    },
+    TIMEZONES: {
+        'Eastern EDT': { name: 'Eastern (EDT)', offset: -4 },
+        'Eastern EST': { name: 'Eastern (EST)', offset: -5 },
+        'Central CDT': { name: 'Central (CDT)', offset: -5 },
+        'Central CST': { name: 'Central (CST)', offset: -6 },
+        'Mountain MDT': { name: 'Mountain (MDT)', offset: -6 },
+        'Mountain MST': { name: 'Mountain (MST)', offset: -7 },
+        'Pacific PDT': { name: 'Pacific (PDT)', offset: -7 },
+        'Pacific PST': { name: 'Pacific (PST)', offset: -8 },
+        'UTC': { name: 'UTC', offset: 0 }
     }
 };
 
 // ================================================================
-// SMART IMPORT CONFIGURATION (UPDATED WITH EMAIL SUPPORT)
+// SMART IMPORT CONFIGURATION
 // ================================================================
 
 const SMART_IMPORT_CONFIG = {
@@ -98,7 +121,7 @@ const SMART_IMPORT_CONFIG = {
         email: { pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ },
         time: { pattern: /^(0?[1-9]|1[0-2]):[0-5][0-9]\s*(AM|PM)$/i },
         date: { pattern: /^(0?[1-9]|1[0-2])\/(0?[1-9]|[12][0-9]|3[01])\/\d{4}$|^\d{4}-\d{2}-\d{2}$|^[A-Za-z]+\s+\d{1,2},?\s+\d{4}$/ },
-        status: { allowed: ['Hot Transfer', 'Warm Callback', 'Completed', 'Pending', 'Canceled', 'Meeting Booked', 'Rescheduled', 'Overdue', 'Held'] }
+        status: { allowed: [] } // Will be populated from custom statuses
     },
     FIELD_ALIASES: {
         name: ['name', 'full name', 'contact name', 'client name', 'customer name', 'person name', 'first name', 'last name', 'contact', 'client', 'customer', 'person', 'prospect', 'lead name'],
@@ -117,7 +140,7 @@ const SMART_IMPORT_CONFIG = {
 };
 
 // ================================================================
-// STATE MANAGEMENT (UPDATED)
+// STATE MANAGEMENT
 // ================================================================
 
 const AppState = {
@@ -134,6 +157,10 @@ const AppState = {
     teamMembers: [],
     closers: [],
     goals: { daily: 3, weekly: 15, monthly: 60 },
+    
+    // Custom statuses
+    customStatuses: [],
+    defaultStatusId: null,
 
     currentScriptId: 'opening',
     isEditing: false,
@@ -190,7 +217,10 @@ const AppState = {
     // Callback notification tracking
     callbackNotifications: {},
     callbackCheckInterval: null,
-    lastCallbackCheck: null
+    lastCallbackCheck: null,
+    
+    // Timezone tracking
+    userTimezone: null
 };
 
 // ================================================================
@@ -214,7 +244,7 @@ const ImportState = {
 };
 
 // ================================================================
-// UTILITY FUNCTIONS (UPDATED WITH TIMEZONE SUPPORT)
+// UTILITY FUNCTIONS
 // ================================================================
 
 const Utils = {
@@ -229,6 +259,30 @@ const Utils = {
 
     getCurrentDateTime() {
         return new Date().toISOString();
+    },
+
+    getStatuses() {
+        // Return custom statuses if available, otherwise defaults
+        if (AppState.customStatuses && AppState.customStatuses.length > 0) {
+            return AppState.customStatuses;
+        }
+        return CONFIG.DEFAULT_STATUSES;
+    },
+
+    getStatusNames() {
+        return this.getStatuses().map(s => s.name);
+    },
+
+    getDefaultStatus() {
+        const statuses = this.getStatuses();
+        const defaultStatus = statuses.find(s => s.default);
+        return defaultStatus ? defaultStatus.name : (statuses.length > 0 ? statuses[0].name : 'Pending');
+    },
+
+    getStatusColor(statusName) {
+        const statuses = this.getStatuses();
+        const found = statuses.find(s => s.name === statusName);
+        return found ? found.color : '#94a3b8';
     },
 
     formatDate(dateStr) {
@@ -288,18 +342,13 @@ const Utils = {
     },
 
     getStatusClass(status) {
-        const map = {
-            'Hot Transfer': 'status-hot-transfer-sm',
-            'Warm Callback': 'status-warm-callback-sm',
-            'Completed': 'status-completed-sm',
-            'Pending': 'status-pending-sm',
-            'Canceled': 'status-canceled-sm',
-            'Meeting Booked': 'status-meeting-booked-sm',
-            'Rescheduled': 'status-rescheduled-sm',
-            'Overdue': 'status-overdue-sm',
-            'Held': 'status-held-sm'
-        };
-        return map[status] || 'status-pending-sm';
+        const statuses = this.getStatuses();
+        const found = statuses.find(s => s.name === status);
+        if (found) {
+            return `status-custom-${found.id}`;
+        }
+        // Fallback to generic
+        return 'status-pending-sm';
     },
 
     getScoreColor(score) {
@@ -309,22 +358,28 @@ const Utils = {
     },
 
     getPrimaryStatus(status) {
-        if (CONFIG.PRIMARY_STATUSES.includes(status)) {
-            return status;
-        }
-        if (CONFIG.SECONDARY_STATUSES.includes(status)) {
-            return 'Completed';
-        }
-        return 'Pending';
+        const statuses = this.getStatuses();
+        const found = statuses.find(s => s.name === status);
+        if (!found) return 'Pending';
+        
+        // Map custom statuses to primary categories
+        const primaryMap = {
+            'Hot Transfer': 'Hot Transfer',
+            'Warm Callback': 'Warm Callback',
+            'Completed': 'Completed',
+            'Canceled': 'Canceled',
+            'Meeting Booked': 'Completed',
+            'Rescheduled': 'Pending',
+            'Overdue': 'Pending',
+            'Held': 'Completed',
+            'Pending': 'Pending'
+        };
+        return primaryMap[status] || 'Pending';
     },
 
     isCompletedStatus(status) {
         const primary = this.getPrimaryStatus(status);
-        return primary === 'Completed' || CONFIG.SECONDARY_STATUSES.includes(status);
-    },
-
-    getStatusColor(status) {
-        return CONFIG.STATUS_COLORS[status] || '#94a3b8';
+        return primary === 'Completed';
     },
 
     calculateLeadScore(appt) {
@@ -586,8 +641,10 @@ const Utils = {
 
             if (isNaN(appointmentDate.getTime())) return null;
 
-            // Parse the time
+            // Parse the time with timezone awareness
             let hour = 9, minute = 0;
+            let timezone = appointment.timezone || AppState.calendarTimezone || 'Central CDT';
+            
             if (appointment.time) {
                 const timeMatch = appointment.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
                 if (timeMatch) {
@@ -598,8 +655,16 @@ const Utils = {
                 }
             }
 
-            // Set the appointment time
+            // Set the appointment time in the user's timezone
             appointmentDate.setHours(hour, minute, 0, 0);
+
+            // Adjust for timezone offset if we have timezone info
+            if (timezone && CONFIG.TIMEZONES[timezone]) {
+                const tzOffset = CONFIG.TIMEZONES[timezone].offset;
+                const userOffset = -new Date().getTimezoneOffset() / 60;
+                const offsetDiff = userOffset - tzOffset;
+                appointmentDate.setHours(appointmentDate.getHours() + offsetDiff);
+            }
 
             // Calculate callback time based on setting
             let offsetMs = 0;
@@ -702,7 +767,7 @@ const Utils = {
                 'pst': 'Pacific PST',
                 'pdt': 'Pacific PDT',
                 'pacific': 'Pacific PDT',
-                'gmt': 'GMT',
+                'gmt': 'UTC',
                 'utc': 'UTC',
                 'et': 'Eastern EST',
                 'ct': 'Central CDT',
@@ -713,6 +778,57 @@ const Utils = {
             return tzMap[key] || timezoneMatch[1].toUpperCase();
         }
         return null;
+    },
+
+    // Check if an appointment is overdue based on current time and timezone
+    isOverdue(appointment) {
+        if (!appointment || !appointment.date) return false;
+        
+        const status = this.getStatus(appointment);
+        if (status === 'Completed' || status === 'Canceled') return false;
+        
+        try {
+            let appointmentDate;
+            if (typeof appointment.date === 'string') {
+                appointmentDate = new Date(appointment.date + 'T00:00:00');
+            } else if (appointment.date.toDate) {
+                appointmentDate = appointment.date.toDate();
+            } else {
+                appointmentDate = new Date(appointment.date);
+            }
+            
+            if (isNaN(appointmentDate.getTime())) return false;
+            
+            // Parse time
+            let hour = 9, minute = 0;
+            if (appointment.time) {
+                const timeMatch = appointment.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+                if (timeMatch) {
+                    hour = parseInt(timeMatch[1]);
+                    minute = parseInt(timeMatch[2]);
+                    if (timeMatch[3].toUpperCase() === 'PM' && hour < 12) hour += 12;
+                    if (timeMatch[3].toUpperCase() === 'AM' && hour === 12) hour = 0;
+                }
+            }
+            
+            // Set appointment time with timezone adjustment
+            appointmentDate.setHours(hour, minute, 0, 0);
+            
+            // Adjust for timezone if specified
+            const timezone = appointment.timezone || AppState.calendarTimezone || 'Central CDT';
+            if (CONFIG.TIMEZONES[timezone]) {
+                const tzOffset = CONFIG.TIMEZONES[timezone].offset;
+                const userOffset = -new Date().getTimezoneOffset() / 60;
+                const offsetDiff = userOffset - tzOffset;
+                appointmentDate.setHours(appointmentDate.getHours() + offsetDiff);
+            }
+            
+            const now = new Date();
+            return now > appointmentDate && status !== 'Completed' && status !== 'Canceled';
+        } catch (e) {
+            console.warn('Error checking overdue status:', e);
+            return false;
+        }
     }
 };
 
@@ -864,7 +980,9 @@ const Auth = {
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     goals: { daily: 3, weekly: 15, monthly: 60 },
                     scriptOrder: ['opening'],
-                    closers: CONFIG.DEFAULT_CLOSERS
+                    closers: CONFIG.DEFAULT_CLOSERS,
+                    customStatuses: CONFIG.DEFAULT_STATUSES,
+                    defaultStatusId: 'pending'
                 });
                 showToast('Account created! 🎉', 'success');
                 AppState.currentUser = result.user;
@@ -1066,7 +1184,7 @@ const Auth = {
 };
 
 // ================================================================
-// DATA LAYER - WITH OFFLINE SUPPORT (UPDATED)
+// DATA LAYER - WITH OFFLINE SUPPORT
 // ================================================================
 
 const Data = {
@@ -1082,10 +1200,13 @@ const Data = {
                     AppState.tasks = data.tasks || {};
                     AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
                     AppState.closers = data.closers || CONFIG.DEFAULT_CLOSERS;
+                    AppState.customStatuses = data.customStatuses || CONFIG.DEFAULT_STATUSES;
+                    AppState.defaultStatusId = data.defaultStatusId || 'pending';
                     showToast('Loaded offline data', 'info');
                     Stats.updateAll();
                     Scripts.renderSidebar();
                     Scripts.loadScript('opening');
+                    updateStatusSelects();
                     return;
                 } catch (e) {
                     console.warn('Failed to load offline data:', e);
@@ -1117,7 +1238,9 @@ const Data = {
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     goals: { daily: 3, weekly: 15, monthly: 60 },
                     scriptOrder: ['opening'],
-                    closers: CONFIG.DEFAULT_CLOSERS
+                    closers: CONFIG.DEFAULT_CLOSERS,
+                    customStatuses: CONFIG.DEFAULT_STATUSES,
+                    defaultStatusId: 'pending'
                 });
                 return this.loadUserData();
             }
@@ -1131,6 +1254,8 @@ const Data = {
             }
             AppState.scriptOrder = userData.scriptOrder || [];
             AppState.closers = userData.closers || CONFIG.DEFAULT_CLOSERS;
+            AppState.customStatuses = userData.customStatuses || CONFIG.DEFAULT_STATUSES;
+            AppState.defaultStatusId = userData.defaultStatusId || 'pending';
 
             this.subscribeToChanges();
 
@@ -1160,7 +1285,9 @@ const Data = {
                 appointments: AppState.appointments,
                 tasks: AppState.tasks,
                 teamMembers: AppState.teamMembers,
-                closers: AppState.closers
+                closers: AppState.closers,
+                customStatuses: AppState.customStatuses,
+                defaultStatusId: AppState.defaultStatusId
             }));
 
             Stats.updateAll();
@@ -1171,6 +1298,10 @@ const Data = {
             
             // Start callback checking
             this.startCallbackChecking();
+            updateStatusSelects();
+            
+            // Update overdue statuses
+            this.updateOverdueStatuses();
             
         } catch (error) {
             console.error('Data Load Error:', error);
@@ -1185,13 +1316,30 @@ const Data = {
                     AppState.tasks = data.tasks || {};
                     AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
                     AppState.closers = data.closers || CONFIG.DEFAULT_CLOSERS;
+                    AppState.customStatuses = data.customStatuses || CONFIG.DEFAULT_STATUSES;
+                    AppState.defaultStatusId = data.defaultStatusId || 'pending';
                     showToast('Using offline data', 'info');
                     Stats.updateAll();
                     Scripts.renderSidebar();
                     Scripts.loadScript('opening');
                     this.startCallbackChecking();
+                    updateStatusSelects();
+                    this.updateOverdueStatuses();
                 } catch (e) {
                     console.warn('Failed to load offline data:', e);
+                }
+            }
+        }
+    },
+
+    updateOverdueStatuses: function() {
+        // Check all appointments and update status to Overdue if applicable
+        const allAppointments = this.getAllAppointments();
+        for (const appt of allAppointments) {
+            if (Utils.isOverdue(appt)) {
+                const currentStatus = Utils.getStatus(appt);
+                if (currentStatus !== 'Overdue') {
+                    this.updateAppointment(appt.date, appt.id, { status: 'Overdue' });
                 }
             }
         }
@@ -1205,10 +1353,14 @@ const Data = {
         // Check every 30 seconds
         AppState.callbackCheckInterval = setInterval(() => {
             this.checkDueCallbacks();
+            this.updateOverdueStatuses();
         }, 30000);
         
         // Also check immediately
-        setTimeout(() => this.checkDueCallbacks(), 5000);
+        setTimeout(() => {
+            this.checkDueCallbacks();
+            this.updateOverdueStatuses();
+        }, 5000);
     },
 
     checkDueCallbacks: function() {
@@ -1238,7 +1390,6 @@ const Data = {
     },
 
     showCallbackNotification: function(appt) {
-        // Check if notification already shown for this appointment
         const notificationKey = `callback_${appt.id}`;
         if (AppState.callbackNotifications[notificationKey]) {
             return;
@@ -1247,7 +1398,6 @@ const Data = {
         const callbackTime = Utils.calculateCallbackTime(appt);
         if (!callbackTime) return;
         
-        // Create notification
         const notification = document.createElement('div');
         notification.className = 'callback-notification callback-due';
         notification.id = notificationKey;
@@ -1277,7 +1427,6 @@ const Data = {
         AppState.callbackNotifications[notificationKey] = true;
         localStorage.setItem('callbackNotifications', JSON.stringify(AppState.callbackNotifications));
         
-        // Auto-dismiss after 30 seconds
         setTimeout(() => {
             const el = document.getElementById(notificationKey);
             if (el) {
@@ -1287,9 +1436,7 @@ const Data = {
             }
         }, 30000);
         
-        // Play notification sound if available
         try {
-            // Use Web Audio API for a simple beep
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const oscillator = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
@@ -1301,9 +1448,7 @@ const Data = {
             gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
             oscillator.start(audioCtx.currentTime);
             oscillator.stop(audioCtx.currentTime + 0.3);
-        } catch (e) {
-            // Silently fail - notification is still visible
-        }
+        } catch (e) {}
     },
 
     dismissCallbackNotification: function(apptId) {
@@ -1314,7 +1459,6 @@ const Data = {
             el.style.transform = 'translateX(20px)';
             setTimeout(() => el.remove(), 300);
         }
-        // Don't remove from tracking - we want to prevent re-triggering
     },
 
     subscribeToChanges: function() {
@@ -1340,9 +1484,8 @@ const Data = {
                 Stats.updateAll();
                 FeaturePanel.refreshCurrentView();
                 localStorage.setItem('appointments_fallback', JSON.stringify(AppState.appointments));
-                
-                // Re-check callbacks on data change
                 this.checkDueCallbacks();
+                this.updateOverdueStatuses();
             }, error => {
                 console.warn('Appointments subscription error:', error);
             });
@@ -1443,10 +1586,40 @@ const Data = {
                 appointments: AppState.appointments,
                 tasks: AppState.tasks,
                 teamMembers: AppState.teamMembers,
-                closers: AppState.closers
+                closers: AppState.closers,
+                customStatuses: AppState.customStatuses,
+                defaultStatusId: AppState.defaultStatusId
             }));
         } catch (error) {
             console.error('Error saving closers:', error);
+        }
+    },
+
+    saveCustomStatuses: async function() {
+        if (!AppState.currentUser) return;
+        
+        try {
+            if (AppState.isFirebaseReady) {
+                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).update({
+                    customStatuses: AppState.customStatuses,
+                    defaultStatusId: AppState.defaultStatusId
+                });
+            }
+            localStorage.setItem('userData_fallback', JSON.stringify({
+                scripts: AppState.scripts,
+                scriptOrder: AppState.scriptOrder,
+                appointments: AppState.appointments,
+                tasks: AppState.tasks,
+                teamMembers: AppState.teamMembers,
+                closers: AppState.closers,
+                customStatuses: AppState.customStatuses,
+                defaultStatusId: AppState.defaultStatusId
+            }));
+            updateStatusSelects();
+            showToast('Statuses saved!', 'success');
+        } catch (error) {
+            console.error('Error saving statuses:', error);
+            handleError(error, 'Saving statuses');
         }
     },
 
@@ -1455,7 +1628,12 @@ const Data = {
         if (!AppState.appointments[dateStr]) {
             AppState.appointments[dateStr] = { count: 0, note: '', reports: [] };
         }
-        if (!CONFIG.STATUS_OPTIONS.includes(status)) status = 'Pending';
+        
+        // Get valid statuses
+        const statusNames = Utils.getStatusNames();
+        if (!statusNames.includes(status)) {
+            status = Utils.getDefaultStatus();
+        }
         
         if (!closer) {
             const defaultCloser = AppState.closers.find(c => c.default);
@@ -1488,6 +1666,11 @@ const Data = {
             callbackTriggered: false,
             callbackTime: null
         };
+        
+        // Check if overdue
+        if (Utils.isOverdue(newAppt)) {
+            newAppt.status = 'Overdue';
+        }
         
         // Calculate callback time
         const callbackTime = Utils.calculateCallbackTime(newAppt);
@@ -1548,18 +1731,24 @@ const Data = {
         const appt = AppState.appointments[dateStr]?.reports?.find(r => r.id === id);
         if (!appt) return false;
         
-        // Preserve createdAt
         const createdAt = appt.createdAt;
         
         Object.assign(appt, updates);
         appt.updatedAt = new Date().toISOString();
         
-        // If date changed, ensure createdAt stays
+        // Validate status
+        if (updates.status) {
+            const statusNames = Utils.getStatusNames();
+            if (!statusNames.includes(updates.status)) {
+                appt.status = Utils.getDefaultStatus();
+            }
+        }
+        
         if (updates.date && updates.date !== dateStr) {
             appt.createdAt = createdAt;
         }
         
-        // Recalculate callback time if date/time/callback setting changed
+        // Recalculate callback time
         if (updates.date || updates.time || updates.callbackSetting || updates.callbackCustomValue || updates.callbackCustomUnit) {
             const callbackTime = Utils.calculateCallbackTime(appt);
             if (callbackTime) {
@@ -1567,10 +1756,14 @@ const Data = {
             } else {
                 appt.callbackTime = null;
             }
-            // Reset triggered status if callback setting changed
             if (updates.callbackSetting) {
                 appt.callbackTriggered = false;
             }
+        }
+        
+        // Check if overdue
+        if (Utils.isOverdue(appt) && appt.status !== 'Overdue') {
+            appt.status = 'Overdue';
         }
         
         this.syncAppointment(appt);
@@ -1771,70 +1964,289 @@ const Data = {
 };
 
 // ================================================================
-// STATISTICS (UPDATED)
+// STATUS CUSTOMIZATION FUNCTIONS
 // ================================================================
 
-const Stats = {
-    getTodayCount: function() {
-        return AppState.appointments[Utils.getTodayStr()]?.reports?.length || 0;
-    },
-
-    getWeekCount: function() {
-        const now = new Date();
-        const start = new Date(now);
-        start.setDate(now.getDate() - now.getDay());
-        let total = 0;
-        for (let d in AppState.appointments) {
-            const date = new Date(d);
-            if (date >= start && AppState.appointments[d].reports) {
-                total += AppState.appointments[d].reports.length;
+function updateStatusSelects() {
+    const statuses = Utils.getStatuses();
+    const statusNames = statuses.map(s => s.name);
+    
+    // Update all status selects
+    document.querySelectorAll('select.status-select, select[id$="Status"], select[id$="status"]').forEach(select => {
+        const currentValue = select.value;
+        const isMulti = select.multiple;
+        const options = statusNames.map(name => {
+            const status = statuses.find(s => s.name === name);
+            const color = status ? status.color : '#94a3b8';
+            const isDefault = status && status.default;
+            return `<option value="${name}" style="color:${color};">${name}${isDefault ? ' ★' : ''}</option>`;
+        }).join('');
+        if (isMulti) {
+            // For multi-select, preserve selected values
+            const selectedValues = Array.from(select.selectedOptions).map(o => o.value);
+            select.innerHTML = options;
+            Array.from(select.options).forEach(opt => {
+                if (selectedValues.includes(opt.value)) {
+                    opt.selected = true;
+                }
+            });
+        } else {
+            select.innerHTML = options;
+            if (currentValue && statusNames.includes(currentValue)) {
+                select.value = currentValue;
+            } else if (statuses.length > 0) {
+                const defaultStatus = statuses.find(s => s.default);
+                select.value = defaultStatus ? defaultStatus.name : statuses[0].name;
             }
         }
-        return total;
-    },
+    });
+}
 
-    getMonthCount: function() {
-        const now = new Date();
-        const start = new Date(now.getFullYear(), now.getMonth(), 1);
-        let total = 0;
-        for (let d in AppState.appointments) {
-            const date = new Date(d);
-            if (date >= start && AppState.appointments[d].reports) {
-                total += AppState.appointments[d].reports.length;
-            }
-        }
-        return total;
-    },
-
-    getAverageScore: function() {
-        let total = 0, count = 0;
-        for (let date in AppState.appointments) {
-            if (AppState.appointments[date].reports) {
-                AppState.appointments[date].reports.forEach(appt => {
-                    total += Utils.calculateLeadScore(appt);
-                    count++;
-                });
-            }
-        }
-        return count > 0 ? Math.round(total / count) : 0;
-    },
-
-    updateAll: function() {
-        DOM.setText('statToday', this.getTodayCount());
-        DOM.setText('statWeek', this.getWeekCount());
-        DOM.setText('statMonth', this.getMonthCount());
-        DOM.setText('avgScore', this.getAverageScore());
-        this.updateTaskStats();
-        DOM.setText('goalDaily', AppState.goals.daily || 3);
-        DOM.setText('goalWeekly', AppState.goals.weekly || 15);
-        DOM.setText('goalMonthly', AppState.goals.monthly || 60);
-    },
-
-    updateTaskStats: function() {
-        const pending = AppState.tasks.filter(t => !t.completed).length;
-        DOM.setText('pendingTasks', pending);
+function openStatusCustomization() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'statusCustomizationModal';
+    modal.style.display = 'flex';
+    
+    const statuses = AppState.customStatuses && AppState.customStatuses.length > 0 ? 
+        AppState.customStatuses : CONFIG.DEFAULT_STATUSES;
+    
+    let html = `
+        <div class="modal-card" style="max-width: 600px;">
+            <h3><i class="fas fa-tags"></i> Status Customization</h3>
+            <p style="color:var(--text-muted); margin-bottom:16px; font-size:0.85rem;">
+                Add, remove, and reorder appointment statuses. Drag the handle to reorder.
+            </p>
+            <div class="status-list-editor" id="statusEditorList">
+    `;
+    
+    statuses.forEach((status, index) => {
+        html += `
+            <div class="status-editor-item" data-id="${status.id}" data-index="${index}">
+                <i class="fas fa-grip-vertical drag-handle"></i>
+                <span class="status-color-preview" style="background:${status.color};"></span>
+                <input type="text" class="status-name-input" value="${Utils.escapeHtml(status.name)}" placeholder="Status name..." />
+                <input type="color" class="status-color-input" value="${status.color}" />
+                ${status.default ? 
+                    `<span class="status-default-badge">★ Default</span>` :
+                    `<button class="status-make-default" data-id="${status.id}">Set Default</button>`
+                }
+                ${!status.default || statuses.length > 1 ? 
+                    `<button class="status-delete-btn" data-id="${status.id}"><i class="fas fa-trash"></i></button>` : 
+                    ''
+                }
+            </div>
+        `;
+    });
+    
+    html += `
+            </div>
+            <button class="status-add-btn" id="addStatusBtn">
+                <i class="fas fa-plus"></i> Add Status
+            </button>
+            <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px; border-top:1px solid var(--border-color); padding-top:16px;">
+                <button id="saveStatusesBtn" class="btn-icon" style="background:var(--success); color:white;">
+                    <i class="fas fa-save"></i> Save Statuses
+                </button>
+                <button id="resetStatusesBtn" class="btn-icon" style="background:var(--warning); color:#1e293b;">
+                    <i class="fas fa-undo"></i> Reset Defaults
+                </button>
+                <button id="closeStatusModalBtn" class="btn-icon">Close</button>
+            </div>
+        </div>
+    `;
+    
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+    
+    // Setup drag and drop
+    const list = document.getElementById('statusEditorList');
+    if (list && typeof Sortable !== 'undefined') {
+        new Sortable(list, {
+            handle: '.drag-handle',
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen'
+        });
     }
-};
+    
+    // Add status
+    const addBtn = document.getElementById('addStatusBtn');
+    if (addBtn) {
+        addBtn.addEventListener('click', () => {
+            const newId = 'status_' + Utils.generateId();
+            const newStatus = {
+                id: newId,
+                name: 'New Status',
+                color: '#3b82f6',
+                default: false
+            };
+            
+            const item = document.createElement('div');
+            item.className = 'status-editor-item';
+            item.dataset.id = newId;
+            item.innerHTML = `
+                <i class="fas fa-grip-vertical drag-handle"></i>
+                <span class="status-color-preview" style="background:#3b82f6;"></span>
+                <input type="text" class="status-name-input" value="New Status" placeholder="Status name..." />
+                <input type="color" class="status-color-input" value="#3b82f6" />
+                <button class="status-make-default" data-id="${newId}">Set Default</button>
+                <button class="status-delete-btn" data-id="${newId}"><i class="fas fa-trash"></i></button>
+            `;
+            list.appendChild(item);
+            showToast('Status added! Edit the name and color.', 'success');
+        });
+    }
+    
+    // Save statuses
+    const saveBtn = document.getElementById('saveStatusesBtn');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            const items = document.querySelectorAll('.status-editor-item');
+            const newStatuses = [];
+            let defaultFound = false;
+            
+            items.forEach((item, index) => {
+                const nameInput = item.querySelector('.status-name-input');
+                const colorInput = item.querySelector('.status-color-input');
+                const id = item.dataset.id;
+                const isDefault = item.querySelector('.status-default-badge') !== null;
+                
+                const name = nameInput ? nameInput.value.trim() : 'Status';
+                const color = colorInput ? colorInput.value : '#3b82f6';
+                
+                if (name) {
+                    if (isDefault) defaultFound = true;
+                    newStatuses.push({
+                        id: id || 'status_' + Utils.generateId(),
+                        name: name,
+                        color: color,
+                        default: isDefault
+                    });
+                }
+            });
+            
+            if (!defaultFound && newStatuses.length > 0) {
+                newStatuses[0].default = true;
+            }
+            
+            AppState.customStatuses = newStatuses;
+            AppState.defaultStatusId = newStatuses.find(s => s.default)?.id || null;
+            
+            Data.saveCustomStatuses();
+            updateStatusSelects();
+            closeStatusCustomization();
+            FeaturePanel.refreshCurrentView();
+            showToast('Statuses saved!', 'success');
+        });
+    }
+    
+    // Reset statuses
+    const resetBtn = document.getElementById('resetStatusesBtn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            if (confirm('Reset statuses to defaults? This will remove all custom statuses.')) {
+                AppState.customStatuses = CONFIG.DEFAULT_STATUSES;
+                AppState.defaultStatusId = 'pending';
+                Data.saveCustomStatuses();
+                updateStatusSelects();
+                closeStatusCustomization();
+                FeaturePanel.refreshCurrentView();
+                showToast('Statuses reset to defaults', 'success');
+            }
+        });
+    }
+    
+    // Close
+    const closeBtn = document.getElementById('closeStatusModalBtn');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeStatusCustomization);
+    }
+    
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeStatusCustomization();
+    });
+    
+    // Event delegation for dynamic buttons
+    modal.addEventListener('click', (e) => {
+        const target = e.target.closest('button');
+        if (!target) return;
+        
+        // Make default
+        if (target.classList.contains('status-make-default')) {
+            const id = target.dataset.id;
+            document.querySelectorAll('.status-editor-item').forEach(item => {
+                const defaultBadge = item.querySelector('.status-default-badge');
+                const makeDefaultBtn = item.querySelector('.status-make-default');
+                if (item.dataset.id === id) {
+                    if (defaultBadge) {
+                        defaultBadge.remove();
+                    }
+                    if (makeDefaultBtn) {
+                        makeDefaultBtn.remove();
+                    }
+                    const newBadge = document.createElement('span');
+                    newBadge.className = 'status-default-badge';
+                    newBadge.textContent = '★ Default';
+                    item.appendChild(newBadge);
+                } else {
+                    if (defaultBadge) {
+                        defaultBadge.remove();
+                    }
+                    if (!makeDefaultBtn) {
+                        const btn = document.createElement('button');
+                        btn.className = 'status-make-default';
+                        btn.dataset.id = item.dataset.id;
+                        btn.textContent = 'Set Default';
+                        item.appendChild(btn);
+                    }
+                }
+            });
+            showToast('Default status updated', 'info');
+        }
+        
+        // Delete status
+        if (target.classList.contains('status-delete-btn')) {
+            const id = target.dataset.id;
+            const item = target.closest('.status-editor-item');
+            const hasDefault = item.querySelector('.status-default-badge') !== null;
+            const totalItems = document.querySelectorAll('.status-editor-item').length;
+            
+            if (hasDefault && totalItems <= 1) {
+                showToast('Cannot delete the only status. Add another first.', 'warning');
+                return;
+            }
+            
+            if (confirm('Delete this status?')) {
+                item.remove();
+                // If deleted status was default, set another as default
+                if (hasDefault) {
+                    const firstItem = document.querySelector('.status-editor-item');
+                    if (firstItem) {
+                        const defaultBadge = firstItem.querySelector('.status-default-badge');
+                        const makeDefaultBtn = firstItem.querySelector('.status-make-default');
+                        if (defaultBadge) {
+                            defaultBadge.remove();
+                        }
+                        if (makeDefaultBtn) {
+                            makeDefaultBtn.remove();
+                        }
+                        const newBadge = document.createElement('span');
+                        newBadge.className = 'status-default-badge';
+                        newBadge.textContent = '★ Default';
+                        firstItem.appendChild(newBadge);
+                    }
+                }
+                showToast('Status deleted', 'info');
+            }
+        }
+    });
+}
+
+function closeStatusCustomization() {
+    const modal = document.getElementById('statusCustomizationModal');
+    if (modal) modal.remove();
+}
 
 // ================================================================
 // SCRIPTS MODULE
@@ -2558,7 +2970,8 @@ function addCloser() {
         email: email ? email.trim() : '',
         phone: phone ? phone.trim() : '',
         active: true,
-        default: false    };
+        default: false
+    };
     
     AppState.closers.push(newCloser);
     Data.saveClosers();
@@ -3119,7 +3532,6 @@ function parseKeyValueFormatEnhanced(lines, result, confidence, context) {
                             result[matchedField] = value.toLowerCase().trim();
                             confidence[matchedField] = 0.95;
                         } else {
-                            // Store in notes if not valid email
                             if (!result['notes']) result['notes'] = '';
                             result['notes'] += (result['notes'] ? '\n' : '') + `${key}: ${value}`;
                             confidence['notes'] = 0.4;
@@ -3270,7 +3682,6 @@ function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
         const match = fullText.match(pattern);
         if (match && match[1]) {
             const email = match[1].trim().toLowerCase();
-            // Validate email
             if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
                 result.email = email;
                 confidence.email = 0.9;
@@ -3327,8 +3738,9 @@ function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
         confidence.timezone = 0.7;
     }
     
-    const statusValues = SMART_IMPORT_CONFIG.VALIDATION.status.allowed;
-    for (const status of statusValues) {
+    // Status detection - use custom statuses
+    const statusNames = Utils.getStatusNames();
+    for (const status of statusNames) {
         if (fullText.toLowerCase().includes(status.toLowerCase())) {
             result.status = status;
             confidence.status = 0.7;
@@ -3703,9 +4115,10 @@ function validateAppointmentData(data) {
         validated.timezone = data.timezone;
     }
     
+    // Validate status against custom statuses
     if (data.status) {
-        const statusOptions = SMART_IMPORT_CONFIG.VALIDATION.status.allowed;
-        const matchedStatus = statusOptions.find(s => 
+        const statusNames = Utils.getStatusNames();
+        const matchedStatus = statusNames.find(s => 
             s.toLowerCase() === data.status.toLowerCase() ||
             s.toLowerCase().includes(data.status.toLowerCase()) ||
             data.status.toLowerCase().includes(s.toLowerCase())
@@ -3713,11 +4126,11 @@ function validateAppointmentData(data) {
         if (matchedStatus) {
             validated.status = matchedStatus;
         } else {
-            warnings.push({ field: 'status', message: `Status "${data.status}" not recognized. Using "Pending".` });
-            validated.status = 'Pending';
+            warnings.push({ field: 'status', message: `Status "${data.status}" not recognized. Using default.` });
+            validated.status = Utils.getDefaultStatus();
         }
     } else {
-        validated.status = 'Pending';
+        validated.status = Utils.getDefaultStatus();
     }
     
     ['assigned', 'role', 'notes', 'tags'].forEach(field => {
@@ -4109,8 +4522,8 @@ function editImportRecord(index) {
             if (isSelect) {
                 let options = '';
                 if (field === 'status') {
-                    const statusOptions = SMART_IMPORT_CONFIG.VALIDATION.status.allowed;
-                    options = statusOptions.map(s => 
+                    const statusNames = Utils.getStatusNames();
+                    options = statusNames.map(s => 
                         `<option value="${s}" ${s === value ? 'selected' : ''}>${s}</option>`
                     ).join('');
                 } else if (field === 'assigned') {
@@ -4314,7 +4727,7 @@ function saveSingleRecord(index) {
         data.notes || '',
         data.assigned || 'Daniel',
         null,
-        data.status || 'Pending',
+        data.status || Utils.getDefaultStatus(),
         '',
         data.tags || [],
         null,
@@ -4404,7 +4817,7 @@ function saveAllImportedAppointments() {
             data.notes || '',
             data.assigned || 'Daniel',
             null,
-            data.status || 'Pending',
+            data.status || Utils.getDefaultStatus(),
             '',
             data.tags || [],
             null,
@@ -4493,6 +4906,7 @@ const FeaturePanel = {
                 html = `
                     <div class="view-toggle" id="closerViewToggle">
                         <button id="closerManageBtn" class="view-btn active"><i class="fas fa-user-tie"></i> Manage Closers</button>
+                        <button id="closerStatusBtn" class="view-btn" onclick="window.openStatusCustomization()"><i class="fas fa-tags"></i> Statuses</button>
                     </div>
                 `;
             }
@@ -4550,9 +4964,14 @@ const FeaturePanel = {
             <div class="closer-management-container fade-in">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
                     <h3><i class="fas fa-user-tie"></i> Closer Management</h3>
-                    <button id="addCloserFromPanelBtn" class="btn-icon" style="background:var(--success); color:white;">
-                        <i class="fas fa-plus"></i> Add Closer
-                    </button>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button id="addCloserFromPanelBtn" class="btn-icon" style="background:var(--success); color:white;">
+                            <i class="fas fa-plus"></i> Add Closer
+                        </button>
+                        <button id="manageStatusesFromPanelBtn" class="btn-icon" style="background:var(--secondary); color:white;">
+                            <i class="fas fa-tags"></i> Manage Statuses
+                        </button>
+                    </div>
                 </div>
                 <div id="closersPanelList">
                     ${renderClosersListHTML()}
@@ -4563,6 +4982,11 @@ const FeaturePanel = {
         const addBtn = container.querySelector('#addCloserFromPanelBtn');
         if (addBtn) {
             addBtn.addEventListener('click', addCloser);
+        }
+        
+        const statusBtn = container.querySelector('#manageStatusesFromPanelBtn');
+        if (statusBtn) {
+            statusBtn.addEventListener('click', openStatusCustomization);
         }
         
         container.querySelectorAll('.set-default-btn').forEach(btn => {
@@ -4963,10 +5387,13 @@ const FeaturePanel = {
             dateInput.value = dateToUse;
         }
 
+        // Update status dropdown with custom statuses
         const statusSelect = DOM.get('newApptStatus');
         if (statusSelect) {
-            statusSelect.innerHTML = CONFIG.STATUS_OPTIONS.map(s =>
-                `<option value="${s}" ${s === 'Pending' ? 'selected' : ''}>${s}</option>`
+            const statusNames = Utils.getStatusNames();
+            const defaultStatus = Utils.getDefaultStatus();
+            statusSelect.innerHTML = statusNames.map(s =>
+                `<option value="${s}" ${s === defaultStatus ? 'selected' : ''}>${s}</option>`
             ).join('');
         }
 
@@ -5017,7 +5444,7 @@ const FeaturePanel = {
                 const email = DOM.get('newApptEmail')?.value?.trim() || '';
                 const time = DOM.get('newApptTime')?.value || '';
                 const timezone = DOM.get('newApptTimezone')?.value || AppState.calendarTimezone || 'Central CDT';
-                const status = DOM.get('newApptStatus')?.value || 'Pending';
+                const status = DOM.get('newApptStatus')?.value || Utils.getDefaultStatus();
                 const assigned = DOM.get('newApptAssigned')?.value || 'daniel';
                 const closer = DOM.get('newApptCloser')?.value || 'Kailan';
                 const notes = DOM.get('newApptNotes')?.value?.trim() || '';
@@ -5275,7 +5702,7 @@ const CalendarView = {
                     <div class="day-events">
                         ${events.slice(0, 3).map(event => {
                             const status = Utils.getStatus(event);
-                            const color = this.getEventColor(event);
+                            const color = Utils.getStatusColor(status);
                             return `
                                 <div class="day-event" style="border-left-color: ${color};" data-id="${event.id}" onclick="window.showAppointmentDetail('${event.id}')">
                                     <span class="event-time">${event.time || 'No time'}</span>
@@ -5372,7 +5799,7 @@ const CalendarView = {
                     html += `
                         <div class="week-time-slot has-event">
                             ${appts.map(appt => {
-                                const color = this.getEventColor(appt);
+                                const color = Utils.getStatusColor(Utils.getStatus(appt));
                                 const status = Utils.getStatus(appt);
                                 return `
                                     <div class="week-event" style="border-left-color: ${color};" data-id="${appt.id}" onclick="window.showAppointmentDetail('${appt.id}')">
@@ -5429,7 +5856,7 @@ const CalendarView = {
             html += `<div class="empty-state"><i class="fas fa-calendar-day"></i><p>No appointments for this day</p></div>`;
         } else {
             sortedAppointments.forEach(appt => {
-                const color = this.getEventColor(appt);
+                const color = Utils.getStatusColor(Utils.getStatus(appt));
                 const status = Utils.getStatus(appt);
                 html += `
                     <div class="day-event-card" style="border-left: 4px solid ${color};" onclick="window.showAppointmentDetail('${appt.id}')">
@@ -5440,7 +5867,7 @@ const CalendarView = {
                             <div class="day-event-business">${Utils.escapeHtml(appt.business)}</div>
                             <div class="day-event-contact">${Utils.escapeHtml(appt.contactName)}</div>
                             <div class="day-event-meta">
-                                <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
+                                <span class="status-tag ${Utils.getStatusClass(status)}" style="background:${color}; color:white;">${status}</span>
                                 <span class="day-event-assigned">👤 ${Utils.escapeHtml(appt.assigned || 'Unassigned')}</span>
                             </div>
                         </div>
@@ -5509,14 +5936,14 @@ const CalendarView = {
                     if (!b.time) return -1;
                     return a.time.localeCompare(b.time);
                 }).forEach(appt => {
-                    const color = this.getEventColor(appt);
+                    const color = Utils.getStatusColor(Utils.getStatus(appt));
                     const status = Utils.getStatus(appt);
                     html += `
                         <div class="list-event-item" style="border-left-color: ${color};" onclick="window.showAppointmentDetail('${appt.id}')">
                             <span class="list-event-time">${appt.time || 'No time'}</span>
                             <span class="list-event-business">${Utils.escapeHtml(appt.business)}</span>
                             <span class="list-event-contact">${Utils.escapeHtml(appt.contactName)}</span>
-                            <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
+                            <span class="status-tag ${Utils.getStatusClass(status)}" style="background:${color}; color:white;">${status}</span>
                             <span class="list-event-actions">
                                 <button class="btn-icon-sm" onclick="event.stopPropagation(); window.showAppointmentDetail('${appt.id}')"><i class="fas fa-eye"></i></button>
                             </span>
@@ -5571,21 +5998,6 @@ const CalendarView = {
             
             return showMeeting || showCallback || showFollowup;
         });
-    },
-    
-    getEventColor: function(appt) {
-        const status = Utils.getStatus(appt);
-        const colorMap = {
-            'Hot Transfer': '#dc2626',
-            'Meeting Booked': '#3b82f6',
-            'Held': '#06b6d4',
-            'Warm Callback': '#f59e0b',
-            'Pending': '#94a3b8',
-            'Rescheduled': '#f97316',
-            'Completed': '#10b981',
-            'Canceled': '#ef4444'
-        };
-        return colorMap[status] || '#94a3b8';
     },
     
     attachEvents: function(container) {
@@ -5693,7 +6105,7 @@ const CalendarView = {
 };
 
 // ================================================================
-// APPOINTMENT DETAIL FUNCTIONS (UPDATED WITH CALLBACK INFO)
+// APPOINTMENT DETAIL FUNCTIONS (UPDATED WITH CUSTOM STATUSES)
 // ================================================================
 
 function showAppointmentDetail(appointmentId) {
@@ -5708,6 +6120,7 @@ function showAppointmentDetail(appointmentId) {
     const primaryStatus = Utils.getPrimaryStatus(status);
     const isSecondary = CONFIG.SECONDARY_STATUSES.includes(status);
     const score = Utils.calculateLeadScore(appt);
+    const statusColor = Utils.getStatusColor(status);
     const callbackTime = appt.callbackTime ? new Date(appt.callbackTime) : null;
     const callbackStatus = appt.callbackTriggered ? 'completed' : 
                           (callbackTime && new Date() > callbackTime) ? 'due' : 
@@ -5727,7 +6140,7 @@ function showAppointmentDetail(appointmentId) {
                         ${appt.email ? `<div style="font-size:0.8rem; color:var(--primary);">✉️ ${Utils.escapeHtml(appt.email)}</div>` : ''}
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                        <span class="status-tag ${Utils.getStatusClass(status)}">${status}</span>
+                        <span class="status-tag" style="background:${statusColor}; color:white;">${status}</span>
                         ${isSecondary ? `<span style="font-size:0.7rem; color:var(--text-muted);">→ ${primaryStatus}</span>` : ''}
                         <span class="score-badge ${Utils.getScoreColor(score)}">${score} Pts</span>
                     </div>
@@ -5857,7 +6270,15 @@ function editAppointment(appointmentId) {
         if (phoneInput) phoneInput.value = appt.phone || '';
         if (emailInput) emailInput.value = appt.email || '';
         if (timeInput) timeInput.value = appt.time || '';
-        if (statusSelect) statusSelect.value = Utils.getStatus(appt);
+        if (statusSelect) {
+            // Check if current status exists in custom statuses
+            const statusNames = Utils.getStatusNames();
+            if (statusNames.includes(appt.status)) {
+                statusSelect.value = appt.status;
+            } else {
+                statusSelect.value = Utils.getDefaultStatus();
+            }
+        }
         if (notesInput) notesInput.value = appt.notes || '';
         if (timezoneSelect) timezoneSelect.value = appt.timezone || AppState.calendarTimezone || 'Central CDT';
         if (callbackSelect) callbackSelect.value = appt.callbackSetting || 'none';
@@ -5891,7 +6312,7 @@ function rescheduleAppointment(appointmentId) {
                 date: formattedDate,
                 time: newTime || appt.time,
                 status: 'Rescheduled',
-                callbackTriggered: false // Reset callback trigger on reschedule
+                callbackTriggered: false
             });
             closeAppointmentDetail();
             Utils.syncCalendarToDate(formattedDate);
@@ -6070,12 +6491,15 @@ function executeBulkAction() {
         showToast(`${selected.length} appointment(s) deleted`, 'success');
     } else if (action === 'status') {
         const statusSelect = DOM.get('bulkStatusSelect');
-        const newStatus = statusSelect?.value || 'Pending';
+        const newStatus = statusSelect?.value || Utils.getDefaultStatus();
         selected.forEach(id => {
             for (let date in AppState.appointments) {
                 if (AppState.appointments[date].reports) {
                     const found = AppState.appointments[date].reports.find(r => r.id === id);
-                    if (found) { Data.updateAppointment(date, id, { status: newStatus }); break; }
+                    if (found) { 
+                        Data.updateAppointment(date, id, { status: newStatus }); 
+                        break; 
+                    }
                 }
             }
         });
@@ -6289,6 +6713,26 @@ function initApp() {
         AppState.closers = CONFIG.DEFAULT_CLOSERS;
     }
     
+    // Load custom statuses
+    const savedStatuses = localStorage.getItem('customStatuses_fallback');
+    if (savedStatuses) {
+        try {
+            AppState.customStatuses = JSON.parse(savedStatuses);
+        } catch (e) {
+            AppState.customStatuses = CONFIG.DEFAULT_STATUSES;
+        }
+    } else {
+        AppState.customStatuses = CONFIG.DEFAULT_STATUSES;
+    }
+    
+    // Load default status ID
+    const savedDefaultId = localStorage.getItem('defaultStatusId_fallback');
+    if (savedDefaultId) {
+        AppState.defaultStatusId = savedDefaultId;
+    } else {
+        AppState.defaultStatusId = 'pending';
+    }
+    
     // Load callback notifications
     const savedNotifications = localStorage.getItem('callbackNotifications');
     if (savedNotifications) {
@@ -6342,6 +6786,9 @@ function initApp() {
     
     // Update closer selects
     updateCloserSelects();
+    
+    // Update status selects
+    updateStatusSelects();
     
     // Setup callback interval
     Data.startCallbackChecking();
