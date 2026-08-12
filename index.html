@@ -111,6 +111,27 @@
                     <div class="stat"><span class="stat-label"><i class="fas fa-star"></i> Avg Score</span><span class="stat-number" id="avgScore">0</span></div>
                     <div class="stat"><span class="stat-label"><i class="fas fa-tasks"></i> Tasks</span><span class="stat-number" id="pendingTasks">0</span></div>
                 </div>
+                
+                <!-- Notification Bell -->
+                <div class="notification-bell-container">
+                    <button class="btn-icon notification-bell" id="notificationBellBtn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge hidden" id="notificationBadge">0</span>
+                    </button>
+                    <div class="notification-dropdown" id="notificationDropdown">
+                        <div class="notification-dropdown-header">
+                            <span>Notifications</span>
+                            <button class="mark-all-read-btn" id="markAllReadBtn">Mark all read</button>
+                        </div>
+                        <div class="notification-dropdown-body" id="notificationDropdownBody">
+                            <div class="empty-notifications">
+                                <i class="fas fa-bell-slash"></i>
+                                No notifications
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="action-buttons" id="actionButtons">
                     <button class="btn-icon" id="quickReportBtn"><i class="fas fa-magic"></i> Smart Import</button>
                     <button class="btn-icon" id="bulkActionsBtn"><i class="fas fa-check-double"></i> Bulk Actions</button>
@@ -266,7 +287,7 @@
         </div>
     </div>
 
-    <!-- Appointment Detail Modal -->
+    <!-- Appointment Detail Modal (UPDATED with Callback Section) -->
     <div id="appointmentDetailModal" class="modal-overlay" style="display:none;">
         <div class="modal-card" style="max-width:560px;">
             <h3 id="appointmentDetailTitle">Appointment Details</h3>
@@ -308,7 +329,7 @@
         </div>
     </div>
 
-    <!-- Quick Add Modal -->
+    <!-- Quick Add Modal (UPDATED with Callback and Timezone fields) -->
     <div id="quickAddModal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
             <h3><i class="fas fa-plus-circle"></i> Add New Appointment</h3>
@@ -385,7 +406,7 @@
     <!-- Auth Modal -->
     <div id="authModal" class="modal-overlay" style="display:none;"></div>
 
-    <!-- JavaScript - All files in js/ folder -->
+    <!-- JavaScript -->
     <script src="js/firebase-config.js"></script>
     <script src="js/loading.js"></script>
     <script src="js/objection-handler.js"></script>

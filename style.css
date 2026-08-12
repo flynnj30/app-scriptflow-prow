@@ -132,6 +132,16 @@ body {
     50% { opacity: 0.6; }
 }
 
+@keyframes bellRing {
+    0% { transform: rotate(0deg); }
+    15% { transform: rotate(20deg); }
+    30% { transform: rotate(-20deg); }
+    45% { transform: rotate(15deg); }
+    60% { transform: rotate(-15deg); }
+    80% { transform: rotate(5deg); }
+    100% { transform: rotate(0deg); }
+}
+
 .fade-in { animation: fadeIn 0.4s ease forwards; }
 .fade-in-up { animation: fadeInUp 0.5s ease forwards; }
 .scale-in { animation: scaleIn 0.4s ease forwards; }
@@ -632,6 +642,393 @@ body {
     padding: 8px 18px;
     border-radius: 40px;
     font-size: 0.75rem;
+}
+
+/* ============================================================
+   NOTIFICATION SYSTEM
+   ============================================================ */
+.notification-bell-container {
+    position: relative;
+    display: inline-block;
+}
+
+.notification-bell {
+    position: relative;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition);
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    padding: 0;
+}
+
+.notification-bell:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    transform: scale(1.05);
+}
+
+.notification-bell.has-unread {
+    animation: bellRing 0.5s ease;
+}
+
+.notification-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--danger);
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 700;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--bg-secondary);
+    transition: var(--transition);
+}
+
+.notification-badge.hidden {
+    display: none;
+}
+
+.notification-dropdown {
+    position: absolute;
+    top: 50px;
+    right: 0;
+    width: 420px;
+    max-width: 90vw;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    box-shadow: var(--shadow-lg);
+    z-index: 2000;
+    display: none;
+    overflow: hidden;
+    animation: fadeIn 0.2s ease;
+}
+
+.notification-dropdown.open {
+    display: block;
+}
+
+.notification-dropdown-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-card);
+}
+
+.notification-dropdown-header span {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.mark-all-read-btn {
+    background: none;
+    border: none;
+    color: var(--primary);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: var(--transition);
+}
+
+.mark-all-read-btn:hover {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.notification-dropdown-body {
+    max-height: 420px;
+    overflow-y: auto;
+    padding: 8px 0;
+}
+
+.notification-dropdown-body::-webkit-scrollbar {
+    width: 4px;
+}
+
+.notification-dropdown-body::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 4px;
+}
+
+.empty-notifications {
+    text-align: center;
+    padding: 30px 20px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.empty-notifications i {
+    font-size: 2.5rem;
+    display: block;
+    margin-bottom: 12px;
+    opacity: 0.3;
+}
+
+.notification-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border-color);
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.notification-item:hover {
+    background: var(--bg-primary);
+}
+
+.notification-item.unread {
+    border-left: 3px solid var(--primary);
+}
+
+.notification-item.read {
+    opacity: 0.7;
+}
+
+.notification-item .notif-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 0.9rem;
+}
+
+.notification-item .notif-icon.callback-due {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--danger);
+}
+
+.notification-item .notif-icon.callback-completed {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+}
+
+.notification-item .notif-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.notification-item .notif-title {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+}
+
+.notification-item .notif-business {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.notification-item .notif-time {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.notification-item .notif-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+    margin-top: 4px;
+}
+
+.notification-item .notif-actions button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    transition: var(--transition);
+}
+
+.notification-item .notif-actions .view-btn:hover {
+    background: var(--primary);
+    color: white;
+}
+
+.notification-item .notif-actions .dismiss-btn:hover {
+    background: var(--danger);
+    color: white;
+}
+
+.notification-item .notif-actions .mark-read-btn:hover {
+    background: var(--warning);
+    color: #1e293b;
+}
+
+/* Floating notification popup */
+.notification-popup {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    max-width: 420px;
+    width: 100%;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 16px 20px;
+    box-shadow: var(--shadow-lg);
+    z-index: 7000;
+    animation: slideInRight 0.4s ease;
+    border-left: 4px solid var(--danger);
+    transition: all 0.3s ease;
+}
+
+.notification-popup.callback-due {
+    border-left-color: var(--danger);
+}
+
+.notification-popup.callback-completed {
+    border-left-color: var(--success);
+}
+
+.notification-popup .popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.notification-popup .popup-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.notification-popup .popup-title .icon {
+    font-size: 1.1rem;
+}
+
+.notification-popup .popup-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 4px;
+    border-radius: 50%;
+    transition: var(--transition);
+    line-height: 1;
+}
+
+.notification-popup .popup-close:hover {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.notification-popup .popup-body {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin: 4px 0 10px;
+}
+
+.notification-popup .popup-body .business-name {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.notification-popup .popup-time {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.notification-popup .popup-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+}
+
+.notification-popup .popup-actions .btn-icon {
+    padding: 4px 14px;
+    font-size: 0.7rem;
+}
+
+.notification-popup .popup-actions .view-btn {
+    background: var(--primary);
+    color: white;
+}
+
+.notification-popup .popup-actions .view-btn:hover {
+    background: var(--primary);
+    opacity: 0.85;
+}
+
+.notification-popup .popup-actions .dismiss-btn {
+    background: var(--danger);
+    color: white;
+}
+
+.notification-popup .popup-actions .dismiss-btn:hover {
+    background: var(--danger);
+    opacity: 0.85;
+}
+
+.notification-popup .popup-actions .snooze-btn {
+    background: var(--warning);
+    color: #1e293b;
+}
+
+.notification-popup .popup-actions .snooze-btn:hover {
+    background: var(--warning);
+    opacity: 0.85;
+}
+
+/* Popup stack */
+.notification-popup-stack {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 7000;
+    max-width: 420px;
+    width: 100%;
+}
+
+.notification-popup-stack .notification-popup {
+    position: relative;
+    bottom: auto;
+    right: auto;
+    animation: slideInRight 0.4s ease;
+    margin: 0;
+}
+
+.notification-popup-stack .notification-popup:not(:last-child) {
+    margin-bottom: 0;
 }
 
 /* ============================================================
@@ -1926,11 +2323,6 @@ body {
 .status-overdue-sm { background: #8b5cf6; color: white; }
 .status-held-sm { background: #06b6d4; color: white; }
 
-/* Custom status styles - will be overridden by inline styles */
-.status-custom {
-    color: white;
-}
-
 .score-badge {
     font-size: 0.7rem;
     padding: 2px 10px;
@@ -3214,355 +3606,108 @@ body {
     color: var(--text-muted);
 }
 
-/* Notification Toast for Callbacks */
-.callback-notification {
-    position: fixed;
-    bottom: 80px;
-    right: 24px;
-    max-width: 380px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 16px;
-    padding: 16px 20px;
-    box-shadow: var(--shadow-lg);
-    z-index: 7000;
-    animation: slideInRight 0.4s ease;
-    border-left: 4px solid var(--primary);
-}
-
-.callback-notification.callback-due {
-    border-left-color: var(--danger);
-}
-
-.callback-notification .notification-title {
-    font-weight: 600;
-    font-size: 0.9rem;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.callback-notification .notification-title .icon {
-    font-size: 1.1rem;
-}
-
-.callback-notification .notification-body {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    margin: 4px 0 8px;
-}
-
-.callback-notification .notification-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 8px;
-}
-
-.callback-notification .notification-actions .btn-icon {
-    padding: 4px 14px;
-    font-size: 0.7rem;
-}
-
-/* Created/Updated Timestamp Display */
-.timestamp-row {
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    padding: 4px 0;
-}
-
-.timestamp-row .timestamp-item {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.timestamp-row .timestamp-item i {
-    font-size: 0.7rem;
-}
-
-/* Smart Import - Email Field Highlight */
-.import-record .field-row.email-field {
-    background: rgba(59, 130, 246, 0.08);
-    border: 1px solid rgba(59, 130, 246, 0.15);
-}
-
-.import-record .field-row.email-field .field-value {
-    color: var(--primary);
-    font-weight: 500;
-}
-
-/* Meeting Time Display in Appointments */
-.appointment-time-display {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 0;
-}
-
-.appointment-time-display .time-label {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-}
-
-.appointment-time-display .time-value {
-    font-weight: 600;
-    font-size: 0.85rem;
-}
-
-.appointment-time-display .timezone {
-    font-size: 0.65rem;
-    color: var(--text-muted);
-}
-
-/* Status Customization Styles */
-.status-customization-section {
-    background: var(--bg-primary);
-    border-radius: var(--radius-sm);
-    padding: 16px;
-    border: 1px solid var(--border-color);
-    margin: 8px 0;
-}
-
-.status-customization-section h4 {
-    font-size: 0.9rem;
-    font-weight: 600;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.status-list-editor {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    max-height: 300px;
-    overflow-y: auto;
-}
-
-.status-editor-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 6px 12px;
-    background: var(--bg-card);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-color);
-    transition: var(--transition);
-}
-
-.status-editor-item:hover {
-    border-color: var(--primary);
-}
-
-.status-editor-item .drag-handle {
-    cursor: grab;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-    opacity: 0.5;
-}
-
-.status-editor-item .drag-handle:hover {
-    opacity: 1;
-}
-
-.status-editor-item .status-color-preview {
-    width: 16px;
-    height: 16px;
-    border-radius: 4px;
-    flex-shrink: 0;
-}
-
-.status-editor-item .status-name-input {
-    flex: 1;
-    padding: 4px 8px;
-    border-radius: 4px;
-    border: 1px solid transparent;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    font-size: 0.85rem;
-    transition: var(--transition);
-}
-
-.status-editor-item .status-name-input:focus {
-    border-color: var(--primary);
-    outline: none;
-}
-
-.status-editor-item .status-color-input {
-    width: 30px;
-    height: 30px;
-    padding: 2px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
-    cursor: pointer;
-}
-
-.status-editor-item .status-delete-btn {
-    background: none;
-    border: none;
-    color: var(--danger);
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-    transition: var(--transition);
-    opacity: 0.5;
-}
-
-.status-editor-item .status-delete-btn:hover {
-    opacity: 1;
-    background: rgba(239, 68, 68, 0.1);
-}
-
-.status-editor-item .status-make-default {
-    font-size: 0.6rem;
-    padding: 2px 8px;
-    border-radius: 10px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: var(--transition);
-}
-
-.status-editor-item .status-make-default:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-}
-
-.status-editor-item .status-default-badge {
-    font-size: 0.6rem;
-    padding: 2px 8px;
-    border-radius: 10px;
-    background: var(--success);
-    color: white;
-}
-
-.status-add-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    border-radius: var(--radius-sm);
-    border: 2px dashed var(--border-color);
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: var(--transition);
-    font-size: 0.85rem;
-    margin-top: 8px;
-}
-
-.status-add-btn:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-    background: rgba(59, 130, 246, 0.05);
-}
-
-/* Timezone-aware status display */
-.status-overdue {
-    background: var(--danger);
-    color: white;
-    animation: pulse 2s ease-in-out infinite;
-}
-
-.status-scheduled {
-    background: var(--primary);
-    color: white;
-}
-
-.status-completed {
-    background: var(--success);
-    color: white;
-}
-
-.status-canceled {
-    background: var(--text-muted);
-    color: white;
-}
-
-/* Appointment workflow badges */
-.workflow-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 10px;
-    border-radius: 12px;
-    font-size: 0.65rem;
-    font-weight: 500;
-}
-
-.workflow-badge.booking {
-    background: rgba(59, 130, 246, 0.15);
-    color: var(--primary);
-}
-
-.workflow-badge.followup {
-    background: rgba(245, 158, 11, 0.15);
-    color: var(--warning);
-}
-
-.workflow-badge.completed {
-    background: rgba(16, 185, 129, 0.15);
-    color: var(--success);
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .callback-options {
+/* ============================================================
+   RESPONSIVE DESIGN
+   ============================================================ */
+@media (max-width: 1024px) {
+    .top-bar {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 16px 20px;
+    }
+    .stats-row { justify-content: space-between; gap: 12px; }
+    .action-buttons { justify-content: center; flex-wrap: wrap; }
+    .modal-card { max-width: 95%; padding: 20px; }
+    
+    .calendar-toolbar {
         flex-direction: column;
         align-items: stretch;
     }
+    .calendar-toolbar-left { flex-wrap: wrap; }
+    .calendar-toolbar-right { flex-wrap: wrap; }
     
-    .callback-custom-input {
-        flex-wrap: wrap;
+    .list-event-item {
+        grid-template-columns: 60px 1fr 80px 60px;
+        font-size: 0.7rem;
     }
+    .list-event-item .list-event-contact { display: none; }
     
-    .callback-notification {
-        right: 12px;
-        left: 12px;
-        max-width: none;
-        bottom: 70px;
+    .feature-panel-body { padding: 20px; }
+}
+
+@media (max-width: 768px) {
+    .sidebar { width: 280px; }
+    .main-content {
+        margin-left: 0;
+        padding: 16px;
     }
-    
-    .timestamp-row {
+    .main-content.expanded { margin-left: 0; }
+    .feature-panel-body { padding: 16px; }
+    .feature-panel-header {
+        padding: 16px;
         flex-direction: column;
-        gap: 4px;
+        align-items: stretch;
+    }
+    .feature-panel-header h2 { font-size: 1.1rem; }
+    .view-toggle { flex-wrap: wrap; }
+    
+    .notification-dropdown {
+        width: 340px;
+        right: -10px;
     }
     
-    .status-editor-item {
-        flex-wrap: wrap;
+    .notification-popup {
+        max-width: 95%;
+        right: 10px;
+        left: 10px;
+        bottom: 10px;
     }
     
-    .status-editor-item .status-name-input {
-        min-width: 100px;
+    .notification-popup-stack {
+        right: 10px;
+        left: 10px;
+        max-width: 95%;
     }
     
-    /* Calendar responsive fixes */
+    .notification-popup-stack .notification-popup {
+        max-width: 100%;
+    }
+    
     .calendar-day {
-        min-height: 70px;
+        min-height: 60px;
+        padding: 4px;
     }
+    .calendar-day .day-number {
+        font-size: 0.7rem;
+        width: 20px;
+        height: 20px;
+        line-height: 20px;
+    }
+    .day-event {
+        font-size: 0.55rem;
+        padding: 1px 4px;
+    }
+    .day-event .event-time { display: none; }
     
     .calendar-week-view {
         grid-template-columns: 35px repeat(7, 1fr);
         min-height: 400px;
     }
-    
     .time-slot-label {
         font-size: 0.5rem;
         height: 40px;
     }
-    
-    .week-time-slot {
-        height: 40px;
-    }
-    
+    .week-time-slot { height: 40px; }
     .week-event {
         font-size: 0.5rem;
+        padding: 1px 4px;
+    }
+    .week-event .event-time { display: none; }
+    .week-event .event-status { display: none; }
+    
+    .calendar-toolbar-right .search-wrapper input {
+        width: 120px;
+        font-size: 0.7rem;
     }
     
     .list-event-item {
@@ -3570,75 +3715,62 @@ body {
         gap: 4px;
         padding: 8px 12px;
     }
+    .list-event-item .list-event-time { font-size: 0.6rem; }
     
-    .list-event-item .list-event-time {
-        font-size: 0.6rem;
-    }
-    
-    .day-view-header h3 {
-        font-size: 0.9rem;
-    }
-    
-    .day-event-card {
-        flex-direction: column;
-        gap: 4px;
-    }
-    
+    .day-view-header h3 { font-size: 0.9rem; }
+    .day-event-card { flex-direction: column; gap: 4px; }
     .day-event-time {
         min-width: auto;
         font-size: 0.7rem;
     }
     
-    .modal-card {
-        padding: 16px;
-        max-width: 98%;
-    }
-    
-    .modal-card h3 {
-        font-size: 1.1rem;
-    }
-    
-    .top-bar {
-        padding: 12px 16px;
-        border-radius: 20px;
-    }
-    
-    .stats-row {
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-    
-    .stat-number {
-        font-size: 1rem;
-    }
-    
-    .stat-label {
-        font-size: 0.6rem;
-    }
-    
-    .action-buttons {
-        gap: 6px;
-    }
-    
-    .btn-icon {
-        padding: 6px 12px;
-        font-size: 0.7rem;
-    }
-    
+    .script-header-bar { flex-direction: column; align-items: stretch; padding: 12px 16px; }
+    .script-title-area h2 { font-size: 1.1rem; }
     .script-body {
         padding: 16px;
         min-height: 300px;
         max-height: 400px;
     }
+    .modal-card { padding: 16px; max-width: 98%; }
+    .modal-card h3 { font-size: 1.1rem; }
+    .top-bar {
+        padding: 12px 16px;
+        border-radius: 20px;
+    }
+    .stats-row { gap: 8px; flex-wrap: wrap; }
+    .stat-number { font-size: 1rem; }
+    .stat-label { font-size: 0.6rem; }
+    .action-buttons { gap: 6px; }
+    .btn-icon { padding: 6px 12px; font-size: 0.7rem; }
+    
+    .list-view-container .list-item,
+    .list-view-container .list-header {
+        grid-template-columns: 1fr;
+        gap: 6px;
+        padding: 10px 12px;
+    }
+    .list-view-container .list-header { display: none; }
+    .list-view-container .list-item { border-left: 3px solid var(--border-color); }
+    
+    .analytics-filters { flex-direction: column; align-items: stretch; }
+    .analytics-filters input,
+    .analytics-filters select { width: 100%; }
+    .report-metrics { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .script-actions { justify-content: flex-start; }
+    
+    .script-actions .btn-icon {
+        font-size: 0.65rem;
+        padding: 4px 8px;
+    }
     
     .script-header-bar {
         flex-direction: column;
         align-items: stretch;
-        padding: 12px 16px;
+        gap: 8px;
     }
     
-    .script-title-area h2 {
-        font-size: 1.1rem;
+    .script-title-area {
+        flex-wrap: wrap;
     }
     
     .script-actions {
@@ -3646,92 +3778,13 @@ body {
         gap: 4px;
     }
     
-    .script-actions .btn-icon {
-        font-size: 0.65rem;
-        padding: 4px 8px;
-    }
-    
-    .sidebar {
-        width: 280px;
-    }
-    
-    .main-content {
-        margin-left: 0;
-        padding: 16px;
-    }
-    
-    .main-content.expanded {
-        margin-left: 0;
-    }
-    
-    .feature-panel-body {
-        padding: 16px;
-    }
-    
-    .feature-panel-header {
-        padding: 16px;
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .feature-panel-header h2 {
-        font-size: 1.1rem;
-    }
-    
-    .view-toggle {
-        flex-wrap: wrap;
-    }
-    
-    /* Import responsive */
     .import-date-selector {
         flex-direction: column;
         align-items: stretch;
         gap: 10px;
     }
-    
     .import-date-selector input[type="date"] {
         width: 100%;
-    }
-    
-    .record-fields {
-        grid-template-columns: 1fr;
-    }
-    
-    .edit-fields {
-        grid-template-columns: 1fr;
-    }
-    
-    .report-metrics {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
-    }
-    
-    .analytics-filters {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .analytics-filters input,
-    .analytics-filters select {
-        width: 100%;
-    }
-    
-    .calendar-toolbar {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .calendar-toolbar-left {
-        flex-wrap: wrap;
-    }
-    
-    .calendar-toolbar-right {
-        flex-wrap: wrap;
-    }
-    
-    .calendar-toolbar-right .search-wrapper input {
-        width: 120px;
-        font-size: 0.7rem;
     }
     
     .objection-integrated-body .objection-category-nav {
@@ -3804,95 +3857,91 @@ body {
         padding: 4px 8px;
     }
     
-    /* Appointment card responsive */
-    .appointment-card .card-row {
+    .callback-options {
         flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
+        align-items: stretch;
     }
     
-    .appointment-card .business-name {
-        font-size: 0.85rem;
-    }
-    
-    .appointment-card .card-actions {
-        width: 100%;
-        justify-content: flex-start;
-    }
-    
-    .appointment-card .card-actions button {
-        font-size: 0.65rem;
-        padding: 2px 8px;
-    }
-    
-    .list-view-container .list-item,
-    .list-view-container .list-header {
-        grid-template-columns: 1fr;
-        gap: 6px;
-        padding: 10px 12px;
-    }
-    
-    .list-view-container .list-header {
-        display: none;
-    }
-    
-    .list-view-container .list-item {
-        border-left: 3px solid var(--border-color);
-    }
-    
-    /* Status editor responsive */
-    .status-editor-item {
+    .callback-custom-input {
         flex-wrap: wrap;
-        gap: 6px;
     }
     
-    .status-editor-item .status-name-input {
-        min-width: 80px;
-        flex-basis: 40%;
+    .timestamp-row {
+        flex-direction: column;
+        gap: 4px;
     }
 }
 
 @media (max-width: 480px) {
-    .sidebar {
-        width: 260px;
+    .sidebar { width: 260px; }
+    .main-content { padding: 12px; }
+    
+    .notification-dropdown {
+        width: 300px;
+        right: -20px;
     }
     
-    .main-content {
-        padding: 12px;
+    .notification-item {
+        padding: 10px 14px;
     }
     
-    .stats-row {
-        gap: 4px;
+    .notification-item .notif-title {
+        font-size: 0.8rem;
     }
     
-    .stat {
-        gap: 2px;
+    .notification-item .notif-business {
+        font-size: 0.75rem;
     }
     
-    .stat-number {
-        font-size: 0.85rem;
+    .notification-popup .popup-actions {
+        flex-wrap: wrap;
     }
     
-    .stat-label {
-        font-size: 0.55rem;
+    .notification-popup .popup-actions .btn-icon {
+        flex: 1;
+        justify-content: center;
     }
     
-    .btn-icon {
-        padding: 4px 8px;
+    .calendar-toolbar-left {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    .view-selector { width: 100%; justify-content: center; }
+    .calendar-nav-group { justify-content: center; }
+    .calendar-current-month { text-align: center; }
+    .calendar-toolbar-right {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .calendar-toolbar-right .search-wrapper { width: 100%; }
+    .calendar-toolbar-right .search-wrapper input { width: 100%; }
+    
+    .calendar-month-grid { gap: 1px; }
+    .calendar-day {
+        min-height: 50px;
+        padding: 2px;
+    }
+    .calendar-day .day-number {
         font-size: 0.6rem;
-        gap: 4px;
+        width: 16px;
+        height: 16px;
+        line-height: 16px;
     }
-    
-    .badge-auto {
-        padding: 4px 10px;
-        font-size: 0.6rem;
+    .calendar-day .day-event-indicator {
+        font-size: 0.5rem;
+        padding: 1px 4px;
     }
+    .calendar-filter-chips { justify-content: center; }
     
-    .modal-card {
-        padding: 12px;
-        border-radius: 20px;
-    }
+    .stats-row { gap: 6px; }
+    .stat { gap: 4px; }
+    .stat-number { font-size: 0.9rem; }
     
+    .report-metrics { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .metric-value { font-size: 1.4rem; }
+    
+    .modal-card { padding: 12px; border-radius: 20px; }
     .modal-card .form-group input,
     .modal-card .form-group textarea,
     .modal-card .form-group select {
@@ -3900,201 +3949,33 @@ body {
         font-size: 0.8rem;
     }
     
+    .appointment-card { padding: 10px 12px; }
+    .appointment-card .business-name { font-size: 0.8rem; }
+    
     .script-body {
         padding: 12px;
         min-height: 200px;
         max-height: 300px;
     }
-    
     .script-display {
         font-size: 0.8rem;
         line-height: 1.5;
     }
     
-    .script-title-area h2 {
-        font-size: 0.95rem;
-    }
+    .btn-icon { padding: 4px 10px; font-size: 0.65rem; gap: 4px; }
+    .badge-auto { padding: 4px 12px; font-size: 0.65rem; }
     
-    .version-chip {
-        font-size: 0.6rem;
-        padding: 2px 8px;
-    }
+    .task-card { padding: 10px 12px; }
+    .task-card .task-title { font-size: 0.85rem; }
     
-    .menu-toggle {
-        width: 36px;
-        height: 36px;
-        top: 12px;
-        left: 12px;
-        font-size: 1rem;
-    }
-    
-    .feature-panel-body {
-        padding: 12px;
-    }
-    
-    .feature-panel-header {
-        padding: 12px;
-    }
-    
-    .feature-panel-header h2 {
-        font-size: 0.95rem;
-    }
-    
-    .view-btn {
-        font-size: 0.7rem;
-        padding: 4px 10px;
-    }
-    
-    .calendar-day {
-        min-height: 45px;
-        padding: 2px 4px;
-    }
-    
-    .calendar-day .day-number {
-        font-size: 0.6rem;
-        width: 18px;
-        height: 18px;
-        line-height: 18px;
-    }
-    
-    .calendar-day .day-event-indicator {
-        font-size: 0.5rem;
-        padding: 0px 4px;
-        top: 2px;
-        right: 2px;
-    }
-    
-    .day-event {
-        font-size: 0.5rem;
-        padding: 1px 4px;
-    }
-    
-    .day-event .event-time {
-        display: none;
-    }
-    
-    .day-view-header h3 {
-        font-size: 0.85rem;
-    }
-    
-    .day-event-card {
-        padding: 8px 12px;
-    }
-    
-    .day-event-business {
-        font-size: 0.8rem;
-    }
-    
-    .day-event-contact {
-        font-size: 0.7rem;
-    }
-    
-    .week-event .event-time {
-        display: none;
-    }
-    
-    .week-event .event-status {
-        display: none;
-    }
-    
-    .calendar-toolbar-right .search-wrapper input {
-        width: 100px;
-        font-size: 0.65rem;
-        padding: 4px 8px 4px 28px;
-    }
-    
-    .calendar-toolbar-right .search-wrapper i {
-        font-size: 0.7rem;
-        left: 8px;
-    }
-    
-    .timezone-select {
-        font-size: 0.65rem;
-        padding: 4px 8px;
-    }
-    
-    .calendar-nav-group .btn-icon {
-        padding: 2px 8px;
-        font-size: 0.65rem;
-    }
-    
-    .list-event-item {
-        padding: 6px 10px;
-    }
-    
-    .list-event-business {
-        font-size: 0.8rem;
-    }
-    
-    .list-event-contact {
-        font-size: 0.7rem;
-    }
-    
-    .list-date-header {
-        padding: 4px 8px;
-        font-size: 0.8rem;
-    }
-    
-    .list-date-label {
-        font-size: 0.75rem;
-    }
-    
-    .report-metrics {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 6px;
-    }
-    
-    .metric-card {
-        padding: 10px;
-    }
-    
-    .metric-value {
-        font-size: 1.2rem;
-    }
-    
-    .metric-label {
-        font-size: 0.6rem;
-    }
-    
-    .import-date-selector label {
-        font-size: 0.7rem;
-    }
-    
-    .import-date-selector input[type="date"] {
-        font-size: 0.7rem;
-        padding: 4px 8px;
-        min-width: 100px;
-    }
-    
-    .import-stat .stat-number {
-        font-size: 1.2rem;
-    }
-    
-    .record-summary {
+    .shortcut-item {
         flex-direction: column;
         align-items: flex-start;
+        gap: 8px;
     }
-    
-    .record-name {
-        font-size: 0.8rem;
-    }
-    
-    .record-business {
-        font-size: 0.7rem;
-    }
-    
-    .record-date {
-        font-size: 0.6rem;
-        margin-left: 0;
-    }
-    
-    .record-badges {
-        gap: 3px;
-    }
-    
-    .badge {
-        font-size: 0.5rem;
-        padding: 1px 6px;
+    .shortcut-item .shortcut-keys {
+        width: 100%;
+        justify-content: flex-start;
     }
     
     .toast {
@@ -4105,91 +3986,84 @@ body {
         font-size: 0.8rem;
         padding: 10px 16px;
     }
-    
-    .callback-notification {
-        right: 8px;
-        left: 8px;
-        bottom: 60px;
-        max-width: none;
-        padding: 12px 16px;
+    .menu-toggle {
+        width: 36px;
+        height: 36px;
+        top: 12px;
+        left: 12px;
+        font-size: 1rem;
     }
+    .feature-panel-body { padding: 12px; }
     
-    .callback-notification .notification-title {
-        font-size: 0.8rem;
-    }
-    
-    .callback-notification .notification-body {
-        font-size: 0.75rem;
-    }
-    
-    .callback-notification .notification-actions .btn-icon {
+    .script-item .script-edit-btn,
+    .script-item .script-delete-btn {
         font-size: 0.6rem;
-        padding: 2px 10px;
+        padding: 1px 3px;
+    }
+    .script-item .key-hint {
+        font-size: 0.6rem;
+        padding: 1px 6px;
     }
     
-    .status-editor-item {
-        padding: 4px 8px;
-        gap: 4px;
+    .import-date-selector {
+        padding: 10px 12px;
     }
-    
-    .status-editor-item .status-name-input {
+    .import-date-selector label {
         font-size: 0.75rem;
-        padding: 2px 6px;
-        min-width: 60px;
+    }
+    .import-date-selector input[type="date"] {
+        font-size: 0.75rem;
+        padding: 6px 10px;
+        min-width: 120px;
+    }
+    .record-summary {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .record-date {
+        font-size: 0.65rem;
+        margin-left: 0;
+    }
+    .record-fields {
+        grid-template-columns: 1fr;
     }
     
-    .status-editor-item .status-color-input {
-        width: 24px;
-        height: 24px;
-    }
-    
-    .status-editor-item .status-delete-btn {
-        font-size: 0.7rem;
-        padding: 2px;
-    }
-    
-    .status-editor-item .status-make-default {
+    .objection-integrated-title .objection-badge {
         font-size: 0.5rem;
         padding: 1px 6px;
     }
     
-    .status-editor-item .status-default-badge {
-        font-size: 0.5rem;
-        padding: 1px 6px;
-    }
-    
-    .status-add-btn {
-        font-size: 0.75rem;
-        padding: 6px 12px;
+    .objection-integrated-body .objection-cards-container {
+        max-height: 300px;
     }
     
     .closer-item {
-        padding: 8px 10px;
+        padding: 10px 12px;
     }
     
     .closer-avatar {
-        width: 28px;
-        height: 28px;
-        font-size: 0.8rem;
+        width: 32px;
+        height: 32px;
+        font-size: 1rem;
     }
     
     .closer-name {
-        font-size: 0.8rem;
+        font-size: 0.85rem;
     }
     
     .closer-email,
     .closer-phone {
-        font-size: 0.65rem;
+        font-size: 0.7rem;
     }
     
     .closer-actions .btn-icon {
-        font-size: 0.55rem;
-        padding: 2px 6px;
+        font-size: 0.6rem;
+        padding: 3px 6px;
     }
     
     .status-badge {
-        font-size: 0.55rem;
-        padding: 1px 6px;
+        font-size: 0.6rem;
+        padding: 1px 8px;
     }
 }
 
@@ -4218,41 +4092,3 @@ body {
 ::-webkit-scrollbar-track { background: var(--scrollbar-track); border-radius: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
-
-/* ============================================================
-   PRINT STYLES
-   ============================================================ */
-@media print {
-    .sidebar,
-    .menu-toggle,
-    .top-bar .action-buttons,
-    .script-actions,
-    .footer-note,
-    .btn-icon {
-        display: none !important;
-    }
-    
-    .main-content {
-        margin-left: 0 !important;
-        padding: 20px !important;
-    }
-    
-    .script-card {
-        border: 1px solid #ccc !important;
-        box-shadow: none !important;
-    }
-    
-    .script-body {
-        max-height: none !important;
-        overflow: visible !important;
-    }
-    
-    .modal-overlay {
-        display: none !important;
-    }
-    
-    body {
-        background: white !important;
-        color: black !important;
-    }
-}

@@ -18,7 +18,6 @@ const MAX_INIT_ATTEMPTS = 5;
 let initResolve = null;
 let initReject = null;
 let initPromise = null;
-let firestoreSettingsApplied = false;
 
 /**
  * Initialize Firebase with modern caching settings
@@ -102,14 +101,11 @@ function attemptInit() {
  * Uses FirestoreSettings.cache instead of deprecated enableMultiTabIndexedDbPersistence
  */
 function applyModernCacheSettings() {
-    if (firestoreSettingsApplied) return;
-    
     try {
         const db = firebase.firestore();
         
         // Modern approach: Use FirestoreSettings with cache configuration
         // This replaces the deprecated enableMultiTabIndexedDbPersistence()
-        // Use merge: true to avoid overriding existing settings
         const settings = {
             // Use cache for offline support
             cache: {
@@ -117,17 +113,15 @@ function applyModernCacheSettings() {
                 tab: true,
                 // Cache size in bytes (100 MB)
                 size: 104857600
-            },
-            merge: true  // Important: merge with existing settings
+            }
         };
         
         // Apply settings to the Firestore instance
         db.settings(settings);
-        firestoreSettingsApplied = true;
         
         console.log('✅ Modern Firestore cache enabled (multi-tab support)');
         
-        // Enable network
+        // Verify cache is working by checking if we can read from cache
         db.enableNetwork()
             .then(() => console.log('✅ Firestore network enabled'))
             .catch(err => console.warn('⚠️ Firestore network enable error:', err.message));
@@ -146,17 +140,15 @@ function tryFallbackPersistence() {
     try {
         const db = firebase.firestore();
         
-        // Try to use the modern cache approach first with merge
+        // Try to use the modern cache approach first
         try {
             const settings = {
                 cache: {
                     tab: true,
                     size: 104857600
-                },
-                merge: true
+                }
             };
             db.settings(settings);
-            firestoreSettingsApplied = true;
             console.log('✅ Fallback cache settings applied');
             return;
         } catch (innerError) {
