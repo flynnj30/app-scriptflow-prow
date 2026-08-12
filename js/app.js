@@ -1,5 +1,5 @@
 // ================================================================
-// SCRIPTFLOW PRO - COMPLETE APPLICATION (UPDATED)
+// SCRIPTFLOW PRO - COMPLETE APPLICATION (UPDATED WITH NOTIFICATIONS)
 // ================================================================
 
 // ================================================================
@@ -82,7 +82,7 @@ const CONFIG = {
 };
 
 // ================================================================
-// SMART IMPORT CONFIGURATION (UPDATED WITH EMAIL SUPPORT)
+// SMART IMPORT CONFIGURATION
 // ================================================================
 
 const SMART_IMPORT_CONFIG = {
@@ -117,7 +117,7 @@ const SMART_IMPORT_CONFIG = {
 };
 
 // ================================================================
-// STATE MANAGEMENT (UPDATED)
+// STATE MANAGEMENT
 // ================================================================
 
 const AppState = {
@@ -187,7 +187,6 @@ const AppState = {
     
     isAppReady: false,
     
-    // Callback notification tracking
     callbackNotifications: {},
     callbackCheckInterval: null,
     lastCallbackCheck: null
@@ -218,7 +217,6 @@ const ImportState = {
 // ================================================================
 
 const TimezoneUtils = {
-    // Get timezone offset in minutes for a given timezone string
     getTimezoneOffset: function(timezoneStr) {
         if (!timezoneStr) return 0;
         
@@ -247,12 +245,10 @@ const TimezoneUtils = {
             'GMT': 0
         };
         
-        // Try exact match first
         if (tzMap[timezoneStr] !== undefined) {
             return tzMap[timezoneStr];
         }
         
-        // Try partial match
         for (const [key, offset] of Object.entries(tzMap)) {
             if (timezoneStr.includes(key) || key.includes(timezoneStr)) {
                 return offset;
@@ -262,12 +258,10 @@ const TimezoneUtils = {
         return 0;
     },
     
-    // Parse a time string with timezone to a Date object in UTC
     parseTimeWithTimezone: function(dateStr, timeStr, timezoneStr) {
         if (!dateStr) return null;
         
         try {
-            // Parse the date
             let date;
             if (typeof dateStr === 'string') {
                 date = new Date(dateStr + 'T00:00:00');
@@ -279,7 +273,6 @@ const TimezoneUtils = {
             
             if (isNaN(date.getTime())) return null;
             
-            // Parse the time
             let hour = 9, minute = 0;
             if (timeStr) {
                 const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
@@ -289,7 +282,6 @@ const TimezoneUtils = {
                     if (timeMatch[3].toUpperCase() === 'PM' && hour < 12) hour += 12;
                     if (timeMatch[3].toUpperCase() === 'AM' && hour === 12) hour = 0;
                 } else {
-                    // Try simple hour format
                     const simpleMatch = timeStr.match(/(\d{1,2})\s*(AM|PM)/i);
                     if (simpleMatch) {
                         hour = parseInt(simpleMatch[1]);
@@ -300,14 +292,9 @@ const TimezoneUtils = {
                 }
             }
             
-            // Set the time on the date
             date.setHours(hour, minute, 0, 0);
             
-            // Get the timezone offset for the appointment's timezone
             const tzOffset = this.getTimezoneOffset(timezoneStr || 'Central CDT');
-            
-            // Convert to UTC by subtracting the timezone offset
-            // The date is in the appointment's local time, so we need to convert to UTC
             const utcDate = new Date(date.getTime() - (tzOffset * 60 * 1000));
             
             return utcDate;
@@ -317,14 +304,12 @@ const TimezoneUtils = {
         }
     },
     
-    // Calculate callback time with proper timezone handling
     calculateCallbackTime: function(appointment) {
         if (!appointment || !appointment.date || !appointment.callbackSetting || appointment.callbackSetting === 'none') {
             return null;
         }
         
         try {
-            // Get the appointment time in UTC
             const appointmentUTC = this.parseTimeWithTimezone(
                 appointment.date,
                 appointment.time,
@@ -333,7 +318,6 @@ const TimezoneUtils = {
             
             if (!appointmentUTC) return null;
             
-            // Calculate callback offset
             let offsetMs = 0;
             if (appointment.callbackSetting === '24h') {
                 offsetMs = 24 * 60 * 60 * 1000;
@@ -355,7 +339,6 @@ const TimezoneUtils = {
             
             if (offsetMs === 0) return null;
             
-            // Calculate callback time (appointment time - offset)
             const callbackTime = new Date(appointmentUTC.getTime() - offsetMs);
             return callbackTime;
         } catch (e) {
@@ -364,13 +347,11 @@ const TimezoneUtils = {
         }
     },
     
-    // Check if a callback is due
     isCallbackDue: function(appointment) {
         if (!appointment || !appointment.callbackSetting || appointment.callbackSetting === 'none') {
             return false;
         }
         
-        // If callback has already been triggered, don't trigger again
         if (appointment.callbackTriggered) {
             return false;
         }
@@ -381,11 +362,9 @@ const TimezoneUtils = {
         const now = new Date();
         const timeDiff = now.getTime() - callbackTime.getTime();
         
-        // Allow a 5-minute window for triggering
         return timeDiff >= 0 && timeDiff < 5 * 60 * 1000;
     },
     
-    // Check if a callback is missed (more than 5 minutes past due)
     isCallbackMissed: function(appointment) {
         if (!appointment || !appointment.callbackSetting || appointment.callbackSetting === 'none') {
             return false;
@@ -404,12 +383,10 @@ const TimezoneUtils = {
         return timeDiff > 5 * 60 * 1000;
     },
     
-    // Format callback time for display in the appointment's timezone
     formatCallbackTime: function(appointment) {
         const callbackTime = this.calculateCallbackTime(appointment);
         if (!callbackTime) return 'Not scheduled';
         
-        // Display in the appointment's timezone
         const tzOffset = this.getTimezoneOffset(appointment.timezone || 'Central CDT');
         const localTime = new Date(callbackTime.getTime() + (tzOffset * 60 * 1000));
         
@@ -421,19 +398,11 @@ const TimezoneUtils = {
             hour12: true,
             timeZone: 'UTC'
         }) + ' ' + (appointment.timezone || 'Central CDT');
-    },
-    
-    // Get the current time in a specific timezone
-    getCurrentTimeInTimezone: function(timezoneStr) {
-        const offset = this.getTimezoneOffset(timezoneStr || 'Central CDT');
-        const now = new Date();
-        const localTime = new Date(now.getTime() + (offset * 60 * 1000));
-        return localTime;
     }
 };
 
 // ================================================================
-// UTILITY FUNCTIONS (UPDATED WITH TIMEZONE SUPPORT)
+// UTILITY FUNCTIONS
 // ================================================================
 
 const Utils = {
@@ -786,7 +755,6 @@ const Utils = {
         return !isNaN(d.getTime());
     },
 
-    // Parse timezone from text
     parseTimezone(text) {
         if (!text) return null;
         const timezoneMatch = text.match(/\b(EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC|ET|CT|MT|PT|Eastern|Central|Mountain|Pacific|GMT|UTC)\b/i);
@@ -1019,7 +987,6 @@ const Auth = {
                 AppState.teamMembersUnsubscribe = null;
             }
             
-            // Stop callback checking
             if (AppState.callbackCheckInterval) {
                 clearInterval(AppState.callbackCheckInterval);
                 AppState.callbackCheckInterval = null;
@@ -1168,7 +1135,7 @@ const Auth = {
 };
 
 // ================================================================
-// DATA LAYER - WITH OFFLINE SUPPORT (UPDATED)
+// DATA LAYER - WITH OFFLINE SUPPORT
 // ================================================================
 
 const Data = {
@@ -1271,7 +1238,6 @@ const Data = {
             Auth.closeModal();
             if (statusEl) statusEl.innerHTML = '<i class="fas fa-check"></i> Synced';
             
-            // Start callback checking
             this.startCallbackChecking();
             
         } catch (error) {
@@ -1304,18 +1270,11 @@ const Data = {
             clearInterval(AppState.callbackCheckInterval);
         }
         
-        // Check every 30 seconds
         AppState.callbackCheckInterval = setInterval(() => {
             this.checkDueCallbacks();
         }, 30000);
         
-        // Also check immediately
         setTimeout(() => this.checkDueCallbacks(), 5000);
-        
-        // Initialize notification system
-        if (typeof NotificationSystem !== 'undefined') {
-            setTimeout(() => NotificationSystem.init(), 1000);
-        }
     },
 
     checkDueCallbacks: function() {
@@ -1323,34 +1282,26 @@ const Data = {
         const dueAppointments = [];
         
         for (const appt of allAppointments) {
-            // Skip if already triggered
             if (appt.callbackTriggered) continue;
             if (!appt.callbackSetting || appt.callbackSetting === 'none') continue;
             
-            // Skip if appointment is completed or canceled
             const status = Utils.getStatus(appt);
             if (status === 'Completed' || status === 'Canceled') continue;
             
-            // Check if callback is due using timezone-aware calculation
             if (TimezoneUtils.isCallbackDue(appt)) {
                 dueAppointments.push(appt);
             }
         }
         
         for (const appt of dueAppointments) {
-            // Use notification system
             if (typeof NotificationSystem !== 'undefined') {
                 NotificationSystem.addNotification(appt, 'callback_due');
-            } else {
-                this.showCallbackNotification(appt);
             }
-            // Mark as triggered to prevent duplicate notifications
             this.updateAppointment(appt.date, appt.id, { callbackTriggered: true });
         }
     },
 
     showCallbackNotification: function(appt) {
-        // Check if notification already shown for this appointment
         const notificationKey = `callback_${appt.id}`;
         if (AppState.callbackNotifications[notificationKey]) {
             return;
@@ -1359,10 +1310,8 @@ const Data = {
         const callbackTime = TimezoneUtils.calculateCallbackTime(appt);
         if (!callbackTime) return;
         
-        // Format time in appointment's timezone
         const formattedTime = TimezoneUtils.formatCallbackTime(appt);
         
-        // Create notification
         const notification = document.createElement('div');
         notification.className = 'callback-notification callback-due';
         notification.id = notificationKey;
@@ -1392,7 +1341,6 @@ const Data = {
         AppState.callbackNotifications[notificationKey] = true;
         localStorage.setItem('callbackNotifications', JSON.stringify(AppState.callbackNotifications));
         
-        // Auto-dismiss after 30 seconds
         setTimeout(() => {
             const el = document.getElementById(notificationKey);
             if (el) {
@@ -1402,7 +1350,6 @@ const Data = {
             }
         }, 30000);
         
-        // Play notification sound if available
         try {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const oscillator = audioCtx.createOscillator();
@@ -1415,9 +1362,7 @@ const Data = {
             gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
             oscillator.start(audioCtx.currentTime);
             oscillator.stop(audioCtx.currentTime + 0.3);
-        } catch (e) {
-            // Silently fail - notification is still visible
-        }
+        } catch (e) {}
     },
 
     dismissCallbackNotification: function(apptId) {
@@ -1428,7 +1373,6 @@ const Data = {
             el.style.transform = 'translateX(20px)';
             setTimeout(() => el.remove(), 300);
         }
-        // Don't remove from tracking - we want to prevent re-triggering
     },
 
     subscribeToChanges: function() {
@@ -1454,8 +1398,6 @@ const Data = {
                 Stats.updateAll();
                 FeaturePanel.refreshCurrentView();
                 localStorage.setItem('appointments_fallback', JSON.stringify(AppState.appointments));
-                
-                // Re-check callbacks on data change
                 this.checkDueCallbacks();
             }, error => {
                 console.warn('Appointments subscription error:', error);
@@ -1603,13 +1545,11 @@ const Data = {
             callbackTime: null
         };
         
-        // Calculate callback time using timezone-aware utility
         const callbackTime = TimezoneUtils.calculateCallbackTime(newAppt);
         if (callbackTime) {
             newAppt.callbackTime = callbackTime.toISOString();
         }
         
-        // Extract email from notes if not provided
         if (notes && notes.includes('Email:')) {
             const emailMatch = notes.match(/Email:\s*([^\s\n]+)/);
             if (emailMatch) {
@@ -1662,18 +1602,15 @@ const Data = {
         const appt = AppState.appointments[dateStr]?.reports?.find(r => r.id === id);
         if (!appt) return false;
         
-        // Preserve createdAt
         const createdAt = appt.createdAt;
         
         Object.assign(appt, updates);
         appt.updatedAt = new Date().toISOString();
         
-        // If date changed, ensure createdAt stays
         if (updates.date && updates.date !== dateStr) {
             appt.createdAt = createdAt;
         }
         
-        // Recalculate callback time if date/time/callback setting changed
         if (updates.date || updates.time || updates.callbackSetting || updates.callbackCustomValue || updates.callbackCustomUnit || updates.timezone) {
             const callbackTime = TimezoneUtils.calculateCallbackTime(appt);
             if (callbackTime) {
@@ -1681,7 +1618,6 @@ const Data = {
             } else {
                 appt.callbackTime = null;
             }
-            // Reset triggered status if callback setting changed
             if (updates.callbackSetting) {
                 appt.callbackTriggered = false;
             }
@@ -1885,7 +1821,7 @@ const Data = {
 };
 
 // ================================================================
-// STATISTICS (UPDATED)
+// STATISTICS
 // ================================================================
 
 const Stats = {
@@ -2969,7 +2905,6 @@ function renderImportResultsEnhanced(records) {
     
     resultsContainer.innerHTML = resultsHtml;
     
-    // Attach event listeners using event delegation
     resultsContainer.addEventListener('click', function(e) {
         const target = e.target.closest('button');
         if (!target) return;
@@ -3185,7 +3120,6 @@ function parseKeyValueFormatEnhanced(lines, result, confidence, context) {
                     matchedField = matchFieldName(key);
                 }
                 
-                // Special handling for email
                 if (key.includes('email') || key.includes('e-mail') || key.includes('mail')) {
                     matchedField = 'email';
                     context.synonyms.email = context.synonyms.email || [];
@@ -3226,14 +3160,12 @@ function parseKeyValueFormatEnhanced(lines, result, confidence, context) {
                     result['notes'] += (result['notes'] ? '\n' : '') + `Best time: ${value}`;
                     confidence['notes'] = 0.6;
                 } else if (matchedField) {
-                    // If it's email, validate it
                     if (matchedField === 'email') {
                         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                         if (emailRegex.test(value)) {
                             result[matchedField] = value.toLowerCase().trim();
                             confidence[matchedField] = 0.95;
                         } else {
-                            // Store in notes if not valid email
                             if (!result['notes']) result['notes'] = '';
                             result['notes'] += (result['notes'] ? '\n' : '') + `${key}: ${value}`;
                             confidence['notes'] = 0.4;
@@ -3306,7 +3238,6 @@ function parseBulletPointFormat(lines, result, confidence) {
                     confidence.notes = 0.4;
                 }
             } else {
-                // Check if the bullet point contains an email
                 const emailMatch = content.match(/([^\s@]+@[^\s@]+\.[^\s@]+)/);
                 if (emailMatch && !result.email) {
                     result.email = emailMatch[1].toLowerCase().trim();
@@ -3374,7 +3305,6 @@ function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
         }
     }
     
-    // Enhanced email detection
     const emailPatterns = [
         /(?:email|e-mail|mail|contact email|business email)[:\s]+([^\s@]+@[^\s@]+\.[^\s@]+)/i,
         /([^\s@]+@[^\s@]+\.[^\s@]+)/
@@ -3384,7 +3314,6 @@ function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
         const match = fullText.match(pattern);
         if (match && match[1]) {
             const email = match[1].trim().toLowerCase();
-            // Validate email
             if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
                 result.email = email;
                 confidence.email = 0.9;
@@ -3434,7 +3363,6 @@ function parseNaturalLanguageFormat(fullText, lines, result, confidence) {
         }
     }
     
-    // Timezone detection
     const timezoneMatch = fullText.match(/\b(EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC|ET|CT|MT|PT|Eastern|Central|Mountain|Pacific)\b/i);
     if (timezoneMatch) {
         result.timezone = Utils.parseTimezone(timezoneMatch[1]);
@@ -5096,7 +5024,6 @@ const FeaturePanel = {
         const fields = ['newApptBusiness', 'newApptContact', 'newApptPhone', 'newApptEmail', 'newApptTime', 'newApptNotes', 'newApptTimezone'];
         fields.forEach(id => { const el = DOM.get(id); if (el) el.value = ''; });
 
-        // Set default timezone
         const tzSelect = DOM.get('newApptTimezone');
         if (tzSelect) {
             tzSelect.value = AppState.calendarTimezone || 'Central CDT';
@@ -5109,7 +5036,6 @@ const FeaturePanel = {
         const customContainer = DOM.get('newApptCustomCallbackContainer');
         if (customContainer) customContainer.style.display = 'none';
 
-        // Callback select change handler
         if (callbackSelect) {
             callbackSelect.onchange = function() {
                 const customContainer = DOM.get('newApptCustomCallbackContainer');
@@ -5807,7 +5733,7 @@ const CalendarView = {
 };
 
 // ================================================================
-// APPOINTMENT DETAIL FUNCTIONS (UPDATED WITH CALLBACK INFO)
+// APPOINTMENT DETAIL FUNCTIONS
 // ================================================================
 
 function showAppointmentDetail(appointmentId) {
@@ -6008,7 +5934,7 @@ function rescheduleAppointment(appointmentId) {
                 time: newTime || appt.time,
                 timezone: newTimezone || appt.timezone || 'Central CDT',
                 status: 'Rescheduled',
-                callbackTriggered: false // Reset callback trigger on reschedule
+                callbackTriggered: false
             });
             closeAppointmentDetail();
             Utils.syncCalendarToDate(formattedDate);
@@ -6059,12 +5985,12 @@ const NotificationSystem = {
     isPopupShowing: false,
     maxPopups: 3,
     popupStack: [],
+    currentFilter: 'all',
 
     init: function() {
         if (this.initialized) return;
         this.initialized = true;
         
-        // Load saved notifications
         const saved = localStorage.getItem('callbackNotifications_v2');
         if (saved) {
             try {
@@ -6080,7 +6006,6 @@ const NotificationSystem = {
         this.renderDropdown();
         this.attachEvents();
         
-        // Start checking for expired notifications
         setInterval(() => {
             this.cleanupExpired();
         }, 60000);
@@ -6092,7 +6017,6 @@ const NotificationSystem = {
         const id = 'notif_' + Utils.generateId();
         const now = new Date();
         
-        // Check if notification already exists for this appointment
         const existing = this.notifications.find(n => 
             n.appointmentId === appt.id && 
             n.type === type &&
@@ -6100,7 +6024,6 @@ const NotificationSystem = {
         );
         
         if (existing) {
-            // Update existing notification
             existing.timestamp = now.toISOString();
             existing.read = false;
             existing.count = (existing.count || 1) + 1;
@@ -6134,7 +6057,6 @@ const NotificationSystem = {
             createdAt: now.toISOString()
         };
         
-        // Check if duplicate in last 5 minutes
         const recentDuplicate = this.notifications.find(n => 
             n.appointmentId === appt.id && 
             n.type === type &&
@@ -6151,32 +6073,26 @@ const NotificationSystem = {
         this.saveNotifications();
         this.updateBadge();
         this.renderDropdown();
-        
-        // Show popup
         this.showPopup(notification);
-        
-        // Update bell animation
         this.animateBell();
         
         return notification;
     },
 
     showPopup: function(notification) {
-        // Add to queue
         this.popupQueue.push(notification);
         this.processPopupQueue();
     },
 
     processPopupQueue: function() {
         if (this.isPopupShowing || this.popupQueue.length === 0) return;
-        if (this.popupStack.length >= this.maxPopups) {
-            // Remove oldest popup
+        
+        while (this.popupStack.length >= this.maxPopups) {
             const oldest = this.popupStack.shift();
             if (oldest) {
                 const el = document.getElementById(oldest);
                 if (el) {
-                    el.style.opacity = '0';
-                    el.style.transform = 'translateX(20px)';
+                    el.classList.add('removing');
                     setTimeout(() => {
                         if (el.parentNode) el.remove();
                     }, 300);
@@ -6192,7 +6108,6 @@ const NotificationSystem = {
     showPopupElement: function(notification) {
         const popupId = 'popup_' + notification.id;
         
-        // Check if popup already exists
         if (document.getElementById(popupId)) {
             this.isPopupShowing = false;
             this.processPopupQueue();
@@ -6218,7 +6133,7 @@ const NotificationSystem = {
             <div class="popup-body">
                 <span class="business-name">${Utils.escapeHtml(notification.business)}</span>
                 ${notification.contactName ? ` — ${Utils.escapeHtml(notification.contactName)}` : ''}
-                <div class="popup-time">⏱️ Scheduled callback at ${callbackTime}</div>
+                <div class="popup-time">⏱️ ${callbackTime}</div>
             </div>
             <div class="popup-actions">
                 <button class="btn-icon view-btn" data-appt-id="${notification.appointmentId}">
@@ -6233,7 +6148,6 @@ const NotificationSystem = {
             </div>
         `;
         
-        // Add to stack container or body
         let stack = document.querySelector('.notification-popup-stack');
         if (!stack) {
             stack = document.createElement('div');
@@ -6244,7 +6158,6 @@ const NotificationSystem = {
         stack.appendChild(popup);
         this.popupStack.push(popupId);
         
-        // Attach events
         popup.querySelector('.popup-close').addEventListener('click', () => {
             this.dismissPopup(popupId, notification.id);
         });
@@ -6265,14 +6178,12 @@ const NotificationSystem = {
             this.snoozeNotification(notification.id, popupId);
         });
         
-        // Auto-dismiss after 15 seconds
         const timerId = setTimeout(() => {
             this.dismissPopup(popupId, notification.id);
         }, 15000);
         
         this.popupTimers.set(popupId, timerId);
         
-        // Remove from stack after dismissal
         const observer = new MutationObserver(() => {
             if (!document.getElementById(popupId)) {
                 this.popupStack = this.popupStack.filter(id => id !== popupId);
@@ -6283,18 +6194,14 @@ const NotificationSystem = {
         });
         observer.observe(document.body, { childList: true });
         
-        // Play sound
         this.playNotificationSound();
-        
-        // Mark as read in dropdown
         this.markAsRead(notification.id);
     },
 
     dismissPopup: function(popupId, notifId) {
         const popup = document.getElementById(popupId);
         if (popup) {
-            popup.style.opacity = '0';
-            popup.style.transform = 'translateX(20px)';
+            popup.classList.add('removing');
             setTimeout(() => {
                 if (popup.parentNode) popup.remove();
                 this.popupStack = this.popupStack.filter(id => id !== popupId);
@@ -6306,7 +6213,6 @@ const NotificationSystem = {
             this.popupTimers.delete(popupId);
         }
         
-        // Mark notification as read
         if (notifId) {
             this.markAsRead(notifId);
         }
@@ -6318,7 +6224,6 @@ const NotificationSystem = {
     snoozeNotification: function(notifId, popupId) {
         const notification = this.notifications.find(n => n.id === notifId);
         if (notification) {
-            // Snooze for 5 minutes
             const snoozeTime = new Date();
             snoozeTime.setMinutes(snoozeTime.getMinutes() + 5);
             notification.snoozedUntil = snoozeTime.toISOString();
@@ -6326,15 +6231,12 @@ const NotificationSystem = {
             this.saveNotifications();
             this.updateBadge();
             this.renderDropdown();
-            
-            // Dismiss current popup
             this.dismissPopup(popupId, notifId);
             
             if (window.showToast) {
                 window.showToast('🔔 Reminded in 5 minutes', 'info');
             }
             
-            // Reschedule
             setTimeout(() => {
                 const notif = this.notifications.find(n => n.id === notifId);
                 if (notif && !notif.dismissed) {
@@ -6391,6 +6293,18 @@ const NotificationSystem = {
             }
         }
         
+        const countBadge = document.getElementById('notificationCountBadge');
+        if (countBadge) {
+            const total = this.notifications.filter(n => !n.dismissed).length;
+            countBadge.textContent = total;
+        }
+        
+        const accountBadge = document.getElementById('notificationAccountBadge');
+        if (accountBadge) {
+            const total = this.notifications.filter(n => !n.dismissed).length;
+            accountBadge.textContent = total;
+        }
+        
         const bell = document.querySelector('.notification-bell');
         if (bell) {
             if (this.unreadCount > 0) {
@@ -6405,14 +6319,12 @@ const NotificationSystem = {
         const bell = document.querySelector('.notification-bell');
         if (bell) {
             bell.classList.remove('has-unread');
-            // Force reflow
             void bell.offsetWidth;
             bell.classList.add('has-unread');
         }
     },
 
     renderBell: function() {
-        // Bell is already in HTML - just update badge
         this.updateBadge();
         this.attachEvents();
     },
@@ -6421,20 +6333,34 @@ const NotificationSystem = {
         const body = document.getElementById('notificationDropdownBody');
         if (!body) return;
         
-        const activeNotifs = this.notifications.filter(n => !n.dismissed);
+        let filtered = this.notifications.filter(n => !n.dismissed);
         
-        if (activeNotifs.length === 0) {
+        switch (this.currentFilter) {
+            case 'unread':
+                filtered = filtered.filter(n => !n.read);
+                break;
+            case 'callback_due':
+                filtered = filtered.filter(n => n.type === 'callback_due' && !n.read);
+                break;
+            case 'archived':
+                filtered = filtered.filter(n => n.read);
+                break;
+            default:
+                break;
+        }
+        
+        if (filtered.length === 0) {
             body.innerHTML = `
                 <div class="empty-notifications">
                     <i class="fas fa-bell-slash"></i>
-                    No notifications
+                    <p>No notifications</p>
                 </div>
             `;
             return;
         }
         
         let html = '';
-        activeNotifs.slice(0, 30).forEach(n => {
+        filtered.slice(0, 50).forEach(n => {
             const isUnread = !n.read;
             const isDue = n.type === 'callback_due';
             const timeAgo = this.getTimeAgo(n.timestamp);
@@ -6446,13 +6372,13 @@ const NotificationSystem = {
                         ${isDue ? '⏰' : '✅'}
                     </div>
                     <div class="notif-content">
-                        <div class="notif-title">${isDue ? 'Callback Due' : 'Callback Completed'}</div>
+                        <div class="notif-title">${isDue ? 'Callback due' : 'Callback completed'}</div>
                         <div class="notif-business">${Utils.escapeHtml(n.business)}${n.contactName ? ` — ${Utils.escapeHtml(n.contactName)}` : ''}</div>
                         <div class="notif-time">
                             <i class="far fa-clock"></i>
                             ${timeAgo}
                             ${n.count > 1 ? ` · ${n.count} reminders` : ''}
-                            ${callbackTime !== 'Not scheduled' ? ` · 📅 ${callbackTime}` : ''}
+                            ${callbackTime !== 'Not scheduled' ? ` · ${callbackTime}` : ''}
                         </div>
                     </div>
                     <div class="notif-actions">
@@ -6466,7 +6392,6 @@ const NotificationSystem = {
         
         body.innerHTML = html;
         
-        // Attach events
         body.querySelectorAll('.mark-read-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -6511,12 +6436,10 @@ const NotificationSystem = {
             this.updateBadge();
             this.renderDropdown();
             
-            // Also dismiss any popup for this notification
             const popupId = 'popup_' + notifId;
             const popup = document.getElementById(popupId);
             if (popup) {
-                popup.style.opacity = '0';
-                popup.style.transform = 'translateX(20px)';
+                popup.classList.add('removing');
                 setTimeout(() => {
                     if (popup.parentNode) popup.remove();
                     this.popupStack = this.popupStack.filter(id => id !== popupId);
@@ -6549,7 +6472,6 @@ const NotificationSystem = {
         let changed = false;
         
         this.notifications = this.notifications.filter(n => {
-            // Remove notifications older than 7 days
             const age = now - new Date(n.timestamp);
             if (age > 7 * 24 * 60 * 60 * 1000) {
                 changed = true;
@@ -6577,8 +6499,6 @@ const NotificationSystem = {
     playNotificationSound: function() {
         try {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            
-            // Play two-tone notification sound
             const notes = [800, 600];
             notes.forEach((freq, index) => {
                 const oscillator = audioCtx.createOscillator();
@@ -6593,9 +6513,7 @@ const NotificationSystem = {
                 oscillator.start(startTime);
                 oscillator.stop(startTime + 0.15);
             });
-        } catch (e) {
-            // Silently fail
-        }
+        } catch (e) {}
     },
 
     toggleDropdown: function() {
@@ -6603,12 +6521,11 @@ const NotificationSystem = {
         if (dropdown) {
             this.isDropdownOpen = !this.isDropdownOpen;
             dropdown.classList.toggle('open');
-            
-            // Close other dropdowns
             if (this.isDropdownOpen) {
                 document.querySelectorAll('.notification-dropdown.open').forEach(d => {
                     if (d !== dropdown) d.classList.remove('open');
                 });
+                this.renderDropdown();
             }
         }
     },
@@ -6621,10 +6538,17 @@ const NotificationSystem = {
         }
     },
 
+    setFilter: function(filter) {
+        this.currentFilter = filter;
+        document.querySelectorAll('.filter-tab').forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.filter === filter);
+        });
+        this.renderDropdown();
+    },
+
     attachEvents: function() {
         const bellBtn = document.getElementById('notificationBellBtn');
         if (bellBtn) {
-            // Remove existing listeners
             const newBellBtn = bellBtn.cloneNode(true);
             bellBtn.parentNode.replaceChild(newBellBtn, bellBtn);
             newBellBtn.addEventListener('click', (e) => {
@@ -6643,7 +6567,22 @@ const NotificationSystem = {
             });
         }
         
-        // Close dropdown on outside click
+        const markAllFooterBtn = document.getElementById('markAllReadFooterBtn');
+        if (markAllFooterBtn) {
+            const newMarkAllFooterBtn = markAllFooterBtn.cloneNode(true);
+            markAllFooterBtn.parentNode.replaceChild(newMarkAllFooterBtn, markAllFooterBtn);
+            newMarkAllFooterBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.markAllAsRead();
+            });
+        }
+        
+        document.querySelectorAll('.filter-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.setFilter(tab.dataset.filter);
+            });
+        });
+        
         document.addEventListener('click', (e) => {
             const container = document.querySelector('.notification-bell-container');
             if (container && !container.contains(e.target)) {
@@ -6651,7 +6590,6 @@ const NotificationSystem = {
             }
         });
         
-        // Close on escape
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && this.isDropdownOpen) {
                 this.closeDropdown();
@@ -6974,7 +6912,6 @@ function renderClosersListHTML() {
 function initApp() {
     console.log('🚀 Initializing ScriptFlow Pro...');
     
-    // Load shortcuts
     const savedShortcuts = localStorage.getItem('customShortcuts');
     if (savedShortcuts) {
         try {
@@ -6987,7 +6924,6 @@ function initApp() {
         AppState.shortcuts = { ...CONFIG.DEFAULT_SHORTCUTS };
     }
     
-    // Load favorites
     const savedFavorites = localStorage.getItem('scriptFavorites');
     if (savedFavorites) {
         try {
@@ -6997,7 +6933,6 @@ function initApp() {
         }
     }
     
-    // Load team members
     const savedTeam = localStorage.getItem('teamMembers_fallback');
     if (savedTeam) {
         try {
@@ -7009,7 +6944,6 @@ function initApp() {
         AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
     }
     
-    // Load closers
     const savedClosers = localStorage.getItem('closers_fallback');
     if (savedClosers) {
         try {
@@ -7021,7 +6955,6 @@ function initApp() {
         AppState.closers = CONFIG.DEFAULT_CLOSERS;
     }
     
-    // Load callback notifications
     const savedNotifications = localStorage.getItem('callbackNotifications');
     if (savedNotifications) {
         try {
@@ -7031,10 +6964,8 @@ function initApp() {
         }
     }
     
-    // Check Firebase readiness
     AppState.isFirebaseReady = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
     
-    // Auth state listener
     if (AppState.isFirebaseReady) {
         firebase.auth().onAuthStateChanged(user => {
             if (user) {
@@ -7048,7 +6979,6 @@ function initApp() {
             }
         });
     } else {
-        // Offline mode - show auth modal with offline notice
         setTimeout(() => {
             Auth.showModal();
             const googleBtn = document.getElementById('googleSignInBtn');
@@ -7060,25 +6990,18 @@ function initApp() {
         }, 500);
     }
     
-    // Setup UI event listeners
     setupEventListeners();
     
-    // Initial render
     Scripts.renderSidebar();
     Scripts.loadScript('opening');
     Stats.updateAll();
     
-    // Set active date
     Utils.setActiveDate(Utils.getTodayStr());
     AppState.calendarCurrentDate = new Date();
     
-    // Update closer selects
     updateCloserSelects();
-    
-    // Setup callback interval
     Data.startCallbackChecking();
     
-    // Initialize notification system after a delay
     setTimeout(function() {
         if (typeof NotificationSystem !== 'undefined') {
             NotificationSystem.init();
@@ -7093,7 +7016,6 @@ function initApp() {
 // ================================================================
 
 function setupEventListeners() {
-    // Menu toggle
     const menuBtn = document.getElementById('menuToggleBtn');
     const sidebar = document.getElementById('mainSidebar');
     const mainContent = document.getElementById('mainContent');
@@ -7109,7 +7031,6 @@ function setupEventListeners() {
         });
     }
     
-    // Tools toggle
     const toolsHeader = document.getElementById('toolsHeader');
     const toolsMenu = document.getElementById('toolsMenu');
     const toolsChevron = document.getElementById('toolsChevron');
@@ -7123,7 +7044,6 @@ function setupEventListeners() {
         });
     }
     
-    // Tool items
     document.querySelectorAll('.tool-item[data-tool]').forEach(item => {
         item.addEventListener('click', () => {
             const tool = item.dataset.tool;
@@ -7170,13 +7090,11 @@ function setupEventListeners() {
         });
     });
     
-    // Sign out
     const signOutBtn = document.getElementById('signOutBtn');
     if (signOutBtn) {
         signOutBtn.addEventListener('click', () => Auth.signOut());
     }
     
-    // Top bar buttons
     const quickReportBtn = document.getElementById('quickReportBtn');
     if (quickReportBtn) {
         quickReportBtn.addEventListener('click', openSmartImportEnhanced);
@@ -7204,7 +7122,6 @@ function setupEventListeners() {
         });
     }
     
-    // CSV upload
     const csvInput = document.getElementById('csvFileInput');
     if (csvInput) {
         csvInput.addEventListener('change', (e) => {
@@ -7225,7 +7142,6 @@ function setupEventListeners() {
         });
     }
     
-    // Close feature panel
     const closeFeatureBtn = document.getElementById('closeFeaturePanelBtn');
     if (closeFeatureBtn) {
         closeFeatureBtn.addEventListener('click', () => {
@@ -7234,13 +7150,11 @@ function setupEventListeners() {
         });
     }
     
-    // Add script button
     const addScriptBtn = document.getElementById('addScriptBtnSide');
     if (addScriptBtn) {
         addScriptBtn.addEventListener('click', () => Scripts.createScript());
     }
     
-    // Script search
     const scriptSearch = document.getElementById('scriptSearch');
     if (scriptSearch) {
         scriptSearch.addEventListener('input', (e) => {
@@ -7253,7 +7167,6 @@ function setupEventListeners() {
         });
     }
     
-    // Smart Import modal events
     const parseImportBtn = document.getElementById('parseImportBtn');
     if (parseImportBtn) {
         parseImportBtn.addEventListener('click', parseAndPreviewImportEnhanced);
@@ -7284,7 +7197,6 @@ function setupEventListeners() {
         collapseAllRecordsBtn.addEventListener('click', collapseAllRecords);
     }
     
-    // Closer Management modal events
     const addCloserBtn = document.getElementById('addCloserBtn');
     if (addCloserBtn) {
         addCloserBtn.addEventListener('click', addCloser);
@@ -7295,7 +7207,6 @@ function setupEventListeners() {
         closeCloserModalBtn.addEventListener('click', closeCloserManagement);
     }
     
-    // Bulk Actions modal events
     const executeBulkActionBtn = document.getElementById('executeBulkActionBtn');
     if (executeBulkActionBtn) {
         executeBulkActionBtn.addEventListener('click', executeBulkAction);
@@ -7321,7 +7232,6 @@ function setupEventListeners() {
         });
     }
     
-    // Global Search modal events
     const globalSearchInput = document.getElementById('globalSearchInput');
     if (globalSearchInput) {
         globalSearchInput.addEventListener('input', (e) => {
@@ -7343,7 +7253,6 @@ function setupEventListeners() {
         });
     }
     
-    // Appointment Detail modal events
     const apptCloseBtn = document.getElementById('apptCloseBtn');
     if (apptCloseBtn) {
         apptCloseBtn.addEventListener('click', closeAppointmentDetail);
@@ -7383,23 +7292,19 @@ function setupEventListeners() {
         });
     }
     
-    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         if (!AppState.shortcutsEnabled) return;
         
-        // Don't trigger if in input/textarea
         const target = e.target;
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
             return;
         }
         
-        // Escape key
         if (e.key === 'Escape') {
             handleEscapeKey();
             return;
         }
         
-        // Number keys 1-9 for scripts
         if (e.key >= '1' && e.key <= '9' && !e.ctrlKey && !e.metaKey) {
             const visible = Utils.getOrderedVisible(AppState.scripts, AppState.scriptOrder);
             const idx = parseInt(e.key) - 1;
@@ -7410,7 +7315,6 @@ function setupEventListeners() {
             return;
         }
         
-        // Check custom shortcuts
         const ctrlKey = e.ctrlKey || e.metaKey;
         const shiftKey = e.shiftKey;
         const key = e.key;
@@ -7440,7 +7344,6 @@ function startApp() {
     const loadingScreen = document.getElementById('loadingScreen');
     const appWrapper = document.getElementById('appWrapper');
     
-    // Safety timeout - force hide loading screen after 3 seconds max
     const safetyTimeout = setTimeout(function() {
         if (loadingScreen && loadingScreen.style.display !== 'none') {
             console.log('⚠️ Safety timeout: forcing loading screen hide');
@@ -7454,17 +7357,14 @@ function startApp() {
         }
     }, 3000);
     
-    // If LoadingManager exists, use it
     if (typeof LoadingManager !== 'undefined' && LoadingManager) {
         console.log('📦 Using LoadingManager');
         LoadingManager.init();
         
-        // Start the loading sequence
         LoadingManager.start(function() {
             console.log('✅ Loading sequence completed');
         });
         
-        // Force complete after 2 seconds if not already done
         setTimeout(function() {
             if (LoadingManager && !LoadingManager.isComplete()) {
                 console.log('⏱️ Force completing loading');
@@ -7472,7 +7372,6 @@ function startApp() {
             }
         }, 2000);
     } else {
-        // Fallback: hide loading screen manually
         console.log('⚠️ LoadingManager not found, using fallback');
         if (loadingScreen) {
             loadingScreen.style.display = 'none';
@@ -7485,12 +7384,10 @@ function startApp() {
         }
     }
     
-    // Initialize the app
     try {
         initApp();
     } catch (e) {
         console.error('App initialization error:', e);
-        // Still try to hide loading screen
         if (loadingScreen) {
             loadingScreen.style.display = 'none';
             loadingScreen.style.visibility = 'hidden';
@@ -7504,7 +7401,6 @@ function startApp() {
     }
 }
 
-// Start the app
 document.addEventListener('DOMContentLoaded', function() {
     console.log('📄 DOM ready, starting app...');
     setTimeout(startApp, 50);
