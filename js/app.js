@@ -214,6 +214,225 @@ const ImportState = {
 };
 
 // ================================================================
+// TIMEZONE UTILITY FUNCTIONS
+// ================================================================
+
+const TimezoneUtils = {
+    // Get timezone offset in minutes for a given timezone string
+    getTimezoneOffset: function(timezoneStr) {
+        if (!timezoneStr) return 0;
+        
+        const tzMap = {
+            'Eastern EDT': -240,
+            'Eastern EST': -300,
+            'Eastern': -240,
+            'EDT': -240,
+            'EST': -300,
+            'Central CDT': -300,
+            'Central CST': -360,
+            'Central': -300,
+            'CDT': -300,
+            'CST': -360,
+            'Mountain MDT': -360,
+            'Mountain MST': -420,
+            'Mountain': -360,
+            'MDT': -360,
+            'MST': -420,
+            'Pacific PDT': -420,
+            'Pacific PST': -480,
+            'Pacific': -420,
+            'PDT': -420,
+            'PST': -480,
+            'UTC': 0,
+            'GMT': 0
+        };
+        
+        // Try exact match first
+        if (tzMap[timezoneStr] !== undefined) {
+            return tzMap[timezoneStr];
+        }
+        
+        // Try partial match
+        for (const [key, offset] of Object.entries(tzMap)) {
+            if (timezoneStr.includes(key) || key.includes(timezoneStr)) {
+                return offset;
+            }
+        }
+        
+        return 0;
+    },
+    
+    // Parse a time string with timezone to a Date object in UTC
+    parseTimeWithTimezone: function(dateStr, timeStr, timezoneStr) {
+        if (!dateStr) return null;
+        
+        try {
+            // Parse the date
+            let date;
+            if (typeof dateStr === 'string') {
+                date = new Date(dateStr + 'T00:00:00');
+            } else if (dateStr.toDate) {
+                date = dateStr.toDate();
+            } else {
+                date = new Date(dateStr);
+            }
+            
+            if (isNaN(date.getTime())) return null;
+            
+            // Parse the time
+            let hour = 9, minute = 0;
+            if (timeStr) {
+                const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+                if (timeMatch) {
+                    hour = parseInt(timeMatch[1]);
+                    minute = parseInt(timeMatch[2]);
+                    if (timeMatch[3].toUpperCase() === 'PM' && hour < 12) hour += 12;
+                    if (timeMatch[3].toUpperCase() === 'AM' && hour === 12) hour = 0;
+                } else {
+                    // Try simple hour format
+                    const simpleMatch = timeStr.match(/(\d{1,2})\s*(AM|PM)/i);
+                    if (simpleMatch) {
+                        hour = parseInt(simpleMatch[1]);
+                        if (simpleMatch[2].toUpperCase() === 'PM' && hour < 12) hour += 12;
+                        if (simpleMatch[2].toUpperCase() === 'AM' && hour === 12) hour = 0;
+                        minute = 0;
+                    }
+                }
+            }
+            
+            // Set the time on the date
+            date.setHours(hour, minute, 0, 0);
+            
+            // Get the timezone offset for the appointment's timezone
+            const tzOffset = this.getTimezoneOffset(timezoneStr || 'Central CDT');
+            
+            // Convert to UTC by subtracting the timezone offset
+            // The date is in the appointment's local time, so we need to convert to UTC
+            const utcDate = new Date(date.getTime() - (tzOffset * 60 * 1000));
+            
+            return utcDate;
+        } catch (e) {
+            console.warn('Error parsing time with timezone:', e);
+            return null;
+        }
+    },
+    
+    // Calculate callback time with proper timezone handling
+    calculateCallbackTime: function(appointment) {
+        if (!appointment || !appointment.date || !appointment.callbackSetting || appointment.callbackSetting === 'none') {
+            return null;
+        }
+        
+        try {
+            // Get the appointment time in UTC
+            const appointmentUTC = this.parseTimeWithTimezone(
+                appointment.date,
+                appointment.time,
+                appointment.timezone || 'Central CDT'
+            );
+            
+            if (!appointmentUTC) return null;
+            
+            // Calculate callback offset
+            let offsetMs = 0;
+            if (appointment.callbackSetting === '24h') {
+                offsetMs = 24 * 60 * 60 * 1000;
+            } else if (appointment.callbackSetting === '4h') {
+                offsetMs = 4 * 60 * 60 * 1000;
+            } else if (appointment.callbackSetting === '1h') {
+                offsetMs = 60 * 60 * 1000;
+            } else if (appointment.callbackSetting === 'custom' && appointment.callbackCustomValue) {
+                const value = parseInt(appointment.callbackCustomValue);
+                const unit = appointment.callbackCustomUnit || 'hours';
+                if (unit === 'hours') {
+                    offsetMs = value * 60 * 60 * 1000;
+                } else if (unit === 'minutes') {
+                    offsetMs = value * 60 * 1000;
+                } else if (unit === 'days') {
+                    offsetMs = value * 24 * 60 * 60 * 1000;
+                }
+            }
+            
+            if (offsetMs === 0) return null;
+            
+            // Calculate callback time (appointment time - offset)
+            const callbackTime = new Date(appointmentUTC.getTime() - offsetMs);
+            return callbackTime;
+        } catch (e) {
+            console.warn('Error calculating callback time:', e);
+            return null;
+        }
+    },
+    
+    // Check if a callback is due
+    isCallbackDue: function(appointment) {
+        if (!appointment || !appointment.callbackSetting || appointment.callbackSetting === 'none') {
+            return false;
+        }
+        
+        // If callback has already been triggered, don't trigger again
+        if (appointment.callbackTriggered) {
+            return false;
+        }
+        
+        const callbackTime = this.calculateCallbackTime(appointment);
+        if (!callbackTime) return false;
+        
+        const now = new Date();
+        const timeDiff = now.getTime() - callbackTime.getTime();
+        
+        // Allow a 5-minute window for triggering
+        return timeDiff >= 0 && timeDiff < 5 * 60 * 1000;
+    },
+    
+    // Check if a callback is missed (more than 5 minutes past due)
+    isCallbackMissed: function(appointment) {
+        if (!appointment || !appointment.callbackSetting || appointment.callbackSetting === 'none') {
+            return false;
+        }
+        
+        if (appointment.callbackTriggered) {
+            return false;
+        }
+        
+        const callbackTime = this.calculateCallbackTime(appointment);
+        if (!callbackTime) return false;
+        
+        const now = new Date();
+        const timeDiff = now.getTime() - callbackTime.getTime();
+        
+        return timeDiff > 5 * 60 * 1000;
+    },
+    
+    // Format callback time for display in the appointment's timezone
+    formatCallbackTime: function(appointment) {
+        const callbackTime = this.calculateCallbackTime(appointment);
+        if (!callbackTime) return 'Not scheduled';
+        
+        // Display in the appointment's timezone
+        const tzOffset = this.getTimezoneOffset(appointment.timezone || 'Central CDT');
+        const localTime = new Date(callbackTime.getTime() + (tzOffset * 60 * 1000));
+        
+        return localTime.toLocaleString('en-US', { 
+            month: 'short', 
+            day: 'numeric', 
+            hour: 'numeric', 
+            minute: '2-digit',
+            hour12: true,
+            timeZone: 'UTC'
+        }) + ' ' + (appointment.timezone || 'Central CDT');
+    },
+    
+    // Get the current time in a specific timezone
+    getCurrentTimeInTimezone: function(timezoneStr) {
+        const offset = this.getTimezoneOffset(timezoneStr || 'Central CDT');
+        const now = new Date();
+        const localTime = new Date(now.getTime() + (offset * 60 * 1000));
+        return localTime;
+    }
+};
+
+// ================================================================
 // UTILITY FUNCTIONS (UPDATED WITH TIMEZONE SUPPORT)
 // ================================================================
 
@@ -565,123 +784,6 @@ const Utils = {
         if (!dateStr) return false;
         const d = new Date(dateStr + 'T00:00:00');
         return !isNaN(d.getTime());
-    },
-
-    // Calculate callback time based on appointment time and callback setting
-    calculateCallbackTime(appointment) {
-        if (!appointment || !appointment.date || !appointment.callbackSetting || appointment.callbackSetting === 'none') {
-            return null;
-        }
-
-        try {
-            // Parse the appointment date and time
-            let appointmentDate;
-            if (typeof appointment.date === 'string') {
-                appointmentDate = new Date(appointment.date + 'T00:00:00');
-            } else if (appointment.date.toDate) {
-                appointmentDate = appointment.date.toDate();
-            } else {
-                appointmentDate = new Date(appointment.date);
-            }
-
-            if (isNaN(appointmentDate.getTime())) return null;
-
-            // Parse the time
-            let hour = 9, minute = 0;
-            if (appointment.time) {
-                const timeMatch = appointment.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-                if (timeMatch) {
-                    hour = parseInt(timeMatch[1]);
-                    minute = parseInt(timeMatch[2]);
-                    if (timeMatch[3].toUpperCase() === 'PM' && hour < 12) hour += 12;
-                    if (timeMatch[3].toUpperCase() === 'AM' && hour === 12) hour = 0;
-                }
-            }
-
-            // Set the appointment time
-            appointmentDate.setHours(hour, minute, 0, 0);
-
-            // Calculate callback time based on setting
-            let offsetMs = 0;
-            if (appointment.callbackSetting === '24h') {
-                offsetMs = 24 * 60 * 60 * 1000;
-            } else if (appointment.callbackSetting === '4h') {
-                offsetMs = 4 * 60 * 60 * 1000;
-            } else if (appointment.callbackSetting === '1h') {
-                offsetMs = 60 * 60 * 1000;
-            } else if (appointment.callbackSetting === 'custom' && appointment.callbackCustomValue) {
-                const value = parseInt(appointment.callbackCustomValue);
-                const unit = appointment.callbackCustomUnit || 'hours';
-                if (unit === 'hours') {
-                    offsetMs = value * 60 * 60 * 1000;
-                } else if (unit === 'minutes') {
-                    offsetMs = value * 60 * 1000;
-                } else if (unit === 'days') {
-                    offsetMs = value * 24 * 60 * 60 * 1000;
-                }
-            }
-
-            if (offsetMs === 0) return null;
-
-            const callbackTime = new Date(appointmentDate.getTime() - offsetMs);
-            return callbackTime;
-        } catch (e) {
-            console.warn('Error calculating callback time:', e);
-            return null;
-        }
-    },
-
-    // Check if a callback is due
-    isCallbackDue(appointment) {
-        if (!appointment || !appointment.callbackSetting || appointment.callbackSetting === 'none') {
-            return false;
-        }
-
-        // If callback has already been triggered, don't trigger again
-        if (appointment.callbackTriggered) {
-            return false;
-        }
-
-        const callbackTime = this.calculateCallbackTime(appointment);
-        if (!callbackTime) return false;
-
-        const now = new Date();
-        const timeDiff = now.getTime() - callbackTime.getTime();
-        
-        // Allow a 5-minute window for triggering
-        return timeDiff >= 0 && timeDiff < 5 * 60 * 1000;
-    },
-
-    // Check if a callback is missed (more than 5 minutes past due)
-    isCallbackMissed(appointment) {
-        if (!appointment || !appointment.callbackSetting || appointment.callbackSetting === 'none') {
-            return false;
-        }
-
-        if (appointment.callbackTriggered) {
-            return false;
-        }
-
-        const callbackTime = this.calculateCallbackTime(appointment);
-        if (!callbackTime) return false;
-
-        const now = new Date();
-        const timeDiff = now.getTime() - callbackTime.getTime();
-        
-        return timeDiff > 5 * 60 * 1000;
-    },
-
-    // Format callback time for display
-    formatCallbackTime(appointment) {
-        const callbackTime = this.calculateCallbackTime(appointment);
-        if (!callbackTime) return 'Not scheduled';
-        return callbackTime.toLocaleString('en-US', { 
-            month: 'short', 
-            day: 'numeric', 
-            hour: 'numeric', 
-            minute: '2-digit',
-            hour12: true 
-        });
     },
 
     // Parse timezone from text
@@ -1229,8 +1331,8 @@ const Data = {
             const status = Utils.getStatus(appt);
             if (status === 'Completed' || status === 'Canceled') continue;
             
-            // Check if callback is due
-            if (Utils.isCallbackDue(appt)) {
+            // Check if callback is due using timezone-aware calculation
+            if (TimezoneUtils.isCallbackDue(appt)) {
                 dueAppointments.push(appt);
             }
         }
@@ -1254,8 +1356,11 @@ const Data = {
             return;
         }
         
-        const callbackTime = Utils.calculateCallbackTime(appt);
+        const callbackTime = TimezoneUtils.calculateCallbackTime(appt);
         if (!callbackTime) return;
+        
+        // Format time in appointment's timezone
+        const formattedTime = TimezoneUtils.formatCallbackTime(appt);
         
         // Create notification
         const notification = document.createElement('div');
@@ -1270,7 +1375,7 @@ const Data = {
                 <strong>${Utils.escapeHtml(appt.business)}</strong> — ${Utils.escapeHtml(appt.contactName)}
                 <br>
                 <span style="font-size:0.75rem; color:var(--text-muted);">
-                    Scheduled callback at ${callbackTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                    Scheduled callback at ${formattedTime}
                 </span>
             </div>
             <div class="notification-actions">
@@ -1299,7 +1404,6 @@ const Data = {
         
         // Play notification sound if available
         try {
-            // Use Web Audio API for a simple beep
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const oscillator = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
@@ -1499,8 +1603,8 @@ const Data = {
             callbackTime: null
         };
         
-        // Calculate callback time
-        const callbackTime = Utils.calculateCallbackTime(newAppt);
+        // Calculate callback time using timezone-aware utility
+        const callbackTime = TimezoneUtils.calculateCallbackTime(newAppt);
         if (callbackTime) {
             newAppt.callbackTime = callbackTime.toISOString();
         }
@@ -1570,8 +1674,8 @@ const Data = {
         }
         
         // Recalculate callback time if date/time/callback setting changed
-        if (updates.date || updates.time || updates.callbackSetting || updates.callbackCustomValue || updates.callbackCustomUnit) {
-            const callbackTime = Utils.calculateCallbackTime(appt);
+        if (updates.date || updates.time || updates.callbackSetting || updates.callbackCustomValue || updates.callbackCustomUnit || updates.timezone) {
+            const callbackTime = TimezoneUtils.calculateCallbackTime(appt);
             if (callbackTime) {
                 appt.callbackTime = callbackTime.toISOString();
             } else {
@@ -1674,14 +1778,14 @@ const Data = {
     },
 
     exportToCSV: function(selectedIds = null) {
-        let csv = 'Business,Contact,Phone,Email,Date,Time,Timezone,Status,PrimaryStatus,Closer,Notes,Assigned,Created At,Callback Setting,Callback Time\n';
+        let csv = 'Business,Contact,Phone,Email,Date,Time,Timezone,Status,PrimaryStatus,Closer,Notes,Assigned,Created At,Callback Setting,Callback Time (UTC)\n';
         const appointments = selectedIds ? this.getSelectedAppointments(selectedIds) : this.getAllAppointments();
 
         appointments.forEach(appt => {
             const status = Utils.getStatus(appt);
             const primaryStatus = Utils.getPrimaryStatus(status);
             const createdDate = appt.createdAt ? new Date(appt.createdAt).toLocaleString() : '';
-            const callbackTime = appt.callbackTime ? new Date(appt.callbackTime).toLocaleString() : '';
+            const callbackTime = appt.callbackTime ? new Date(appt.callbackTime).toISOString() : '';
             csv += `"${appt.business || ''}","${appt.contactName || ''}","${appt.phone || ''}","${appt.email || ''}","${appt.date || ''}","${appt.time || ''}","${appt.timezone || ''}","${status}","${primaryStatus}","${appt.closer || 'Kailan'}","${appt.notes || ''}","${appt.assigned || 'Daniel'}","${createdDate}","${appt.callbackSetting || 'none'}","${callbackTime}"\n`;
         });
 
@@ -5722,6 +5826,7 @@ function showAppointmentDetail(appointmentId) {
     const callbackStatus = appt.callbackTriggered ? 'completed' : 
                           (callbackTime && new Date() > callbackTime) ? 'due' : 
                           (appt.callbackSetting && appt.callbackSetting !== 'none') ? 'scheduled' : 'none';
+    const formattedCallbackTime = callbackTime ? TimezoneUtils.formatCallbackTime(appt) : 'Not scheduled';
 
     const titleEl = DOM.get('appointmentDetailTitle');
     if (titleEl) titleEl.textContent = `📋 ${appt.business} - ${appt.contactName}`;
@@ -5775,7 +5880,7 @@ function showAppointmentDetail(appointmentId) {
                         </div>
                         <div class="callback-info">
                             <span>Setting: <strong>${appt.callbackSetting === 'custom' ? 'Custom' : appt.callbackSetting}</strong></span>
-                            ${callbackTime ? `<span>Callback at: <span class="callback-time">${callbackTime.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</span></span>` : ''}
+                            ${callbackTime ? `<span>Callback at: <span class="callback-time">${formattedCallbackTime}</span></span>` : ''}
                         </div>
                     </div>
                 ` : ''}
@@ -5897,9 +6002,11 @@ function rescheduleAppointment(appointmentId) {
         const formattedDate = Utils.parseDateStringEnhanced(newDate.trim());
         if (formattedDate) {
             const newTime = prompt('Enter new time (e.g., 2:30 PM):', appt.time || '');
+            const newTimezone = prompt('Enter timezone (e.g., Central CDT):', appt.timezone || 'Central CDT');
             Data.updateAppointment(appt.date, appt.id, { 
                 date: formattedDate,
                 time: newTime || appt.time,
+                timezone: newTimezone || appt.timezone || 'Central CDT',
                 status: 'Rescheduled',
                 callbackTriggered: false // Reset callback trigger on reschedule
             });
@@ -6003,6 +6110,9 @@ const NotificationSystem = {
             return existing;
         }
         
+        const callbackTime = TimezoneUtils.calculateCallbackTime(appt);
+        const formattedCallbackTime = callbackTime ? TimezoneUtils.formatCallbackTime(appt) : 'Not scheduled';
+        
         const notification = {
             id: id,
             appointmentId: appt.id,
@@ -6013,7 +6123,9 @@ const NotificationSystem = {
             email: appt.email || '',
             date: appt.date,
             time: appt.time,
-            callbackTime: appt.callbackTime || null,
+            timezone: appt.timezone || 'Central CDT',
+            callbackTime: callbackTime ? callbackTime.toISOString() : null,
+            formattedCallbackTime: formattedCallbackTime,
             message: `${appt.business} is ready for your callback now.`,
             timestamp: now.toISOString(),
             read: false,
@@ -6088,14 +6200,7 @@ const NotificationSystem = {
         }
         
         const isDue = notification.type === 'callback_due';
-        const callbackTime = notification.callbackTime ? 
-            new Date(notification.callbackTime).toLocaleString('en-US', { 
-                month: 'short', 
-                day: 'numeric', 
-                hour: 'numeric', 
-                minute: '2-digit',
-                hour12: true 
-            }) : 'Not scheduled';
+        const callbackTime = notification.formattedCallbackTime || 'Not scheduled';
         
         const popup = document.createElement('div');
         popup.id = popupId;
@@ -6333,14 +6438,7 @@ const NotificationSystem = {
             const isUnread = !n.read;
             const isDue = n.type === 'callback_due';
             const timeAgo = this.getTimeAgo(n.timestamp);
-            const callbackTime = n.callbackTime ? 
-                new Date(n.callbackTime).toLocaleString('en-US', { 
-                    month: 'short', 
-                    day: 'numeric', 
-                    hour: 'numeric', 
-                    minute: '2-digit',
-                    hour12: true 
-                }) : 'Not scheduled';
+            const callbackTime = n.formattedCallbackTime || 'Not scheduled';
             
             html += `
                 <div class="notification-item ${isUnread ? 'unread' : 'read'}" data-notif-id="${n.id}">
