@@ -39,17 +39,7 @@
       };
     });
 
-    // Browser-extension message-channel noise is outside ScriptFlow's runtime.
-    // Ignore only the exact known Chrome extension rejection so real app errors remain visible.
-    const rejectionHandler = (event) => {
-      const reason = event && event.reason;
-      const message = String(reason && (reason.message || reason) || '');
-      if (/A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received/i.test(message)) {
-        event.preventDefault();
-      }
-    };
-    window.addEventListener('unhandledrejection', rejectionHandler);
-    window.__scriptflowPuterConsoleGuard = { original, rejectionHandler };
+    window.__scriptflowPuterConsoleGuard = { original };
   }
 
   const Studio = {
