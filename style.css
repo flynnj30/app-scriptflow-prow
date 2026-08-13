@@ -4382,3 +4382,7 @@ body {
 @media(max-width:950px){.ts-result-layout{grid-template-columns:1fr}.ts-analysis-pane{border-top:1px solid rgba(148,163,184,.1)}.ts-transcript-pane{border-right:0;min-height:460px}.ts-search{width:220px}}
 @media(max-width:700px){.ts-upload-shell{padding:24px 14px}.ts-pro-title{font-size:1.6rem}.ts-option-row{grid-template-columns:1fr}.ts-option-row select,.ts-switch{justify-self:start}.ts-result-topbar{height:auto;min-height:52px;padding:8px}.ts-result-actions .ts-icon-btn:first-child{display:none}.ts-export-main{padding:8px 10px}.ts-transcript-toolbar{flex-wrap:wrap}.ts-transcript-label{width:100%;margin-right:0}.ts-search{width:100%;order:3}.ts-player{flex-wrap:wrap}.ts-player-time{order:5;width:100%;flex-basis:100%}.ts-map-grid{grid-template-columns:1fr}.ts-speaker-notice{align-items:flex-start}}
 
+
+
+/* ScriptFlow Pro attribution */
+.sfp-developed-by { opacity:.78; margin-top:6px; font-weight:600; }

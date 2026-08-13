@@ -22,6 +22,25 @@
     ['fi','Finnish'],['cs','Czech'],['ro','Romanian'],['hu','Hungarian'],['el','Greek'],['he','Hebrew']
   ];
 
+  // Keep Puter SDK's informational banner/noisy transport diagnostics out of the
+  // application's console. Actual transcription errors are still surfaced by
+  // Transcript Studio's error handler below.
+  function quietPuterSdkLogs() {
+    if (window.__scriptflowPuterConsoleGuard) return;
+    const original = { log: console.log, info: console.info, warn: console.warn };
+    const isPuterNoise = (args) => {
+      const text = args.map(v => { try { return typeof v === 'string' ? v : JSON.stringify(v); } catch (_) { return String(v); } }).join(' ');
+      return /api\.puter\.com|socket\.io.*WebSocket connection|Refused to set unsafe header \"Origin\"|Submit this app to the Puter App Store|Puter App Store/i.test(text);
+    };
+    ['log','info','warn'].forEach(level => {
+      console[level] = function (...args) {
+        if (isPuterNoise(args)) return;
+        return original[level].apply(console, args);
+      };
+    });
+    window.__scriptflowPuterConsoleGuard = { original };
+  }
+
   const Studio = {
     state: {
       phase: 'upload', file: null, audioUrl: '', fileName: '', transcript: '', chunks: [],
@@ -297,9 +316,10 @@
     },
 
     async ensurePuterReady() {
+      quietPuterSdkLogs();
       const sdkSrc = 'https://js.puter.com/v2/';
       const ready = () => window.puter && window.puter.ai && typeof window.puter.ai.speech2txt === 'function';
-      if (ready()) return window.puter;
+      if (ready()) { window.puter.quiet = true; return window.puter; }
 
       let existing = document.querySelector('script[data-scriptflow-puter="true"]');
       if (!existing) {
@@ -323,6 +343,7 @@
         if (Date.now() - started > 5000) throw new Error('Puter AI loaded but speech-to-text is not available.');
         await new Promise(resolve => setTimeout(resolve, 100));
       }
+      window.puter.quiet = true;
       return window.puter;
     },
 
