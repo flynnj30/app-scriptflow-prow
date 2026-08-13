@@ -362,10 +362,7 @@ const TimezoneUtils = {
         const now = new Date();
         const timeDiff = now.getTime() - callbackTime.getTime();
         
-        // Treat a callback as due once its scheduled time has arrived.
-        // The previous 5-minute window could permanently miss callbacks if
-        // the app was closed, loading, or the browser throttled the timer.
-        return timeDiff >= 0;
+        return timeDiff >= 0 && timeDiff < 5 * 60 * 1000;
     },
     
     isCallbackMissed: function(appointment) {
@@ -6420,17 +6417,29 @@ function setupEventListeners() {
     const toolsMenu = document.getElementById('toolsMenu');
     const toolsChevron = document.getElementById('toolsChevron');
     
-    if (toolsHeader && toolsMenu) {
-        toolsHeader.addEventListener('click', () => {
+    if (toolsHeader && toolsMenu && !toolsHeader.dataset.bound) {
+        toolsHeader.dataset.bound = 'true';
+        const toggleTools = () => {
             AppState.toolsOpen = !AppState.toolsOpen;
-            toolsMenu.classList.toggle('open');
-            if (toolsChevron) toolsChevron.classList.toggle('rotated');
-            toolsHeader.setAttribute('aria-expanded', AppState.toolsOpen);
+            toolsMenu.classList.toggle('open', AppState.toolsOpen);
+            if (toolsChevron) toolsChevron.classList.toggle('rotated', AppState.toolsOpen);
+            toolsHeader.setAttribute('aria-expanded', String(AppState.toolsOpen));
+        };
+        toolsHeader.addEventListener('click', toggleTools);
+        toolsHeader.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleTools();
+            }
         });
     }
     
     document.querySelectorAll('.tool-item[data-tool]').forEach(item => {
-        item.addEventListener('click', () => {
+        if (item.dataset.bound === 'true') return;
+        item.dataset.bound = 'true';
+        item.setAttribute('role', 'menuitem');
+        item.setAttribute('tabindex', '0');
+        const activateTool = () => {
             const tool = item.dataset.tool;
             switch (tool) {
                 case 'calendar':
@@ -6471,6 +6480,13 @@ function setupEventListeners() {
                     break;
                 default:
                     showToast(`Feature ${tool} coming soon!`, 'info');
+            }
+        };
+        item.addEventListener('click', activateTool);
+        item.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                activateTool();
             }
         });
     });

@@ -20,8 +20,8 @@ const NotificationSystem = {
     currentFilter: 'all',
     notificationSound: null,
     isSoundEnabled: false,
-    callbackMonitorId: null,
-    callbackMonitorStarted: false,
+    cleanupIntervalId: null,
+    eventsAttached: false,
 
     /**
      * Initialize the notification system
@@ -34,50 +34,21 @@ const NotificationSystem = {
         this.loadNotifications();
         
         // Update UI
-        this.ensureUiReady();
         this.renderBell();
         this.renderDropdown();
         this.updateBadge();
         this.attachEvents();
         
-        // Start cleanup interval
-        setInterval(() => {
-            this.cleanupExpired();
-        }, 60000);
+        // Start one cleanup interval only.
+        if (!this.cleanupIntervalId) {
+            this.cleanupIntervalId = setInterval(() => this.cleanupExpired(), 60000);
+        }
         
         // Preload notification sound
         this.preloadSound();
-
-        // Start a lightweight independent callback monitor. This keeps
-        // notifications working even if the app's normal lifecycle starts
-        // before this module is initialized or a timer is throttled.
-        this.startCallbackMonitor();
         
         console.log('🔔 Notification System initialized');
         console.log(`📬 ${this.notifications.length} notifications loaded, ${this.unreadCount} unread`);
-    },
-
-    /**
-     * Start resilient callback monitoring.
-     * Uses the existing Data.checkDueCallbacks() so appointment logic remains centralized.
-     */
-    startCallbackMonitor: function() {
-        if (this.callbackMonitorStarted) return;
-        this.callbackMonitorStarted = true;
-
-        const runCheck = () => {
-            try {
-                if (typeof Data !== 'undefined' && typeof Data.checkDueCallbacks === 'function') {
-                    Data.checkDueCallbacks();
-                }
-            } catch (error) {
-                console.warn('⚠️ Notification callback check failed:', error);
-            }
-        };
-
-        // Run immediately and then every 15 seconds for better timing accuracy.
-        runCheck();
-        this.callbackMonitorId = setInterval(runCheck, 15000);
     },
 
     /**
@@ -166,8 +137,7 @@ const NotificationSystem = {
             this.saveNotifications();
             this.updateBadge();
             this.renderDropdown();
-            // Keep the existing notification in the bell; avoid duplicate intrusive popups.
-            if (!existing._popupShown) this.showPopup(existing);
+            this.showPopup(existing);
             return existing;
         }
         
@@ -307,8 +277,9 @@ const NotificationSystem = {
      */
     showPopup: function(notification) {
         if (!notification || notification.dismissed) return;
-        // Ignore duplicate popup requests while the same notification is already visible/queued.
-        if (this.popupQueue.some(n => n.id === notification.id) || this.popupStack.includes('popup_' + notification.id)) return;
+        const alreadyQueued = this.popupQueue.some(n => n && n.id === notification.id);
+        const alreadyVisible = this.popupStack.some(id => id === 'popup_' + notification.id);
+        if (alreadyQueued || alreadyVisible) return;
         this.popupQueue.push(notification);
         this.processPopupQueue();
     },
@@ -357,17 +328,17 @@ const NotificationSystem = {
         popup.innerHTML = `
             <div class="popup-header">
                 <div class="popup-title">
-                    <span class="icon"><i class="fas ${isDue ? 'fa-phone' : 'fa-check'}"></i></span>
-                    ${isDue ? 'Callback reminder' : 'Callback completed'}
+                    <span class="icon">${isDue ? '⏰' : '✓'}</span>
+                    <span>${isDue ? 'Callback Due' : 'Callback Completed'}</span>
                 </div>
                 <button class="popup-close" data-popup-id="${popupId}" aria-label="Close notification">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             <div class="popup-body">
-                <span class="business-name">${Utils.escapeHtml(notification.business)}</span>
-                ${notification.contactName ? ` — ${Utils.escapeHtml(notification.contactName)}` : ''}
-                <div class="popup-time"><i class="far fa-clock"></i> ${callbackTime}</div>
+                <div class="business-name">${Utils.escapeHtml(notification.business || 'Unknown Business')}</div>
+                ${notification.contactName ? `<div>${Utils.escapeHtml(notification.contactName)}</div>` : ''}
+                <div class="popup-time">${Utils.escapeHtml(callbackTime)}</div>
             </div>
             <div class="popup-actions">
                 <button class="btn-icon view-btn" data-appt-id="${notification.appointmentId}">
@@ -376,9 +347,9 @@ const NotificationSystem = {
                 <button class="btn-icon dismiss-btn" data-popup-id="${popupId}" data-notif-id="${notification.id}">
                     <i class="fas fa-times"></i> Dismiss
                 </button>
-                <button class="btn-icon snooze-btn" data-notif-id="${notification.id}" data-popup-id="${popupId}">
+                ${isDue ? `<button class="btn-icon snooze-btn" data-notif-id="${notification.id}" data-popup-id="${popupId}">
                     <i class="fas fa-clock"></i> Snooze
-                </button>
+                </button>` : ''}
             </div>
         `;
         
@@ -396,8 +367,6 @@ const NotificationSystem = {
         // Attach events
         this.attachPopupEvents(popup, popupId, notification);
         
-        notification._popupShown = true;
-
         // Auto-dismiss after 8 seconds
         const timerId = setTimeout(() => {
             this.dismissPopup(popupId, notification.id);
@@ -408,7 +377,6 @@ const NotificationSystem = {
         const observer = new MutationObserver(() => {
             if (!document.getElementById(popupId)) {
                 this.popupStack = this.popupStack.filter(id => id !== popupId);
-            notification._popupShown = false;
                 observer.disconnect();
                 this.isPopupShowing = false;
                 this.processPopupQueue();
@@ -439,9 +407,12 @@ const NotificationSystem = {
             this.dismissNotification(notification.id);
         });
         
-        popup.querySelector('.snooze-btn').addEventListener('click', () => {
-            this.snoozeNotification(notification.id, popupId);
-        });
+        const snoozeBtn = popup.querySelector('.snooze-btn');
+        if (snoozeBtn) {
+            snoozeBtn.addEventListener('click', () => {
+                this.snoozeNotification(notification.id, popupId);
+            });
+        }
     },
 
     /**
@@ -612,8 +583,11 @@ const NotificationSystem = {
         // Bell animation
         const bell = document.querySelector('.notification-bell');
         if (bell) {
-            // Unread state is represented by the badge only; do not animate the navigation.
-            bell.classList.remove('has-unread');
+            if (this.unreadCount > 0) {
+                bell.classList.add('has-unread');
+            } else {
+                bell.classList.remove('has-unread');
+            }
         }
     },
 
@@ -621,8 +595,9 @@ const NotificationSystem = {
      * Animate bell
      */
     animateBell: function() {
-        // Intentionally static: unread state is shown by the badge to avoid visual blinking.
-        this.updateBadge();
+        // Notifications should never animate continuously or make the UI blink.
+        const bell = document.querySelector('.notification-bell');
+        if (bell) bell.classList.remove('has-unread');
     },
 
     /**
@@ -654,20 +629,6 @@ const NotificationSystem = {
         } catch (e) {
             // Silently fail - sound is optional
         }
-    },
-
-    /**
-     * Verify the static notification UI exists before binding handlers.
-     * The markup remains owned by index.html; this is only a defensive check.
-     */
-    ensureUiReady: function() {
-        const bell = document.getElementById('notificationBellBtn');
-        const dropdown = document.getElementById('notificationDropdown');
-        if (!bell || !dropdown) {
-            console.warn('⚠️ Notification UI not found; waiting for DOM.');
-            return false;
-        }
-        return true;
     },
 
     /**
@@ -869,6 +830,9 @@ const NotificationSystem = {
      * Attach global events
      */
     attachEvents: function() {
+        if (this.eventsAttached) return;
+        this.eventsAttached = true;
+
         // Bell button
         const bellBtn = document.getElementById('notificationBellBtn');
         if (bellBtn) {
@@ -975,7 +939,7 @@ if (typeof Data !== 'undefined') {
                 if (callbackTime) {
                     const now = new Date();
                     const timeDiff = now.getTime() - callbackTime.getTime();
-                    isDue = timeDiff >= 0 && timeDiff < 5 * 60 * 1000;
+                    isDue = timeDiff >= 0;
                 }
             }
             
