@@ -24,7 +24,7 @@
     state: {
       phase: 'upload', file: null, audioUrl: '', fileName: '', transcript: '', chunks: [],
       language: 'auto', translate: false, subtitles: true, speakerId: false,
-      summaryMode: 'off', model: 'balanced', pipeline: null, pipelineModel: '',
+      summaryMode: 'off', model: 'balanced', pipeline: null, pipelineModel: '', pipelineDevice: '', pipelineDtype: '',
       busy: false, cancelRequested: false, audioDuration: 0, sourceType: '', lastSummary: '', selectedChunkIndex: 0,
       initialized: false, uploadInputBound: false
     },
@@ -262,7 +262,8 @@
         setTimeout(() => this.renderCurrent(container), 350);
       } catch (err) {
         console.error('Transcript Studio transcription error:', err);
-        if (error) { error.hidden = false; error.textContent = this.friendlyError(err); }
+        const errorBox = container.querySelector('#tsError');
+        if (errorBox) { errorBox.hidden = false; errorBox.textContent = this.friendlyError(err); }
         content.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Transcribe for Free';
         btn.disabled = false; btn.classList.remove('loading');
         setProgress(0, 'Ready to retry.');
@@ -271,35 +272,86 @@
 
     async ensurePipeline(setProgress) {
       const model = MODELS[this.state.model] || MODELS.balanced;
-      if (this.state.pipeline && this.state.pipelineModel === model) { setProgress(18, 'AI model ready from cache.'); return; }
-      const mod = await import(HF_MODULE);
-      if (!mod || typeof mod.pipeline !== 'function') throw new Error('The transcription engine could not be loaded. Check your internet connection and try again.');
       const preferredDevice = navigator.gpu ? 'webgpu' : 'wasm';
+      const preferredDtype = preferredDevice === 'webgpu' ? 'fp16' : 'q8';
+
+      // Reuse only when the model, device, and precision all match. This avoids
+      // accidentally reusing a CPU/q8 pipeline after switching to WebGPU/fp16.
+      if (
+        this.state.pipeline &&
+        this.state.pipelineModel === model &&
+        this.state.pipelineDevice === preferredDevice &&
+        this.state.pipelineDtype === preferredDtype
+      ) {
+        setProgress(18, 'AI model ready from cache.');
+        return;
+      }
+
+      const mod = await import(HF_MODULE);
+      if (!mod || typeof mod.pipeline !== 'function') {
+        throw new Error('The transcription engine could not be loaded. Check your internet connection and try again.');
+      }
+
+      // Transformers.js emits a content-length warning when a CDN response does
+      // not expose that header. The download still works; our own progress UI
+      // handles the user-facing progress, so keep library logs to real errors.
+      try {
+        if (mod.env) {
+          if ('useBrowserCache' in mod.env) mod.env.useBrowserCache = true;
+          if ('useWasmCache' in mod.env) mod.env.useWasmCache = true;
+          if ('logLevel' in mod.env && mod.LogLevel && mod.LogLevel.ERROR !== undefined) {
+            mod.env.logLevel = mod.LogLevel.ERROR;
+          }
+        }
+      } catch (_) { /* logging/cache controls are optional */ }
+
       const progressCallback = info => {
         if (info && typeof info.progress === 'number') {
           const p = 7 + Math.min(12, info.progress * 0.12);
           setProgress(p, `Downloading AI model… ${Math.round(info.progress)}%`);
         }
       };
-      const tryModel = async (modelId, device) => mod.pipeline('automatic-speech-recognition', modelId, { device, progress_callback: progressCallback });
-      setProgress(6, `Loading ${this.modelLabel()} model (${preferredDevice === 'webgpu' ? 'GPU' : 'CPU'} mode)…`);
+
+      const tryModel = async (modelId, device, dtype) => {
+        const options = {
+          device,
+          dtype,
+          progress_callback: progressCallback
+        };
+        return mod.pipeline('automatic-speech-recognition', modelId, options);
+      };
+
+      setProgress(
+        6,
+        `Loading ${this.modelLabel()} model (${preferredDevice === 'webgpu' ? 'GPU · FP16' : 'CPU · Q8'} mode)…`
+      );
+
       try {
-        this.state.pipeline = await tryModel(model, preferredDevice);
+        this.state.pipeline = await tryModel(model, preferredDevice, preferredDtype);
         this.state.pipelineModel = model;
+        this.state.pipelineDevice = preferredDevice;
+        this.state.pipelineDtype = preferredDtype;
       } catch (firstErr) {
         if (preferredDevice === 'webgpu') {
           setProgress(9, 'GPU setup was unavailable. Switching to browser CPU mode…');
           try {
-            this.state.pipeline = await tryModel(model, 'wasm');
+            this.state.pipeline = await tryModel(model, 'wasm', 'q8');
             this.state.pipelineModel = model;
+            this.state.pipelineDevice = 'wasm';
+            this.state.pipelineDtype = 'q8';
             return;
           } catch (_) { /* continue to lightweight fallback */ }
         }
+
         if (model !== MODELS.fast) {
           setProgress(10, 'Switching to the lightweight Whisper model…');
-          this.state.pipeline = await tryModel(MODELS.fast, 'wasm');
+          this.state.pipeline = await tryModel(MODELS.fast, 'wasm', 'q8');
           this.state.pipelineModel = MODELS.fast;
-        } else throw firstErr;
+          this.state.pipelineDevice = 'wasm';
+          this.state.pipelineDtype = 'q8';
+        } else {
+          throw firstErr;
+        }
       }
     },
 
