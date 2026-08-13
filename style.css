@@ -1917,6 +1917,37 @@ body {
     align-items: center;
 }
 
+.calendar-search-wrapper {
+    min-width: 240px;
+}
+
+.calendar-search-wrapper input {
+    padding-right: 34px !important;
+}
+
+.calendar-search-clear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    border: 0;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    z-index: 2;
+}
+
+.calendar-search-clear:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
 .calendar-toolbar-right .search-wrapper i {
     position: absolute;
     left: 10px;
@@ -4321,4 +4352,15 @@ body {
 .import-record .field-row.date-field .field-value,
 .import-record .field-row.email-field .field-value {
     font-weight: 600;
+}
+
+@media (max-width: 720px) {
+    .calendar-search-wrapper {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .calendar-toolbar-right .search-wrapper input {
+        width: 100%;
+    }
 }

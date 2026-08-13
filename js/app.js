@@ -1601,8 +1601,9 @@ const Data = {
     },
 
     deleteAppointment: function(dateStr, id) {
+        const targetId = String(id);
         if (AppState.appointments[dateStr]?.reports) {
-            AppState.appointments[dateStr].reports = AppState.appointments[dateStr].reports.filter(r => r.id !== id);
+            AppState.appointments[dateStr].reports = AppState.appointments[dateStr].reports.filter(r => String(r.id) !== targetId);
             if (AppState.appointments[dateStr].reports.length === 0) delete AppState.appointments[dateStr];
             if (AppState.isFirebaseReady && AppState.currentUser) {
                 firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('appointments').doc(id.toString()).delete().catch(e => console.warn('Delete error:', e));
@@ -1618,7 +1619,8 @@ const Data = {
     updateAppointment: function(dateStr, id, updates) {
         const sourceBucket = AppState.appointments[dateStr];
         const sourceReports = sourceBucket?.reports || [];
-        const apptIndex = sourceReports.findIndex(r => r.id === id);
+        const targetId = String(id);
+        const apptIndex = sourceReports.findIndex(r => String(r.id) === targetId);
         if (apptIndex === -1) return false;
 
         const appt = sourceReports[apptIndex];
@@ -1670,9 +1672,10 @@ const Data = {
     },
 
     getAppointmentById: function(id) {
+        const target = String(id);
         for (let date in AppState.appointments) {
             if (AppState.appointments[date].reports) {
-                const found = AppState.appointments[date].reports.find(r => r.id === id);
+                const found = AppState.appointments[date].reports.find(r => String(r.id) === target);
                 if (found) return found;
             }
         }
@@ -5627,9 +5630,10 @@ const CalendarView = {
                     <span class="calendar-current-month">${monthYear}</span>
                 </div>
                 <div class="calendar-toolbar-right">
-                    <div class="search-wrapper">
+                    <div class="search-wrapper calendar-search-wrapper">
                         <i class="fas fa-search"></i>
-                        <input type="text" id="calendarSearchInput" placeholder="Search contact..." value="${AppState.calendarSearchTerm || ''}" />
+                        <input type="text" id="calendarSearchInput" placeholder="Search business, contact, phone, email..." value="${Utils.escapeHtml(AppState.calendarSearchTerm || '')}" autocomplete="off" spellcheck="false" aria-label="Search appointments" />
+                        ${AppState.calendarSearchTerm ? '<button type="button" class="calendar-search-clear" id="calendarSearchClearBtn" aria-label="Clear appointment search" title="Clear search"><i class="fas fa-times"></i></button>' : ''}
                     </div>
                     <select id="calendarTimezoneSelect" class="timezone-select">
                         <option value="Central CDT" ${AppState.calendarTimezone === 'Central CDT' ? 'selected' : ''}>Central (CDT)</option>
@@ -5885,13 +5889,8 @@ const CalendarView = {
     
     renderListView: function() {
         const allAppointments = Data.getAllAppointments();
-        const filtered = this.filterAppointments(allAppointments);
-        
+        const searched = this.filterAppointments(allAppointments);
         const searchTerm = AppState.calendarSearchTerm || '';
-        const searched = searchTerm ? filtered.filter(appt => {
-            const searchable = `${appt.business} ${appt.contactName} ${appt.phone || ''} ${appt.email || ''}`.toLowerCase();
-            return searchable.includes(searchTerm.toLowerCase());
-        }) : filtered;
         
         const grouped = {};
         searched.forEach(appt => {
@@ -5981,21 +5980,77 @@ const CalendarView = {
         return AppState.appointments[dateStr]?.reports || [];
     },
     
+    normalizeSearchText: function(value) {
+        return String(value ?? '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ')
+            .trim();
+    },
+
+    matchesAppointmentSearch: function(appt, query) {
+        const rawQuery = String(query || '').trim();
+        if (!rawQuery) return true;
+
+        const searchable = [
+            appt.business,
+            appt.contactName,
+            appt.phone,
+            appt.email,
+            appt.role,
+            appt.status,
+            appt.assigned,
+            appt.closer,
+            appt.notes,
+            appt.time,
+            appt.timezone,
+            appt.callbackSetting,
+            appt.crmLink,
+            Array.isArray(appt.tags) ? appt.tags.join(' ') : appt.tags,
+            appt.date,
+            appt.dateKey,
+            (() => {
+                if (!appt.date) return '';
+                const d = new Date(`${appt.date}T12:00:00`);
+                return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+            })()
+        ].filter(Boolean).join(' ');
+
+        const normalized = this.normalizeSearchText(searchable);
+        const normalizedQuery = this.normalizeSearchText(rawQuery);
+        const queryTokens = normalizedQuery.split(/\s+/).filter(Boolean);
+        const phoneDigits = String(appt.phone || '').replace(/\D/g, '');
+        const queryDigits = rawQuery.replace(/\D/g, '');
+
+        // All words must match, making searches predictable while still allowing partial matches.
+        const wordsMatch = queryTokens.length === 0 || queryTokens.every(token => normalized.includes(token));
+        if (wordsMatch) return true;
+
+        // Phone-number searches should work with or without formatting characters.
+        if (queryDigits.length >= 3 && phoneDigits.includes(queryDigits)) return true;
+
+        // Also allow an exact phrase match when the user pastes a full name/business phrase.
+        return normalized.includes(normalizedQuery);
+    },
+
     filterAppointments: function(appointments) {
-        const filters = AppState.calendarFilters;
+        const filters = AppState.calendarFilters || {};
+        const searchTerm = AppState.calendarSearchTerm || '';
+
         return appointments.filter(appt => {
             const status = Utils.getStatus(appt);
             const isMeeting = ['Hot Transfer', 'Meeting Booked', 'Held'].includes(status);
             const isCallback = status === 'Warm Callback';
             const isFollowup = ['Pending', 'Rescheduled'].includes(status);
-            
-            const showMeeting = filters.meetings && isMeeting;
-            const showCallback = filters.callbacks && isCallback;
-            const showFollowup = filters.followups && isFollowup;
-            
-            if (!filters.meetings && !filters.callbacks && !filters.followups) return true;
-            
-            return showMeeting || showCallback || showFollowup;
+
+            const hasActiveTypeFilter = !!(filters.meetings || filters.callbacks || filters.followups);
+            const matchesType = !hasActiveTypeFilter ||
+                (filters.meetings && isMeeting) ||
+                (filters.callbacks && isCallback) ||
+                (filters.followups && isFollowup);
+
+            return matchesType && this.matchesAppointmentSearch(appt, searchTerm);
         });
     },
     
@@ -6070,6 +6125,39 @@ const CalendarView = {
             AppState.activeDate = targetDate;
             showToast(`Moved ${appt.business || 'appointment'} to ${Utils.formatDate(targetDate)}${nextTime ? ` at ${nextTime}` : ''}`, 'success');
         }
+    },
+
+    attachCalendarInteractionEvents: function(container) {
+        // Re-bind only the calendar body interactions after a live search update.
+        container.querySelectorAll('.calendar-draggable-event').forEach(eventEl => {
+            eventEl.addEventListener('dragstart', (e) => this.handleAppointmentDragStart(e));
+            eventEl.addEventListener('dragend', (e) => this.handleAppointmentDragEnd(e));
+            eventEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = eventEl.getAttribute('data-id');
+                if (id && window.showAppointmentDetail) window.showAppointmentDetail(id);
+            });
+        });
+        container.querySelectorAll('.calendar-day').forEach(day => {
+            day.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; day.classList.add('drag-over'); });
+            day.addEventListener('dragleave', () => day.classList.remove('drag-over'));
+            day.addEventListener('drop', (e) => { day.classList.remove('drag-over'); this.handleCalendarDrop(e, day.getAttribute('data-date')); });
+        });
+        container.querySelectorAll('.calendar-drop-slot').forEach(slot => {
+            slot.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; slot.classList.add('drag-over'); });
+            slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+            slot.addEventListener('drop', (e) => { slot.classList.remove('drag-over'); this.handleCalendarDrop(e, slot.getAttribute('data-date'), parseInt(slot.getAttribute('data-hour'), 10)); });
+        });
+        container.querySelectorAll('.calendar-day').forEach(day => {
+            day.addEventListener('dblclick', () => {
+                const date = day.getAttribute('data-date');
+                if (date) { Utils.setActiveDate(date); FeaturePanel.openQuickAdd(date); }
+            });
+            day.addEventListener('click', () => {
+                const date = day.getAttribute('data-date');
+                if (date) { AppState.selectedCalDate = date; AppState.activeDate = date; }
+            });
+        });
     },
 
     attachEvents: function(container) {
@@ -6169,14 +6257,53 @@ const CalendarView = {
         });
         
         const searchInput = container.querySelector('#calendarSearchInput');
+        const searchClear = container.querySelector('#calendarSearchClearBtn');
+        const refreshSearchResults = () => {
+            const body = container.querySelector('.calendar-body');
+            if (!body) return;
+            const mode = AppState.calendarViewMode || 'month';
+            body.innerHTML = mode === 'month' ? this.renderMonthView() :
+                mode === 'week' ? this.renderWeekView() :
+                mode === 'day' ? this.renderDayView() :
+                this.renderListView();
+            this.attachCalendarInteractionEvents(container);
+        };
+
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
-                AppState.calendarSearchTerm = e.target.value;
-                if (AppState.calendarViewMode === 'list') {
-                    this.render(container);
-                }
+                AppState.calendarSearchTerm = e.target.value.trimStart();
+                refreshSearchResults();
+                // Keep focus and caret position because only the calendar body is re-rendered.
+                searchInput.focus({ preventScroll: true });
+                const end = searchInput.value.length;
+                try { searchInput.setSelectionRange(end, end); } catch (_) {}
+                const clear = container.querySelector('#calendarSearchClearBtn');
+                if (clear) clear.addEventListener('click', clearSearch, { once: true });
             });
         }
+
+        const clearSearch = () => {
+            AppState.calendarSearchTerm = '';
+            const body = container.querySelector('.calendar-body');
+            if (body) {
+                const mode = AppState.calendarViewMode || 'month';
+                body.innerHTML = mode === 'month' ? this.renderMonthView() :
+                    mode === 'week' ? this.renderWeekView() :
+                    mode === 'day' ? this.renderDayView() :
+                    this.renderListView();
+                this.attachCalendarInteractionEvents(container);
+            }
+            const input = container.querySelector('#calendarSearchInput');
+            if (input) { input.value = ''; input.focus({ preventScroll: true }); }
+            const clear = container.querySelector('#calendarSearchClearBtn');
+            if (clear) clear.removeEventListener('click', clearSearch);
+            // Rebuild the toolbar only when clearing so the clear button disappears.
+            this.render(container);
+            const nextInput = container.querySelector('#calendarSearchInput');
+            if (nextInput) nextInput.focus({ preventScroll: true });
+        };
+
+        if (searchClear) searchClear.addEventListener('click', clearSearch);
         
         const timezoneSelect = container.querySelector('#calendarTimezoneSelect');
         if (timezoneSelect) {
@@ -6444,7 +6571,11 @@ function performGlobalSearch(query) {
     for (let date in AppState.appointments) {
         if (AppState.appointments[date].reports) {
             AppState.appointments[date].reports.forEach(appt => {
-                const searchable = `${appt.business} ${appt.contactName} ${appt.phone || ''} ${appt.email || ''} ${appt.notes || ''}`.toLowerCase();
+                const searchable = [
+                    appt.business, appt.contactName, appt.phone, appt.email, appt.notes,
+                    appt.role, appt.status, appt.assigned, appt.closer, appt.time,
+                    appt.timezone, appt.date, Array.isArray(appt.tags) ? appt.tags.join(' ') : appt.tags
+                ].filter(Boolean).join(' ').toLowerCase();
                 if (searchable.includes(q)) {
                     searchResults.push({ type: 'appointment', data: appt, date: date });
                 }
@@ -6453,13 +6584,16 @@ function performGlobalSearch(query) {
     }
 
     AppState.tasks.forEach(task => {
-        if (task.description.toLowerCase().includes(q)) {
+        const description = String(task?.description || '').toLowerCase();
+        if (description.includes(q)) {
             searchResults.push({ type: 'task', data: task });
         }
     });
 
-    for (const [id, script] of Object.entries(AppState.scripts)) {
-        if (script.name.toLowerCase().includes(q) || script.content.toLowerCase().includes(q)) {
+    for (const [id, script] of Object.entries(AppState.scripts || {})) {
+        const name = String(script?.name || '');
+        const content = String(script?.content || '');
+        if (name.toLowerCase().includes(q) || content.toLowerCase().includes(q)) {
             searchResults.push({ type: 'script', data: { id, ...script } });
         }
     }
