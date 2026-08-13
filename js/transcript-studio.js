@@ -48,7 +48,7 @@
       language: 'auto', translate: false, subtitles: true, speakerId: false,
       summaryMode: 'off', model: 'balanced', provider: 'openai', puterModel: PUTER_MODELS.balanced,
       busy: false, cancelRequested: false, audioDuration: 0, sourceType: '', lastSummary: '', selectedChunkIndex: 0,
-      initialized: false, uploadInputBound: false
+      initialized: false, uploadInputBound: false, historyLoaded: false, history: [], historyOpen: false
     },
 
     init() {
@@ -69,6 +69,9 @@
       this.state.transcript = '';
       this.state.chunks = [];
       this.state.sourceType = '';
+      this.state.aiBooking = null;
+      this.state.historyId = null;
+      this.state.historyCreatedAt = null;
       container.innerHTML = this.uploadView();
       this.bindUpload(container);
     },
@@ -168,6 +171,7 @@
           this.state.transcript = this.cleanTranscript(String(reader.result || ''));
           this.state.chunks = this.state.transcript ? [{ start: 0, end: 0, text: this.state.transcript }] : [];
           this.state.phase = 'result';
+          this.saveTranscriptHistory();
           this.renderCurrent(container);
         };
         reader.readAsText(file);
@@ -297,6 +301,7 @@
         }
 
         setProgress(97, 'Finalizing transcript…');
+        await this.saveTranscriptHistory();
         this.state.phase = 'result';
         setProgress(100, 'Transcription complete.');
         setTimeout(() => this.renderCurrent(container), 300);
@@ -708,7 +713,7 @@
       const duration = this.state.audioDuration || (this.state.chunks.length ? this.state.chunks[this.state.chunks.length - 1].end : 0);
       return `
       <div class="ts-pro ts-result-page">
-        <div class="ts-result-topbar"><button class="ts-back-btn" id="tsBack"><i class="fas fa-chevron-left"></i></button><div class="ts-result-title"><strong>${this.esc(title)}</strong><span>${this.state.sourceType === 'audio' ? this.formatDuration(duration) : 'Transcript file'}</span></div><div class="ts-result-actions"><button class="ts-icon-btn" id="tsShare" title="Share"><i class="fas fa-share-nodes"></i></button><button class="ts-icon-btn" id="tsMore" title="More"><i class="fas fa-ellipsis"></i></button><button class="ts-export-main" id="tsExportMenu"><i class="fas fa-download"></i> Export</button></div></div><div class="ts-booking-card" id="tsBookingCard"><div class="ts-booking-head"><div><span class="ts-booking-kicker"><i class="fas fa-calendar-check"></i> Booking-ready details</span><h3>Appointment Submission Format</h3><p>Auto-filled from the transcript. Missing details are marked <b>Not specified</b>.</p></div><div class="ts-booking-actions"><button class="ts-mini-btn ts-ai-booking-btn" id="tsAnalyzeBooking" title="Use AI to analyze this transcript and populate the booking format"><i class="fas fa-wand-magic-sparkles"></i> <span>AI Analyze &amp; Populate</span></button><button class="ts-mini-btn" id="tsCopyBooking"><i class="far fa-copy"></i> Copy</button><button class="ts-mini-btn" id="tsSendBooking"><i class="fas fa-file-import"></i> Send to Smart Import</button></div></div><textarea id="tsBookingText" class="ts-booking-text" spellcheck="false">${this.esc(this.bookingFormat(this.extractBookingData(this.state.transcript)))}</textarea></div>
+        <div class="ts-result-topbar"><button class="ts-back-btn" id="tsBack"><i class="fas fa-chevron-left"></i></button><div class="ts-result-title"><strong>${this.esc(title)}</strong><button class="ts-history-name" id="tsHistoryName" title="Open transcript history"><i class="fas fa-clock-rotate-left"></i> ${this.esc(this.getCurrentContactName())}</button><span>${this.state.sourceType === 'audio' ? this.formatDuration(duration) : 'Transcript file'}</span></div><div class="ts-result-actions"><button class="ts-icon-btn" id="tsShare" title="Share"><i class="fas fa-share-nodes"></i></button><button class="ts-icon-btn" id="tsMore" title="More"><i class="fas fa-ellipsis"></i></button><button class="ts-export-main" id="tsExportMenu"><i class="fas fa-download"></i> Export</button></div></div><div class="ts-booking-card" id="tsBookingCard"><div class="ts-booking-head"><div><span class="ts-booking-kicker"><i class="fas fa-calendar-check"></i> Booking-ready details</span><h3>Appointment Submission Format</h3><p>Auto-filled from the transcript. Missing details are marked <b>Not specified</b>.</p></div><div class="ts-booking-actions"><button class="ts-mini-btn ts-ai-booking-btn" id="tsAnalyzeBooking" title="Use AI to analyze this transcript and populate the booking format"><i class="fas fa-wand-magic-sparkles"></i> <span>AI Analyze &amp; Populate</span></button><button class="ts-mini-btn" id="tsCopyBooking"><i class="far fa-copy"></i> Copy</button><button class="ts-mini-btn" id="tsSendBooking"><i class="fas fa-file-import"></i> Send to Smart Import</button></div></div><textarea id="tsBookingText" class="ts-booking-text" spellcheck="false">${this.esc(this.bookingFormat(this.extractBookingData(this.state.transcript)))}</textarea></div>
         <div class="ts-result-layout">
           <section class="ts-transcript-pane">
             <div class="ts-transcript-toolbar"><div class="ts-transcript-label"><strong>Transcript</strong><span>${this.formatDuration(duration)}</span></div><label class="ts-search"><i class="fas fa-search"></i><input id="tsSearch" placeholder="Search transcript" /></label><button class="ts-icon-btn" id="tsCopy" title="Copy"><i class="far fa-copy"></i></button><button class="ts-icon-btn" id="tsTranslateQuick" title="Translate to English"><i class="fas fa-language"></i></button></div>
@@ -721,6 +726,7 @@
             <div id="tsAnalysisBody">${this.summaryPanel(summary)}</div>
           </aside>
         </div>
+        <div class="ts-history-drawer" id="tsHistoryDrawer" hidden><div class="ts-history-head"><div><strong>Transcript History</strong><span>Saved transcripts for your account</span></div><button id="tsCloseHistory" class="ts-icon-btn" title="Close"><i class="fas fa-xmark"></i></button></div><div id="tsHistoryList" class="ts-history-list"><div class="ts-history-loading"><i class="fas fa-spinner fa-spin"></i> Loading history…</div></div></div>
         <div class="ts-export-drawer" id="tsExportDrawer" hidden><div><strong>Export transcript</strong><button id="tsCloseExport" class="ts-icon-btn"><i class="fas fa-xmark"></i></button></div><div class="ts-export-grid"><button data-export="txt">TXT</button><button data-export="srt">SRT</button><button data-export="vtt">VTT</button><button data-export="csv">CSV</button><button data-export="doc">Word</button><button data-export="pdf">PDF / Print</button></div></div>
         <audio id="tsAudio" preload="metadata" src="${this.esc(this.state.audioUrl)}"></audio>
       </div>`;
@@ -757,6 +763,8 @@
       const bookingSend=container.querySelector('#tsSendBooking'); if(bookingSend) bookingSend.onclick=()=>this.sendBookingToSmartImport(container);
       container.querySelector('#tsBack').onclick=()=>{this.revokeUrl();this.state.phase='upload';this.renderCurrent(container);};
       container.querySelector('#tsShare').onclick=()=>this.shareTranscript();
+      const historyName=container.querySelector('#tsHistoryName'); if(historyName) historyName.onclick=()=>this.openHistory(container);
+      const closeHistory=container.querySelector('#tsCloseHistory'); if(closeHistory) closeHistory.onclick=()=>this.closeHistory(container);
       container.querySelector('#tsTranslateQuick').onclick=()=>this.quickTranslate(container);
       const add=container.querySelector('#tsAddSpeaker'); if(add)add.onclick=()=>this.addSpeakerLabel(container);
       container.querySelectorAll('[data-analysis]').forEach(tab=>tab.onclick=()=>this.renderAnalysisTab(container,tab.dataset.analysis));
@@ -857,6 +865,10 @@ Every scalar value must be a string. Every missing value must be "Not specified"
         const normalized = this.normalizeAIBooking(aiData, deterministic);
         output.value = this.bookingFormat(normalized);
         output.dispatchEvent(new Event('input', { bubbles: true }));
+        this.state.aiBooking = normalized;
+        await this.saveTranscriptHistory(normalized);
+        const nameButton = container.querySelector('#tsHistoryName');
+        if (nameButton) nameButton.innerHTML = `<i class="fas fa-clock-rotate-left"></i> ${this.esc(normalized.name || 'Not specified')}`;
         setStatus('AI analysis complete. Review the booking details before sending them to Smart Import.');
         if (typeof showToast === 'function') showToast('AI populated the booking format. Please review before saving.', 'success');
       } catch (error) {
@@ -939,6 +951,141 @@ Every scalar value must be a string. Every missing value must be "Not specified"
 
       this.copyText(text);
       if (typeof showToast === 'function') showToast('Booking format copied. Paste it into Smart Import.', 'info');
+    },
+
+    getCurrentContactName() {
+      const ai = this.state.aiBooking;
+      if (ai && ai.name && ai.name !== 'Not specified') return ai.name;
+      const data = this.extractBookingData(this.state.transcript);
+      return data.name && data.name !== 'Not specified' ? data.name : 'Transcript History';
+    },
+
+    historyKey() {
+      const user = (typeof AppState !== 'undefined' ? AppState.currentUser : null) || null;
+      const id = user?.uid || user?.email || 'offline';
+      return `scriptflow_transcript_history_${String(id).replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
+    },
+
+    async saveTranscriptHistory(bookingOverride = null) {
+      const transcript = String(this.state.transcript || '').trim();
+      if (!transcript) return;
+      const fallback = this.extractBookingData(transcript);
+      const booking = bookingOverride || this.state.aiBooking || fallback;
+      const id = this.state.historyId || `th_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      this.state.historyId = id;
+      const now = new Date().toISOString();
+      const record = {
+        id,
+        name: booking.name || fallback.name || 'Not specified',
+        business: booking.business || fallback.business || 'Not specified',
+        role: booking.role || fallback.role || 'Not specified',
+        phone: booking.phone || fallback.phone || 'Not specified',
+        email: booking.email || fallback.email || 'Not specified',
+        dateTime: booking.dateTime || fallback.dateTime || 'Not specified',
+        bookingText: this.bookingFormat(booking.business ? booking : fallback),
+        transcript,
+        chunks: Array.isArray(this.state.chunks) ? this.state.chunks.map(c => ({ start: Number(c.start)||0, end: Number(c.end)||0, text: String(c.text||'') })) : [],
+        fileName: this.state.fileName || 'Transcript',
+        sourceType: 'text',
+        createdAt: this.state.historyCreatedAt || now,
+        updatedAt: now
+      };
+      this.state.historyCreatedAt = record.createdAt;
+
+      // Fast local history so the user can reopen it even when Firestore is unavailable.
+      try {
+        const existing = JSON.parse(localStorage.getItem(this.historyKey()) || '[]');
+        const index = existing.findIndex(x => x.id === id);
+        if (index >= 0) existing[index] = record; else existing.unshift(record);
+        localStorage.setItem(this.historyKey(), JSON.stringify(existing.slice(0, 100)));
+        this.state.history = existing.slice(0, 100);
+      } catch (_) {}
+
+      // Sync per-user history to the existing Firebase account when available.
+      try {
+        const user = (typeof AppState !== 'undefined' ? AppState.currentUser : null);
+        if (user && typeof firebase !== 'undefined' && firebase.firestore) {
+          await firebase.firestore().collection('users').doc(user.uid).collection('transcriptHistory').doc(id).set(record, { merge: true });
+        }
+      } catch (error) {
+        console.warn('Transcript history cloud sync skipped:', error?.message || error);
+      }
+    },
+
+    async loadTranscriptHistory() {
+      const local = (() => { try { return JSON.parse(localStorage.getItem(this.historyKey()) || '[]'); } catch (_) { return []; } })();
+      this.state.history = Array.isArray(local) ? local : [];
+      try {
+        const user = (typeof AppState !== 'undefined' ? AppState.currentUser : null);
+        if (user && typeof firebase !== 'undefined' && firebase.firestore) {
+          const snap = await firebase.firestore().collection('users').doc(user.uid).collection('transcriptHistory').orderBy('updatedAt', 'desc').limit(100).get();
+          const cloud = [];
+          snap.forEach(doc => cloud.push({ ...doc.data(), id: doc.id }));
+          const merged = [...cloud, ...this.state.history];
+          const byId = new Map(merged.map(item => [item.id, item]));
+          this.state.history = Array.from(byId.values()).sort((a,b) => String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))).slice(0,100);
+          localStorage.setItem(this.historyKey(), JSON.stringify(this.state.history));
+        }
+      } catch (error) {
+        console.warn('Transcript history cloud load skipped:', error?.message || error);
+      }
+      this.state.historyLoaded = true;
+      return this.state.history;
+    },
+
+    async openHistory(container) {
+      const drawer = container.querySelector('#tsHistoryDrawer');
+      if (!drawer) return;
+      drawer.hidden = false;
+      drawer.classList.add('open');
+      const list = drawer.querySelector('#tsHistoryList');
+      if (list) list.innerHTML = '<div class="ts-history-loading"><i class="fas fa-spinner fa-spin"></i> Loading history…</div>';
+      const history = await this.loadTranscriptHistory();
+      if (!history.length) {
+        if (list) list.innerHTML = '<div class="ts-history-empty"><i class="fas fa-clock-rotate-left"></i><strong>No transcript history yet</strong><span>Your completed transcripts will appear here automatically.</span></div>';
+        return;
+      }
+      if (list) list.innerHTML = history.map(item => `
+        <button class="ts-history-item ${item.id === this.state.historyId ? 'active' : ''}" data-history-id="${this.esc(item.id)}">
+          <span class="ts-history-avatar"><i class="fas fa-user"></i></span>
+          <span class="ts-history-meta"><strong>${this.esc(item.name || 'Not specified')}</strong><span>${this.esc(item.business || 'Not specified')}</span><small>${this.esc(item.dateTime || this.formatHistoryDate(item.updatedAt))}</small></span>
+          <i class="fas fa-chevron-right"></i>
+        </button>`).join('');
+      list?.querySelectorAll('[data-history-id]').forEach(btn => btn.onclick = () => this.loadHistoryRecord(btn.dataset.historyId, container));
+    },
+
+    closeHistory(container) {
+      const drawer = container.querySelector('#tsHistoryDrawer');
+      if (drawer) { drawer.hidden = true; drawer.classList.remove('open'); }
+    },
+
+    formatHistoryDate(value) {
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? 'Saved transcript' : d.toLocaleString([], { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
+    },
+
+    async loadHistoryRecord(id, container) {
+      const history = await this.loadTranscriptHistory();
+      const record = history.find(x => x.id === id);
+      if (!record) return;
+      this.revokeUrl();
+      this.state.historyId = record.id;
+      this.state.historyCreatedAt = record.createdAt;
+      this.state.fileName = record.fileName || 'Transcript';
+      this.state.file = null;
+      this.state.audioUrl = '';
+      this.state.sourceType = 'text';
+      this.state.transcript = String(record.transcript || '');
+      this.state.chunks = Array.isArray(record.chunks) && record.chunks.length ? record.chunks : this.chunksFromText(this.state.transcript, 0);
+      this.state.aiBooking = {
+        business: record.business || 'Not specified', name: record.name || 'Not specified', role: record.role || 'Not specified',
+        phone: record.phone || 'Not specified', email: record.email || 'Not specified', dateTime: record.dateTime || 'Not specified',
+        notes: 'Attendees: Not specified\nCurrent setup: Not specified\nWebsite goal: Not specified\nWhat to show: Not specified\nInterest and attitude: Not specified\nObjection/Concern: Not specified\nMeeting angle: Not specified'
+      };
+      this.state.phase = 'result';
+      this.closeHistory(container);
+      this.renderCurrent(container);
+      if (typeof showToast === 'function') showToast(`Loaded transcript for ${record.name || 'Not specified'}.`, 'success');
     },
 
     renderAnalysisTab(container, tab) {
