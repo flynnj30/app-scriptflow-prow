@@ -240,8 +240,10 @@
 
       try {
         await this.ensurePuterReady();
+        setProgress(5, 'Connecting to Puter AI…');
+        await this.ensurePuterAuthorized();
 
-        setProgress(6, 'Preparing your audio…');
+        setProgress(8, 'Preparing your audio…');
         const source = this.state.file;
         const options = this.buildPuterOptions();
         const label = this.state.speakerId ? 'speaker-aware transcription' : 'accurate transcription';
@@ -257,7 +259,7 @@
           setProgress(progress, progress < 45 ? 'Transcribing audio…' : 'Refining transcript and timestamps…');
         }, 900);
 
-        const output = await puter.ai.speech2txt(source, options);
+        const output = await this.runPuterTranscription(source, options, 2);
         if (ticker) clearInterval(ticker);
         ticker = null;
 
@@ -295,25 +297,73 @@
     },
 
     async ensurePuterReady() {
-      if (window.puter && puter.ai && typeof puter.ai.speech2txt === 'function') return;
-      const existing = document.querySelector('script[src="https://js.puter.com/v2/"]');
+      const sdkSrc = 'https://js.puter.com/v2/';
+      const ready = () => window.puter && window.puter.ai && typeof window.puter.ai.speech2txt === 'function';
+      if (ready()) return window.puter;
+
+      let existing = document.querySelector('script[data-scriptflow-puter="true"]');
       if (!existing) {
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = 'https://js.puter.com/v2/';
-          script.async = true;
-          script.onload = resolve;
-          script.onerror = () => reject(new Error('Puter AI could not be loaded. Check your internet connection and try again.'));
-          document.head.appendChild(script);
-        });
+        existing = document.createElement('script');
+        existing.src = sdkSrc;
+        existing.async = true;
+        existing.defer = true;
+        existing.dataset.scriptflowPuter = 'true';
+        document.head.appendChild(existing);
       }
+
+      await new Promise((resolve, reject) => {
+        if (ready()) return resolve();
+        const timeout = setTimeout(() => reject(new Error('Puter AI did not finish loading within 15 seconds.')), 15000);
+        existing.addEventListener('load', () => { clearTimeout(timeout); resolve(); }, { once: true });
+        existing.addEventListener('error', () => { clearTimeout(timeout); reject(new Error('Puter AI could not be loaded. Check your connection and try again.')); }, { once: true });
+      });
+
       const started = Date.now();
-      while (!(window.puter && puter.ai && typeof puter.ai.speech2txt === 'function')) {
-        if (Date.now() - started > 12000) {
-          throw new Error('Puter AI did not finish loading. Refresh the page and try again.');
-        }
-        await new Promise(resolve => setTimeout(resolve, 150));
+      while (!ready()) {
+        if (Date.now() - started > 5000) throw new Error('Puter AI loaded but speech-to-text is not available.');
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
+      return window.puter;
+    },
+
+    async ensurePuterAuthorized() {
+      const sdk = await this.ensurePuterReady();
+      try {
+        if (sdk.auth && typeof sdk.auth.isSignedIn === 'function' && sdk.auth.isSignedIn()) return true;
+        // Use Puter's in-page authentication dialog when available. This keeps
+        // authentication tied to the user's Transcribe click instead of
+        // allowing the SDK to silently launch a background popup.
+        if (sdk.ui && typeof sdk.ui.authenticateWithPuter === 'function') {
+          await sdk.ui.authenticateWithPuter();
+          return !sdk.auth || typeof sdk.auth.isSignedIn !== 'function' || sdk.auth.isSignedIn();
+        }
+        return true;
+      } catch (error) {
+        if (error && /cancel|closed|dismiss/i.test(String(error.message || error))) {
+          throw new Error('Puter authorization was cancelled.');
+        }
+        throw error;
+      }
+    },
+
+    async runPuterTranscription(source, options, attempts = 2) {
+      const sdk = window.puter;
+      if (!sdk || !sdk.ai || typeof sdk.ai.speech2txt !== 'function') {
+        throw new Error('Puter AI speech-to-text is unavailable.');
+      }
+      let lastError;
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+          return await sdk.ai.speech2txt(source, options);
+        } catch (error) {
+          lastError = error;
+          const message = String(error && (error.message || error.error || error) || '');
+          const retryable = /network|fetch|timeout|websocket|socket|gateway|connection|temporar|service unavailable|closed before/i.test(message);
+          if (!retryable || attempt >= attempts) throw error;
+          await new Promise(resolve => setTimeout(resolve, 1200 * attempt));
+        }
+      }
+      throw lastError || new Error('Transcription failed.');
     },
 
     buildPuterOptions() {
@@ -427,7 +477,7 @@
       if (/sign.?in|auth|permission|puter account/i.test(message)) return 'Puter AI needs authorization to transcribe this recording. Please sign in to Puter when prompted and try again.';
       if (/file|blob|size|payload|too large/i.test(message)) return 'The audio file could not be submitted. Try a shorter recording or a smaller compressed file.';
       if (/unsupported|format|codec|decode/i.test(message)) return 'This audio format is not supported by the transcription service. Try MP3, WAV, M4A, OGG/OPUS, or FLAC.';
-      if (/network|fetch|timeout|connection|gateway|service/i.test(message)) return 'The transcription service could not be reached. Check your connection and try again.';
+      if (/network|fetch|timeout|connection|gateway|service|websocket|socket|closed before/i.test(message)) return 'Puter AI could not establish a stable connection. Please try again; the app will automatically retry transient connection failures.';
       return message;
     },
 
@@ -555,8 +605,9 @@
       button.disabled=true;button.classList.add('loading');button.innerHTML='<i class="fas fa-spinner fa-spin"></i>';
       try{
         await this.ensurePuterReady();
+        await this.ensurePuterAuthorized();
         const options={provider:'openai',model:'whisper-1',translate:true,response_format:'verbose_json',timestamp_granularities:['segment']};
-        const output=await puter.ai.speech2txt(this.state.file,options);
+        const output=await this.runPuterTranscription(this.state.file,options,2);
         this.applyPuterResult(output);
         this.state.translate=true;
         container.innerHTML=this.resultView();
