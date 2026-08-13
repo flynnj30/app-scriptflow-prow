@@ -14,6 +14,17 @@
     balanced: 'gpt-4o-transcribe',
     accurate: 'gpt-4o-transcribe'
   };
+
+  // Booking-data analysis uses Google Gemini through Puter.js. This is intentionally
+  // isolated from the speech-to-text engine above so changing the booking AI provider
+  // does not alter transcription, translation, timestamps, or diarization behavior.
+  // Puter currently documents Gemini through puter.ai.chat(); model availability can
+  // change, so the helper below uses a documented Gemini model with a second Google
+  // fallback rather than silently returning to OpenAI.
+  const GOOGLE_BOOKING_AI_MODELS = [
+    'gemini-3.1-flash-lite',
+    'gemini-2.5-flash'
+  ];
   const LANGUAGES = [
     ['auto','Auto-detect'],['en','English'],['es','Spanish'],['fr','French'],['de','German'],['it','Italian'],
     ['pt','Portuguese'],['nl','Dutch'],['pl','Polish'],['tr','Turkish'],['ru','Russian'],['uk','Ukrainian'],
@@ -46,7 +57,7 @@
     state: {
       phase: 'upload', file: null, audioUrl: '', fileName: '', transcript: '', chunks: [],
       language: 'auto', translate: false, subtitles: true, speakerId: false,
-      summaryMode: 'off', model: 'balanced', provider: 'openai', puterModel: PUTER_MODELS.balanced,
+      summaryMode: 'off', model: 'balanced', provider: 'google', puterModel: PUTER_MODELS.balanced,
       busy: false, cancelRequested: false, audioDuration: 0, sourceType: '', lastSummary: '', selectedChunkIndex: 0,
       initialized: false, uploadInputBound: false, historyLoaded: false, history: [], historyOpen: false, historyCloudDisabled: false, historyCloudChecked: false
     },
@@ -772,6 +783,30 @@
       const mapExport=container.querySelector('#tsExportMap'); if(mapExport) mapExport.onclick=()=>this.exportMindMap();
     },
 
+    async runGoogleBookingAnalysis(sdk, messages) {
+      if (!sdk?.ai || typeof sdk.ai.chat !== 'function') {
+        throw new Error('Google Gemini AI is unavailable through Puter.js. Please refresh and try again.');
+      }
+
+      let lastError = null;
+      for (const model of GOOGLE_BOOKING_AI_MODELS) {
+        try {
+          return await sdk.ai.chat(messages, {
+            model,
+            temperature: 0,
+            max_tokens: 1800
+          });
+        } catch (error) {
+          lastError = error;
+          const message = String(error?.message || error?.error || error || '');
+          const modelUnavailable = /model|not found|unsupported|unavailable|does not exist|invalid/i.test(message);
+          if (!modelUnavailable) throw error;
+        }
+      }
+
+      throw lastError || new Error('Google Gemini AI could not complete the booking analysis.');
+    },
+
     async analyzeBookingWithAI(container, button) {
       const transcript = String(this.state.transcript || '').trim();
       const output = container.querySelector('#tsBookingText');
@@ -801,7 +836,7 @@
       };
 
       try {
-        setStatus('AI is analyzing the captured transcript and mapping booking details…');
+        setStatus('Google Gemini is analyzing the captured transcript and mapping booking details…');
         const sdk = await this.ensurePuterReady();
         await this.ensurePuterAuthorized();
         if (!sdk?.ai || typeof sdk.ai.chat !== 'function') {
@@ -846,15 +881,11 @@ Return exactly this JSON object and no markdown:
 
 Every scalar value must be a string. Every missing value must be "Not specified".`;
 
-        setStatus('Extracting names, contact details, schedule, goals, objections, and meeting angle…');
-        const response = await sdk.ai.chat([
+        setStatus('Google Gemini is extracting names, contact details, schedule, goals, objections, and meeting angle…');
+        const response = await this.runGoogleBookingAnalysis(sdk, [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `TRANSCRIPT:\n${boundedTranscript}` }
-        ], {
-          model: 'gpt-5.4-nano',
-          temperature: 0,
-          max_tokens: 1800
-        });
+        ]);
 
         const raw = this.extractChatText(response);
         const aiData = this.parseBookingAIJson(raw);
@@ -865,8 +896,8 @@ Every scalar value must be a string. Every missing value must be "Not specified"
         await this.saveTranscriptHistory(normalized);
         const nameButton = container.querySelector('#tsHistoryName');
         if (nameButton) nameButton.innerHTML = `<i class="fas fa-clock-rotate-left"></i> ${this.esc(normalized.name || 'Not specified')}`;
-        setStatus('AI analysis complete. Review the booking details before sending them to Smart Import.');
-        if (typeof showToast === 'function') showToast('AI populated the booking format. Please review before saving.', 'success');
+        setStatus('Google Gemini analysis complete. Review the booking details before sending them to Smart Import.');
+        if (typeof showToast === 'function') showToast('Google Gemini populated the booking format. Please review before saving.', 'success');
       } catch (error) {
         console.error('AI booking analysis failed:', error);
         setStatus('AI analysis could not be completed. The original transcript-based extraction is still available.');
