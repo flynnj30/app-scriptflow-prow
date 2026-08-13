@@ -1,16 +1,18 @@
-/* ScriptFlow Pro - Transcript Studio v2
- * Local/browser transcription workspace with Whisper via Transformers.js.
- * Existing CRM/calendar data is untouched. Audio/transcripts stay in-browser unless
- * the user explicitly imports a remote URL that their browser can access.
+/* ScriptFlow Pro - Transcript Studio v3
+ * Puter AI speech-to-text integration for reliable browser file transcription.
+ * Existing CRM/calendar data is untouched. Local audio files are passed directly
+ * to Puter.js speech2txt(); the transcript remains in this workspace after return.
  */
 (function () {
   'use strict';
 
-  const HF_MODULE = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/+esm';
-  const MODELS = {
-    fast: 'Xenova/whisper-tiny',
-    balanced: 'Xenova/whisper-small',
-    accurate: 'Xenova/whisper-base'
+  // Puter.js is the primary speech-to-text engine. It accepts browser File/Blob
+  // objects directly, so local OPUS/audio uploads do not need a blob URL or
+  // browser-side model download.
+  const PUTER_MODELS = {
+    fast: 'gpt-4o-mini-transcribe',
+    balanced: 'gpt-4o-transcribe',
+    accurate: 'gpt-4o-transcribe'
   };
   const LANGUAGES = [
     ['auto','Auto-detect'],['en','English'],['es','Spanish'],['fr','French'],['de','German'],['it','Italian'],
@@ -24,7 +26,7 @@
     state: {
       phase: 'upload', file: null, audioUrl: '', fileName: '', transcript: '', chunks: [],
       language: 'auto', translate: false, subtitles: true, speakerId: false,
-      summaryMode: 'off', model: 'balanced', pipeline: null, pipelineModel: '', pipelineDevice: '', pipelineDtype: '',
+      summaryMode: 'off', model: 'balanced', provider: 'openai', puterModel: PUTER_MODELS.balanced,
       busy: false, cancelRequested: false, audioDuration: 0, sourceType: '', lastSummary: '', selectedChunkIndex: 0,
       initialized: false, uploadInputBound: false
     },
@@ -57,7 +59,7 @@
         <div class="ts-upload-shell">
           <div class="ts-brand-mark"><i class="fas fa-waveform-lines"></i></div>
           <div class="ts-pro-title">OPUS to Text Converter <span>Powered by AI</span></div>
-          <p class="ts-pro-subtitle">Turn long audio into searchable text with browser-based Whisper AI. Choose a file, configure transcription, and review the result before exporting.</p>
+          <p class="ts-pro-subtitle">Turn long audio into searchable text with Puter AI. Upload your recording, configure transcription, and review the result before exporting.</p>
 
           <div class="ts-source-tabs" role="tablist">
             <button class="ts-source-tab active" data-source-tab="file"><i class="far fa-file-audio"></i> File upload</button>
@@ -86,7 +88,7 @@
 
           <div class="ts-capability-row">
             <span><i class="fas fa-language"></i> 20+ languages</span>
-            <span><i class="fas fa-lock"></i> Local processing</span>
+            <span><i class="fas fa-cloud"></i> Puter AI transcription</span>
             <span><i class="fas fa-file-export"></i> SRT / VTT / TXT / CSV</span>
           </div>
           <div class="ts-error" id="tsUploadError" hidden></div>
@@ -182,9 +184,9 @@
           <div class="ts-option-row"><div><b><i class="fas fa-language"></i> Translation</b><small>Translate the transcript to English after transcription.</small></div><label class="ts-switch"><input id="tsTranslate" type="checkbox" ${this.state.translate?'checked':''}><span></span></label></div>
           <div class="ts-option-row"><div><b><i class="fas fa-closed-captioning"></i> Generate subtitles</b><small>Create timestamped SRT and VTT files from detected speech segments.</small></div><label class="ts-switch"><input id="tsSubtitles" type="checkbox" ${this.state.subtitles?'checked':''}><span></span></label></div>
           <div class="ts-option-row"><div><b><i class="fas fa-users"></i> Speaker labels</b><small>Prepare the transcript for editable Speaker 1 / Speaker 2 labels. Automatic diarization is not claimed as exact.</small></div><label class="ts-switch"><input id="tsSpeaker" type="checkbox" ${this.state.speakerId?'checked':''}><span></span></label></div>
-          <div class="ts-option-row"><div><b><i class="fas fa-wand-magic-sparkles"></i> AI summary</b><small>Generate a local extractive summary, key points, questions and action items.</small></div><select id="tsSummaryMode"><option value="off">Off</option><option value="concise" ${this.state.summaryMode==='concise'?'selected':''}>Concise</option><option value="detailed" ${this.state.summaryMode==='detailed'?'selected':''}>Detailed</option></select></div>
-          <div class="ts-option-row"><div><b><i class="fas fa-microchip"></i> Transcription model</b><small>Balanced is the recommended accuracy/speed choice. Models download once and are cached by the browser.</small></div><select id="tsModel"><option value="fast" ${this.state.model==='fast'?'selected':''}>Fast · Whisper Tiny</option><option value="balanced" ${this.state.model==='balanced'?'selected':''}>Balanced · Whisper Small</option><option value="accurate" ${this.state.model==='accurate'?'selected':''}>Higher accuracy · Whisper Base</option></select></div>
-          <div class="ts-engine-note"><i class="fas fa-shield-halved"></i><div><strong>Private browser processing</strong><span>Audio is decoded and transcribed in your browser. The first run may take longer while the selected AI model downloads and is cached.</span></div></div>
+          <div class="ts-option-row"><div><b><i class="fas fa-wand-magic-sparkles"></i> AI summary</b><small>Generate a concise or detailed analysis from the completed transcript.</small></div><select id="tsSummaryMode"><option value="off">Off</option><option value="concise" ${this.state.summaryMode==='concise'?'selected':''}>Concise</option><option value="detailed" ${this.state.summaryMode==='detailed'?'selected':''}>Detailed</option></select></div>
+          <div class="ts-option-row"><div><b><i class="fas fa-microchip"></i> Transcription model</b><small>Choose the Puter AI model that best fits speed or accuracy. Higher-accuracy mode uses GPT-4o Transcribe.</small></div><select id="tsModel"><option value="fast" ${this.state.model==='fast'?'selected':''}>Fast · GPT-4o Mini Transcribe</option><option value="balanced" ${this.state.model==='balanced'?'selected':''}>Balanced · GPT-4o Transcribe</option><option value="accurate" ${this.state.model==='accurate'?'selected':''}>Higher accuracy · GPT-4o Transcribe</option></select></div>
+          <div class="ts-engine-note"><i class="fas fa-cloud-arrow-up"></i><div><strong>Powered by Puter AI</strong><span>Your selected audio file is sent to Puter’s speech-to-text service for transcription. No API key is required in ScriptFlow Pro. Results are returned directly to this workspace.</span></div></div>
           <button class="ts-transcribe-btn" id="tsTranscribe"><span class="ts-btn-content"><i class="fas fa-wand-magic-sparkles"></i> Transcribe for Free</span><span class="ts-btn-progress" aria-hidden="true"><span class="ts-progress-fill"></span></span><span class="ts-btn-percent">0%</span></button>
           <div class="ts-transcribe-status" id="tsTranscribeStatus">Ready when you are.</div>
           <div class="ts-error" id="tsConfigError" hidden></div>
@@ -212,170 +214,221 @@
     },
 
     async transcribe(container) {
-      if (this.state.busy || !this.state.file || !this.state.audioUrl) return;
-      this.state.busy = true; this.state.cancelRequested = false;
+      if (this.state.busy || !this.state.file) return;
+      this.state.busy = true;
       const btn = container.querySelector('#tsTranscribe');
       const status = container.querySelector('#tsTranscribeStatus');
-      const error = container.querySelector('#tsConfigError');
-      const content = btn.querySelector('.ts-btn-content');
-      const percent = btn.querySelector('.ts-btn-percent');
-      const fill = btn.querySelector('.ts-progress-fill');
-      btn.disabled = true; btn.classList.add('loading');
-      content.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing AI model…';
-      const setProgress = (p, text) => {
-        const n = Math.max(0, Math.min(100, Math.round(p)));
-        fill.style.width = `${n}%`; percent.textContent = `${n}%`; status.textContent = text || 'Processing…';
+      const content = btn && btn.querySelector('.ts-btn-content');
+      const percent = btn && btn.querySelector('.ts-btn-percent');
+      const fill = btn && btn.querySelector('.ts-progress-fill');
+      const errorBox = container.querySelector('#tsConfigError');
+      if (errorBox) { errorBox.hidden = true; errorBox.textContent = ''; }
+      if (!btn || !content || !percent || !fill) return;
+
+      btn.disabled = true;
+      btn.classList.add('loading');
+      content.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting to Puter AI…';
+
+      let progress = 4;
+      let ticker = null;
+      const setProgress = (value, text) => {
+        const n = Math.max(0, Math.min(100, Math.round(value)));
+        fill.style.width = `${n}%`;
+        percent.textContent = `${n}%`;
+        if (status) status.textContent = text || 'Processing…';
       };
+
       try {
-        setProgress(3, 'Preparing your audio…');
-        await this.ensurePipeline(setProgress);
-        if (this.state.cancelRequested) throw new Error('Transcription cancelled.');
-        setProgress(20, 'Loading audio…');
-        const language = this.state.language;
-        const generate = {};
-        if (language !== 'auto') generate.language = language;
-        generate.task = this.state.translate ? 'translate' : 'transcribe';
-        let current = 22;
-        const ticker = setInterval(() => {
-          current = Math.min(96, current + (current < 70 ? 2 : 0.5));
-          setProgress(current, current < 70 ? 'Transcribing audio…' : 'Refining transcript…');
-        }, 650);
-        const output = await this.state.pipeline(this.state.audioUrl, {
-          return_timestamps: true,
-          chunk_length_s: 30,
-          stride_length_s: 5,
-          generate_kwargs: generate
-        });
-        clearInterval(ticker);
-        if (this.state.cancelRequested) throw new Error('Transcription cancelled.');
-        setProgress(98, 'Building transcript and timestamps…');
-        this.state.transcript = String(output && output.text || '').trim();
-        this.state.chunks = (output && Array.isArray(output.chunks) ? output.chunks : []).map(x => ({
-          start: Array.isArray(x.timestamp) ? Number(x.timestamp[0] || 0) : 0,
-          end: Array.isArray(x.timestamp) ? Number(x.timestamp[1] || 0) : 0,
-          text: String(x.text || '').trim()
-        })).filter(x => x.text);
-        if (!this.state.transcript && this.state.chunks.length) this.state.transcript = this.state.chunks.map(x => x.text).join(' ');
-        if (!this.state.transcript) throw new Error('No speech was detected. Try a clearer recording or a different model.');
-        setProgress(100, 'Transcription complete.');
+        await this.ensurePuterReady();
+
+        setProgress(6, 'Preparing your audio…');
+        const source = this.state.file;
+        const options = this.buildPuterOptions();
+        const label = this.state.speakerId ? 'speaker-aware transcription' : 'accurate transcription';
+        content.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Transcribing with Puter AI…`;
+        setProgress(12, `Running ${label}…`);
+
+        // Puter does not expose a streaming progress callback for speech2txt.
+        // The progress indicator therefore represents workflow stages, not a
+        // fabricated network/model-download percentage.
+        progress = 12;
+        ticker = setInterval(() => {
+          progress = Math.min(88, progress + (progress < 45 ? 2 : 0.7));
+          setProgress(progress, progress < 45 ? 'Transcribing audio…' : 'Refining transcript and timestamps…');
+        }, 900);
+
+        const output = await puter.ai.speech2txt(source, options);
+        if (ticker) clearInterval(ticker);
+        ticker = null;
+
+        setProgress(92, 'Organizing transcript and timestamps…');
+        this.applyPuterResult(output);
+        if (!this.state.transcript) {
+          throw new Error('No speech was detected. Try a clearer recording or a different transcription model.');
+        }
+
+        if (output && Number.isFinite(Number(output.duration)) && Number(output.duration) > 0) {
+          this.state.audioDuration = Number(output.duration);
+        }
+        if (!this.state.audioDuration) {
+          this.state.audioDuration = await this.readAudioDuration(this.state.audioUrl);
+        }
+
+        setProgress(97, 'Finalizing transcript…');
         this.state.phase = 'result';
-        setTimeout(() => this.renderCurrent(container), 350);
+        setProgress(100, 'Transcription complete.');
+        setTimeout(() => this.renderCurrent(container), 300);
       } catch (err) {
-        console.error('Transcript Studio transcription error:', err);
-        const errorBox = container.querySelector('#tsError');
-        if (errorBox) { errorBox.hidden = false; errorBox.textContent = this.friendlyError(err); }
+        if (ticker) clearInterval(ticker);
+        ticker = null;
+        console.error('Transcript Studio Puter transcription error:', err);
+        const message = this.friendlyPuterError(err);
+        if (errorBox) { errorBox.hidden = false; errorBox.textContent = message; }
         content.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Transcribe for Free';
-        btn.disabled = false; btn.classList.remove('loading');
+        btn.disabled = false;
+        btn.classList.remove('loading');
         setProgress(0, 'Ready to retry.');
-      } finally { this.state.busy = false; }
+      } finally {
+        if (ticker) clearInterval(ticker);
+        this.state.busy = false;
+      }
     },
 
-    async ensurePipeline(setProgress) {
-      const model = MODELS[this.state.model] || MODELS.balanced;
-      const preferredDevice = navigator.gpu ? 'webgpu' : 'wasm';
-      const preferredDtype = preferredDevice === 'webgpu' ? 'fp16' : 'q8';
+    async ensurePuterReady() {
+      if (window.puter && puter.ai && typeof puter.ai.speech2txt === 'function') return;
+      const existing = document.querySelector('script[src="https://js.puter.com/v2/"]');
+      if (!existing) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://js.puter.com/v2/';
+          script.async = true;
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('Puter AI could not be loaded. Check your internet connection and try again.'));
+          document.head.appendChild(script);
+        });
+      }
+      const started = Date.now();
+      while (!(window.puter && puter.ai && typeof puter.ai.speech2txt === 'function')) {
+        if (Date.now() - started > 12000) {
+          throw new Error('Puter AI did not finish loading. Refresh the page and try again.');
+        }
+        await new Promise(resolve => setTimeout(resolve, 150));
+      }
+    },
 
-      // Reuse only when the model, device, and precision all match. This avoids
-      // accidentally reusing a CPU/q8 pipeline after switching to WebGPU/fp16.
-      if (
-        this.state.pipeline &&
-        this.state.pipelineModel === model &&
-        this.state.pipelineDevice === preferredDevice &&
-        this.state.pipelineDtype === preferredDtype
-      ) {
-        setProgress(18, 'AI model ready from cache.');
-        return;
+    buildPuterOptions() {
+      const model = PUTER_MODELS[this.state.model] || PUTER_MODELS.balanced;
+      const options = {
+        provider: 'openai',
+        model,
+        response_format: this.state.speakerId ? 'diarized_json' : 'json'
+      };
+      if (this.state.language !== 'auto') options.language = this.state.language;
+      if (this.state.translate) options.translate = true;
+      if (this.state.speakerId) {
+        options.model = 'gpt-4o-transcribe-diarize';
+        options.response_format = 'diarized_json';
+        options.chunking_strategy = 'auto';
+      }
+      return options;
+    },
+
+    applyPuterResult(output) {
+      const result = typeof output === 'string' ? { text: output } : (output || {});
+      const segments = Array.isArray(result.segments) ? result.segments : [];
+      const words = Array.isArray(result.words) ? result.words : [];
+      const rawText = String(result.text || '').trim();
+
+      let chunks = segments.map((segment, index) => {
+        const start = this.segmentStart(segment);
+        const end = this.segmentEnd(segment, start, segments[index + 1]);
+        let text = String(segment.text || segment.transcript || '').trim();
+        const speaker = segment.speaker || segment.speaker_id || '';
+        if (speaker && this.state.speakerId && text && !/^speaker\s*\d+\s*:/i.test(text)) {
+          text = `${speaker}: ${text}`;
+        }
+        return { start, end, text };
+      }).filter(x => x.text);
+
+      if (!chunks.length && words.length) {
+        chunks = this.chunksFromWords(words);
       }
 
-      const mod = await import(HF_MODULE);
-      if (!mod || typeof mod.pipeline !== 'function') {
-        throw new Error('The transcription engine could not be loaded. Check your internet connection and try again.');
+      // Some high-accuracy Puter/OpenAI responses return text without timestamp
+      // segments. Preserve the complete transcript and split it into readable
+      // chunks rather than inventing fake per-word timings.
+      if (!chunks.length && rawText) {
+        chunks = this.chunksFromText(rawText, this.state.audioDuration);
       }
 
-      // Transformers.js emits a content-length warning when a CDN response does
-      // not expose that header. The download still works; our own progress UI
-      // handles the user-facing progress, so keep library logs to real errors.
-      try {
-        if (mod.env) {
-          if ('useBrowserCache' in mod.env) mod.env.useBrowserCache = true;
-          if ('useWasmCache' in mod.env) mod.env.useWasmCache = true;
-          if ('logLevel' in mod.env && mod.LogLevel && mod.LogLevel.ERROR !== undefined) {
-            mod.env.logLevel = mod.LogLevel.ERROR;
-          }
+      this.state.transcript = rawText || chunks.map(x => x.text.replace(/^Speaker[^:]*:\s*/i, '')).join(' ').trim();
+      this.state.chunks = chunks;
+    },
+
+    segmentStart(segment) {
+      const value = segment && (segment.start ?? segment.start_time ?? (Array.isArray(segment.timestamp) ? segment.timestamp[0] : undefined));
+      return Number.isFinite(Number(value)) ? Number(value) : 0;
+    },
+
+    segmentEnd(segment, start, next) {
+      const value = segment && (segment.end ?? segment.end_time ?? (Array.isArray(segment.timestamp) ? segment.timestamp[1] : undefined));
+      if (Number.isFinite(Number(value))) return Number(value);
+      if (next) return this.segmentStart(next);
+      return start;
+    },
+
+    chunksFromWords(words) {
+      const chunks = [];
+      let bucket = null;
+      words.forEach(word => {
+        const text = String(word.text || '').trim();
+        if (!text) return;
+        const start = Number(word.start) || 0;
+        const end = Number(word.end) || start;
+        if (!bucket) bucket = { start, end, text };
+        else {
+          bucket.end = end;
+          bucket.text += `${bucket.text.endsWith(' ') ? '' : ' '}${text}`;
         }
-      } catch (_) { /* logging/cache controls are optional */ }
-
-      // Some Hugging Face Hub/CDN responses do not expose Content-Length.
-      // Transformers.js can still download the model, but its hub helper logs
-      // a non-fatal warning while it grows the response buffer dynamically.
-      // Suppress only that exact known warning during model initialization;
-      // every other console warning remains untouched.
-      const originalWarn = console.warn;
-      const suppressContentLengthWarning = (...args) => {
-        const message = args.map(v => {
-          try { return typeof v === 'string' ? v : String(v); } catch (_) { return ''; }
-        }).join(' ');
-        if (/Unable to determine content-length from response headers\. Will expand buffer when needed\.?/i.test(message)) return;
-        originalWarn.apply(console, args);
-      };
-      console.warn = suppressContentLengthWarning;
-
-      const restoreConsoleWarn = () => {
-        if (console.warn === suppressContentLengthWarning) console.warn = originalWarn;
-      };
-
-      const progressCallback = info => {
-        if (info && typeof info.progress === 'number') {
-          const p = 7 + Math.min(12, info.progress * 0.12);
-          setProgress(p, `Downloading AI model… ${Math.round(info.progress)}%`);
+        if (bucket.text.length >= 110 || /[.!?]$/.test(text)) {
+          chunks.push(bucket);
+          bucket = null;
         }
-      };
+      });
+      if (bucket) chunks.push(bucket);
+      return chunks;
+    },
 
-      const tryModel = async (modelId, device, dtype) => {
-        const options = {
-          device,
-          dtype,
-          progress_callback: progressCallback
-        };
-        return mod.pipeline('automatic-speech-recognition', modelId, options);
-      };
+    chunksFromText(text, duration) {
+      const sentences = this.sentences(text);
+      if (!sentences.length) return [{ start: 0, end: Number(duration) || 0, text }];
+      const total = Number(duration) || 0;
+      const count = sentences.length;
+      return sentences.map((sentence, index) => ({
+        start: total ? (total * index / count) : 0,
+        end: total ? (total * (index + 1) / count) : 0,
+        text: sentence
+      }));
+    },
 
-      setProgress(
-        6,
-        `Loading ${this.modelLabel()} model (${preferredDevice === 'webgpu' ? 'GPU · FP16' : 'CPU · Q8'} mode)…`
-      );
+    async readAudioDuration(url) {
+      if (!url) return 0;
+      return new Promise(resolve => {
+        const audio = new Audio();
+        audio.preload = 'metadata';
+        audio.onloadedmetadata = () => resolve(Number(audio.duration) || 0);
+        audio.onerror = () => resolve(0);
+        audio.src = url;
+      });
+    },
 
-      try {
-        try {
-          this.state.pipeline = await tryModel(model, preferredDevice, preferredDtype);
-          this.state.pipelineModel = model;
-          this.state.pipelineDevice = preferredDevice;
-          this.state.pipelineDtype = preferredDtype;
-        } catch (firstErr) {
-          if (preferredDevice === 'webgpu') {
-            setProgress(9, 'GPU setup was unavailable. Switching to browser CPU mode…');
-            try {
-              this.state.pipeline = await tryModel(model, 'wasm', 'q8');
-              this.state.pipelineModel = model;
-              this.state.pipelineDevice = 'wasm';
-              this.state.pipelineDtype = 'q8';
-              return;
-            } catch (_) { /* continue to lightweight fallback */ }
-          }
-
-          if (model !== MODELS.fast) {
-            setProgress(10, 'Switching to the lightweight Whisper model…');
-            this.state.pipeline = await tryModel(MODELS.fast, 'wasm', 'q8');
-            this.state.pipelineModel = MODELS.fast;
-            this.state.pipelineDevice = 'wasm';
-            this.state.pipelineDtype = 'q8';
-          } else {
-            throw firstErr;
-          }
-        }
-      } finally {
-        restoreConsoleWarn();
-      }
+    friendlyPuterError(error) {
+      const message = String(error && (error.message || error.error || error) || 'Unknown transcription error');
+      if (/sign.?in|auth|permission|puter account/i.test(message)) return 'Puter AI needs authorization to transcribe this recording. Please sign in to Puter when prompted and try again.';
+      if (/file|blob|size|payload|too large/i.test(message)) return 'The audio file could not be submitted. Try a shorter recording or a smaller compressed file.';
+      if (/unsupported|format|codec|decode/i.test(message)) return 'This audio format is not supported by the transcription service. Try MP3, WAV, M4A, OGG/OPUS, or FLAC.';
+      if (/network|fetch|timeout|connection|gateway|service/i.test(message)) return 'The transcription service could not be reached. Check your connection and try again.';
+      return message;
     },
 
     resultView() {
@@ -496,19 +549,21 @@
     },
     async quickTranslate(container){
       if(!this.state.transcript)return;
-      if(this.state.sourceType!=='audio' || !this.state.audioUrl){if(typeof showToast==='function')showToast('Translation requires the original audio file.','info');return;}
-      const button=container.querySelector('#tsTranslateQuick');button.disabled=true;button.classList.add('loading');button.innerHTML='<i class="fas fa-spinner fa-spin"></i>';
+      if(this.state.sourceType!=='audio' || !this.state.file){if(typeof showToast==='function')showToast('Translation requires the original audio file.','info');return;}
+      const button=container.querySelector('#tsTranslateQuick');
+      if(!button)return;
+      button.disabled=true;button.classList.add('loading');button.innerHTML='<i class="fas fa-spinner fa-spin"></i>';
       try{
-        await this.ensurePipeline(()=>{});
-        const language=this.state.language==='auto'?undefined:this.state.language;
-        const output=await this.state.pipeline(this.state.audioUrl,{return_timestamps:true,chunk_length_s:30,stride_length_s:5,generate_kwargs:{...(language?{language}:{ }),task:'translate'}});
-        this.state.transcript=String(output&&output.text||'').trim();
-        this.state.chunks=(output&&Array.isArray(output.chunks)?output.chunks:[]).map(x=>({start:Array.isArray(x.timestamp)?Number(x.timestamp[0]||0):0,end:Array.isArray(x.timestamp)?Number(x.timestamp[1]||0):0,text:String(x.text||'').trim()})).filter(x=>x.text);
+        await this.ensurePuterReady();
+        const options={provider:'openai',model:'whisper-1',translate:true,response_format:'verbose_json',timestamp_granularities:['segment']};
+        const output=await puter.ai.speech2txt(this.state.file,options);
+        this.applyPuterResult(output);
         this.state.translate=true;
         container.innerHTML=this.resultView();
         this.bindResult(container);
         if(typeof showToast==='function')showToast('English translation generated.','success');
-      }catch(err){if(typeof showToast==='function')showToast(this.friendlyError(err),'error');}finally{button.disabled=false;button.classList.remove('loading');}
+      }catch(err){if(typeof showToast==='function')showToast(this.friendlyPuterError(err),'error');}
+      finally{button.disabled=false;button.classList.remove('loading');}
     },
     exportMindMap(){
       const topics=this.topTopics(this.state.transcript,8);
@@ -540,7 +595,7 @@
     cleanTranscript(t){return String(t||'').replace(/^WEBVTT.*$/gim,'').replace(/^\d+\s*$/gm,'').replace(/\d{2}:\d{2}:\d{2}[,.]\d{3}\s*-->\s*.*$/gm,'').replace(/\r/g,'').replace(/^\s*$/gm,'').trim();},
     uploadError(c,msg){const e=c&&c.querySelector('#tsUploadError');if(!e)return;e.hidden=!msg;e.textContent=msg||'';},
     friendlyError(e){const m=String(e&&e.message||e||'Unknown error');if(/decode|audio|unsupported|AudioContext/i.test(m))return 'Your browser could not decode this audio format. Try OGG/Opus, WAV, MP3, M4A, or convert the file to WAV and retry.';if(/memory|out of memory/i.test(m))return 'This recording is too large for the current browser memory. Try the Fast model or split the recording into shorter files.';if(/network|fetch|load|cdn|model/i.test(m))return 'The AI model could not be loaded. Check your internet connection and try again.';return m;},
-    modelLabel(){return this.state.model==='fast'?'Whisper Tiny':this.state.model==='accurate'?'Whisper Base':'Whisper Small';},
+    modelLabel(){return this.state.model==='fast'?'GPT-4o Mini Transcribe':this.state.model==='accurate'?'GPT-4o Transcribe':'GPT-4o Transcribe';},
     formatBytes(n){if(!n)return '0 B';const u=['B','KB','MB','GB'];const i=Math.min(Math.floor(Math.log(n)/Math.log(1024)),u.length-1);return `${(n/Math.pow(1024,i)).toFixed(i?1:0)} ${u[i]}`;},
     formatDuration(sec){if(!isFinite(sec)||sec<0)return '00:00';const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=Math.floor(sec%60);return h?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;},
     formatClock(sec){return this.formatDuration(sec);},
