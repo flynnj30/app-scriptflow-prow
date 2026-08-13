@@ -107,6 +107,11 @@ body {
     to { opacity: 1; transform: translateX(0); }
 }
 
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes pulse {
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.05); }
@@ -140,11 +145,6 @@ body {
     60% { transform: rotate(-15deg); }
     80% { transform: rotate(5deg); }
     100% { transform: rotate(0deg); }
-}
-
-@keyframes slideDown {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
 }
 
 .fade-in { animation: fadeIn 0.4s ease forwards; }
@@ -651,7 +651,7 @@ body {
 }
 
 /* ============================================================
-   NOTIFICATION SYSTEM - REDESIGNED
+   NOTIFICATION SYSTEM
    ============================================================ */
 .notification-bell-container {
     position: relative;
@@ -708,7 +708,7 @@ body {
     display: none;
 }
 
-/* Notification Dropdown - Redesigned */
+/* Notification Dropdown */
 .notification-dropdown {
     position: absolute;
     top: 50px;
@@ -787,7 +787,7 @@ body {
     background: rgba(59, 130, 246, 0.08);
 }
 
-/* Notification Filter Tabs */
+/* Filter Tabs */
 .notification-filter-tabs {
     display: flex;
     gap: 4px;
@@ -984,7 +984,7 @@ body {
     background: rgba(59, 130, 246, 0.08);
 }
 
-/* Notification Account Section */
+/* Account Section */
 .notification-dropdown-account {
     display: flex;
     justify-content: space-between;
@@ -1007,7 +1007,7 @@ body {
     border: 1px solid var(--border-color);
 }
 
-/* Floating notification popup - Top Right */
+/* Floating Popup */
 .notification-popup-stack {
     position: fixed;
     top: 80px;
@@ -1029,7 +1029,6 @@ body {
     animation: slideDown 0.35s ease;
     border-left: 4px solid var(--danger);
     transition: all 0.3s ease;
-    position: relative;
 }
 
 .notification-popup.callback-due {
