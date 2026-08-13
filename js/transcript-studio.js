@@ -508,47 +508,58 @@
     // Booking Appointment extraction
     // ------------------------------------------------------------
     extractBookingData(text) {
-      const sourceRaw = String(text || '').replace(/\r/g, ' ').trim();
+      // Conservative transcript-to-booking extraction: use only transcript-supported facts.
+      // Missing values are explicitly marked "Not specified" rather than inferred.
+      const sourceRaw = String(text || '').replace(/\r/g, '').trim();
       const source = sourceRaw.replace(/\s+/g, ' ').trim();
-      const notSpecified = 'not specified';
+      const NOT_SPECIFIED = 'Not specified';
+
+      const cleanValue = (value) => String(value || '')
+        .replace(/^\s*[-•*]\s*/, '')
+        .replace(/[|;]+$/, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
       const firstMatch = (patterns) => {
         for (const pattern of patterns) {
-          const m = sourceRaw.match(pattern);
-          if (m && m[1] && String(m[1]).trim()) return String(m[1]).trim();
+          const match = sourceRaw.match(pattern) || source.match(pattern);
+          if (match && match[1] && cleanValue(match[1])) return cleanValue(match[1]);
         }
         return '';
       };
-      const stripTrailing = (value) => String(value || '').replace(/[|;]+$/, '').trim();
-      const email = firstMatch([
+
+      const emailRaw = firstMatch([
         /(?:business\s+)?e-?mail(?:\s+address)?\s*[:=-]\s*([^\s,;|]+)/i,
-        /([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i
-      ]).replace(/^mailto:/i, '').replace(/[)\]>,.]+$/, '');
+        /(?:mailto:)?([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i
+      ]);
+      const email = emailRaw.replace(/^mailto:/i, '').replace(/[)\]>,.]+$/, '').toLowerCase();
+
       const phone = firstMatch([
         /(?:phone(?:\s+number)?|mobile|cell|telephone|contact\s+number)\s*[:=-]\s*([+\d][\d\s().-]{6,})/i,
         /(\+?\d[\d\s().-]{7,}\d)/
-      ]).replace(/\s+/g, ' ').replace(/[|;]+$/, '').trim();
+      ]);
 
-      const business = stripTrailing(firstMatch([
-        /(?:^|\n)\s*(?:business\s+name|company\s+name|business|company|organization|firm)\s*[:=-]\s*([^\n,|;]+)/im
-      ]));
-      const name = stripTrailing(firstMatch([
-        /(?:^|\n)\s*(?:full\s+name|contact\s+name|customer\s+name|prospect\s+name|name)\s*[:=-]\s*([^\n,|;]+)/im
-      ]));
-      const role = stripTrailing(firstMatch([
+      const business = firstMatch([
+        /(?:^|\n)\s*(?:business\s+name|company\s+name|organization\s+name|business|company|organization|firm)\s*[:=-]\s*([^\n,|;]+)/im
+      ]);
+      const name = firstMatch([
+        /(?:^|\n)\s*(?:full\s+name|contact\s+name|customer\s+name|prospect\s+name|client\s+name|name)\s*[:=-]\s*([^\n,|;]+)/im
+      ]);
+      const role = firstMatch([
         /(?:^|\n)\s*(?:role|title|position|job\s+title|designation)\s*[:=-]\s*([^\n,|;]+)/im
-      ]));
+      ]);
 
-      const schedule = this.extractSchedule(source);
-      const interest = this.detectInterest(source);
+      const schedule = this.extractSchedule(sourceRaw);
+      const interest = this.detectInterest(sourceRaw);
       const notes = this.buildMeetingNotes(sourceRaw, { business, name, role, schedule, interest });
 
       return {
-        business: business || notSpecified,
-        name: name || notSpecified,
-        role: role || notSpecified,
-        phone: phone || notSpecified,
-        dateTime: schedule.display || notSpecified,
-        email: email || notSpecified,
+        business: business || NOT_SPECIFIED,
+        name: name || NOT_SPECIFIED,
+        role: role || NOT_SPECIFIED,
+        phone: phone || NOT_SPECIFIED,
+        dateTime: schedule.display || NOT_SPECIFIED,
+        email: email || NOT_SPECIFIED,
         notes,
         interest
       };
@@ -621,45 +632,57 @@
     ordinal(day) { const n = Number(day); if (n % 100 >= 11 && n % 100 <= 13) return 'th'; return ({1:'st',2:'nd',3:'rd'}[n % 10] || 'th'); },
 
     detectInterest(text) {
-      if (/(?:very interested|high interest|excited|sounds great|love (?:it|that)|absolutely|definitely|looking forward|yes,? (?:let|send|show)|can't wait)/i.test(text)) return 'High';
-      if (/(?:interested|considering|curious|open to|sounds good|that works|okay|sure|maybe|willing to|would like)/i.test(text)) return 'Medium';
-      if (/(?:not interested|not sure|maybe later|too busy|already have|don't need|not looking|skeptical|just looking)/i.test(text)) return 'Low';
+      const value = String(text || '');
+      if (/(?:high interest|very interested|highly interested|excited|enthusiastic|love (?:it|that)|absolutely|definitely|looking forward|can't wait|strong interest)/i.test(value)) return 'High';
+      if (/(?:medium[- ]high|interested|considering|curious|open to|sounds good|that works|okay|sure|willing to|would like|happy to|fine with)/i.test(value)) return 'Medium';
+      if (/(?:low interest|not interested|not sure|maybe later|too busy|already have|don't need|not looking|skeptical|reserved|just looking|hesitant)/i.test(value)) return 'Low';
       return 'Not specified';
     },
 
     buildMeetingNotes(text, meta) {
-      const has = (patterns) => patterns.some(p => p.test(analysisText));
-      const findSentence = (patterns) => {
-        const sentences = this.sentences(analysisText);
-        return sentences.find(s => patterns.some(p => p.test(s))) || '';
-      };
-      const analysisText = String(text || '').split(/\n/).filter(line => !/^(?:business\s+name|company\s+name|business|company|organization|firm|full\s+name|contact\s+name|customer\s+name|prospect\s+name|name|role|title|position|job\s+title|designation|phone(?:\s+number)?|mobile|cell|telephone|contact\s+number|email(?:\s+address)?|demo\s+time\s*&\s*date|demo\s+date\s*&\s*time|meeting\s+date\s*&\s*time|meeting\s+time\s*&\s*date)\s*[:=-]/i.test(line)).join('\n').trim();
-      const role = meta.role && meta.role !== 'not specified' ? meta.role : '';
-      const attending = role ? `${role} attending` : (meta.name && meta.name !== 'not specified' ? `${meta.name} attending` : 'Attendee not specified');
-      let setup = 'Current setup not specified';
-      if (has([/no (?:existing )?website|don'?t have (?:an? )?website|without (?:an? )?website/i])) setup = 'No existing website';
-      else if (has([/already have (?:a )?website|(?<!no )existing website|current website/i])) setup = 'Existing website';
+      const NOT_SPECIFIED = 'Not specified';
+      const source = String(text || '').replace(/\r/g, '').trim();
+      const lines = source.split('\n').map(v => v.trim()).filter(Boolean);
+      const analysisText = lines.filter(line => !/^(?:business\s+name|company\s+name|business|company|organization|firm|full\s+name|contact\s+name|customer\s+name|prospect\s+name|client\s+name|name|role|title|position|job\s+title|designation|phone(?:\s+number)?|mobile|cell|telephone|contact\s+number|email(?:\s+address)?|demo\s+time\s*&\s*date|demo\s+date\s*&\s*time|meeting\s+date\s*&\s*time|meeting\s+time\s*&\s*date)\s*[:=-]/i.test(line)).join(' ');
+      const sentences = this.sentences(analysisText);
+      const find = (patterns) => sentences.find(sentence => patterns.some(pattern => pattern.test(sentence))) || '';
+      const lower = analysisText.toLowerCase();
+      const has = (patterns) => patterns.some(pattern => pattern.test(analysisText));
+      const strip = (value) => String(value || '').replace(/^[-•*]\s*/, '').trim();
 
-      const goalSentence = findSentence([/goal|looking to|want(?:s)? to|need(?:s)?|more customers|more leads|more calls|more bookings|contact|online presence|professional presence|showcase/i]);
-      const goal = goalSentence ? goalSentence : 'Website goal not specified';
-      const showSentence = findSentence([/show|preview|walkthrough|website|homepage|service page|gallery|reviews|quote form|contact form/i]);
-      const show = showSentence ? showSentence : 'What to show: not specified';
-      const interest = meta.interest || 'Not specified';
-      const objectionSentence = findSentence([/concern|worried|hesitant|but |however|already have|another provider|expensive|price|cost|busy|time|think about|not sure|skeptic/i]);
-      const objection = objectionSentence ? objectionSentence : 'Objection/concern: not specified';
-      let angle = 'Use discovery first and tailor the meeting to the prospect’s stated priorities.';
-      if (interest === 'High') angle = 'Keep the meeting focused and lead with the strongest benefit tied to the prospect’s stated goal.';
-      if (interest === 'Medium') angle = 'Use the walkthrough to compare the preview against the prospect’s current setup and priorities.';
-      if (interest === 'Low') angle = 'Keep the meeting concise, lead with discovery, and avoid pushing for a decision.';
+      const role = meta.role && meta.role !== NOT_SPECIFIED ? meta.role : '';
+      const attendee = role ? `${role} attending` : (meta.name && meta.name !== NOT_SPECIFIED ? `${meta.name} attending` : NOT_SPECIFIED);
+
+      let currentSetup = NOT_SPECIFIED;
+      if (has([/no (?:existing )?website|doesn'?t have (?:a |an )?website|don't have (?:a |an )?website|without (?:a |an )?website/i])) {
+        currentSetup = 'No existing website';
+      } else if (has([/already has (?:a |an )?website|already have (?:a |an )?website|existing website|current website|has a website|have a website/i])) {
+        currentSetup = 'Existing website';
+      } else if (has([/facebook|instagram|referral|referrals|word of mouth|social media/i])) {
+        const setup = find([/facebook|instagram|referral|referrals|word of mouth|social media/i]);
+        currentSetup = setup ? strip(setup) : NOT_SPECIFIED;
+      }
+
+      const goal = find([/goal|looking to|want(?:s)? to|need(?:s)?|more customers|more leads|more calls|more bookings|more jobs|easier to contact|contact(?: form| customers)?|online presence|professional presence|showcase|generate leads/i]) || NOT_SPECIFIED;
+
+      const show = find([/show|preview|walkthrough|homepage|home page|service page|services|gallery|reviews|quote form|contact form|lead form|portfolio|project gallery|social integration/i]) || NOT_SPECIFIED;
+
+      const interest = meta.interest || NOT_SPECIFIED;
+      const concern = find([/concern|worried|hesitant|however|but\b|already have|another provider|another company|expensive|price|cost|busy|time|think about|not sure|skeptic|skeptical|someone helping|marketing company|current provider|good enough/i]) || NOT_SPECIFIED;
+
+      let meetingAngle = 'Use discovery first and tailor the meeting to the prospect’s stated priorities.';
+      if (interest === 'High') meetingAngle = 'Keep the meeting focused, lead with the prospect’s primary goal, and show the strongest relevant features first.';
+      if (interest === 'Medium') meetingAngle = 'Use the walkthrough to compare the preview against the prospect’s current setup and priorities.';
+      if (interest === 'Low') meetingAngle = 'Use discovery first, show only the strongest improvements, and avoid pushing for a decision.';
 
       return [
-        `Attendees: ${attending}.`,
-        `Current setup: ${setup}.`,
+        `Attendees: ${attendee}.`,
+        `Current setup: ${currentSetup}.`,
         `Website goal: ${goal}.`,
         `What to show: ${show}.`,
         `Interest and attitude: ${interest}.`,
-        objection.startsWith('Objection') ? objection + '.' : `Objection: ${objection}.`,
-        `Meeting angle: ${angle}`
+        `Objection/Concern: ${concern}.`,
+        `Meeting angle: ${meetingAngle}`
       ].join('\n');
     },
 
@@ -685,7 +708,7 @@
       const duration = this.state.audioDuration || (this.state.chunks.length ? this.state.chunks[this.state.chunks.length - 1].end : 0);
       return `
       <div class="ts-pro ts-result-page">
-        <div class="ts-result-topbar"><button class="ts-back-btn" id="tsBack"><i class="fas fa-chevron-left"></i></button><div class="ts-result-title"><strong>${this.esc(title)}</strong><span>${this.state.sourceType === 'audio' ? this.formatDuration(duration) : 'Transcript file'}</span></div><div class="ts-result-actions"><button class="ts-icon-btn" id="tsShare" title="Share"><i class="fas fa-share-nodes"></i></button><button class="ts-icon-btn" id="tsMore" title="More"><i class="fas fa-ellipsis"></i></button><button class="ts-export-main" id="tsExportMenu"><i class="fas fa-download"></i> Export</button></div></div><div class="ts-booking-card" id="tsBookingCard"><div class="ts-booking-head"><div><span class="ts-booking-kicker"><i class="fas fa-calendar-check"></i> Booking-ready details</span><h3>Appointment Submission Format</h3><p>Auto-filled from the transcript. Missing details are marked <b>not specified</b>.</p></div><div class="ts-booking-actions"><button class="ts-mini-btn" id="tsCopyBooking"><i class="far fa-copy"></i> Copy</button><button class="ts-mini-btn" id="tsSendBooking"><i class="fas fa-wand-magic-sparkles"></i> Send to Smart Import</button></div></div><textarea id="tsBookingText" class="ts-booking-text" spellcheck="false">${this.esc(this.bookingFormat(this.extractBookingData(this.state.transcript)))}</textarea></div>
+        <div class="ts-result-topbar"><button class="ts-back-btn" id="tsBack"><i class="fas fa-chevron-left"></i></button><div class="ts-result-title"><strong>${this.esc(title)}</strong><span>${this.state.sourceType === 'audio' ? this.formatDuration(duration) : 'Transcript file'}</span></div><div class="ts-result-actions"><button class="ts-icon-btn" id="tsShare" title="Share"><i class="fas fa-share-nodes"></i></button><button class="ts-icon-btn" id="tsMore" title="More"><i class="fas fa-ellipsis"></i></button><button class="ts-export-main" id="tsExportMenu"><i class="fas fa-download"></i> Export</button></div></div><div class="ts-booking-card" id="tsBookingCard"><div class="ts-booking-head"><div><span class="ts-booking-kicker"><i class="fas fa-calendar-check"></i> Booking-ready details</span><h3>Appointment Submission Format</h3><p>Auto-filled from the transcript. Missing details are marked <b>Not specified</b>.</p></div><div class="ts-booking-actions"><button class="ts-mini-btn" id="tsCopyBooking"><i class="far fa-copy"></i> Copy</button><button class="ts-mini-btn" id="tsSendBooking"><i class="fas fa-wand-magic-sparkles"></i> Send to Smart Import</button></div></div><textarea id="tsBookingText" class="ts-booking-text" spellcheck="false">${this.esc(this.bookingFormat(this.extractBookingData(this.state.transcript)))}</textarea></div>
         <div class="ts-result-layout">
           <section class="ts-transcript-pane">
             <div class="ts-transcript-toolbar"><div class="ts-transcript-label"><strong>Transcript</strong><span>${this.formatDuration(duration)}</span></div><label class="ts-search"><i class="fas fa-search"></i><input id="tsSearch" placeholder="Search transcript" /></label><button class="ts-icon-btn" id="tsCopy" title="Copy"><i class="far fa-copy"></i></button><button class="ts-icon-btn" id="tsTranslateQuick" title="Translate to English"><i class="fas fa-language"></i></button></div>
@@ -747,13 +770,13 @@
     sendBookingToSmartImport(container) {
       const text = container.querySelector('#tsBookingText')?.value || this.bookingFormat(this.extractBookingData(this.state.transcript));
       if (!text.trim()) return;
+
       if (typeof openSmartImportEnhanced === 'function') {
-        openSmartImportEnhanced();
-        const area = document.getElementById('importTextArea');
-        if (area) { area.value = text; area.dispatchEvent(new Event('input', { bubbles: true })); area.focus(); }
-        if (typeof showToast === 'function') showToast('Booking details sent to Smart Import. Review before saving.', 'success');
+        openSmartImportEnhanced({ source: 'transcript', prefill: text, autoParse: true });
+        if (typeof showToast === 'function') showToast('Transcript booking details loaded into Smart Import. Review before saving.', 'success');
         return;
       }
+
       this.copyText(text);
       if (typeof showToast === 'function') showToast('Booking format copied. Paste it into Smart Import.', 'info');
     },

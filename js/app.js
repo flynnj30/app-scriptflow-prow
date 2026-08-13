@@ -108,7 +108,7 @@ const SMART_IMPORT_CONFIG = {
         date: ['date', 'appointment date', 'schedule date', 'meeting date', 'call date', 'day', 'best time', 'callback date', 'scheduled date', 'event date', 'when'],
         time: ['time', 'appointment time', 'schedule time', 'meeting time', 'call time', 'hour', 'callback time', 'scheduled time', 'event time', 'at', 'when'],
         status: ['status', 'state', 'stage', 'lead status', 'appointment status', 'call status', 'phase', 'step'],
-        notes: ['notes', 'note', 'comment', 'remarks', 'additional notes', 'info', 'details', 'description', 'summary', 'observation', 'feedback'],
+        notes: ['notes', 'note', 'comment', 'remarks', 'additional notes', 'notes for the developer', 'developer notes', 'info', 'details', 'description', 'summary', 'observation', 'feedback'],
         assigned: ['assigned', 'assigned to', 'owner', 'agent', 'representative', 'rep', 'assigned agent', 'team member', 'handler', 'manager'],
         role: ['role', 'title', 'position', 'job title', 'designation', 'function', 'department'],
         closer: ['closer', 'closer name', 'booking agent', 'demo closer', 'appointment closer', 'closer assigned', 'demo closer name'],
@@ -2716,7 +2716,7 @@ function updateCloserSelects() {
 
 let _isImportSaving = false;
 
-function openSmartImportEnhanced() {
+function openSmartImportEnhanced(options = {}) {
     const modal = DOM.get('smartImportModal');
     if (!modal) return;
     
@@ -2745,16 +2745,25 @@ function openSmartImportEnhanced() {
     
     const textArea = DOM.get('importTextArea');
     if (textArea) {
-        textArea.value = '';
+        const prefill = typeof options.prefill === 'string' ? options.prefill.trim() : '';
+        textArea.value = prefill;
         textArea.placeholder = `Paste appointment details here. The system will intelligently parse:
         Example:
-Business Name/Company : Correa and Son's Landscaping LLC
-Name : Kelvin
-Email : kelvin@landscaping.com
-Role : Owner
-Phone Number: +12678808990
-Best Time for Warm Callback: Tomorrow at 1pm EDT
-Notes: Custom website preview offered + no website currently + high interest, positive and booked a manager callback to review the website.`;
+Business Name: Top Gear Motors
+Name: Serge
+Role: Owner
+Phone Number: +19162759921
+Demo Time & Date: Monday, August 17th at 4:00 PM PDT
+Email: topgearmotors2100@gmail.com
+
+Notes for the Developer:
+- Attendees: Owner attending.
+- Current setup: No existing website.
+- Website goal: Make it easier for customers to contact him.
+- What to show: Service pages, contact/quote form, and relevant lead-generation features.
+- Interest and attitude: Medium-high; open to comparing the preview.
+- Objection/Concern: Not specified.
+- Meeting angle: Position the preview as a comparison and lead with the prospect's stated goal.`;
     }
     
     const preview = DOM.get('importPreview');
@@ -2778,6 +2787,17 @@ Notes: Custom website preview offered + no website currently + high interest, po
     
     AppState.parsedImportData = {};
     AppState.importConfidence = {};
+
+    if (options.prefill && options.autoParse) {
+        const autoParse = () => {
+            const area = DOM.get('importTextArea');
+            if (!area) return;
+            area.focus();
+            parseAndPreviewImportEnhanced();
+        };
+        // Wait until the modal is painted so the existing parser/render pipeline can safely run.
+        setTimeout(autoParse, 80);
+    }
 }
 
 function closeSmartImportEnhanced() {
@@ -3222,6 +3242,9 @@ function parseKeyValueFormatEnhanced(lines, result, confidence, context, default
                     matchedField = matchFieldName(key);
                 }
                 
+                if (/^notes?\s+for\s+(?:the\s+)?developer$/i.test(normalizedKey) || /^developer\s+notes$/i.test(normalizedKey)) {
+                    matchedField = 'notes';
+                }
                 if (key.includes('email') || key.includes('e-mail') || key.includes('mail')) {
                     matchedField = 'email';
                     context.synonyms.email = context.synonyms.email || [];
