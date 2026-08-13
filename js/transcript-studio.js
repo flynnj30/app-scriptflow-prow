@@ -27,18 +27,29 @@
   // Transcript Studio's error handler below.
   function quietPuterSdkLogs() {
     if (window.__scriptflowPuterConsoleGuard) return;
-    const original = { log: console.log, info: console.info, warn: console.warn };
-    const isPuterNoise = (args) => {
+    const original = { log: console.log, info: console.info, warn: console.warn, error: console.error };
+    const isKnownPuterNoise = (args) => {
       const text = args.map(v => { try { return typeof v === 'string' ? v : JSON.stringify(v); } catch (_) { return String(v); } }).join(' ');
-      return /api\.puter\.com|socket\.io.*WebSocket connection|Refused to set unsafe header \"Origin\"|Submit this app to the Puter App Store|Puter App Store/i.test(text);
+      return /api\.puter\.com\/socket\.io|socket\.io.*WebSocket connection|WebSocket connection to .*api\.puter\.com|Refused to set unsafe header [\"']Origin[\"']|Submit this app to the Puter App Store|Puter App Store/i.test(text);
     };
-    ['log','info','warn'].forEach(level => {
+    ['log','info','warn','error'].forEach(level => {
       console[level] = function (...args) {
-        if (isPuterNoise(args)) return;
+        if (isKnownPuterNoise(args)) return;
         return original[level].apply(console, args);
       };
     });
-    window.__scriptflowPuterConsoleGuard = { original };
+
+    // Browser-extension message-channel noise is outside ScriptFlow's runtime.
+    // Ignore only the exact known Chrome extension rejection so real app errors remain visible.
+    const rejectionHandler = (event) => {
+      const reason = event && event.reason;
+      const message = String(reason && (reason.message || reason) || '');
+      if (/A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received/i.test(message)) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener('unhandledrejection', rejectionHandler);
+    window.__scriptflowPuterConsoleGuard = { original, rejectionHandler };
   }
 
   const Studio = {
