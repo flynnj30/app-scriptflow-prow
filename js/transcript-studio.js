@@ -48,7 +48,7 @@
       language: 'auto', translate: false, subtitles: true, speakerId: false,
       summaryMode: 'off', model: 'balanced', provider: 'openai', puterModel: PUTER_MODELS.balanced,
       busy: false, cancelRequested: false, audioDuration: 0, sourceType: '', lastSummary: '', selectedChunkIndex: 0,
-      initialized: false, uploadInputBound: false, historyLoaded: false, history: [], historyOpen: false
+      initialized: false, uploadInputBound: false, historyLoaded: false, history: [], historyOpen: false, historyCloudDisabled: false, historyCloudChecked: false
     },
 
     init() {
@@ -1001,33 +1001,50 @@ Every scalar value must be a string. Every missing value must be "Not specified"
         this.state.history = existing.slice(0, 100);
       } catch (_) {}
 
-      // Sync per-user history to the existing Firebase account when available.
-      try {
-        const user = (typeof AppState !== 'undefined' ? AppState.currentUser : null);
-        if (user && typeof firebase !== 'undefined' && firebase.firestore) {
-          await firebase.firestore().collection('users').doc(user.uid).collection('transcriptHistory').doc(id).set(record, { merge: true });
+      // Sync once per signed-in user. If Firestore denies this collection, permanently
+      // fall back to local history for this session instead of retrying every transcript.
+      if (!this.state.historyCloudDisabled) {
+        try {
+          const user = (typeof AppState !== 'undefined' ? AppState.currentUser : null);
+          if (user && typeof firebase !== 'undefined' && firebase.firestore) {
+            await firebase.firestore().collection('users').doc(user.uid).collection('transcriptHistory').doc(id).set(record, { merge: true });
+            this.state.historyCloudChecked = true;
+          }
+        } catch (error) {
+          const code = String(error?.code || '').toLowerCase();
+          if (code.includes('permission-denied') || /missing or insufficient permissions/i.test(String(error?.message || ''))) {
+            this.state.historyCloudDisabled = true;
+            this.state.historyCloudChecked = true;
+            // Local history remains the authoritative fallback until Firestore rules are fixed.
+          } else {
+            // Network/extension blocking is non-fatal; don't spam the console.
+          }
         }
-      } catch (error) {
-        console.warn('Transcript history cloud sync skipped:', error?.message || error);
       }
     },
 
     async loadTranscriptHistory() {
       const local = (() => { try { return JSON.parse(localStorage.getItem(this.historyKey()) || '[]'); } catch (_) { return []; } })();
       this.state.history = Array.isArray(local) ? local : [];
-      try {
-        const user = (typeof AppState !== 'undefined' ? AppState.currentUser : null);
-        if (user && typeof firebase !== 'undefined' && firebase.firestore) {
-          const snap = await firebase.firestore().collection('users').doc(user.uid).collection('transcriptHistory').orderBy('updatedAt', 'desc').limit(100).get();
-          const cloud = [];
-          snap.forEach(doc => cloud.push({ ...doc.data(), id: doc.id }));
-          const merged = [...cloud, ...this.state.history];
-          const byId = new Map(merged.map(item => [item.id, item]));
-          this.state.history = Array.from(byId.values()).sort((a,b) => String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))).slice(0,100);
-          localStorage.setItem(this.historyKey(), JSON.stringify(this.state.history));
+      if (!this.state.historyCloudDisabled) {
+        try {
+          const user = (typeof AppState !== 'undefined' ? AppState.currentUser : null);
+          if (user && typeof firebase !== 'undefined' && firebase.firestore) {
+            const snap = await firebase.firestore().collection('users').doc(user.uid).collection('transcriptHistory').orderBy('updatedAt', 'desc').limit(100).get();
+            const cloud = [];
+            snap.forEach(doc => cloud.push({ ...doc.data(), id: doc.id }));
+            const merged = [...cloud, ...this.state.history];
+            const byId = new Map(merged.map(item => [item.id, item]));
+            this.state.history = Array.from(byId.values()).sort((a,b) => String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))).slice(0,100);
+            localStorage.setItem(this.historyKey(), JSON.stringify(this.state.history));
+          }
+        } catch (error) {
+          const code = String(error?.code || '').toLowerCase();
+          if (code.includes('permission-denied') || /missing or insufficient permissions/i.test(String(error?.message || ''))) {
+            this.state.historyCloudDisabled = true;
+          }
+          // Keep history usable locally without emitting noisy Firestore warnings.
         }
-      } catch (error) {
-        console.warn('Transcript history cloud load skipped:', error?.message || error);
       }
       this.state.historyLoaded = true;
       return this.state.history;

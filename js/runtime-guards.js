@@ -36,6 +36,13 @@
     }
   }, true);
 
+  window.addEventListener('error', function (event) {
+    if (isExternalChannelError(event.error || event.message)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+
   window.ScriptFlowRuntimeGuards = Object.freeze({
     isExternalChannelError
   });
