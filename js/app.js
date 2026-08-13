@@ -1279,8 +1279,16 @@ const Data = {
             this.startCallbackChecking();
             
         } catch (error) {
-            console.error('Data Load Error:', error);
-            handleError(error, 'Loading Data');
+            const permissionDenied = error && (error.code === 'permission-denied' || /missing or insufficient permissions/i.test(error.message || ''));
+            if (permissionDenied) {
+                // Firestore rules are intentionally authoritative. Never turn a rules
+                // rejection into a fatal app error; preserve the local workspace and
+                // let the user continue while the rules are corrected/deployed.
+                console.info('☁️ Firestore access is restricted for this account; using local workspace data.');
+            } else {
+                console.error('Data Load Error:', error);
+                handleError(error, 'Loading Data');
+            }
             const localData = localStorage.getItem('userData_fallback');
             if (localData) {
                 try {
@@ -1459,7 +1467,12 @@ const Data = {
                 FeaturePanel.refreshCurrentView();
                 localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
             }, error => {
-                console.warn('Tasks subscription error:', error);
+                if (error && (error.code === 'permission-denied' || /missing or insufficient permissions/i.test(error.message || ''))) {
+                    const local = localStorage.getItem('tasks_fallback');
+                    if (local) { try { AppState.tasks = JSON.parse(local) || []; Stats.updateTaskStats(); FeaturePanel.refreshCurrentView(); } catch (_) {} }
+                    return;
+                }
+                console.error('Tasks subscription error:', error);
             });
 
             AppState.teamMembersUnsubscribe = userRef.collection('teamMembers').onSnapshot(snap => {
@@ -1476,10 +1489,19 @@ const Data = {
                 }
                 localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
             }, error => {
-                console.warn('Team members subscription error:', error);
+                if (error && (error.code === 'permission-denied' || /missing or insufficient permissions/i.test(error.message || ''))) {
+                    const local = localStorage.getItem('teamMembers_fallback');
+                    if (local) { try { AppState.teamMembers = JSON.parse(local) || CONFIG.DEFAULT_TEAM_MEMBERS; } catch (_) {} }
+                    return;
+                }
+                console.error('Team members subscription error:', error);
             });
         } catch (error) {
-            console.warn('Subscription error:', error);
+            if (error && (error.code === 'permission-denied' || /missing or insufficient permissions/i.test(error.message || ''))) {
+                console.info('☁️ Firestore subscriptions restricted; local fallbacks remain active.');
+            } else {
+                console.error('Subscription error:', error);
+            }
             const appointmentsLocal = localStorage.getItem('appointments_fallback');
             const tasksLocal = localStorage.getItem('tasks_fallback');
             const teamLocal = localStorage.getItem('teamMembers_fallback');
