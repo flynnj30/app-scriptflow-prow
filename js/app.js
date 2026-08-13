@@ -1568,7 +1568,19 @@ const Data = {
                 newAppt.email = emailMatch[1];
             }
         }
-        
+
+        // Keep the in-memory calendar as the single source of truth immediately.
+        // Firebase remains the persistence layer, while local state guarantees that
+        // Smart Import, drag/drop, edits, and calendar views stay synchronized.
+        const existingBucket = AppState.appointments[dateStr] || { count: 0, note: '', reports: [] };
+        const existingIndex = existingBucket.reports.findIndex(r => String(r.id) === String(newAppt.id));
+        if (existingIndex >= 0) existingBucket.reports[existingIndex] = newAppt;
+        else existingBucket.reports.push(newAppt);
+        existingBucket.count = existingBucket.reports.length;
+        AppState.appointments[dateStr] = existingBucket;
+        this.saveAppointmentsToLocal();
+        Stats.updateAll();
+        FeaturePanel.refreshCurrentView();
         this.syncAppointment(newAppt);
         return newAppt;
     },
@@ -4464,6 +4476,76 @@ function mergeDuplicate(index) {
     renderImportResultsEnhanced(ImportState.parsedRecords);
 }
 
+function saveImportedRecordToCalendar(record) {
+    if (!record) return null;
+    const data = record.validated || record.parsed || {};
+    const normalizedDate = data.date || record.referenceDate || Utils.getTodayStr();
+    const existingId = record.sourceAppointmentId || record.existingAppointmentId || null;
+
+    if (existingId) {
+        const existing = Data.getAppointmentById(existingId);
+        if (existing) {
+            const updated = Data.updateAppointment(existing.date, existing.id, {
+                date: normalizedDate,
+                business: data.business || existing.business,
+                contactName: data.name || existing.contactName,
+                role: data.role || existing.role || 'Owner',
+                phone: data.phone || existing.phone || '',
+                email: data.email || existing.email || '',
+                time: data.time || existing.time || '',
+                notes: data.notes || existing.notes || '',
+                assigned: data.assigned || existing.assigned || 'Daniel',
+                status: data.status || existing.status || 'Pending',
+                tags: Array.isArray(data.tags) ? data.tags : (existing.tags || []),
+                timezone: data.timezone || existing.timezone || AppState.calendarTimezone || 'Central CDT',
+                callbackSetting: data.callbackSetting || existing.callbackSetting || 'none',
+                callbackCustomValue: data.callbackCustomValue || existing.callbackCustomValue || '',
+                callbackCustomUnit: data.callbackCustomUnit || existing.callbackCustomUnit || 'hours',
+                callbackTriggered: false
+            });
+            if (updated) { record.savedAppointmentId = existing.id; return updated; }
+        }
+    }
+
+    const duplicate = (record.duplicates || [])[0];
+    if (duplicate?.existing && duplicate.confidence >= 80) {
+        const existing = duplicate.existing;
+        const shouldUpdate = confirm(`This matches existing appointment "${existing.business || 'Appointment'}" (${duplicate.confidence}% match).\n\nClick OK to update the existing calendar appointment, or Cancel to keep the existing appointment unchanged.`);
+        if (shouldUpdate) {
+            record.sourceAppointmentId = existing.id;
+            const updated = Data.updateAppointment(existing.date, existing.id, {
+                date: normalizedDate,
+                business: data.business || existing.business,
+                contactName: data.name || existing.contactName,
+                role: data.role || existing.role || 'Owner',
+                phone: data.phone || existing.phone || '',
+                email: data.email || existing.email || '',
+                time: data.time || existing.time || '',
+                notes: data.notes || existing.notes || '',
+                assigned: data.assigned || existing.assigned || 'Daniel',
+                status: data.status || existing.status || 'Pending',
+                tags: Array.isArray(data.tags) ? data.tags : (existing.tags || []),
+                timezone: data.timezone || existing.timezone || AppState.calendarTimezone || 'Central CDT',
+                callbackSetting: data.callbackSetting || existing.callbackSetting || 'none',
+                callbackCustomValue: data.callbackCustomValue || existing.callbackCustomValue || '',
+                callbackCustomUnit: data.callbackCustomUnit || existing.callbackCustomUnit || 'hours',
+                callbackTriggered: false
+            });
+            if (updated) { record.savedAppointmentId = existing.id; return updated; }
+        }
+        return null;
+    }
+
+    const created = Data.addAppointment(
+        normalizedDate, data.business, data.name, data.role || 'Owner', data.phone || '', data.time || '',
+        data.notes || '', data.assigned || 'Daniel', null, data.status || 'Pending', '', data.tags || [],
+        data.closer || null, data.email || '', data.timezone || AppState.calendarTimezone || 'Central CDT',
+        data.callbackSetting || 'none', data.callbackCustomValue || '', data.callbackCustomUnit || 'hours'
+    );
+    if (created) record.savedAppointmentId = created.id;
+    return created;
+}
+
 function saveSingleRecord(index) {
     const record = ImportState.parsedRecords.find(r => r.index === index);
     if (!record) {
@@ -4477,34 +4559,10 @@ function saveSingleRecord(index) {
     }
     
     const data = record.validated || record.parsed;
-    
-    const duplicates = detectDuplicatesEnhanced(data, AppState.appointments);
-    if (duplicates.length > 0 && duplicates[0].confidence >= 70) {
-        if (!confirm(`This appears to be a duplicate (${duplicates[0].confidence}% match). Continue anyway?`)) {
-            return;
-        }
-    }
-    
-    const result = Data.addAppointment(
-        data.date || Utils.getTodayStr(),
-        data.business,
-        data.name,
-        data.role || 'Owner',
-        data.phone || '',
-        data.time || '',
-        data.notes || '',
-        data.assigned || 'Daniel',
-        null,
-        data.status || 'Pending',
-        '',
-        data.tags || [],
-        null,
-        data.email || '',
-        data.timezone || AppState.calendarTimezone || 'Central CDT'
-    );
+    const result = saveImportedRecordToCalendar(record);
     
     if (result) {
-        showToast(`Saved "${data.business}" successfully!`, 'success');
+        showToast(`Saved "${data.business || 'appointment'}" to the calendar successfully!`, 'success');
         ImportState.parsedRecords = ImportState.parsedRecords.filter(r => r.index !== index);
         ImportState.validatedRecords = ImportState.validatedRecords.filter(r => r.index !== index);
         renderImportResultsEnhanced(ImportState.parsedRecords);
@@ -4567,35 +4625,12 @@ function saveAllImportedAppointments() {
     validRecords.forEach(record => {
         const data = record.validated || record.parsed;
         
-        if (record.hasDuplicate) {
-            const duplicate = record.duplicates && record.duplicates.length > 0 ? record.duplicates[0] : null;
-            if (duplicate && duplicate.confidence >= 80) {
-                skippedCount++;
-                return;
-            }
-        }
-        
-        const result = Data.addAppointment(
-            data.date || Utils.getTodayStr(),
-            data.business,
-            data.name,
-            data.role || 'Owner',
-            data.phone || '',
-            data.time || '',
-            data.notes || '',
-            data.assigned || 'Daniel',
-            null,
-            data.status || 'Pending',
-            '',
-            data.tags || [],
-            null,
-            data.email || '',
-            data.timezone || AppState.calendarTimezone || 'Central CDT'
-        );
-        
+        const result = saveImportedRecordToCalendar(record);
         if (result) {
             savedCount++;
             savedAppointments.push(result);
+        } else if (record.hasDuplicate) {
+            skippedCount++;
         }
     });
     
@@ -6095,20 +6130,31 @@ const CalendarView = {
         return colorMap[status] || '#94a3b8';
     },
     
-    handleAppointmentDragStart: function(event) {
-        const item = event.currentTarget;
+    handleAppointmentDragStart: function(event, item = event.currentTarget) {
+        const id = item?.getAttribute('data-id');
+        const fromDate = item?.getAttribute('data-date');
+        if (!id) return;
+
+        const appt = Data.getAppointmentById(id);
         const payload = {
-            id: item.getAttribute('data-id'),
-            fromDate: item.getAttribute('data-date')
+            id: String(id),
+            fromDate: appt?.date || fromDate || '',
+            time: appt?.time || '',
+            business: appt?.business || ''
         };
+        if (!payload.fromDate) return;
+
         event.dataTransfer.effectAllowed = 'move';
         event.dataTransfer.setData('application/json', JSON.stringify(payload));
         event.dataTransfer.setData('text/plain', JSON.stringify(payload));
+        try { event.dataTransfer.setDragImage(item, Math.min(item.offsetWidth / 2, 80), Math.min(item.offsetHeight / 2, 20)); } catch (_) {}
         item.classList.add('is-dragging');
+        item.setAttribute('aria-grabbed', 'true');
     },
 
-    handleAppointmentDragEnd: function(event) {
-        event.currentTarget.classList.remove('is-dragging');
+    handleAppointmentDragEnd: function(event, item = event.currentTarget) {
+        if (item) item.classList.remove('is-dragging');
+        if (item) item.setAttribute('aria-grabbed', 'false');
         containerSafeRemoveDragOver();
     },
 
@@ -6117,112 +6163,123 @@ const CalendarView = {
         event.stopPropagation();
         containerSafeRemoveDragOver();
 
-        let raw = event.dataTransfer.getData('application/json') || event.dataTransfer.getData('text/plain');
-        if (!raw) return;
+        const raw = event.dataTransfer?.getData('application/json') || event.dataTransfer?.getData('text/plain');
+        if (!raw) return false;
 
         let payload;
-        try { payload = JSON.parse(raw); } catch (_) { return; }
-        if (!payload?.id || !payload?.fromDate || !targetDate) return;
-        if (payload.fromDate === targetDate && targetHour === null) return;
+        try { payload = JSON.parse(raw); } catch (_) { return false; }
+        if (!payload?.id || !targetDate) return false;
 
         const appt = Data.getAppointmentById(payload.id);
-        if (!appt) return;
-        const actualFromDate = appt.date || payload.fromDate;
+        if (!appt) {
+            showToast('Appointment could not be found. Refreshing the calendar.', 'warning');
+            this.render(document.getElementById('featureContent') || document.querySelector('.feature-content'));
+            return false;
+        }
 
+        const actualFromDate = appt.date || payload.fromDate;
         let nextTime = null;
-        if (targetHour !== null) {
-            const minuteMatch = String(appt.time || '').match(/:(\d{2})/);
-            const minute = minuteMatch ? minuteMatch[1] : '00';
-            const hour12 = targetHour === 0 ? 12 : (targetHour > 12 ? targetHour - 12 : targetHour);
-            const period = targetHour >= 12 ? 'PM' : 'AM';
+        if (Number.isInteger(targetHour)) {
+            const match = String(appt.time || '').match(/:(\d{2})/);
+            const minute = match ? match[1] : '00';
+            const hour24 = Math.max(0, Math.min(23, targetHour));
+            const hour12 = hour24 % 12 || 12;
+            const period = hour24 >= 12 ? 'PM' : 'AM';
             nextTime = `${hour12}:${minute} ${period}`;
         }
 
         const changedDate = actualFromDate !== targetDate;
-        const changedTime = nextTime && nextTime !== appt.time;
-        if (!changedDate && !changedTime) return;
+        const changedTime = nextTime !== null && nextTime !== appt.time;
+        if (!changedDate && !changedTime) return true;
 
         const updates = { date: targetDate };
-        if (nextTime) updates.time = nextTime;
-        const moved = Data.updateAppointment(actualFromDate, payload.id, updates);
-        if (moved) {
-            AppState.calendarCurrentDate = new Date(`${targetDate}T12:00:00`);
-            AppState.selectedCalDate = targetDate;
-            AppState.activeDate = targetDate;
-            showToast(`Moved ${appt.business || 'appointment'} to ${Utils.formatDate(targetDate)}${nextTime ? ` at ${nextTime}` : ''}`, 'success');
+        if (nextTime !== null) updates.time = nextTime;
+
+        const moved = Data.updateAppointment(actualFromDate, appt.id, updates);
+        if (!moved) {
+            showToast('Unable to move the appointment. Please try again.', 'error');
+            return false;
         }
+
+        AppState.calendarCurrentDate = new Date(`${targetDate}T12:00:00`);
+        AppState.selectedCalDate = targetDate;
+        AppState.activeDate = targetDate;
+        Utils.syncCalendarToDate(targetDate);
+        showToast(`Moved ${appt.business || 'appointment'} to ${Utils.formatDate(targetDate)}${nextTime ? ` at ${nextTime}` : ''}`, 'success');
+        return true;
     },
 
-    attachCalendarInteractionEvents: function(container) {
-        // Re-bind only the calendar body interactions after a live search update.
-        container.querySelectorAll('.calendar-draggable-event').forEach(eventEl => {
-            eventEl.addEventListener('dragstart', (e) => this.handleAppointmentDragStart(e));
-            eventEl.addEventListener('dragend', (e) => this.handleAppointmentDragEnd(e));
-            eventEl.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = eventEl.getAttribute('data-id');
-                if (id && window.showAppointmentDetail) window.showAppointmentDetail(id);
+    bindCalendarDragDelegation: function(container) {
+        if (!container) return;
+
+        // Use event delegation so drag/drop survives every calendar/search re-render.
+        // This avoids stale listeners on replaced calendar cells and event nodes.
+        if (!container.dataset.calendarInteractionsBound) {
+            container.dataset.calendarInteractionsBound = 'true';
+
+            container.addEventListener('dragstart', (e) => {
+                const eventEl = e.target.closest?.('.calendar-draggable-event');
+                if (eventEl && container.contains(eventEl)) this.handleAppointmentDragStart(e, eventEl);
             });
-        });
-        container.querySelectorAll('.calendar-day').forEach(day => {
-            day.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; day.classList.add('drag-over'); });
-            day.addEventListener('dragleave', () => day.classList.remove('drag-over'));
-            day.addEventListener('drop', (e) => { day.classList.remove('drag-over'); this.handleCalendarDrop(e, day.getAttribute('data-date')); });
-        });
-        container.querySelectorAll('.calendar-drop-slot').forEach(slot => {
-            slot.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; slot.classList.add('drag-over'); });
-            slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
-            slot.addEventListener('drop', (e) => { slot.classList.remove('drag-over'); this.handleCalendarDrop(e, slot.getAttribute('data-date'), parseInt(slot.getAttribute('data-hour'), 10)); });
-        });
-        container.querySelectorAll('.calendar-day').forEach(day => {
-            day.addEventListener('dblclick', () => {
+
+            container.addEventListener('dragend', (e) => {
+                const eventEl = e.target.closest?.('.calendar-draggable-event');
+                if (eventEl && container.contains(eventEl)) this.handleAppointmentDragEnd(e, eventEl);
+                containerSafeRemoveDragOver();
+            });
+
+            container.addEventListener('dragover', (e) => {
+                const slot = e.target.closest?.('.calendar-drop-slot');
+                const day = e.target.closest?.('.calendar-day');
+                const target = slot || day;
+                if (!target || !container.contains(target)) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                target.classList.add('drag-over');
+            });
+
+            container.addEventListener('dragleave', (e) => {
+                const target = e.target.closest?.('.calendar-drop-slot, .calendar-day');
+                if (target && !target.contains(e.relatedTarget)) target.classList.remove('drag-over');
+            });
+
+            container.addEventListener('drop', (e) => {
+                const slot = e.target.closest?.('.calendar-drop-slot');
+                const day = e.target.closest?.('.calendar-day');
+                const target = slot || day;
+                if (!target || !container.contains(target)) return;
+                const targetDate = target.getAttribute('data-date');
+                const hourAttr = slot?.getAttribute('data-hour');
+                const targetHour = hourAttr !== null && hourAttr !== undefined && hourAttr !== '' ? parseInt(hourAttr, 10) : null;
+                this.handleCalendarDrop(e, targetDate, Number.isFinite(targetHour) ? targetHour : null);
+            });
+
+            container.addEventListener('click', (e) => {
+                const eventEl = e.target.closest?.('.calendar-draggable-event');
+                if (eventEl && container.contains(eventEl)) {
+                    e.stopPropagation();
+                    const id = eventEl.getAttribute('data-id');
+                    if (id && window.showAppointmentDetail) window.showAppointmentDetail(id);
+                    return;
+                }
+                const day = e.target.closest?.('.calendar-day');
+                if (day && container.contains(day)) {
+                    const date = day.getAttribute('data-date');
+                    if (date) { AppState.selectedCalDate = date; AppState.activeDate = date; }
+                }
+            });
+
+            container.addEventListener('dblclick', (e) => {
+                const day = e.target.closest?.('.calendar-day');
+                if (!day || !container.contains(day)) return;
                 const date = day.getAttribute('data-date');
                 if (date) { Utils.setActiveDate(date); FeaturePanel.openQuickAdd(date); }
             });
-            day.addEventListener('click', () => {
-                const date = day.getAttribute('data-date');
-                if (date) { AppState.selectedCalDate = date; AppState.activeDate = date; }
-            });
-        });
+        }
     },
 
     attachEvents: function(container) {
-        container.querySelectorAll('.calendar-draggable-event').forEach(eventEl => {
-            eventEl.addEventListener('dragstart', (e) => this.handleAppointmentDragStart(e));
-            eventEl.addEventListener('dragend', (e) => this.handleAppointmentDragEnd(e));
-            eventEl.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = eventEl.getAttribute('data-id');
-                if (id && window.showAppointmentDetail) window.showAppointmentDetail(id);
-            });
-        });
-
-        container.querySelectorAll('.calendar-day').forEach(day => {
-            day.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                day.classList.add('drag-over');
-            });
-            day.addEventListener('dragleave', () => day.classList.remove('drag-over'));
-            day.addEventListener('drop', (e) => {
-                day.classList.remove('drag-over');
-                this.handleCalendarDrop(e, day.getAttribute('data-date'));
-            });
-        });
-
-        container.querySelectorAll('.calendar-drop-slot').forEach(slot => {
-            slot.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                slot.classList.add('drag-over');
-            });
-            slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
-            slot.addEventListener('drop', (e) => {
-                slot.classList.remove('drag-over');
-                this.handleCalendarDrop(e, slot.getAttribute('data-date'), parseInt(slot.getAttribute('data-hour'), 10));
-            });
-        });
-
+        this.bindCalendarDragDelegation(container);
         container.querySelectorAll('.view-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const view = btn.getAttribute('data-view');
@@ -6292,7 +6349,7 @@ const CalendarView = {
                 mode === 'week' ? this.renderWeekView() :
                 mode === 'day' ? this.renderDayView() :
                 this.renderListView();
-            this.attachCalendarInteractionEvents(container);
+            this.bindCalendarDragDelegation(container);
         };
 
         if (searchInput) {
@@ -6317,7 +6374,7 @@ const CalendarView = {
                     mode === 'week' ? this.renderWeekView() :
                     mode === 'day' ? this.renderDayView() :
                     this.renderListView();
-                this.attachCalendarInteractionEvents(container);
+                this.bindCalendarDragDelegation(container);
             }
             const input = container.querySelector('#calendarSearchInput');
             if (input) { input.value = ''; input.focus({ preventScroll: true }); }
