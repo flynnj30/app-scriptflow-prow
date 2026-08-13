@@ -910,16 +910,11 @@ const Auth = {
         try {
             const provider = new firebase.auth.GoogleAuthProvider();
             provider.setCustomParameters({ prompt: 'select_account' });
-            const result = await firebase.auth().signInWithPopup(provider);
-            if (result.user) {
-                AppState.currentUser = result.user;
-                this.updateUI();
-                await Data.loadUserData();
-                showToast('Welcome back! 👋', 'success');
-                this.closeModal();
-                AppState.authInProgress = false;
-                return true;
-            }
+            // Use redirect authentication instead of signInWithPopup.
+            // This avoids Cross-Origin-Opener-Policy/window.closed warnings
+            // produced by the Firebase popup helper on modern browsers.
+            await firebase.auth().signInWithRedirect(provider);
+            return true;
         } catch (error) {
             AppState.authInProgress = false;
             if (error.code === 'auth/popup-closed-by-user') {
@@ -6919,6 +6914,22 @@ function initApp() {
     AppState.isFirebaseReady = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
     
     if (AppState.isFirebaseReady) {
+        // Resolve a Google redirect after returning to the app. The redirect
+        // flow does not rely on window.closed, so it is compatible with
+        // strict Cross-Origin-Opener-Policy environments.
+        firebase.auth().getRedirectResult()
+            .then(result => {
+                if (result && result.user) {
+                    AppState.currentUser = result.user;
+                    Auth.updateUI();
+                }
+            })
+            .catch(error => {
+                if (error && error.code !== 'auth/no-auth-event') {
+                    handleError(error, 'Google Sign-In Redirect');
+                }
+            });
+
         firebase.auth().onAuthStateChanged(user => {
             if (user) {
                 AppState.currentUser = user;
