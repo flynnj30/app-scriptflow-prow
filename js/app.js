@@ -200,6 +200,7 @@ const AppState = {
     isAppReady: false,
     
     callbackNotifications: {},
+    pendingAppointmentSync: {},
     callbackCheckInterval: null,
     lastCallbackCheck: null
 };
@@ -1147,6 +1148,11 @@ const Auth = {
 
 const Data = {
     loadUserData: async function(showLoading = true) {
+        try {
+            const pendingRaw = localStorage.getItem('appointments_pending_sync');
+            if (pendingRaw) AppState.pendingAppointmentSync = JSON.parse(pendingRaw) || {};
+        } catch (_) { AppState.pendingAppointmentSync = {}; }
+
         if (!AppState.currentUser) {
             const localData = localStorage.getItem('userData_fallback');
             if (localData) {
@@ -1155,6 +1161,7 @@ const Data = {
                     AppState.scripts = data.scripts || {};
                     AppState.scriptOrder = data.scriptOrder || [];
                     AppState.appointments = data.appointments || {};
+                    this.applyPendingAppointmentSync();
                     AppState.tasks = data.tasks || {};
                     AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
                     AppState.closers = data.closers || CONFIG.DEFAULT_CLOSERS;
@@ -1257,6 +1264,7 @@ const Data = {
                     AppState.scripts = data.scripts || {};
                     AppState.scriptOrder = data.scriptOrder || [];
                     AppState.appointments = data.appointments || {};
+                    this.applyPendingAppointmentSync();
                     AppState.tasks = data.tasks || {};
                     AppState.teamMembers = data.teamMembers || CONFIG.DEFAULT_TEAM_MEMBERS;
                     AppState.closers = data.closers || CONFIG.DEFAULT_CLOSERS;
@@ -1401,12 +1409,17 @@ const Data = {
                 AppState.appointments = {};
                 snap.forEach(doc => {
                     const appt = doc.data();
+                    if (!appt || !appt.date) return;
                     if (!AppState.appointments[appt.date]) {
                         AppState.appointments[appt.date] = { count: 0, note: '', reports: [] };
                     }
                     AppState.appointments[appt.date].reports.push({ ...appt, id: doc.id });
                     AppState.appointments[appt.date].count = AppState.appointments[appt.date].reports.length;
                 });
+                // Keep optimistic local moves/edits visible while Firebase writes are pending
+                // or rejected by security rules. Without this overlay, the next snapshot can
+                // immediately restore the appointment to its old server date.
+                this.applyPendingAppointmentSync();
                 Stats.updateAll();
                 FeaturePanel.refreshCurrentView();
                 localStorage.setItem('appointments_fallback', JSON.stringify(AppState.appointments));
@@ -1450,6 +1463,9 @@ const Data = {
             if (appointmentsLocal) {
                 try {
                     AppState.appointments = JSON.parse(appointmentsLocal);
+                    const pendingLocal = localStorage.getItem('appointments_pending_sync');
+                    if (pendingLocal) AppState.pendingAppointmentSync = JSON.parse(pendingLocal) || {};
+                    this.applyPendingAppointmentSync();
                     Stats.updateAll();
                     FeaturePanel.refreshCurrentView();
                 } catch (e) {}
@@ -1586,22 +1602,67 @@ const Data = {
     },
 
     syncAppointment: async function(appointment) {
-        if (!AppState.currentUser) return;
-        if (AppState.isFirebaseReady) {
-            try {
-                await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('appointments').doc(appointment.id.toString()).set(appointment, { merge: true });
-            } catch (e) {
-                console.error('Error syncing appointment:', e);
+        const id = String(appointment?.id || '');
+        if (!id) return false;
+        // Mark the latest local version as pending before touching Firebase.
+        AppState.pendingAppointmentSync[id] = { ...appointment };
+        this.saveAppointmentsToLocal();
+
+        if (!AppState.currentUser || !AppState.isFirebaseReady) {
+            return false;
+        }
+
+        try {
+            await firebase.firestore().collection('users').doc(AppState.currentUser.uid).collection('appointments').doc(id).set(appointment, { merge: true });
+            // The write succeeded. The Firestore listener will become authoritative once
+            // it delivers the updated document. Remove the optimistic overlay now.
+            const currentPending = AppState.pendingAppointmentSync[id];
+            if (currentPending && String(currentPending.updatedAt || '') === String(appointment.updatedAt || '')) {
+                delete AppState.pendingAppointmentSync[id];
                 this.saveAppointmentsToLocal();
             }
-        } else {
+            return true;
+        } catch (e) {
+            // Keep the local/optimistic appointment instead of allowing the next snapshot
+            // to revert a drag/drop or edit. Permission errors require a Firestore rules
+            // change, but the user's current work remains intact until that is fixed.
+            const code = String(e?.code || '');
+            if (code === 'permission-denied' || /Missing or insufficient permissions/i.test(String(e?.message || ''))) {
+                console.warn('Appointment saved locally; Firebase permission denied. Update Firestore security rules to enable appointment writes.');
+            } else {
+                console.warn('Appointment sync temporarily unavailable; keeping the local change.', e);
+            }
+            this.applyPendingAppointmentSync();
             this.saveAppointmentsToLocal();
+            return false;
         }
+    },
+
+    applyPendingAppointmentSync: function() {
+        const pending = AppState.pendingAppointmentSync || {};
+        Object.keys(pending).forEach(id => {
+            const appt = pending[id];
+            if (!appt?.date) return;
+            // Remove the server copy of this appointment from every date bucket.
+            Object.keys(AppState.appointments || {}).forEach(date => {
+                const bucket = AppState.appointments[date];
+                if (!bucket?.reports) return;
+                bucket.reports = bucket.reports.filter(r => String(r.id) !== String(id));
+                bucket.count = bucket.reports.length;
+                if (bucket.count === 0) delete AppState.appointments[date];
+            });
+            if (!AppState.appointments[appt.date]) {
+                AppState.appointments[appt.date] = { count: 0, note: '', reports: [] };
+            }
+            AppState.appointments[appt.date].reports.push({ ...appt, id: String(id) });
+            AppState.appointments[appt.date].count = AppState.appointments[appt.date].reports.length;
+        });
     },
 
     saveAppointmentsToLocal: function() {
         try {
             localStorage.setItem('appointments_fallback', JSON.stringify(AppState.appointments));
+            localStorage.setItem('appointments_pending_sync', JSON.stringify(AppState.pendingAppointmentSync || {}));
         } catch (e) {
             console.warn('Failed to save appointments locally:', e);
         }

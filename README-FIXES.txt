@@ -17,3 +17,13 @@ ScriptFlow Pro - Authentication Error Fix
    listening to web pages), not by Firebase or ScriptFlow Pro. It cannot be reliably
    fixed inside the web app without hiding unrelated errors. Test in Incognito with
    extensions disabled to confirm.
+
+
+CALENDAR DRAG/DROP + FIREBASE PERMISSIONS FIX
+- Drag/drop changes are kept optimistically in local state.
+- Firestore snapshots no longer overwrite a pending local move/edit.
+- Pending appointment changes survive refresh/offline sessions.
+- A successful Firebase write clears only the matching pending version, preventing an older request from clearing a newer edit.
+- Permission-denied writes remain locally visible instead of snapping back.
+- See FIRESTORE-RULES-PATCH.txt for the required server-side rule change.
+- ERR_BLOCKED_BY_CLIENT is normally caused by a browser privacy/ad-blocking extension and is not a Firebase application-code error.
