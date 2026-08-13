@@ -126,6 +126,9 @@ const AppState = {
     isFirebaseReady: false,
     authInProgress: false,
     authModalOpen: false,
+    authInitialized: false,
+    authUserLoadUid: null,
+    authRedirectPending: false,
 
     appointments: {},
     scripts: {},
@@ -909,21 +912,36 @@ const Auth = {
     signInWithGoogle: async function() {
         if (AppState.authInProgress || !AppState.isFirebaseReady) return false;
         AppState.authInProgress = true;
+        AppState.authRedirectPending = true;
+
+        const button = DOM.get('googleSignInBtn');
+        if (button) {
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Connecting to Google...</span>';
+        }
+
         try {
+            const auth = firebase.auth();
+            // Persist the Firebase session so returning from the Google
+            // redirect lands back in the normal authenticated app flow.
+            await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
             const provider = new firebase.auth.GoogleAuthProvider();
             provider.setCustomParameters({ prompt: 'select_account' });
-            // Use redirect authentication instead of signInWithPopup.
-            // This avoids Cross-Origin-Opener-Policy/window.closed warnings
-            // produced by the Firebase popup helper on modern browsers.
-            await firebase.auth().signInWithRedirect(provider);
+
+            // Redirect is intentional: it avoids popup/window.closed and COOP
+            // issues. onAuthStateChanged is the single source of truth after
+            // Google returns to this page.
+            await auth.signInWithRedirect(provider);
             return true;
         } catch (error) {
             AppState.authInProgress = false;
-            if (error.code === 'auth/popup-closed-by-user') {
-                showToast('Sign in cancelled', 'info');
-            } else {
-                handleError(error, 'Google Sign-In');
+            AppState.authRedirectPending = false;
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '<span style="font-weight:500;">Sign in with Google</span>';
             }
+            handleError(error, 'Google Sign-In');
             return false;
         }
     },
@@ -945,11 +963,11 @@ const Auth = {
                     scriptOrder: ['opening'],
                     closers: CONFIG.DEFAULT_CLOSERS
                 });
-                showToast('Account created! 🎉', 'success');
+                // onAuthStateChanged is responsible for loading the user's
+                // data and closing the auth modal. Keeping one auth workflow
+                // prevents duplicate Firestore subscriptions.
                 AppState.currentUser = result.user;
                 this.updateUI();
-                await Data.loadUserData();
-                this.closeModal();
                 AppState.authInProgress = false;
                 return true;
             }
@@ -964,13 +982,13 @@ const Auth = {
         if (AppState.authInProgress || !AppState.isFirebaseReady) return false;
         AppState.authInProgress = true;
         try {
+            await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
             const result = await firebase.auth().signInWithEmailAndPassword(email, password);
             if (result.user) {
+                // onAuthStateChanged is the single source of truth for the
+                // post-login application workflow.
                 AppState.currentUser = result.user;
                 this.updateUI();
-                await Data.loadUserData();
-                showToast('Welcome back! 👋', 'success');
-                this.closeModal();
                 AppState.authInProgress = false;
                 return true;
             }
@@ -1010,6 +1028,9 @@ const Auth = {
             AppState.closers = [];
             AppState.pendingAppointmentSync = {};
             AppState._permissionNoticeShown = false;
+            AppState.authUserLoadUid = null;
+            AppState.authRedirectPending = false;
+            AppState.authInProgress = false;
             localStorage.removeItem('appointments_pending_sync');
             
             this.updateUI();
@@ -1021,7 +1042,9 @@ const Auth = {
             }
             
             showToast('Signed out successfully', 'info');
-            setTimeout(() => this.showModal(), 300);
+            // The auth-state listener opens the sign-in screen after Firebase
+            // confirms the session is fully signed out.
+            return true;
         } catch (error) {
             handleError(error, 'Sign Out');
         }
@@ -7167,31 +7190,56 @@ function initApp() {
     AppState.isFirebaseReady = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0;
     
     if (AppState.isFirebaseReady) {
-        // Resolve a Google redirect after returning to the app. The redirect
-        // flow does not rely on window.closed, so it is compatible with
-        // strict Cross-Origin-Opener-Policy environments.
-        firebase.auth().getRedirectResult()
-            .then(result => {
-                if (result && result.user) {
-                    AppState.currentUser = result.user;
-                    Auth.updateUI();
-                }
-            })
+        const auth = firebase.auth();
+
+        // Resolve redirect errors for diagnostics only. Authentication state
+        // is handled exclusively by onAuthStateChanged below. This prevents
+        // Google redirect + auth-state races from loading the app twice or
+        // leaving the auth modal open after a successful sign-in.
+        auth.getRedirectResult()
             .catch(error => {
-                if (error && error.code !== 'auth/no-auth-event') {
-                    handleError(error, 'Google Sign-In Redirect');
-                }
+                if (!error || error.code === 'auth/no-auth-event') return;
+                AppState.authInProgress = false;
+                AppState.authRedirectPending = false;
+                handleError(error, 'Google Sign-In Redirect');
             });
 
-        firebase.auth().onAuthStateChanged(user => {
-            if (user) {
-                AppState.currentUser = user;
-                Auth.updateUI();
-                Data.loadUserData(true);
-            } else {
+        auth.onAuthStateChanged(async user => {
+            AppState.authInitialized = true;
+
+            if (!user) {
                 AppState.currentUser = null;
+                AppState.authUserLoadUid = null;
+                AppState.authInProgress = false;
+                AppState.authRedirectPending = false;
                 Auth.updateUI();
                 Auth.showModal();
+                return;
+            }
+
+            // Firebase is now the authoritative source that authentication
+            // completed. Do not depend on getRedirectResult() to continue the
+            // application workflow.
+            const uid = user.uid;
+            AppState.currentUser = user;
+            AppState.authInProgress = false;
+            AppState.authRedirectPending = false;
+            Auth.updateUI();
+            Auth.closeModal();
+
+            // Prevent duplicate subscriptions/data loads caused by the
+            // redirect result and auth-state events firing close together.
+            if (AppState.authUserLoadUid === uid) return;
+            AppState.authUserLoadUid = uid;
+
+            try {
+                await Data.loadUserData(true);
+                showToast('Signed in successfully. Welcome back! 👋', 'success');
+            } catch (error) {
+                console.error('Authenticated data initialization failed:', error);
+                // Data.loadUserData already has its local fallback; keep the
+                // authenticated session active instead of sending the user
+                // back to the sign-in screen.
             }
         });
     } else {
