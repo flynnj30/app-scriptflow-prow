@@ -4617,7 +4617,8 @@ const FeaturePanel = {
                 'tasks': 'fa-tasks', 
                 'analytics': 'fa-chart-pie', 
                 'shortcuts': 'fa-keyboard',
-                'closers': 'fa-user-tie'
+                'closers': 'fa-user-tie',
+                'transcript': 'fa-microphone'
             };
             featureTitle.innerHTML = `<i class="fas ${iconMap[featureType] || 'fa-sticky-note'}"></i> ${title}`;
         }
@@ -4647,6 +4648,8 @@ const FeaturePanel = {
                         <button id="taskTodayBtn" class="view-btn">📅 Today</button>
                     </div>
                 `;
+            } else if (featureType === 'transcript') {
+                html = `<div class="view-toggle"><span class="view-btn active"><i class="fas fa-shield-alt"></i> Local Processing</span></div>`;
             } else if (featureType === 'closers') {
                 html = `
                     <div class="view-toggle" id="closerViewToggle">
@@ -4672,6 +4675,8 @@ const FeaturePanel = {
                 this.renderShortcuts(featureBody);
             } else if (featureType === 'closers') {
                 this.renderClosers(featureBody);
+            } else if (featureType === 'transcript') {
+                TranscriptStudio.render(featureBody);
             } else if (featureType === 'notepad') {
                 showToast('📝 Notes feature coming soon!', 'info');
                 this.hide();
@@ -4699,6 +4704,8 @@ const FeaturePanel = {
             this.renderShortcuts(body);
         } else if (AppState.currentView === 'closers') {
             this.renderClosers(body);
+        } else if (AppState.currentView === 'transcript') {
+            TranscriptStudio.render(body);
         }
     },
 
@@ -7030,6 +7037,9 @@ function setupEventListeners() {
                 case 'calendar':
                     AppState.calendarViewMode = 'month';
                     FeaturePanel.show('calendar', '📅 Appointment & Handoff Calendar');
+                    break;
+                case 'transcript':
+                    FeaturePanel.show('transcript', '🎙️ Transcript Studio');
                     break;
                 case 'tasks':
                     FeaturePanel.show('tasks', '📋 Follow-up Tasks');
