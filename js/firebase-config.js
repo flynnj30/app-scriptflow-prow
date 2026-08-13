@@ -110,46 +110,23 @@ function attemptInit() {
  * endpoint unchanged and avoids the warning.
  */
 function applyModernCacheSettings() {
+    // ScriptFlow Pro uses the Firebase 9.22.0 compat SDK.
+    // Do not call enableMultiTabIndexedDbPersistence() or enablePersistence()
+    // here: both persistence helpers are deprecated in this SDK and can emit
+    // the warning:
+    // "enableMultiTabIndexedDbPersistence() will be deprecated in the future"
+    //
+    // The application already has its own localStorage fallback for offline
+    // UX, while Firestore remains the source of truth when connected.
+    // Leaving Firestore cache configuration at the SDK default also avoids
+    // overriding Firestore's initialized settings/host.
     try {
         const db = firebase.firestore();
-
-        if (typeof db.enableMultiTabIndexedDbPersistence === 'function') {
-            db.enableMultiTabIndexedDbPersistence()
-                .then(() => {
-                    console.log('✅ Firestore multi-tab offline persistence enabled');
-                })
-                .catch(err => {
-                    if (err && err.code === 'failed-precondition') {
-                        console.info('ℹ️ Firestore persistence limited: another tab is already active.');
-                    } else if (err && err.code === 'unimplemented') {
-                        console.info('ℹ️ Firestore offline persistence is not supported in this browser.');
-                    } else if (err) {
-                        console.warn('⚠️ Firestore persistence unavailable:', err.message);
-                    }
-                });
-            return;
+        if (db) {
+            console.log('✅ Firestore initialized with SDK-managed cache settings');
         }
-
-        if (typeof db.enablePersistence === 'function') {
-            db.enablePersistence({ synchronizeTabs: true })
-                .then(() => {
-                    console.log('✅ Firestore offline persistence enabled');
-                })
-                .catch(err => {
-                    if (err && err.code === 'failed-precondition') {
-                        console.info('ℹ️ Firestore persistence limited: another tab is already active.');
-                    } else if (err && err.code === 'unimplemented') {
-                        console.info('ℹ️ Firestore offline persistence is not supported in this browser.');
-                    } else if (err) {
-                        console.warn('⚠️ Firestore persistence unavailable:', err.message);
-                    }
-                });
-            return;
-        }
-
-        console.info('ℹ️ Firestore offline persistence API is unavailable; using online mode.');
     } catch (e) {
-        console.warn('⚠️ Firestore persistence setup skipped:', e.message);
+        console.warn('⚠️ Firestore cache setup skipped:', e.message);
     }
 }
 
