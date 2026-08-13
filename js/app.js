@@ -112,7 +112,8 @@ const SMART_IMPORT_CONFIG = {
         assigned: ['assigned', 'assigned to', 'owner', 'agent', 'representative', 'rep', 'assigned agent', 'team member', 'handler', 'manager'],
         role: ['role', 'title', 'position', 'job title', 'designation', 'function', 'department'],
         closer: ['closer', 'closer name', 'booking agent', 'demo closer', 'appointment closer', 'closer assigned', 'demo closer name'],
-        timezone: ['timezone', 'tz', 'zone', 'time zone', 'local time', 'area', 'region']
+        timezone: ['timezone', 'tz', 'zone', 'time zone', 'local time', 'area', 'region'],
+        demoDateTime: ['demo time & date', 'demo date & time', 'demo datetime', 'demo date time', 'meeting date & time', 'meeting time & date', 'appointment date & time', 'appointment time & date', 'scheduled date & time', 'scheduled time & date', 'date & time', 'datetime', 'event date & time']
     }
 };
 
@@ -1614,34 +1615,57 @@ const Data = {
     },
 
     updateAppointment: function(dateStr, id, updates) {
-        const appt = AppState.appointments[dateStr]?.reports?.find(r => r.id === id);
-        if (!appt) return false;
-        
+        const sourceBucket = AppState.appointments[dateStr];
+        const sourceReports = sourceBucket?.reports || [];
+        const apptIndex = sourceReports.findIndex(r => r.id === id);
+        if (apptIndex === -1) return false;
+
+        const appt = sourceReports[apptIndex];
+        const previousDate = appt.date || dateStr;
+        const nextDate = updates.date || previousDate;
         const createdAt = appt.createdAt;
-        
+
         Object.assign(appt, updates);
+        appt.date = nextDate;
         appt.updatedAt = new Date().toISOString();
-        
-        if (updates.date && updates.date !== dateStr) {
-            appt.createdAt = createdAt;
+        appt.createdAt = createdAt;
+
+        if (updates.date && updates.date !== previousDate) {
+            sourceReports.splice(apptIndex, 1);
+            if (sourceReports.length === 0) {
+                delete AppState.appointments[dateStr];
+            }
+
+            if (!AppState.appointments[nextDate]) {
+                AppState.appointments[nextDate] = { count: 0, note: '', reports: [] };
+            }
+            AppState.appointments[nextDate].reports.push(appt);
+            AppState.appointments[nextDate].count = AppState.appointments[nextDate].reports.length;
         }
-        
+
+        if (AppState.appointments[previousDate]) {
+            AppState.appointments[previousDate].count = AppState.appointments[previousDate].reports.length;
+        }
+
         if (updates.date || updates.time || updates.callbackSetting || updates.callbackCustomValue || updates.callbackCustomUnit || updates.timezone) {
             const callbackTime = TimezoneUtils.calculateCallbackTime(appt);
-            if (callbackTime) {
-                appt.callbackTime = callbackTime.toISOString();
-            } else {
-                appt.callbackTime = null;
-            }
+            appt.callbackTime = callbackTime ? callbackTime.toISOString() : null;
             if (updates.callbackSetting) {
                 appt.callbackTriggered = false;
             }
         }
-        
+
+        this.saveAppointmentsToLocal();
         this.syncAppointment(appt);
         Stats.updateAll();
         FeaturePanel.refreshCurrentView();
         return true;
+    },
+
+    moveAppointment: function(id, fromDate, toDate, time = null) {
+        const updates = { date: toDate };
+        if (time) updates.time = time;
+        return this.updateAppointment(fromDate, id, updates);
     },
 
     getAppointmentById: function(id) {
@@ -3025,6 +3049,41 @@ function toggleImportRecord(header) {
     }
 }
 
+function extractEmailEnhanced(value) {
+    if (!value) return '';
+    const markdownMatch = String(value).match(/(?:\(|mailto:)?([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})(?:\))?/i);
+    return markdownMatch ? markdownMatch[1].toLowerCase().trim() : '';
+}
+
+function parseDemoDateTimeEnhanced(value, defaultDate = null) {
+    if (!value) return {};
+    let raw = String(value).trim();
+    const output = {};
+
+    const tzMatch = raw.match(/\b(EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC|ET|CT|MT|PT)\b/i);
+    if (tzMatch) {
+        output.timezone = Utils.parseTimezone(tzMatch[1]);
+        raw = raw.replace(tzMatch[0], ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    const timeMatch = raw.match(/(?:\bat\s*)?(\d{1,2}(?::\d{2})?\s*(?:AM|PM))\b/i) || raw.match(/(?:\bat\s*)?(\d{1,2}:\d{2})\b/);
+    if (timeMatch) {
+        const normalized = normalizeTimeEnhanced(timeMatch[1]);
+        if (normalized) output.time = normalized;
+    }
+
+    const datePart = raw
+        .replace(/\b(?:at)\s*\d{1,2}(?::\d{2})?\s*(?:AM|PM)?\b/i, ' ')
+        .replace(/\b\d{1,2}:\d{2}\b/, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const parsedDate = parseDateStringEnhanced(datePart, defaultDate);
+    if (parsedDate) output.date = parsedDate;
+
+    return output;
+}
+
 function parseAppointmentTextEnhanced(text, defaultDate = null) {
     const result = {};
     const confidence = {};
@@ -3055,7 +3114,7 @@ function parseAppointmentTextEnhanced(text, defaultDate = null) {
     else if (context.hasNaturalLanguage) context.detectedFormat = 'natural_language';
     
     if (context.detectedFormat === 'key_value') {
-        parseKeyValueFormatEnhanced(lines, result, confidence, context);
+        parseKeyValueFormatEnhanced(lines, result, confidence, context, defaultDate);
     } else if (context.detectedFormat === 'bullet_points') {
         parseBulletPointFormat(lines, result, confidence);
     } else {
@@ -3067,7 +3126,7 @@ function parseAppointmentTextEnhanced(text, defaultDate = null) {
     return { result, confidence, context };
 }
 
-function parseKeyValueFormatEnhanced(lines, result, confidence, context) {
+function parseKeyValueFormatEnhanced(lines, result, confidence, context, defaultDate = null) {
     const separators = [':', '=', '->', '=>'];
     
     const synonymMap = {
@@ -3124,6 +3183,35 @@ function parseKeyValueFormatEnhanced(lines, result, confidence, context) {
             
             if (value) {
                 let matchedField = null;
+                const normalizedKey = key.replace(/[\u2013\u2014]/g, '-').replace(/\s+/g, ' ').trim();
+
+                // Combined schedule fields such as:
+                // Demo Time & Date: Thursday, August 6th at 11:00 AM EDT
+                if (SMART_IMPORT_CONFIG.FIELD_ALIASES.demoDateTime.includes(normalizedKey) || /(?:demo|meeting|appointment|scheduled).*(?:date.*time|time.*date)|^date.*time$/i.test(normalizedKey)) {
+                    const schedule = parseDemoDateTimeEnhanced(value, defaultDate);
+                    if (schedule.date) {
+                        result.date = schedule.date;
+                        confidence.date = 0.98;
+                        context.synonyms.date.push(key);
+                    }
+                    if (schedule.time) {
+                        result.time = schedule.time;
+                        confidence.time = 0.98;
+                        context.synonyms.time.push(key);
+                    }
+                    if (schedule.timezone) {
+                        result.timezone = schedule.timezone;
+                        confidence.timezone = 0.98;
+                    }
+                    if (result.notes && result.notes.includes(`${key}: ${value}`)) {
+                        result.notes = result.notes.replace(`${key}: ${value}`, '').trim();
+                    }
+                    if (!schedule.date && !schedule.time) {
+                        result.notes = (result.notes ? result.notes + '\n' : '') + `${key}: ${value}`;
+                        confidence.notes = Math.max(confidence.notes || 0, 0.4);
+                    }
+                    return;
+                }
                 
                 if (synonymMap[key]) {
                     matchedField = synonymMap[key];
@@ -3176,10 +3264,10 @@ function parseKeyValueFormatEnhanced(lines, result, confidence, context) {
                     confidence['notes'] = 0.6;
                 } else if (matchedField) {
                     if (matchedField === 'email') {
-                        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                        if (emailRegex.test(value)) {
-                            result[matchedField] = value.toLowerCase().trim();
-                            confidence[matchedField] = 0.95;
+                        const extractedEmail = extractEmailEnhanced(value);
+                        if (extractedEmail) {
+                            result[matchedField] = extractedEmail;
+                            confidence[matchedField] = 0.98;
                         } else {
                             if (!result['notes']) result['notes'] = '';
                             result['notes'] += (result['notes'] ? '\n' : '') + `${key}: ${value}`;
@@ -3237,10 +3325,10 @@ function parseBulletPointFormat(lines, result, confidence) {
                 const matchedField = matchFieldName(key);
                 if (matchedField) {
                     if (matchedField === 'email') {
-                        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                        if (emailRegex.test(value)) {
-                            result[matchedField] = value.toLowerCase().trim();
-                            confidence[matchedField] = 0.9;
+                        const extractedEmail = extractEmailEnhanced(value);
+                        if (extractedEmail) {
+                            result[matchedField] = extractedEmail;
+                            confidence[matchedField] = 0.98;
                         }
                     } else {
                         result[matchedField] = value;
@@ -3477,7 +3565,17 @@ function enhanceParsedDataEnhanced(result, confidence, fullText, context, defaul
     }
     
     if (result.email) {
-        result.email = result.email.toLowerCase().trim();
+        result.email = extractEmailEnhanced(result.email) || result.email.toLowerCase().trim();
+    }
+
+    // Fallback for natural-language or unrecognized combined schedule labels.
+    const combinedScheduleMatch = fullText.match(/(?:demo|meeting|appointment|scheduled)?\s*(?:time\s*&\s*date|date\s*&\s*time)\s*[:=-]?\s*([^\n]+)/i) ||
+        fullText.match(/((?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+[A-Za-z]+\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?\s+at\s+\d{1,2}(?::\d{2})?\s*(?:AM|PM)(?:\s+(?:EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC|ET|CT|MT|PT))?)/i);
+    if (combinedScheduleMatch) {
+        const schedule = parseDemoDateTimeEnhanced(combinedScheduleMatch[1], defaultDate);
+        if (schedule.date && !result.date) { result.date = schedule.date; confidence.date = Math.max(confidence.date || 0, 0.96); }
+        if (schedule.time && !result.time) { result.time = schedule.time; confidence.time = Math.max(confidence.time || 0, 0.96); }
+        if (schedule.timezone && !result.timezone) { result.timezone = schedule.timezone; confidence.timezone = Math.max(confidence.timezone || 0, 0.96); }
     }
     
     if (result.date) {
@@ -3617,10 +3715,30 @@ function normalizePhoneNumber(phone) {
     return cleaned;
 }
 
-function parseDateStringEnhanced(dateStr) {
+function getMonthIndexEnhanced(monthName) {
+    const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+    const abbreviations = ['jan','feb','mar','apr','may','jun','jul','aug','sep','sept','oct','nov','dec'];
+    const normalized = String(monthName || '').toLowerCase().replace(/\.$/, '');
+    const fullIndex = months.indexOf(normalized);
+    if (fullIndex !== -1) return fullIndex;
+    const shortIndex = abbreviations.indexOf(normalized);
+    return shortIndex === -1 ? -1 : shortIndex;
+}
+
+function parseDateStringEnhanced(dateStr, referenceDate = null) {
     if (!dateStr) return null;
     
-    const trimmed = dateStr.trim();
+    let trimmed = dateStr.trim();
+    
+    // Remove markdown punctuation, weekday names, and ordinal suffixes.
+    trimmed = trimmed
+        .replace(/\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s*/i, '')
+        .replace(/(\d{1,2})(?:st|nd|rd|th)\b/gi, '$1')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const reference = referenceDate ? new Date(`${referenceDate}T00:00:00`) : new Date();
+    const referenceYear = !isNaN(reference.getTime()) ? reference.getFullYear() : new Date().getFullYear();
     
     const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (isoMatch) {
@@ -3646,9 +3764,7 @@ function parseDateStringEnhanced(dateStr) {
     
     const naturalMatch = trimmed.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/i);
     if (naturalMatch) {
-        const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-        const monthName = naturalMatch[1].toLowerCase();
-        const monthIndex = months.indexOf(monthName);
+        const monthIndex = getMonthIndexEnhanced(naturalMatch[1]);
         if (monthIndex !== -1) {
             const day = parseInt(naturalMatch[2]);
             const year = parseInt(naturalMatch[3]);
@@ -3659,11 +3775,23 @@ function parseDateStringEnhanced(dateStr) {
         }
     }
     
+    // Natural date without a year, e.g. "August 6". Use the reference year.
+    const naturalNoYearMatch = trimmed.match(/^([A-Za-z]+)\s+(\d{1,2})$/i);
+    if (naturalNoYearMatch) {
+        const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+        const monthIndex = months.indexOf(naturalNoYearMatch[1].toLowerCase());
+        const day = parseInt(naturalNoYearMatch[2]);
+        if (monthIndex !== -1 && day >= 1 && day <= 31) {
+            const date = new Date(referenceYear, monthIndex, day);
+            if (!isNaN(date.getTime()) && date.getMonth() === monthIndex && date.getDate() === day) {
+                return `${referenceYear}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            }
+        }
+    }
+
     const reverseMatch = trimmed.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
     if (reverseMatch) {
-        const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-        const monthName = reverseMatch[2].toLowerCase();
-        const monthIndex = months.indexOf(monthName);
+        const monthIndex = getMonthIndexEnhanced(reverseMatch[2]);
         if (monthIndex !== -1) {
             const day = parseInt(reverseMatch[1]);
             const year = parseInt(reverseMatch[3]);
@@ -3740,20 +3868,15 @@ function validateAppointmentData(data) {
     
     if (data.time) {
         let timeStr = data.time.trim();
-        if (!timeStr.includes('AM') && !timeStr.includes('PM')) {
-            const hourMatch = timeStr.match(/^(\d{1,2}):?(\d{2})?$/);
-            if (hourMatch) {
-                const hour = parseInt(hourMatch[1]);
-                const minute = hourMatch[2] || '00';
-                if (hour >= 1 && hour <= 12) {
-                    timeStr = `${hour}:${minute} ${hour >= 6 && hour <= 11 ? 'AM' : 'PM'}`;
-                } else if (hour >= 13 && hour <= 23) {
-                    const adjustedHour = hour - 12;
-                    timeStr = `${adjustedHour}:${minute} PM`;
-                }
-            }
+        const timeZoneMatch = timeStr.match(/\b(EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC|ET|CT|MT|PT)\b/i);
+        if (timeZoneMatch && !data.timezone) {
+            validated.timezone = Utils.parseTimezone(timeZoneMatch[1]);
         }
-        validated.time = timeStr;
+        const normalized = normalizeTimeEnhanced(timeStr);
+        validated.time = normalized || timeStr;
+        if (timeZoneMatch) {
+            validated.time = validated.time.replace(/\s+(?:EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC|ET|CT|MT|PT)$/i, '');
+        }
     }
     
     if (data.timezone) {
@@ -3870,46 +3993,61 @@ function detectDuplicatesEnhanced(newData, existingAppointments) {
 
 function splitAppointments(text) {
     const appointments = [];
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-    let currentAppointment = [];
-    let inAppointment = false;
-    
+    const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    let current = [];
+    let hasBusinessField = false;
+
+    const normalizeKey = (key) => key
+        .toLowerCase()
+        .replace(/[\u2013\u2014]/g, '-')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const isKnownField = (key) => {
+        const normalized = normalizeKey(key);
+        return Object.keys(SMART_IMPORT_CONFIG.FIELD_ALIASES).some(field =>
+            SMART_IMPORT_CONFIG.FIELD_ALIASES[field].includes(normalized)
+        ) || SMART_IMPORT_CONFIG.FIELD_ALIASES.demoDateTime.includes(normalized);
+    };
+
+    const isBusinessKey = (key) => /^(business|business name|company|company name|organization|organization name|firm|brand|store)$/i.test(normalizeKey(key));
+
+    const flush = () => {
+        if (current.length) appointments.push(current.join('\n'));
+        current = [];
+        hasBusinessField = false;
+    };
+
     for (const line of lines) {
-        const isNewAppointment = 
-            line.match(/^[A-Z][a-zA-Z]+\s+(?:Company|Corp|Inc|LLC|Ltd|Agency|Studio|Designs|Solutions|Services|Consulting|Group|Partners|&|Associates)/) ||
-            line.match(/^---+\s*$/) ||
-            line.match(/^={3,}\s*$/) ||
-            line.match(/^Appointment\s+#\d+/) ||
-            line.match(/^\d+\.\s*[A-Z]/);
-        
-        if (isNewAppointment && currentAppointment.length > 0) {
-            appointments.push(currentAppointment.join('\n'));
-            currentAppointment = [];
-            inAppointment = false;
+        if (/^---+\s*$/.test(line) || /^={3,}\s*$/.test(line) || /^Appointment\s+#\d+/i.test(line)) {
+            flush();
+            continue;
         }
-        
-        if (line.includes(':') && line.split(':')[0].trim().length > 0 && line.split(':')[0].trim().length < 30) {
-            const key = line.split(':')[0].trim().toLowerCase();
-            const isField = SMART_IMPORT_CONFIG.FIELD_ALIASES[key] || 
-                           Object.keys(SMART_IMPORT_CONFIG.FIELD_ALIASES).some(f => 
-                               SMART_IMPORT_CONFIG.FIELD_ALIASES[f].includes(key)
-                           );
-            if (isField && currentAppointment.length === 0 && !inAppointment) {
-                inAppointment = true;
+
+        const fieldMatch = line.match(/^([^:=\-]{1,50})\s*(?::|=|->|=>)\s*(.*)$/);
+        if (fieldMatch) {
+            const key = normalizeKey(fieldMatch[1]);
+            const recognized = isKnownField(key);
+
+            // A second Business/Company field is a reliable new-record boundary.
+            if (recognized && isBusinessKey(key) && hasBusinessField && current.length) {
+                flush();
             }
+
+            if (recognized && isBusinessKey(key)) hasBusinessField = true;
         }
-        
-        currentAppointment.push(line);
+
+        // Also support numbered records and common transcript separators.
+        if (/^\d+\.\s+/.test(line) && current.length) {
+            flush();
+        }
+
+        current.push(line);
     }
-    
-    if (currentAppointment.length > 0) {
-        appointments.push(currentAppointment.join('\n'));
-    }
-    
-    if (appointments.length === 0 && text.trim()) {
-        appointments.push(text.trim());
-    }
-    
+
+    flush();
+
+    if (!appointments.length && text.trim()) appointments.push(text.trim());
     return appointments;
 }
 
@@ -5385,6 +5523,10 @@ const FeaturePanel = {
 // CALENDAR VIEW
 // ================================================================
 
+function containerSafeRemoveDragOver() {
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+}
+
 const CalendarView = {
     render: function(container) {
         if (!container) return;
@@ -5504,8 +5646,9 @@ const CalendarView = {
         
         const startDay = firstDay;
         for (let i = startDay - 1; i >= 0; i--) {
-            const day = daysInPrevMonth - i;
-            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const dayDate = new Date(year, month - 1, daysInPrevMonth - i);
+            const day = dayDate.getDate();
+            const dateStr = Utils.formatDateForCompare(dayDate);
             const isToday = dateStr === todayStr;
             const hasEvents = appointmentsByDate[dateStr] && appointmentsByDate[dateStr].length > 0;
             html += `
@@ -5530,7 +5673,7 @@ const CalendarView = {
                             const status = Utils.getStatus(event);
                             const color = this.getEventColor(event);
                             return `
-                                <div class="day-event" style="border-left-color: ${color};" data-id="${event.id}" onclick="window.showAppointmentDetail('${event.id}')">
+                                <div class="day-event calendar-draggable-event" style="border-left-color: ${color};" data-id="${event.id}" data-date="${event.date}" draggable="true" title="Drag to reschedule">
                                     <span class="event-time">${event.time || 'No time'}</span>
                                     <span class="event-title">${Utils.escapeHtml(event.business)}</span>
                                 </div>
@@ -5552,7 +5695,8 @@ const CalendarView = {
         const totalDays = startDay + daysInMonth;
         const remainingDays = (7 - (totalDays % 7)) % 7;
         for (let d = 1; d <= remainingDays; d++) {
-            const dateStr = `${year}-${String(month + 2).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dayDate = new Date(year, month + 1, d);
+            const dateStr = Utils.formatDateForCompare(dayDate);
             html += `
                 <div class="calendar-day other-month" data-date="${dateStr}">
                     <span class="day-number">${d}</span>
@@ -5623,12 +5767,12 @@ const CalendarView = {
                     });
                     
                     html += `
-                        <div class="week-time-slot has-event">
+                        <div class="week-time-slot has-event calendar-drop-slot" data-date="${dateStr}" data-hour="${hour}">
                             ${appts.map(appt => {
                                 const color = this.getEventColor(appt);
                                 const status = Utils.getStatus(appt);
                                 return `
-                                    <div class="week-event" style="border-left-color: ${color};" data-id="${appt.id}" onclick="window.showAppointmentDetail('${appt.id}')">
+                                    <div class="week-event calendar-draggable-event" style="border-left-color: ${color};" data-id="${appt.id}" data-date="${appt.date}" draggable="true" title="Drag to reschedule">
                                         <span class="event-time">${appt.time || ''}</span>
                                         <span class="event-title">${Utils.escapeHtml(appt.business)}</span>
                                         <span class="event-status ${Utils.getStatusClass(status)}">${status}</span>
@@ -5638,7 +5782,7 @@ const CalendarView = {
                         </div>
                     `;
                 } else {
-                    html += `<div class="week-time-slot"></div>`;
+                    html += `<div class="week-time-slot calendar-drop-slot" data-date="${dateStr}" data-hour="${hour}"></div>`;
                 }
             }
             
@@ -5685,7 +5829,7 @@ const CalendarView = {
                 const color = this.getEventColor(appt);
                 const status = Utils.getStatus(appt);
                 html += `
-                    <div class="day-event-card" style="border-left: 4px solid ${color};" onclick="window.showAppointmentDetail('${appt.id}')">
+                    <div class="day-event-card calendar-draggable-event" style="border-left: 4px solid ${color};" data-id="${appt.id}" data-date="${appt.date}" draggable="true" title="Drag to reschedule">
                         <div class="day-event-time">
                             <i class="fas fa-clock"></i> ${appt.time || 'No time set'}
                         </div>
@@ -5841,7 +5985,100 @@ const CalendarView = {
         return colorMap[status] || '#94a3b8';
     },
     
+    handleAppointmentDragStart: function(event) {
+        const item = event.currentTarget;
+        const payload = {
+            id: item.getAttribute('data-id'),
+            fromDate: item.getAttribute('data-date')
+        };
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('application/json', JSON.stringify(payload));
+        event.dataTransfer.setData('text/plain', JSON.stringify(payload));
+        item.classList.add('is-dragging');
+    },
+
+    handleAppointmentDragEnd: function(event) {
+        event.currentTarget.classList.remove('is-dragging');
+        containerSafeRemoveDragOver();
+    },
+
+    handleCalendarDrop: function(event, targetDate, targetHour = null) {
+        event.preventDefault();
+        event.stopPropagation();
+        containerSafeRemoveDragOver();
+
+        let raw = event.dataTransfer.getData('application/json') || event.dataTransfer.getData('text/plain');
+        if (!raw) return;
+
+        let payload;
+        try { payload = JSON.parse(raw); } catch (_) { return; }
+        if (!payload?.id || !payload?.fromDate || !targetDate) return;
+        if (payload.fromDate === targetDate && targetHour === null) return;
+
+        const appt = Data.getAppointmentById(payload.id);
+        if (!appt) return;
+
+        let nextTime = null;
+        if (targetHour !== null) {
+            const minuteMatch = String(appt.time || '').match(/:(\d{2})/);
+            const minute = minuteMatch ? minuteMatch[1] : '00';
+            const hour12 = targetHour === 0 ? 12 : (targetHour > 12 ? targetHour - 12 : targetHour);
+            const period = targetHour >= 12 ? 'PM' : 'AM';
+            nextTime = `${hour12}:${minute} ${period}`;
+        }
+
+        const changedDate = payload.fromDate !== targetDate;
+        const changedTime = nextTime && nextTime !== appt.time;
+        if (!changedDate && !changedTime) return;
+
+        const updates = { date: targetDate };
+        if (nextTime) updates.time = nextTime;
+        const moved = Data.updateAppointment(payload.fromDate, payload.id, updates);
+        if (moved) {
+            AppState.calendarCurrentDate = new Date(`${targetDate}T12:00:00`);
+            AppState.selectedCalDate = targetDate;
+            AppState.activeDate = targetDate;
+            showToast(`Moved ${appt.business || 'appointment'} to ${Utils.formatDate(targetDate)}${nextTime ? ` at ${nextTime}` : ''}`, 'success');
+        }
+    },
+
     attachEvents: function(container) {
+        container.querySelectorAll('.calendar-draggable-event').forEach(eventEl => {
+            eventEl.addEventListener('dragstart', (e) => this.handleAppointmentDragStart(e));
+            eventEl.addEventListener('dragend', (e) => this.handleAppointmentDragEnd(e));
+            eventEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = eventEl.getAttribute('data-id');
+                if (id && window.showAppointmentDetail) window.showAppointmentDetail(id);
+            });
+        });
+
+        container.querySelectorAll('.calendar-day').forEach(day => {
+            day.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                day.classList.add('drag-over');
+            });
+            day.addEventListener('dragleave', () => day.classList.remove('drag-over'));
+            day.addEventListener('drop', (e) => {
+                day.classList.remove('drag-over');
+                this.handleCalendarDrop(e, day.getAttribute('data-date'));
+            });
+        });
+
+        container.querySelectorAll('.calendar-drop-slot').forEach(slot => {
+            slot.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                slot.classList.add('drag-over');
+            });
+            slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+            slot.addEventListener('drop', (e) => {
+                slot.classList.remove('drag-over');
+                this.handleCalendarDrop(e, slot.getAttribute('data-date'), parseInt(slot.getAttribute('data-hour'), 10));
+            });
+        });
+
         container.querySelectorAll('.view-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const view = btn.getAttribute('data-view');
