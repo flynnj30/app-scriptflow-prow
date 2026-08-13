@@ -305,6 +305,25 @@
         }
       } catch (_) { /* logging/cache controls are optional */ }
 
+      // Some Hugging Face Hub/CDN responses do not expose Content-Length.
+      // Transformers.js can still download the model, but its hub helper logs
+      // a non-fatal warning while it grows the response buffer dynamically.
+      // Suppress only that exact known warning during model initialization;
+      // every other console warning remains untouched.
+      const originalWarn = console.warn;
+      const suppressContentLengthWarning = (...args) => {
+        const message = args.map(v => {
+          try { return typeof v === 'string' ? v : String(v); } catch (_) { return ''; }
+        }).join(' ');
+        if (/Unable to determine content-length from response headers\. Will expand buffer when needed\.?/i.test(message)) return;
+        originalWarn.apply(console, args);
+      };
+      console.warn = suppressContentLengthWarning;
+
+      const restoreConsoleWarn = () => {
+        if (console.warn === suppressContentLengthWarning) console.warn = originalWarn;
+      };
+
       const progressCallback = info => {
         if (info && typeof info.progress === 'number') {
           const p = 7 + Math.min(12, info.progress * 0.12);
@@ -327,31 +346,35 @@
       );
 
       try {
-        this.state.pipeline = await tryModel(model, preferredDevice, preferredDtype);
-        this.state.pipelineModel = model;
-        this.state.pipelineDevice = preferredDevice;
-        this.state.pipelineDtype = preferredDtype;
-      } catch (firstErr) {
-        if (preferredDevice === 'webgpu') {
-          setProgress(9, 'GPU setup was unavailable. Switching to browser CPU mode…');
-          try {
-            this.state.pipeline = await tryModel(model, 'wasm', 'q8');
-            this.state.pipelineModel = model;
+        try {
+          this.state.pipeline = await tryModel(model, preferredDevice, preferredDtype);
+          this.state.pipelineModel = model;
+          this.state.pipelineDevice = preferredDevice;
+          this.state.pipelineDtype = preferredDtype;
+        } catch (firstErr) {
+          if (preferredDevice === 'webgpu') {
+            setProgress(9, 'GPU setup was unavailable. Switching to browser CPU mode…');
+            try {
+              this.state.pipeline = await tryModel(model, 'wasm', 'q8');
+              this.state.pipelineModel = model;
+              this.state.pipelineDevice = 'wasm';
+              this.state.pipelineDtype = 'q8';
+              return;
+            } catch (_) { /* continue to lightweight fallback */ }
+          }
+
+          if (model !== MODELS.fast) {
+            setProgress(10, 'Switching to the lightweight Whisper model…');
+            this.state.pipeline = await tryModel(MODELS.fast, 'wasm', 'q8');
+            this.state.pipelineModel = MODELS.fast;
             this.state.pipelineDevice = 'wasm';
             this.state.pipelineDtype = 'q8';
-            return;
-          } catch (_) { /* continue to lightweight fallback */ }
+          } else {
+            throw firstErr;
+          }
         }
-
-        if (model !== MODELS.fast) {
-          setProgress(10, 'Switching to the lightweight Whisper model…');
-          this.state.pipeline = await tryModel(MODELS.fast, 'wasm', 'q8');
-          this.state.pipelineModel = MODELS.fast;
-          this.state.pipelineDevice = 'wasm';
-          this.state.pipelineDtype = 'q8';
-        } else {
-          throw firstErr;
-        }
+      } finally {
+        restoreConsoleWarn();
       }
     },
 
