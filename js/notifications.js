@@ -15,11 +15,11 @@ const NotificationSystem = {
     initialized: false,
     popupQueue: [],
     isPopupShowing: false,
-    maxPopups: 3,
+    maxPopups: 1,
     popupStack: [],
     currentFilter: 'all',
     notificationSound: null,
-    isSoundEnabled: true,
+    isSoundEnabled: false,
     callbackMonitorId: null,
     callbackMonitorStarted: false,
 
@@ -166,7 +166,8 @@ const NotificationSystem = {
             this.saveNotifications();
             this.updateBadge();
             this.renderDropdown();
-            this.showPopup(existing);
+            // Keep the existing notification in the bell; avoid duplicate intrusive popups.
+            if (!existing._popupShown) this.showPopup(existing);
             return existing;
         }
         
@@ -306,6 +307,8 @@ const NotificationSystem = {
      */
     showPopup: function(notification) {
         if (!notification || notification.dismissed) return;
+        // Ignore duplicate popup requests while the same notification is already visible/queued.
+        if (this.popupQueue.some(n => n.id === notification.id) || this.popupStack.includes('popup_' + notification.id)) return;
         this.popupQueue.push(notification);
         this.processPopupQueue();
     },
@@ -354,8 +357,8 @@ const NotificationSystem = {
         popup.innerHTML = `
             <div class="popup-header">
                 <div class="popup-title">
-                    <span class="icon">${isDue ? '⏰' : '✅'}</span>
-                    ${isDue ? 'Callback Due' : 'Callback Completed'}
+                    <span class="icon"><i class="fas ${isDue ? 'fa-phone' : 'fa-check'}"></i></span>
+                    ${isDue ? 'Callback reminder' : 'Callback completed'}
                 </div>
                 <button class="popup-close" data-popup-id="${popupId}" aria-label="Close notification">
                     <i class="fas fa-times"></i>
@@ -364,7 +367,7 @@ const NotificationSystem = {
             <div class="popup-body">
                 <span class="business-name">${Utils.escapeHtml(notification.business)}</span>
                 ${notification.contactName ? ` — ${Utils.escapeHtml(notification.contactName)}` : ''}
-                <div class="popup-time">⏱️ ${callbackTime}</div>
+                <div class="popup-time"><i class="far fa-clock"></i> ${callbackTime}</div>
             </div>
             <div class="popup-actions">
                 <button class="btn-icon view-btn" data-appt-id="${notification.appointmentId}">
@@ -393,16 +396,19 @@ const NotificationSystem = {
         // Attach events
         this.attachPopupEvents(popup, popupId, notification);
         
-        // Auto-dismiss after 15 seconds
+        notification._popupShown = true;
+
+        // Auto-dismiss after 8 seconds
         const timerId = setTimeout(() => {
             this.dismissPopup(popupId, notification.id);
-        }, 15000);
+        }, 8000);
         this.popupTimers.set(popupId, timerId);
         
         // Track removal
         const observer = new MutationObserver(() => {
             if (!document.getElementById(popupId)) {
                 this.popupStack = this.popupStack.filter(id => id !== popupId);
+            notification._popupShown = false;
                 observer.disconnect();
                 this.isPopupShowing = false;
                 this.processPopupQueue();
@@ -606,11 +612,8 @@ const NotificationSystem = {
         // Bell animation
         const bell = document.querySelector('.notification-bell');
         if (bell) {
-            if (this.unreadCount > 0) {
-                bell.classList.add('has-unread');
-            } else {
-                bell.classList.remove('has-unread');
-            }
+            // Unread state is represented by the badge only; do not animate the navigation.
+            bell.classList.remove('has-unread');
         }
     },
 
@@ -618,12 +621,8 @@ const NotificationSystem = {
      * Animate bell
      */
     animateBell: function() {
-        const bell = document.querySelector('.notification-bell');
-        if (bell) {
-            bell.classList.remove('has-unread');
-            void bell.offsetWidth;
-            bell.classList.add('has-unread');
-        }
+        // Intentionally static: unread state is shown by the badge to avoid visual blinking.
+        this.updateBadge();
     },
 
     /**
