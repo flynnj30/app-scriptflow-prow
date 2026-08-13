@@ -29,7 +29,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     
     <!-- Styles -->
-    <link rel="stylesheet" href="assets/css/style.css" />
+    <link rel="stylesheet" href="style.css" />
 </head>
 <body class="dark">
     <!-- Loading Screen -->
@@ -83,16 +83,17 @@
                     <i class="fas fa-chevron-right tools-chevron" id="toolsChevron"></i>
                 </div>
                 <div class="tools-menu" id="toolsMenu" role="menu">
-                    <div class="tool-item" data-tool="analytics"><i class="fas fa-chart-pie"></i> <span>Analytics Hub</span></div>
-                    <div class="tool-item" data-tool="calendar"><i class="fas fa-calendar-alt"></i> <span>Appointment Calendar</span></div>
-                    <div class="tool-item" data-tool="tasks"><i class="fas fa-tasks"></i> <span>Follow-up Tasks</span></div>
-                    <div class="tool-item" data-tool="closers"><i class="fas fa-user-tie"></i> <span>Closer Management</span></div>
-                    <div class="tool-item" data-tool="shortcuts"><i class="fas fa-keyboard"></i> <span>⌨️ Shortcuts</span></div>
-                    <div class="tool-item" data-tool="export"><i class="fas fa-file-csv"></i> <span>Export to CSV</span></div>
-                    <div class="tool-item" data-tool="theme"><i class="fas fa-moon"></i> <span>Dark/Light Mode</span></div>
-                    <div class="tool-item" data-tool="help"><i class="fas fa-question-circle"></i> <span>Help Guide</span></div>
-                    <div class="tool-item" data-tool="reset"><i class="fas fa-trash-alt"></i> <span>Factory Reset</span></div>
-                    <div class="tool-item" id="signOutBtn" style="border-top:1px solid rgba(255,255,255,0.1); margin-top:8px; padding-top:12px;">
+                    <div class="tool-item" data-tool="transcript" role="menuitem" tabindex="0"><i class="fas fa-microphone-lines" aria-hidden="true"></i> <span>Transcript Studio</span></div>
+                    <div class="tool-item" data-tool="analytics" role="menuitem" tabindex="0"><i class="fas fa-chart-pie" aria-hidden="true"></i> <span>Analytics Hub</span></div>
+                    <div class="tool-item" data-tool="calendar" role="menuitem" tabindex="0"><i class="fas fa-calendar-alt" aria-hidden="true"></i> <span>Appointment Calendar</span></div>
+                    <div class="tool-item" data-tool="tasks" role="menuitem" tabindex="0"><i class="fas fa-tasks"></i> <span>Follow-up Tasks</span></div>
+                    <div class="tool-item" data-tool="closers" role="menuitem" tabindex="0"><i class="fas fa-user-tie"></i> <span>Closer Management</span></div>
+                    <div class="tool-item" data-tool="shortcuts" role="menuitem" tabindex="0"><i class="fas fa-keyboard"></i> <span>⌨️ Shortcuts</span></div>
+                    <div class="tool-item" data-tool="export" role="menuitem" tabindex="0"><i class="fas fa-file-csv"></i> <span>Export to CSV</span></div>
+                    <div class="tool-item" data-tool="theme" role="menuitem" tabindex="0"><i class="fas fa-moon"></i> <span>Dark/Light Mode</span></div>
+                    <div class="tool-item" data-tool="help" role="menuitem" tabindex="0"><i class="fas fa-question-circle"></i> <span>Help Guide</span></div>
+                    <div class="tool-item" data-tool="reset" role="menuitem" tabindex="0"><i class="fas fa-trash-alt"></i> <span>Factory Reset</span></div>
+                    <div class="tool-item" id="signOutBtn" role="menuitem" tabindex="0" style="border-top:1px solid rgba(255,255,255,0.1); margin-top:8px; padding-top:12px;">
                         <i class="fas fa-sign-out-alt"></i> <span>Sign Out</span>
                     </div>
                 </div>
@@ -102,31 +103,73 @@
 
         <!-- Main Content -->
         <div class="main-content" id="mainContent">
-            <!-- HERO / STICKY NAVIGATION -->
-            <div class="hero-sticky-wrapper" id="heroWrapper">
-                <!-- Top Bar -->
-                <div class="top-bar">
-                    <div class="stats-row">
-                        <div class="stat"><span class="stat-label"><i class="fas fa-calendar-day"></i> Today</span><span class="stat-number" id="statToday">0</span><span class="stat-label">/<span id="goalDaily">3</span></span></div>
-                        <div class="stat"><span class="stat-label"><i class="fas fa-calendar-week"></i> Week</span><span class="stat-number" id="statWeek">0</span><span class="stat-label">/<span id="goalWeekly">15</span></span></div>
-                        <div class="stat"><span class="stat-label"><i class="fas fa-calendar-alt"></i> Month</span><span class="stat-number" id="statMonth">0</span><span class="stat-label">/<span id="goalMonthly">60</span></span></div>
-                        <div class="stat"><span class="stat-label"><i class="fas fa-star"></i> Avg Score</span><span class="stat-number" id="avgScore">0</span></div>
-                        <div class="stat"><span class="stat-label"><i class="fas fa-tasks"></i> Tasks</span><span class="stat-number" id="pendingTasks">0</span></div>
+            <!-- Top Bar -->
+            <div class="top-bar">
+                <div class="stats-row">
+                    <div class="stat"><span class="stat-label"><i class="fas fa-calendar-day"></i> Today</span><span class="stat-number" id="statToday">0</span><span class="stat-label">/<span id="goalDaily">3</span></span></div>
+                    <div class="stat"><span class="stat-label"><i class="fas fa-calendar-week"></i> Week</span><span class="stat-number" id="statWeek">0</span><span class="stat-label">/<span id="goalWeekly">15</span></span></div>
+                    <div class="stat"><span class="stat-label"><i class="fas fa-calendar-alt"></i> Month</span><span class="stat-number" id="statMonth">0</span><span class="stat-label">/<span id="goalMonthly">60</span></span></div>
+                    <div class="stat"><span class="stat-label"><i class="fas fa-star"></i> Avg Score</span><span class="stat-number" id="avgScore">0</span></div>
+                    <div class="stat"><span class="stat-label"><i class="fas fa-tasks"></i> Tasks</span><span class="stat-number" id="pendingTasks">0</span></div>
+                </div>
+                
+                <!-- Notification Bell -->
+                <div class="notification-bell-container">
+                    <button class="btn-icon notification-bell" id="notificationBellBtn" aria-label="Notifications">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge hidden" id="notificationBadge">0</span>
+                    </button>
+                    <div class="notification-dropdown" id="notificationDropdown">
+                        <div class="notification-dropdown-header">
+                            <div class="notification-header-left">
+                                <span>Notifications</span>
+                                <span class="notification-count-badge" id="notificationCountBadge">0</span>
+                            </div>
+                            <div class="notification-header-actions">
+                                <button class="mark-all-read-btn" id="markAllReadBtn">
+                                    <i class="fas fa-check-double"></i> Mark all as read
+                                </button>
+                            </div>
+                        </div>
+                        <div class="notification-filter-tabs">
+                            <button class="filter-tab active" data-filter="all">All</button>
+                            <button class="filter-tab" data-filter="unread">Unread</button>
+                            <button class="filter-tab" data-filter="callback_due">Callback due</button>
+                            <button class="filter-tab" data-filter="archived">Archived</button>
+                        </div>
+                        <div class="notification-dropdown-body" id="notificationDropdownBody">
+                            <div class="empty-notifications">
+                                <i class="fas fa-bell-slash"></i>
+                                <p>No notifications</p>
+                            </div>
+                        </div>
+                        <div class="notification-dropdown-footer">
+                            <span class="notification-footer-text">Contacts</span>
+                            <button class="mark-all-read-btn mark-all-read-footer" id="markAllReadFooterBtn">
+                                <i class="fas fa-check-double"></i> Mark all as read
+                            </button>
+                        </div>
+                        <div class="notification-dropdown-account">
+                            <span>Account</span>
+                            <span class="notification-count-badge" id="notificationAccountBadge">0</span>
+                        </div>
                     </div>
-                    <div class="action-buttons" id="actionButtons">
-                        <button class="btn-icon" id="quickReportBtn"><i class="fas fa-magic"></i> Smart Import</button>
-                        <button class="btn-icon" id="bulkActionsBtn"><i class="fas fa-check-double"></i> Bulk Actions</button>
-                        <label class="btn-icon csv-upload-btn"><i class="fas fa-file-upload"></i> CSV<input type="file" id="csvFileInput" accept=".csv" /></label>
-                        <button class="btn-icon" id="historyBtn"><i class="fas fa-history"></i> History</button>
-                        <button class="btn-icon" id="searchGlobalBtn"><i class="fas fa-search"></i> Search</button>
-                        <button class="btn-icon" id="refreshBtn" style="padding:8px 12px;"><i class="fas fa-sync-alt"></i></button>
-                        <span class="badge-auto" id="saveStatus"><i class="fas fa-save"></i> Auto</span>
-                    </div>
+                </div>
+
+                <div class="action-buttons" id="actionButtons">
+                    <button class="btn-icon" id="quickReportBtn"><i class="fas fa-magic"></i> Smart Import</button>
+                    <button class="btn-icon" id="bulkActionsBtn"><i class="fas fa-check-double"></i> Bulk Actions</button>
+                    <label class="btn-icon csv-upload-btn"><i class="fas fa-file-upload"></i> CSV<input type="file" id="csvFileInput" accept=".csv" /></label>
+                    <button class="btn-icon" id="historyBtn"><i class="fas fa-history"></i> History</button>
+                    <button class="btn-icon" id="searchGlobalBtn"><i class="fas fa-search"></i> Search</button>
+                    <button class="btn-icon" id="refreshBtn" style="padding:8px 12px;"><i class="fas fa-sync-alt"></i></button>
+                    <span class="badge-auto" id="saveStatus"><i class="fas fa-save"></i> Auto</span>
                 </div>
             </div>
 
-            <!-- SCRIPT PANEL - PINNED BELOW HERO -->
-            <div class="script-panel-wrapper" id="scriptPanelWrapper">
+            <!-- Right Panel -->
+            <div id="rightPanel">
+                <!-- Script Panel -->
                 <div id="scriptPanel" class="script-card">
                     <div class="script-header-bar">
                         <div class="script-title-area">
@@ -141,22 +184,27 @@
                         </div>
                     </div>
                     <div class="script-body" id="scriptBody">
+                        <!-- Objection Handler Integrated -->
+                        <div id="objectionHandlerContainer" style="display:none; margin-bottom:16px;">
+                            <div id="objectionHandlerContent"></div>
+                        </div>
                         <div id="scriptContent"></div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Feature Panel -->
-            <div id="featurePanel" class="feature-panel" style="display:none;">
-                <div class="feature-panel-header">
-                    <h2 id="featurePanelTitle">Feature</h2>
-                    <div id="viewToggleContainer"></div>
-                    <button id="closeFeaturePanelBtn" class="btn-icon"><i class="fas fa-times"></i> Close</button>
+                <!-- Feature Panel -->
+                <div id="featurePanel" class="feature-panel" style="display:none;">
+                    <div class="feature-panel-header">
+                        <h2 id="featurePanelTitle">Feature</h2>
+                        <div id="viewToggleContainer"></div>
+                        <button id="closeFeaturePanelBtn" class="btn-icon"><i class="fas fa-times"></i> Close</button>
+                    </div>
+                    <div class="feature-panel-body" id="featurePanelBody"></div>
                 </div>
-                <div class="feature-panel-body" id="featurePanelBody"></div>
             </div>
 
             <div class="footer-note"><i class="fas fa-chart-line"></i> Full-featured CRM · Drag appointments to reschedule · Lead scoring · Follow-up tasks · Bulk actions</div>
+                        <div class="footer-note sfp-developed-by"><i class="fas fa-code"></i> Developed by Flynn</div>
         </div>
     </div>
 
@@ -266,7 +314,7 @@
 
     <!-- Appointment Detail Modal -->
     <div id="appointmentDetailModal" class="modal-overlay" style="display:none;">
-        <div class="modal-card" style="max-width:500px;">
+        <div class="modal-card" style="max-width:560px;">
             <h3 id="appointmentDetailTitle">Appointment Details</h3>
             <div id="appointmentDetailContent"></div>
             <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px; flex-wrap:wrap;">
@@ -310,15 +358,44 @@
     <div id="quickAddModal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
             <h3><i class="fas fa-plus-circle"></i> Add New Appointment</h3>
-            <div class="form-group"><label>Date</label><input type="date" id="newApptDate" /></div>
+            <div class="form-group"><label>Date *</label><input type="date" id="newApptDate" /></div>
             <div class="form-group"><label>Business Name *</label><input type="text" id="newApptBusiness" placeholder="Enter business name" /><div class="error-message" id="businessError">Business name is required</div></div>
             <div class="form-group"><label>Contact Name *</label><input type="text" id="newApptContact" placeholder="Enter contact name" /><div class="error-message" id="contactError">Contact name is required</div></div>
             <div class="form-group"><label>Phone</label><input type="text" id="newApptPhone" placeholder="Enter phone number" /></div>
             <div class="form-group"><label>Email</label><input type="email" id="newApptEmail" placeholder="Enter email address" /></div>
             <div class="form-group"><label>Time</label><input type="time" id="newApptTime" /></div>
+            <div class="form-group"><label>Time Zone</label>
+                <select id="newApptTimezone">
+                    <option value="Eastern EDT">Eastern (EDT)</option>
+                    <option value="Central CDT" selected>Central (CDT)</option>
+                    <option value="Mountain MDT">Mountain (MDT)</option>
+                    <option value="Pacific PDT">Pacific (PDT)</option>
+                    <option value="UTC">UTC</option>
+                </select>
+            </div>
             <div class="form-group"><label>Lead Status</label><select id="newApptStatus"></select></div>
             <div class="form-group"><label>Assigned To</label><select id="newApptAssigned"></select></div>
             <div class="form-group"><label>Closer</label><select id="newApptCloser"></select></div>
+            <div class="form-group"><label>Callback Before Meeting</label>
+                <select id="newApptCallback">
+                    <option value="none">None</option>
+                    <option value="24h">24 hours before</option>
+                    <option value="4h">4 hours before</option>
+                    <option value="1h">1 hour before</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+            <div id="newApptCustomCallbackContainer" style="display:none;" class="form-group">
+                <label>Custom Time</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="number" id="newApptCallbackValue" placeholder="Amount" style="width:80px;" />
+                    <select id="newApptCallbackUnit">
+                        <option value="minutes">Minutes</option>
+                        <option value="hours" selected>Hours</option>
+                        <option value="days">Days</option>
+                    </select>
+                </div>
+            </div>
             <div class="form-group"><label>Notes</label><textarea id="newApptNotes" rows="3" placeholder="Add any additional notes..."></textarea></div>
             <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px; flex-wrap:wrap;">
                 <button id="saveQuickApptBtn" class="btn-icon" style="background:var(--success); color:white;"><i class="fas fa-save"></i> Save</button>
@@ -351,70 +428,17 @@
         </div>
     </div>
 
-    <!-- Shortcuts Help Modal -->
-    <div id="shortcutsHelpModal" class="modal-overlay" style="display:none;">
-        <div class="modal-card" style="max-width: 700px;">
-            <h3><i class="fas fa-keyboard"></i> Keyboard Shortcuts</h3>
-            <p style="color:var(--text-muted); margin-bottom:16px;">Quick actions to speed up your workflow.</p>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; max-height:400px; overflow-y:auto;">
-                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
-                    <span>Smart Import</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+I</kbd>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
-                    <span>Calendar</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+C</kbd>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
-                    <span>Scripts</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+S</kbd>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
-                    <span>Search</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+F</kbd>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
-                    <span>Quick Add</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+A</kbd>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
-                    <span>Analytics</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+H</kbd>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
-                    <span>Closers</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+M</kbd>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
-                    <span>Objection Handler</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+O</kbd>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
-                    <span>Export</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+E</kbd>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
-                    <span>Theme Toggle</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+T</kbd>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
-                    <span>Bulk Actions</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+B</kbd>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
-                    <span>Refresh</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Ctrl+Shift+R</kbd>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
-                    <span>Switch Script</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">1-9</kbd>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:6px 12px; background:var(--bg-primary); border-radius:6px;">
-                    <span>Close Panel</span><kbd style="background:var(--bg-card); padding:2px 8px; border-radius:4px; font-size:0.7rem;">Escape</kbd>
-                </div>
-            </div>
-            <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px; border-top:1px solid var(--border-color); padding-top:16px;">
-                <button id="closeShortcutsHelpBtn" class="btn-icon">Close</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Auth Modal -->
     <div id="authModal" class="modal-overlay" style="display:none;"></div>
 
     <!-- JavaScript -->
-    <script src="assets/js/firebase-config.js"></script>
-    <script src="assets/js/loading.js"></script>
-    <script src="assets/js/objection-handler.js"></script>
-    <script src="assets/js/import-enhancements.js"></script>
-    <script src="assets/js/app.js"></script>
-    <script src="assets/js/main.js"></script>
+    <script src="js/firebase-config.js"></script>
+    <script src="js/loading.js"></script>
+    <script src="js/objection-handler.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/ics-calendar-sync.js"></script>
+    <script src="js/transcript-studio.js"></script>
+    <script src="js/runtime-guards.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
