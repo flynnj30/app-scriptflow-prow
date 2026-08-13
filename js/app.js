@@ -1233,12 +1233,24 @@ const Data = {
                 return this.loadUserData();
             }
 
-            const teamSnapshot = await userRef.collection('teamMembers').get();
-            if (!teamSnapshot.empty) {
-                AppState.teamMembers = [];
-                teamSnapshot.forEach(doc => {
-                    AppState.teamMembers.push({ ...doc.data(), id: doc.id });
-                });
+            // Optional team data must never block the rest of the user's data from loading.
+            // A Firestore rules mismatch or temporary network failure falls back to local/default data.
+            try {
+                const teamSnapshot = await userRef.collection('teamMembers').get();
+                if (!teamSnapshot.empty) {
+                    AppState.teamMembers = [];
+                    teamSnapshot.forEach(doc => {
+                        AppState.teamMembers.push({ ...doc.data(), id: doc.id });
+                    });
+                }
+            } catch (teamError) {
+                const localTeam = localStorage.getItem('teamMembers_fallback');
+                if (localTeam) {
+                    try { AppState.teamMembers = JSON.parse(localTeam); } catch (_) {}
+                }
+                if (!Array.isArray(AppState.teamMembers) || !AppState.teamMembers.length) {
+                    AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
+                }
             }
 
             localStorage.setItem('userData_fallback', JSON.stringify({
@@ -1439,7 +1451,14 @@ const Data = {
                 FeaturePanel.refreshCurrentView();
                 localStorage.setItem('tasks_fallback', JSON.stringify(AppState.tasks));
             }, error => {
-                console.warn('Tasks subscription error:', error);
+                const localTasks = localStorage.getItem('tasks_fallback');
+                if (localTasks) {
+                    try { AppState.tasks = JSON.parse(localTasks); } catch (_) { AppState.tasks = []; }
+                } else {
+                    AppState.tasks = [];
+                }
+                Stats.updateTaskStats();
+                FeaturePanel.refreshCurrentView();
             });
 
             AppState.teamMembersUnsubscribe = userRef.collection('teamMembers').onSnapshot(snap => {
@@ -1456,10 +1475,16 @@ const Data = {
                 }
                 localStorage.setItem('teamMembers_fallback', JSON.stringify(AppState.teamMembers));
             }, error => {
-                console.warn('Team members subscription error:', error);
+                const localTeam = localStorage.getItem('teamMembers_fallback');
+                if (localTeam) {
+                    try { AppState.teamMembers = JSON.parse(localTeam); } catch (_) { AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS; }
+                } else {
+                    AppState.teamMembers = CONFIG.DEFAULT_TEAM_MEMBERS;
+                }
             });
         } catch (error) {
-            console.warn('Subscription error:', error);
+            // Subscription failures are handled by the per-stream fallbacks below; avoid
+            // surfacing expected permission/network failures as uncaught application errors.
             const appointmentsLocal = localStorage.getItem('appointments_fallback');
             const tasksLocal = localStorage.getItem('tasks_fallback');
             const teamLocal = localStorage.getItem('teamMembers_fallback');
