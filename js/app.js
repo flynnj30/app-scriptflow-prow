@@ -202,7 +202,8 @@ const AppState = {
     callbackNotifications: {},
     pendingAppointmentSync: {},
     callbackCheckInterval: null,
-    lastCallbackCheck: null
+    lastCallbackCheck: null,
+    _permissionNoticeShown: false
 };
 
 // ================================================================
@@ -1007,6 +1008,9 @@ const Auth = {
             AppState.scriptOrder = [];
             AppState.teamMembers = [];
             AppState.closers = [];
+            AppState.pendingAppointmentSync = {};
+            AppState._permissionNoticeShown = false;
+            localStorage.removeItem('appointments_pending_sync');
             
             this.updateUI();
             Stats.updateAll();
@@ -1628,7 +1632,10 @@ const Data = {
             // change, but the user's current work remains intact until that is fixed.
             const code = String(e?.code || '');
             if (code === 'permission-denied' || /Missing or insufficient permissions/i.test(String(e?.message || ''))) {
-                console.warn('Appointment saved locally; Firebase permission denied. Update Firestore security rules to enable appointment writes.');
+                if (!AppState._permissionNoticeShown) {
+                    AppState._permissionNoticeShown = true;
+                    showToast('Saved locally. Cloud sync needs Firestore appointment permissions.', 'warning');
+                }
             } else {
                 console.warn('Appointment sync temporarily unavailable; keeping the local change.', e);
             }
@@ -6339,6 +6346,65 @@ const CalendarView = {
         }
     },
 
+    attachDragAndDrop: function(container) {
+        const eventSelector = '.day-event, .week-event, .day-event-card';
+        container.querySelectorAll(eventSelector).forEach(eventEl => {
+            eventEl.setAttribute('draggable', 'true');
+            eventEl.addEventListener('dragstart', e => {
+                const id = eventEl.getAttribute('data-id');
+                if (!id) return;
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', String(id));
+                eventEl.classList.add('calendar-dragging');
+            });
+            eventEl.addEventListener('dragend', () => eventEl.classList.remove('calendar-dragging'));
+        });
+
+        const makeDropTarget = (el, date, time = null) => {
+            if (!el || !date) return;
+            el.addEventListener('dragover', e => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                el.classList.add('calendar-drop-target');
+            });
+            el.addEventListener('dragleave', () => el.classList.remove('calendar-drop-target'));
+            el.addEventListener('drop', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                el.classList.remove('calendar-drop-target');
+                const id = e.dataTransfer.getData('text/plain');
+                if (!id) return;
+                const appt = Data.getAppointmentById(id);
+                if (!appt) return;
+                const updates = { date };
+                if (time) updates.time = time;
+                if (String(appt.date) === String(date) && (!time || String(appt.time || '') === String(time))) return;
+                const moved = Data.updateAppointment(appt.date, appt.id, updates);
+                if (moved) {
+                    AppState.calendarCurrentDate = new Date(`${date}T12:00:00`);
+                    AppState.selectedCalDate = date;
+                    AppState.activeDate = date;
+                    this.render(container);
+                    showToast(time ? `Appointment moved to ${date} at ${time}` : `Appointment moved to ${date}`, 'success');
+                }
+            });
+        };
+
+        container.querySelectorAll('.calendar-day[data-date]').forEach(day => {
+            makeDropTarget(day, day.getAttribute('data-date'));
+        });
+
+        container.querySelectorAll('.week-time-slot[data-date]').forEach(slot => {
+            const hour = Number(slot.getAttribute('data-hour'));
+            let time = null;
+            if (Number.isFinite(hour)) {
+                const h12 = hour === 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+                time = `${h12}:00 ${hour >= 12 ? 'PM' : 'AM'}`;
+            }
+            makeDropTarget(slot, slot.getAttribute('data-date'), time);
+        });
+    },
+
     attachEvents: function(container) {
         this.bindCalendarDragDelegation(container);
         container.querySelectorAll('.view-btn').forEach(btn => {
@@ -6491,6 +6557,8 @@ const CalendarView = {
                 }
             });
         });
+
+        this.attachDragAndDrop(container);
     }
 };
 

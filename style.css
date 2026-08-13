@@ -4440,3 +4440,38 @@ body {
 .ts-history-meta{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}.ts-history-meta strong,.ts-history-meta span,.ts-history-meta small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ts-history-meta strong{font-size:.82rem}.ts-history-meta span{font-size:.74rem;color:var(--text-secondary)}.ts-history-meta small{font-size:.68rem;color:var(--text-muted)}
 .ts-history-loading,.ts-history-empty{padding:34px 18px;text-align:center;color:var(--text-muted);display:flex;flex-direction:column;align-items:center;gap:7px}.ts-history-empty i{font-size:1.5rem;color:var(--primary)}.ts-history-empty strong{color:var(--text-primary);font-size:.88rem}.ts-history-empty span{font-size:.74rem;max-width:260px}
 @media(max-width:700px){.ts-history-drawer{right:10px;top:62px;width:calc(100% - 20px);max-height:calc(100vh - 80px)}.ts-history-name{font-size:.72rem}.ts-result-title{min-width:0}.ts-result-title strong{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+
+/* Calendar drag-and-drop feedback */
+.calendar-day.calendar-drop-target,
+.week-time-slot.calendar-drop-target {
+    outline: 2px dashed var(--primary, #3b82f6);
+    outline-offset: -2px;
+    background: color-mix(in srgb, var(--primary, #3b82f6) 8%, transparent);
+}
+
+.calendar-dragging {
+    opacity: .45;
+    cursor: grabbing !important;
+}
+
+.day-event[draggable="true"],
+.week-event[draggable="true"],
+.day-event-card[draggable="true"] {
+    cursor: grab;
+}
+
+.day-event[draggable="true"]:active,
+.week-event[draggable="true"]:active,
+.day-event-card[draggable="true"]:active {
+    cursor: grabbing;
+}
+
+/* ScriptFlow Pro calendar drag/drop feedback */
+.calendar-day.calendar-drop-target,
+.week-time-slot.calendar-drop-target {
+    outline: 2px dashed var(--primary, #3b82f6);
+    outline-offset: -2px;
+    background: color-mix(in srgb, var(--primary, #3b82f6) 8%, transparent);
+}
+.calendar-dragging { opacity: .45; cursor: grabbing !important; }
+.day-event[draggable="true"], .week-event[draggable="true"], .day-event-card[draggable="true"] { cursor: grab; }
