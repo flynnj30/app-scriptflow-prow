@@ -319,7 +319,7 @@
     async ensurePuterReady() {
       quietPuterSdkLogs();
       const sdkSrc = 'https://js.puter.com/v2/';
-      const ready = () => window.puter && window.puter.ai && typeof window.puter.ai.speech2txt === 'function';
+      const ready = () => window.puter && window.puter.ai && (typeof window.puter.ai.speech2txt === 'function' || typeof window.puter.ai.chat === 'function');
       if (ready()) { window.puter.quiet = true; return window.puter; }
 
       let existing = document.querySelector('script[data-scriptflow-puter="true"]');
@@ -341,7 +341,7 @@
 
       const started = Date.now();
       while (!ready()) {
-        if (Date.now() - started > 5000) throw new Error('Puter AI loaded but speech-to-text is not available.');
+        if (Date.now() - started > 5000) throw new Error('Puter AI loaded but its AI features are not available.');
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       window.puter.quiet = true;
@@ -708,7 +708,7 @@
       const duration = this.state.audioDuration || (this.state.chunks.length ? this.state.chunks[this.state.chunks.length - 1].end : 0);
       return `
       <div class="ts-pro ts-result-page">
-        <div class="ts-result-topbar"><button class="ts-back-btn" id="tsBack"><i class="fas fa-chevron-left"></i></button><div class="ts-result-title"><strong>${this.esc(title)}</strong><span>${this.state.sourceType === 'audio' ? this.formatDuration(duration) : 'Transcript file'}</span></div><div class="ts-result-actions"><button class="ts-icon-btn" id="tsShare" title="Share"><i class="fas fa-share-nodes"></i></button><button class="ts-icon-btn" id="tsMore" title="More"><i class="fas fa-ellipsis"></i></button><button class="ts-export-main" id="tsExportMenu"><i class="fas fa-download"></i> Export</button></div></div><div class="ts-booking-card" id="tsBookingCard"><div class="ts-booking-head"><div><span class="ts-booking-kicker"><i class="fas fa-calendar-check"></i> Booking-ready details</span><h3>Appointment Submission Format</h3><p>Auto-filled from the transcript. Missing details are marked <b>Not specified</b>.</p></div><div class="ts-booking-actions"><button class="ts-mini-btn" id="tsCopyBooking"><i class="far fa-copy"></i> Copy</button><button class="ts-mini-btn" id="tsSendBooking"><i class="fas fa-wand-magic-sparkles"></i> Send to Smart Import</button></div></div><textarea id="tsBookingText" class="ts-booking-text" spellcheck="false">${this.esc(this.bookingFormat(this.extractBookingData(this.state.transcript)))}</textarea></div>
+        <div class="ts-result-topbar"><button class="ts-back-btn" id="tsBack"><i class="fas fa-chevron-left"></i></button><div class="ts-result-title"><strong>${this.esc(title)}</strong><span>${this.state.sourceType === 'audio' ? this.formatDuration(duration) : 'Transcript file'}</span></div><div class="ts-result-actions"><button class="ts-icon-btn" id="tsShare" title="Share"><i class="fas fa-share-nodes"></i></button><button class="ts-icon-btn" id="tsMore" title="More"><i class="fas fa-ellipsis"></i></button><button class="ts-export-main" id="tsExportMenu"><i class="fas fa-download"></i> Export</button></div></div><div class="ts-booking-card" id="tsBookingCard"><div class="ts-booking-head"><div><span class="ts-booking-kicker"><i class="fas fa-calendar-check"></i> Booking-ready details</span><h3>Appointment Submission Format</h3><p>Auto-filled from the transcript. Missing details are marked <b>Not specified</b>.</p></div><div class="ts-booking-actions"><button class="ts-mini-btn ts-ai-booking-btn" id="tsAnalyzeBooking" title="Use AI to analyze this transcript and populate the booking format"><i class="fas fa-wand-magic-sparkles"></i> <span>AI Analyze &amp; Populate</span></button><button class="ts-mini-btn" id="tsCopyBooking"><i class="far fa-copy"></i> Copy</button><button class="ts-mini-btn" id="tsSendBooking"><i class="fas fa-file-import"></i> Send to Smart Import</button></div></div><textarea id="tsBookingText" class="ts-booking-text" spellcheck="false">${this.esc(this.bookingFormat(this.extractBookingData(this.state.transcript)))}</textarea></div>
         <div class="ts-result-layout">
           <section class="ts-transcript-pane">
             <div class="ts-transcript-toolbar"><div class="ts-transcript-label"><strong>Transcript</strong><span>${this.formatDuration(duration)}</span></div><label class="ts-search"><i class="fas fa-search"></i><input id="tsSearch" placeholder="Search transcript" /></label><button class="ts-icon-btn" id="tsCopy" title="Copy"><i class="far fa-copy"></i></button><button class="ts-icon-btn" id="tsTranslateQuick" title="Translate to English"><i class="fas fa-language"></i></button></div>
@@ -752,6 +752,7 @@
       container.querySelectorAll('.ts-chunk').forEach(el=>el.onclick=()=>{this.state.selectedChunkIndex=Number(el.dataset.index||0);audio.currentTime=Number(el.dataset.start||0);audio.play();if(play)play.innerHTML='<i class="fas fa-pause"></i>';});
       const search=container.querySelector('#tsSearch'); if(search) search.oninput=()=>this.filterChunks(container,search.value);
       container.querySelector('#tsCopy').onclick=()=>this.copyText(this.state.transcript);
+      const analyzeBooking=container.querySelector('#tsAnalyzeBooking'); if(analyzeBooking) analyzeBooking.onclick=()=>this.analyzeBookingWithAI(container, analyzeBooking);
       const bookingCopy=container.querySelector('#tsCopyBooking'); if(bookingCopy) bookingCopy.onclick=()=>this.copyText(container.querySelector('#tsBookingText')?.value||'');
       const bookingSend=container.querySelector('#tsSendBooking'); if(bookingSend) bookingSend.onclick=()=>this.sendBookingToSmartImport(container);
       container.querySelector('#tsBack').onclick=()=>{this.revokeUrl();this.state.phase='upload';this.renderCurrent(container);};
@@ -765,6 +766,165 @@
       container.querySelector('#tsMore').onclick=()=>this.moreMenu(container);
       const regen=container.querySelector('#tsRegenerate'); if(regen) regen.onclick=()=>this.renderAnalysisTab(container,'summary');
       const mapExport=container.querySelector('#tsExportMap'); if(mapExport) mapExport.onclick=()=>this.exportMindMap();
+    },
+
+    async analyzeBookingWithAI(container, button) {
+      const transcript = String(this.state.transcript || '').trim();
+      const output = container.querySelector('#tsBookingText');
+      if (!transcript) {
+        if (typeof showToast === 'function') showToast('There is no transcript to analyze yet.', 'warning');
+        return;
+      }
+      if (!output || button?.dataset.busy === 'true') return;
+
+      const originalHtml = button.innerHTML;
+      button.dataset.busy = 'true';
+      button.disabled = true;
+      button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>AI analyzing…</span>';
+      output.classList.add('ts-ai-processing');
+
+      const setStatus = (message) => {
+        const card = container.querySelector('#tsBookingCard');
+        if (!card) return;
+        let status = card.querySelector('.ts-ai-status');
+        if (!status) {
+          status = document.createElement('div');
+          status.className = 'ts-ai-status';
+          const head = card.querySelector('.ts-booking-head');
+          if (head) head.appendChild(status);
+        }
+        status.innerHTML = `<i class="fas fa-sparkles"></i> ${this.esc(message)}`;
+      };
+
+      try {
+        setStatus('AI is analyzing the captured transcript and mapping booking details…');
+        const sdk = await this.ensurePuterReady();
+        await this.ensurePuterAuthorized();
+        if (!sdk?.ai || typeof sdk.ai.chat !== 'function') {
+          throw new Error('Puter AI chat is unavailable. Please refresh and try again.');
+        }
+
+        const deterministic = this.extractBookingData(transcript);
+        const boundedTranscript = transcript.length > 60000
+          ? `${transcript.slice(0, 60000)}\n\n[Transcript truncated only for AI analysis.]`
+          : transcript;
+
+        const systemPrompt = `You are ScriptFlow Pro's booking-data extraction engine. Analyze a sales/demo call transcript and return ONLY valid JSON. Your job is to populate a booking appointment format for a presenter.
+
+STRICT ACCURACY RULES:
+1. Use ONLY information explicitly supported by the transcript. Never invent, assume, or fill a gap from general knowledge.
+2. If a requested field is missing, ambiguous, conflicting, or cannot be confidently supported, return exactly "Not specified" for that field.
+3. Normalize obvious formatting only: clean names, phone spacing, email casing, and date/time presentation. Do not change the underlying meaning.
+4. For Demo Time & Date, preserve the stated date, time, and timezone. If a year is not stated, do not invent one.
+5. Interest/attitude may be summarized only from the prospect's explicit behavior or language in the transcript. If unclear, use "Not specified".
+6. The meeting notes must help the presenter run the meeting, not retell the cold call.
+7. Notes MUST follow this exact formula: Attendees + Current Setup + Website Goal + What to Show + Interest/Attitude + Objection/Concern + Meeting Angle.
+8. Keep notes concise, actionable, and personalized. Do not introduce facts that are not in the transcript.
+
+Return exactly this JSON object and no markdown:
+{
+  "businessName": "...",
+  "name": "...",
+  "role": "...",
+  "phoneNumber": "...",
+  "demoTimeDate": "...",
+  "email": "...",
+  "notes": {
+    "attendees": "...",
+    "currentSetup": "...",
+    "websiteGoal": "...",
+    "whatToShow": "...",
+    "interestAttitude": "...",
+    "objectionConcern": "...",
+    "meetingAngle": "..."
+  }
+}
+
+Every scalar value must be a string. Every missing value must be "Not specified".`;
+
+        setStatus('Extracting names, contact details, schedule, goals, objections, and meeting angle…');
+        const response = await sdk.ai.chat([
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `TRANSCRIPT:\n${boundedTranscript}` }
+        ], {
+          model: 'gpt-5.4-nano',
+          temperature: 0,
+          max_tokens: 1800
+        });
+
+        const raw = this.extractChatText(response);
+        const aiData = this.parseBookingAIJson(raw);
+        const normalized = this.normalizeAIBooking(aiData, deterministic);
+        output.value = this.bookingFormat(normalized);
+        output.dispatchEvent(new Event('input', { bubbles: true }));
+        setStatus('AI analysis complete. Review the booking details before sending them to Smart Import.');
+        if (typeof showToast === 'function') showToast('AI populated the booking format. Please review before saving.', 'success');
+      } catch (error) {
+        console.error('AI booking analysis failed:', error);
+        setStatus('AI analysis could not be completed. The original transcript-based extraction is still available.');
+        if (typeof showToast === 'function') showToast(this.friendlyAIError(error), 'warning');
+      } finally {
+        output.classList.remove('ts-ai-processing');
+        button.dataset.busy = 'false';
+        button.disabled = false;
+        button.innerHTML = originalHtml;
+      }
+    },
+
+    extractChatText(response) {
+      if (typeof response === 'string') return response;
+      const content = response?.message?.content ?? response?.content ?? response?.text ?? response;
+      if (Array.isArray(content)) {
+        return content.map(item => typeof item === 'string' ? item : (item?.text || '')).join('');
+      }
+      return String(content || '');
+    },
+
+    parseBookingAIJson(raw) {
+      let text = String(raw || '').trim();
+      text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+      try { return JSON.parse(text); } catch (_) {}
+      const start = text.indexOf('{');
+      const end = text.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        try { return JSON.parse(text.slice(start, end + 1)); } catch (_) {}
+      }
+      throw new Error('AI returned an invalid booking format. Please try again.');
+    },
+
+    normalizeAIBooking(ai, fallback) {
+      const NOT = 'Not specified';
+      const scalar = (value, fallbackValue) => {
+        const v = String(value ?? '').trim();
+        if (!v || /^null$|^undefined$/i.test(v)) return fallbackValue || NOT;
+        return v;
+      };
+      const notes = ai?.notes || {};
+      return {
+        business: scalar(ai?.businessName, fallback?.business),
+        name: scalar(ai?.name, fallback?.name),
+        role: scalar(ai?.role, fallback?.role),
+        phone: scalar(ai?.phoneNumber, fallback?.phone),
+        dateTime: scalar(ai?.demoTimeDate, fallback?.dateTime),
+        email: scalar(ai?.email, fallback?.email),
+        notes: [
+          `Attendees: ${scalar(notes.attendees)}`,
+          `Current setup: ${scalar(notes.currentSetup)}`,
+          `Website goal: ${scalar(notes.websiteGoal)}`,
+          `What to show: ${scalar(notes.whatToShow)}`,
+          `Interest and attitude: ${scalar(notes.interestAttitude)}`,
+          `Objection/Concern: ${scalar(notes.objectionConcern)}`,
+          `Meeting angle: ${scalar(notes.meetingAngle)}`
+        ].join('\n'),
+        interest: scalar(notes.interestAttitude)
+      };
+    },
+
+    friendlyAIError(error) {
+      const message = String(error?.message || error || 'AI analysis failed.');
+      if (/auth|sign.?in|permission/i.test(message)) return 'Please authorize Puter AI, then try AI Analyze again.';
+      if (/network|websocket|socket|timeout|connection|gateway/i.test(message)) return 'AI could not establish a stable connection. Please try again.';
+      return message.length > 180 ? `${message.slice(0, 177)}…` : message;
     },
 
     sendBookingToSmartImport(container) {

@@ -4416,3 +4416,14 @@ body {
 .ts-booking-card{margin:0 14px 14px;padding:15px 16px;border:1px solid rgba(99,102,241,.24);border-radius:14px;background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(15,23,42,.72));box-shadow:0 10px 30px rgba(0,0,0,.12)}
 .ts-booking-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:10px}.ts-booking-head h3{margin:4px 0 3px;font-size:.9rem;color:#f8fafc}.ts-booking-head p{margin:0;color:#718097;font-size:.67rem;line-height:1.45}.ts-booking-kicker{display:inline-flex;align-items:center;gap:6px;color:#a5b4fc;font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}.ts-booking-kicker i{font-size:.7rem}.ts-booking-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}.ts-booking-actions .ts-mini-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid #2b3851;border-radius:8px;background:#0e1729;color:#cbd5e1}.ts-booking-actions .ts-mini-btn:hover{border-color:#6366f1;color:#fff;background:rgba(99,102,241,.1)}.ts-booking-text{width:100%;min-height:205px;resize:vertical;padding:12px 13px;border:1px solid #29364f;border-radius:10px;background:#080f1d;color:#dbe4f0;font:500 .72rem/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;outline:none}.ts-booking-text:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.1)}
 @media(max-width:700px){.ts-booking-head{flex-direction:column}.ts-booking-actions{justify-content:flex-start;width:100%}.ts-booking-actions .ts-mini-btn{flex:1;justify-content:center}.ts-booking-card{margin:0 8px 10px;padding:13px}.ts-booking-text{min-height:240px}}
+
+/* Transcript Studio — AI booking analysis */
+.ts-booking-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ts-ai-booking-btn{position:relative}
+.ts-ai-booking-btn:not(:disabled):hover{transform:translateY(-1px)}
+.ts-ai-booking-btn:disabled{opacity:.72;cursor:wait}
+.ts-ai-booking-btn .fa-spinner{margin-right:3px}
+.ts-ai-status{margin-top:8px;padding:7px 10px;border:1px solid var(--border-color);border-radius:9px;color:var(--text-muted);font-size:.76rem;display:flex;align-items:center;gap:7px;background:var(--bg-card)}
+.ts-ai-status .fa-sparkles{color:var(--primary)}
+.ts-ai-processing{opacity:.8;box-shadow:0 0 0 2px rgba(59,130,246,.08)}
+@media(max-width:700px){.ts-booking-actions{width:100%}.ts-booking-actions .ts-mini-btn{flex:1;min-width:145px}.ts-ai-status{font-size:.72rem}}
