@@ -910,17 +910,37 @@ const Auth = {
         if (AppState.authInProgress || !AppState.isFirebaseReady) return false;
         AppState.authInProgress = true;
         try {
+            const auth = firebase.auth();
             const provider = new firebase.auth.GoogleAuthProvider();
             provider.setCustomParameters({ prompt: 'select_account' });
-            // Use redirect authentication instead of signInWithPopup.
-            // This avoids Cross-Origin-Opener-Policy/window.closed warnings
-            // produced by the Firebase popup helper on modern browsers.
-            await firebase.auth().signInWithRedirect(provider);
-            return true;
+
+            // Render serves the frontend from a non-Firebase origin. Use the
+            // popup flow as the primary Google sign-in method so the app does
+            // not depend on cross-origin redirect storage. Firebase documents
+            // additional redirect-domain setup for apps hosted outside
+            // Firebase Hosting.
+            const result = await auth.signInWithPopup(provider);
+            if (result && result.user) {
+                AppState.currentUser = result.user;
+                this.updateUI();
+                await Data.loadUserData(true);
+                this.closeModal();
+            }
+            AppState.authInProgress = false;
+            return !!(result && result.user);
         } catch (error) {
             AppState.authInProgress = false;
-            if (error.code === 'auth/popup-closed-by-user') {
-                showToast('Sign in cancelled', 'info');
+
+            // Do not silently fall back to redirect for ordinary failures.
+            // Redirect is the source of many third-party-storage failures on
+            // non-Firebase hosts. Give the user a useful actionable message.
+            if (error && error.code === 'auth/popup-closed-by-user') {
+                showToast('Google sign-in was cancelled.', 'info');
+            } else if (error && error.code === 'auth/popup-blocked') {
+                showToast('Your browser blocked the Google sign-in window. Please allow popups for this site and try again.', 'error');
+            } else if (error && error.code === 'auth/unauthorized-domain') {
+                showToast('This deployed domain is not authorized in Firebase Authentication. Add the current Render domain under Authentication → Settings → Authorized domains.', 'error');
+                console.error('Google Sign-In unauthorized domain:', window.location.hostname);
             } else {
                 handleError(error, 'Google Sign-In');
             }
