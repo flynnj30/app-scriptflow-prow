@@ -1015,7 +1015,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    z-index: 7000;
+    z-index: 10001;
     max-width: 380px;
     width: 100%;
 }

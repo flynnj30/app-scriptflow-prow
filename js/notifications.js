@@ -20,6 +20,8 @@ const NotificationSystem = {
     currentFilter: 'all',
     notificationSound: null,
     isSoundEnabled: true,
+    callbackMonitorId: null,
+    callbackMonitorStarted: false,
 
     /**
      * Initialize the notification system
@@ -32,6 +34,7 @@ const NotificationSystem = {
         this.loadNotifications();
         
         // Update UI
+        this.ensureUiReady();
         this.renderBell();
         this.renderDropdown();
         this.updateBadge();
@@ -44,9 +47,37 @@ const NotificationSystem = {
         
         // Preload notification sound
         this.preloadSound();
+
+        // Start a lightweight independent callback monitor. This keeps
+        // notifications working even if the app's normal lifecycle starts
+        // before this module is initialized or a timer is throttled.
+        this.startCallbackMonitor();
         
         console.log('🔔 Notification System initialized');
         console.log(`📬 ${this.notifications.length} notifications loaded, ${this.unreadCount} unread`);
+    },
+
+    /**
+     * Start resilient callback monitoring.
+     * Uses the existing Data.checkDueCallbacks() so appointment logic remains centralized.
+     */
+    startCallbackMonitor: function() {
+        if (this.callbackMonitorStarted) return;
+        this.callbackMonitorStarted = true;
+
+        const runCheck = () => {
+            try {
+                if (typeof Data !== 'undefined' && typeof Data.checkDueCallbacks === 'function') {
+                    Data.checkDueCallbacks();
+                }
+            } catch (error) {
+                console.warn('⚠️ Notification callback check failed:', error);
+            }
+        };
+
+        // Run immediately and then every 15 seconds for better timing accuracy.
+        runCheck();
+        this.callbackMonitorId = setInterval(runCheck, 15000);
     },
 
     /**
@@ -624,6 +655,20 @@ const NotificationSystem = {
         } catch (e) {
             // Silently fail - sound is optional
         }
+    },
+
+    /**
+     * Verify the static notification UI exists before binding handlers.
+     * The markup remains owned by index.html; this is only a defensive check.
+     */
+    ensureUiReady: function() {
+        const bell = document.getElementById('notificationBellBtn');
+        const dropdown = document.getElementById('notificationDropdown');
+        if (!bell || !dropdown) {
+            console.warn('⚠️ Notification UI not found; waiting for DOM.');
+            return false;
+        }
+        return true;
     },
 
     /**

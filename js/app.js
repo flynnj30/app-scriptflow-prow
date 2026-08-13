@@ -362,7 +362,10 @@ const TimezoneUtils = {
         const now = new Date();
         const timeDiff = now.getTime() - callbackTime.getTime();
         
-        return timeDiff >= 0 && timeDiff < 5 * 60 * 1000;
+        // Treat a callback as due once its scheduled time has arrived.
+        // The previous 5-minute window could permanently miss callbacks if
+        // the app was closed, loading, or the browser throttled the timer.
+        return timeDiff >= 0;
     },
     
     isCallbackMissed: function(appointment) {
