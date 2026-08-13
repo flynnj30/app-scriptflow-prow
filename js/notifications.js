@@ -15,13 +15,11 @@ const NotificationSystem = {
     initialized: false,
     popupQueue: [],
     isPopupShowing: false,
-    maxPopups: 1,
+    maxPopups: 3,
     popupStack: [],
     currentFilter: 'all',
     notificationSound: null,
-    isSoundEnabled: false,
-    cleanupIntervalId: null,
-    eventsAttached: false,
+    isSoundEnabled: true,
 
     /**
      * Initialize the notification system
@@ -39,10 +37,10 @@ const NotificationSystem = {
         this.updateBadge();
         this.attachEvents();
         
-        // Start one cleanup interval only.
-        if (!this.cleanupIntervalId) {
-            this.cleanupIntervalId = setInterval(() => this.cleanupExpired(), 60000);
-        }
+        // Start cleanup interval
+        setInterval(() => {
+            this.cleanupExpired();
+        }, 60000);
         
         // Preload notification sound
         this.preloadSound();
@@ -277,9 +275,6 @@ const NotificationSystem = {
      */
     showPopup: function(notification) {
         if (!notification || notification.dismissed) return;
-        const alreadyQueued = this.popupQueue.some(n => n && n.id === notification.id);
-        const alreadyVisible = this.popupStack.some(id => id === 'popup_' + notification.id);
-        if (alreadyQueued || alreadyVisible) return;
         this.popupQueue.push(notification);
         this.processPopupQueue();
     },
@@ -328,17 +323,17 @@ const NotificationSystem = {
         popup.innerHTML = `
             <div class="popup-header">
                 <div class="popup-title">
-                    <span class="icon">${isDue ? '⏰' : '✓'}</span>
-                    <span>${isDue ? 'Callback Due' : 'Callback Completed'}</span>
+                    <span class="icon">${isDue ? '⏰' : '✅'}</span>
+                    ${isDue ? 'Callback Due' : 'Callback Completed'}
                 </div>
                 <button class="popup-close" data-popup-id="${popupId}" aria-label="Close notification">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             <div class="popup-body">
-                <div class="business-name">${Utils.escapeHtml(notification.business || 'Unknown Business')}</div>
-                ${notification.contactName ? `<div>${Utils.escapeHtml(notification.contactName)}</div>` : ''}
-                <div class="popup-time">${Utils.escapeHtml(callbackTime)}</div>
+                <span class="business-name">${Utils.escapeHtml(notification.business)}</span>
+                ${notification.contactName ? ` — ${Utils.escapeHtml(notification.contactName)}` : ''}
+                <div class="popup-time">⏱️ ${callbackTime}</div>
             </div>
             <div class="popup-actions">
                 <button class="btn-icon view-btn" data-appt-id="${notification.appointmentId}">
@@ -347,9 +342,9 @@ const NotificationSystem = {
                 <button class="btn-icon dismiss-btn" data-popup-id="${popupId}" data-notif-id="${notification.id}">
                     <i class="fas fa-times"></i> Dismiss
                 </button>
-                ${isDue ? `<button class="btn-icon snooze-btn" data-notif-id="${notification.id}" data-popup-id="${popupId}">
+                <button class="btn-icon snooze-btn" data-notif-id="${notification.id}" data-popup-id="${popupId}">
                     <i class="fas fa-clock"></i> Snooze
-                </button>` : ''}
+                </button>
             </div>
         `;
         
@@ -367,10 +362,10 @@ const NotificationSystem = {
         // Attach events
         this.attachPopupEvents(popup, popupId, notification);
         
-        // Auto-dismiss after 8 seconds
+        // Auto-dismiss after 15 seconds
         const timerId = setTimeout(() => {
             this.dismissPopup(popupId, notification.id);
-        }, 8000);
+        }, 15000);
         this.popupTimers.set(popupId, timerId);
         
         // Track removal
@@ -407,12 +402,9 @@ const NotificationSystem = {
             this.dismissNotification(notification.id);
         });
         
-        const snoozeBtn = popup.querySelector('.snooze-btn');
-        if (snoozeBtn) {
-            snoozeBtn.addEventListener('click', () => {
-                this.snoozeNotification(notification.id, popupId);
-            });
-        }
+        popup.querySelector('.snooze-btn').addEventListener('click', () => {
+            this.snoozeNotification(notification.id, popupId);
+        });
     },
 
     /**
@@ -595,9 +587,12 @@ const NotificationSystem = {
      * Animate bell
      */
     animateBell: function() {
-        // Notifications should never animate continuously or make the UI blink.
         const bell = document.querySelector('.notification-bell');
-        if (bell) bell.classList.remove('has-unread');
+        if (bell) {
+            bell.classList.remove('has-unread');
+            void bell.offsetWidth;
+            bell.classList.add('has-unread');
+        }
     },
 
     /**
@@ -830,9 +825,6 @@ const NotificationSystem = {
      * Attach global events
      */
     attachEvents: function() {
-        if (this.eventsAttached) return;
-        this.eventsAttached = true;
-
         // Bell button
         const bellBtn = document.getElementById('notificationBellBtn');
         if (bellBtn) {
@@ -939,7 +931,7 @@ if (typeof Data !== 'undefined') {
                 if (callbackTime) {
                     const now = new Date();
                     const timeDiff = now.getTime() - callbackTime.getTime();
-                    isDue = timeDiff >= 0;
+                    isDue = timeDiff >= 0 && timeDiff < 5 * 60 * 1000;
                 }
             }
             

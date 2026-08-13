@@ -143,6 +143,16 @@ const AppState = {
     currentView: 'calendar',
     calendarView: 'calendar',
     analyticsTab: 'insights',
+    analyticsFilters: {
+        preset: 'this_month',
+        startDate: null,
+        endDate: null,
+        startTime: '00:00',
+        endTime: '23:59',
+        timezone: 'Central CDT',
+        user: 'all',
+        groupBy: 'day'
+    },
     pipelineView: 'my',
     taskFilter: 'all',
     selectedAppointments: new Set(),
@@ -4707,98 +4717,296 @@ const FeaturePanel = {
         else if (AppState.analyticsTab === 'reports') this.renderAnalyticsReports(container);
     },
 
-    renderAnalyticsInsights: function(container) {
-        let total = 0, hTransfers = 0, wCallbacks = 0, completedCount = 0, pendingCount = 0, canceledCount = 0;
-        let statusCounts = {};
-        let dailyData = {};
+    getAnalyticsAllAppointments: function() {
+        const result = [];
+        Object.keys(AppState.appointments || {}).forEach(dateKey => {
+            const reports = AppState.appointments[dateKey]?.reports || [];
+            reports.forEach(appt => result.push({ ...appt, date: appt.date || dateKey }));
+        });
+        return result;
+    },
 
-        for (let date in AppState.appointments) {
-            if (AppState.appointments[date].reports) {
-                AppState.appointments[date].reports.forEach(a => {
-                    total++;
-                    const status = Utils.getStatus(a);
-                    const primaryStatus = Utils.getPrimaryStatus(status);
-                    statusCounts[primaryStatus] = (statusCounts[primaryStatus] || 0) + 1;
-                    if (primaryStatus === 'Hot Transfer') hTransfers++;
-                    else if (primaryStatus === 'Warm Callback') wCallbacks++;
-                    else if (primaryStatus === 'Completed') completedCount++;
-                    else if (primaryStatus === 'Pending') pendingCount++;
-                    else if (primaryStatus === 'Canceled') canceledCount++;
-                    dailyData[a.date] = (dailyData[a.date] || 0) + 1;
-                });
-            }
+    getAnalyticsDateRange: function() {
+        const today = new Date();
+        const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const startOfWeek = d => {
+            const x = new Date(d);
+            const day = x.getDay();
+            x.setDate(x.getDate() - day);
+            return x;
+        };
+        const endOfWeek = d => {
+            const x = startOfWeek(d);
+            x.setDate(x.getDate() + 6);
+            return x;
+        };
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        const preset = AppState.analyticsFilters?.preset || 'this_month';
+        let start = monthStart, end = today;
+        if (preset === 'today') start = end = today;
+        else if (preset === 'yesterday') {
+            start = end = new Date(today); start.setDate(start.getDate() - 1); end = new Date(start);
+        } else if (preset === 'this_week') { start = startOfWeek(today); end = today; }
+        else if (preset === 'last_week') {
+            end = startOfWeek(today); end.setDate(end.getDate() - 1); start = startOfWeek(end);
+        } else if (preset === 'this_month') { start = monthStart; end = today; }
+        else if (preset === 'last_month') { start = new Date(today.getFullYear(), today.getMonth() - 1, 1); end = new Date(today.getFullYear(), today.getMonth(), 0); }
+        else if (preset === 'last_3_months') { start = new Date(today.getFullYear(), today.getMonth() - 2, 1); end = today; }
+        else if (preset === 'custom') {
+            start = new Date(`${AppState.analyticsFilters.startDate || fmt(monthStart)}T00:00:00`);
+            end = new Date(`${AppState.analyticsFilters.endDate || fmt(today)}T00:00:00`);
         }
+        return { start: fmt(start), end: fmt(end) };
+    },
 
-        const conversionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
-        const hotTransferRate = total > 0 ? Math.round((hTransfers / total) * 100) : 0;
-        const warmCallbackRate = total > 0 ? Math.round((wCallbacks / total) * 100) : 0;
+    getAnalyticsTimeMinutes: function(value, fallback) {
+        if (!value) return fallback;
+        const m = String(value).match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+        if (!m) return fallback;
+        let h = parseInt(m[1], 10), min = parseInt(m[2], 10);
+        const mer = m[3]?.toUpperCase();
+        if (mer === 'PM' && h < 12) h += 12;
+        if (mer === 'AM' && h === 12) h = 0;
+        if (h > 23 || min > 59) return fallback;
+        return h * 60 + min;
+    },
+
+    getAnalyticsAppointmentTime: function(appt) {
+        return this.getAnalyticsTimeMinutes(appt?.time, null);
+    },
+
+    getAnalyticsUserOptions: function() {
+        const names = new Set();
+        this.getAnalyticsAllAppointments().forEach(a => {
+            if (a.assigned) names.add(String(a.assigned));
+        });
+        (AppState.teamMembers || []).forEach(m => { if (m.name) names.add(String(m.name)); });
+        return [...names].sort((a,b) => a.localeCompare(b));
+    },
+
+    getAnalyticsMetrics: function(appointments) {
+        const normalize = s => String(s || '').toLowerCase().replace(/[-_]/g, ' ').trim();
+        const isBooked = a => {
+            const status = normalize(a.status);
+            return status === 'meeting booked' || status === 'booked' || status === 'scheduled' || status === 'pending' || status === 'warm callback' || status === 'hot transfer';
+        };
+        const isCompleted = a => ['completed','held'].includes(normalize(a.status));
+        const isRescheduled = a => normalize(a.status) === 'rescheduled' || normalize(a.status).includes('reschedule');
+        const isNoShow = a => {
+            const status = normalize(a.status);
+            const text = normalize(`${a.notes || ''} ${(a.tags || []).join(' ')}`);
+            return status.includes('no show') || status === 'noshow' || text.includes('no show') || text.includes('no-show');
+        };
+        const booked = appointments.filter(isBooked);
+        const completed = appointments.filter(isCompleted);
+        const rescheduled = appointments.filter(isRescheduled);
+        const noShow = appointments.filter(isNoShow);
+        const scorePool = booked.length ? booked : appointments;
+        const avgScore = scorePool.length ? scorePool.reduce((sum, a) => sum + Utils.calculateLeadScore(a), 0) / scorePool.length : 0;
+        let callCount = 0;
+        appointments.forEach(a => {
+            ['callCount','calls','totalCalls','outboundCalls'].some(k => {
+                const n = Number(a?.[k]);
+                if (Number.isFinite(n) && n >= 0) { callCount += n; return true; }
+                return false;
+            });
+        });
+        return {
+            booked: booked.length,
+            completed: completed.length,
+            calls: callCount,
+            per100: callCount > 0 ? (booked.length / callCount * 100) : null,
+            showRate: booked.length ? completed.length / booked.length * 100 : 0,
+            noShowRate: booked.length ? noShow.length / booked.length * 100 : 0,
+            noShow: noShow.length,
+            rescheduleRate: booked.length ? rescheduled.length / booked.length * 100 : 0,
+            rescheduled: rescheduled.length,
+            avgQuality: avgScore / 10
+        };
+    },
+
+    renderAnalyticsInsights: function(container) {
+        if (!container) return;
+        const filters = AppState.analyticsFilters;
+        const range = this.getAnalyticsDateRange();
+        const users = this.getAnalyticsUserOptions();
+        const all = this.getAnalyticsAllAppointments();
+        const startMinutes = this.getAnalyticsTimeMinutes(filters.startTime, 0);
+        const endMinutes = this.getAnalyticsTimeMinutes(filters.endTime, 1439);
+        const filtered = all.filter(a => {
+            const date = String(a.date || '');
+            if (date < range.start || date > range.end) return false;
+            if (filters.user !== 'all' && String(a.assigned || '') !== String(filters.user)) return false;
+            const t = this.getAnalyticsAppointmentTime(a);
+            if (t !== null && (t < startMinutes || t > endMinutes)) return false;
+            return true;
+        });
+        const metrics = this.getAnalyticsMetrics(filtered);
+        const isBooked = a => ['meeting booked','booked','scheduled','pending','warm callback','hot transfer'].includes(String(a.status || '').toLowerCase().replace(/[-_]/g,' ').trim());
+        const isCompleted = a => ['completed','held'].includes(String(a.status || '').toLowerCase().trim());
+        const isRescheduled = a => String(a.status || '').toLowerCase().includes('reschedule');
+        const isNoShow = a => {
+            const text = String(`${a.status || ''} ${a.notes || ''} ${(a.tags || []).join(' ')}`).toLowerCase().replace(/[-_]/g,' ');
+            return text.includes('no show') || text.includes('noshow');
+        };
+        const days = [];
+        const cursor = new Date(`${range.start}T00:00:00`);
+        const finish = new Date(`${range.end}T00:00:00`);
+        while (cursor <= finish && days.length < 366) {
+            const key = Utils.formatDateForCompare(cursor);
+            days.push(key);
+            cursor.setDate(cursor.getDate() + 1);
+        }
+        const dailyChartData = {
+            booked: days.map(d => filtered.filter(a => String(a.date) === d && isBooked(a)).length),
+            completed: days.map(d => filtered.filter(a => String(a.date) === d && isCompleted(a)).length),
+            noShow: days.map(d => filtered.filter(a => String(a.date) === d && isNoShow(a)).length),
+            rescheduled: days.map(d => filtered.filter(a => String(a.date) === d && isRescheduled(a)).length)
+        };
+        const fmtDate = d => new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+        const bucketKey = (date, mode) => {
+            const d = new Date(`${date}T00:00:00`);
+            if (mode === 'month') return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+            if (mode === 'week') {
+                const x = new Date(d);
+                x.setDate(x.getDate() - x.getDay());
+                return Utils.formatDateForCompare(x);
+            }
+            return date;
+        };
+        let chartLabels = days;
+        let chartData = dailyChartData;
+        if (filters.groupBy && filters.groupBy !== 'day') {
+            const buckets = {};
+            days.forEach((d, i) => {
+                const key = bucketKey(d, filters.groupBy);
+                if (!buckets[key]) buckets[key] = { booked:0, completed:0, noShow:0, rescheduled:0 };
+                buckets[key].booked += dailyChartData.booked[i];
+                buckets[key].completed += dailyChartData.completed[i];
+                buckets[key].noShow += dailyChartData.noShow[i];
+                buckets[key].rescheduled += dailyChartData.rescheduled[i];
+            });
+            chartLabels = Object.keys(buckets).sort();
+            chartData = {
+                booked: chartLabels.map(k => buckets[k].booked),
+                completed: chartLabels.map(k => buckets[k].completed),
+                noShow: chartLabels.map(k => buckets[k].noShow),
+                rescheduled: chartLabels.map(k => buckets[k].rescheduled)
+            };
+        }
+        const pct = n => `${n.toFixed(1)}%`;
+        const selectedLabel = filters.user === 'all' ? 'All users' : Utils.escapeHtml(filters.user);
+        const activeRangeLabel = `${fmtDate(range.start)} – ${fmtDate(range.end)}`;
+        const delta = (current, previous) => {
+            if (!previous) return current ? `▲ ${current.toFixed(1)}%` : '— 0%';
+            const d = ((current - previous) / previous) * 100;
+            return `${d >= 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(1)}%`;
+        };
 
         container.innerHTML = `
-            <div class="analytics-container fade-in">
-                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px;">
-                    <h3><i class="fas fa-chart-pie"></i> Pipeline Insights Dashboard</h3>
-                    <span class="version-chip"><i class="fas fa-sync-alt"></i> Live Data</span>
+            <div class="analytics-container analytics-hub fade-in">
+                <div class="analytics-page-header">
+                    <div><h3>Analytics Hub</h3><p>Track meeting bookings and performance by user.</p></div>
+                    <button id="analyticsRefreshBtn" class="btn-icon"><i class="fas fa-sync-alt"></i> Refresh</button>
                 </div>
-
-                <div class="report-metrics scale-in">
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700;">${total}</div><div class="metric-label">Total Pipeline</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:#dc2626;">${hTransfers}</div><div class="metric-label">🔥 Hot Transfers</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--warning);">${wCallbacks}</div><div class="metric-label">📞 Warm Callbacks</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--success);">${completedCount}</div><div class="metric-label">✅ Completed</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--text-muted);">${pendingCount}</div><div class="metric-label">⏳ Pending</div></div>
-                    <div class="metric-card"><div class="metric-value" style="font-size:1.8rem; font-weight:700; color:var(--danger);">${canceledCount}</div><div class="metric-label">❌ Canceled</div></div>
+                <div class="analytics-filter-panel">
+                    <div class="analytics-filter-field analytics-date-range"><label>Date range</label><div class="analytics-date-pair"><input id="analyticsStartDate" type="date" value="${range.start}"><span>–</span><input id="analyticsEndDate" type="date" value="${range.end}"></div></div>
+                    <div class="analytics-filter-field"><label>Start time</label><input id="analyticsStartTime" type="time" value="${filters.startTime || '00:00'}"></div>
+                    <div class="analytics-filter-field"><label>End time</label><input id="analyticsEndTime" type="time" value="${filters.endTime || '23:59'}"></div>
+                    <div class="analytics-filter-field"><label>Time zone</label><select id="analyticsTimezone"><option>Eastern EDT</option><option selected>Central CDT</option><option>Mountain MDT</option><option>Pacific PDT</option><option>UTC</option></select></div>
+                    <div class="analytics-filter-field"><label>User</label><select id="analyticsUser"><option value="all">All users</option>${users.map(u => `<option value="${Utils.escapeHtml(u)}" ${filters.user === u ? 'selected' : ''}>${Utils.escapeHtml(u)}</option>`).join('')}</select></div>
+                    <div class="analytics-filter-field"><label>Group by</label><select id="analyticsGroupBy"><option value="day" selected>Day</option><option value="week">Week</option><option value="month">Month</option></select></div>
+                    <div class="analytics-filter-actions"><button id="analyticsApplyBtn" class="btn-icon analytics-apply">Apply</button><button id="analyticsResetBtn" class="btn-icon">Reset</button></div>
                 </div>
-
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-                    <div class="feature-card slide-up">
-                        <h4>📊 Conversion Rates</h4>
-                        <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
-                            <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Completed Rate</span><span>${conversionRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--success); width:${conversionRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
-                            <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Hot Transfer Rate</span><span>${hotTransferRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:#dc2626; width:${hotTransferRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
-                            <div><div style="display:flex; justify-content:space-between; font-size:0.85rem;"><span>Warm Callback Rate</span><span>${warmCallbackRate}%</span></div><div style="background:var(--bg-primary); height:8px; border-radius:4px; margin-top:4px; overflow:hidden;"><div style="background:var(--warning); width:${warmCallbackRate}%; height:100%; border-radius:4px; transition:width 0.8s ease;"></div></div></div>
-                        </div>
-                    </div>
-
-                    <div class="feature-card slide-up">
-                        <h4>📈 Status Distribution</h4>
-                        <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px; max-height:200px; overflow-y:auto;">
-                            ${Object.entries(statusCounts).map(([status, count]) => `
-                                <div style="display:flex; justify-content:space-between; padding:4px 8px; background:var(--bg-primary); border-radius:6px; transition:all 0.3s ease;">
-                                    <span>${status}</span>
-                                    <span style="font-weight:600;">${count} (${Math.round((count/total)*100)}%)</span>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
+                <div class="analytics-preset-row">
+                    <span class="analytics-filter-caption">Quick range</span>
+                    ${[['today','Today'],['yesterday','Yesterday'],['this_week','This week'],['last_week','Last week'],['this_month','This month'],['last_month','Last month'],['last_3_months','Last 3 months'],['custom','Custom']].map(([v,l]) => `<button class="analytics-preset ${filters.preset === v ? 'active' : ''}" data-preset="${v}">${l}</button>`).join('')}
                 </div>
+                <div class="analytics-active-filters"><span>Active filters:</span><span class="analytics-chip">${activeRangeLabel}</span><span class="analytics-chip">${selectedLabel}</span><span class="analytics-chip">${filters.startTime || '00:00'}–${filters.endTime || '23:59'}</span><span class="analytics-chip">${filters.timezone || 'Central CDT'}</span></div>
 
-                <div class="feature-card scale-in" style="margin-top:8px;">
-                    <h4>📈 Appointment Trend</h4>
-                    <div class="chart-container" style="height:200px;">
-                        <canvas id="trendChart"></canvas>
+                <section class="analytics-section">
+                    <div class="analytics-section-title"><h4>Scheduled bookings</h4><span class="analytics-live"><i class="fas fa-circle"></i> Live</span></div>
+                    <div class="report-metrics analytics-kpi-grid">
+                        <div class="metric-card analytics-kpi"><div class="metric-label">Booked</div><div class="metric-value">${metrics.booked}</div><div class="metric-foot">meetings booked</div></div>
+                        <div class="metric-card analytics-kpi"><div class="metric-label">Completed</div><div class="metric-value">${metrics.completed}</div><div class="metric-foot">meetings held</div></div>
+                        <div class="metric-card analytics-kpi"><div class="metric-label">Per 100 calls</div><div class="metric-value">${metrics.per100 === null ? '—' : metrics.per100.toFixed(1)}</div><div class="metric-foot">${metrics.calls ? `${metrics.calls} calls` : 'Call count not stored'}</div></div>
+                        <div class="metric-card analytics-kpi"><div class="metric-label">Show rate</div><div class="metric-value">${pct(metrics.showRate)}</div><div class="metric-foot">${metrics.completed} of ${metrics.booked}</div></div>
+                        <div class="metric-card analytics-kpi"><div class="metric-label">No-show rate</div><div class="metric-value">${pct(metrics.noShowRate)}</div><div class="metric-foot">${metrics.noShow} no-show</div></div>
+                        <div class="metric-card analytics-kpi"><div class="metric-label">Reschedule rate</div><div class="metric-value">${pct(metrics.rescheduleRate)}</div><div class="metric-foot">${metrics.rescheduled} rescheduled</div></div>
+                        <div class="metric-card analytics-kpi"><div class="metric-label">Avg quality</div><div class="metric-value">${metrics.avgQuality.toFixed(1)}/10</div><div class="metric-foot">lead quality score</div></div>
                     </div>
-                </div>
+                </section>
 
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;">
-                    <div class="feature-card scale-in">
-                        <h4>🍩 Status Distribution</h4>
-                        <div class="chart-container-sm" style="height:180px;">
-                            <canvas id="donutChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="feature-card scale-in">
-                        <h4>📊 Weekly Performance</h4>
-                        <div class="chart-container-sm" style="height:180px;">
-                            <canvas id="barChart"></canvas>
-                        </div>
-                    </div>
-                </div>
+                <section class="feature-card analytics-chart-card">
+                    <div class="analytics-chart-header"><div><h4>Meeting conversion</h4><span>${selectedLabel} · ${activeRangeLabel}</span></div><span class="analytics-chart-type"><i class="fas fa-chart-line"></i> Line</span></div>
+                    <div class="chart-container analytics-main-chart"><canvas id="trendChart"></canvas></div>
+                    <div class="analytics-legend"><span><i class="legend-dot booked"></i> Meetings booked</span><span><i class="legend-dot completed"></i> Completed</span><span><i class="legend-dot no-show"></i> No-show</span><span><i class="legend-dot rescheduled"></i> Rescheduled</span></div>
+                </section>
+
+                <section class="analytics-insight-panel">
+                    <div class="analytics-insight-title"><h4>My insights</h4><span>Numbers update from the selected filters.</span></div>
+                    <div class="analytics-insight-summary"><strong>${metrics.booked}</strong> meetings booked by <strong>${selectedLabel}</strong> from <strong>${activeRangeLabel}</strong>, with a <strong>${pct(metrics.showRate)}</strong> show rate.</div>
+                </section>
             </div>
         `;
 
+        const tz = DOM.get('analyticsTimezone');
+        if (tz) tz.value = filters.timezone || 'Central CDT';
+        const group = DOM.get('analyticsGroupBy');
+        if (group) group.value = filters.groupBy || 'day';
+
+        const applyFilters = () => {
+            const s = DOM.get('analyticsStartDate')?.value || range.start;
+            const e = DOM.get('analyticsEndDate')?.value || range.end;
+            AppState.analyticsFilters.startDate = s;
+            AppState.analyticsFilters.endDate = e;
+            AppState.analyticsFilters.preset = 'custom';
+            AppState.analyticsFilters.startTime = DOM.get('analyticsStartTime')?.value || '00:00';
+            AppState.analyticsFilters.endTime = DOM.get('analyticsEndTime')?.value || '23:59';
+            AppState.analyticsFilters.timezone = DOM.get('analyticsTimezone')?.value || 'Central CDT';
+            AppState.analyticsFilters.user = DOM.get('analyticsUser')?.value || 'all';
+            AppState.analyticsFilters.groupBy = DOM.get('analyticsGroupBy')?.value || 'day';
+            this.renderAnalyticsInsights(container);
+        };
+        DOM.get('analyticsApplyBtn')?.addEventListener('click', applyFilters);
+        DOM.get('analyticsRefreshBtn')?.addEventListener('click', () => this.renderAnalyticsInsights(container));
+        DOM.get('analyticsResetBtn')?.addEventListener('click', () => {
+            AppState.analyticsFilters = { preset:'this_month', startDate:null, endDate:null, startTime:'00:00', endTime:'23:59', timezone:'Central CDT', user:'all', groupBy:'day' };
+            this.renderAnalyticsInsights(container);
+        });
+        container.querySelectorAll('.analytics-preset').forEach(btn => btn.addEventListener('click', () => {
+            AppState.analyticsFilters.preset = btn.dataset.preset;
+            if (btn.dataset.preset !== 'custom') { AppState.analyticsFilters.startDate = null; AppState.analyticsFilters.endDate = null; }
+            this.renderAnalyticsInsights(container);
+        }));
+        ['analyticsStartDate','analyticsEndDate','analyticsStartTime','analyticsEndTime','analyticsUser','analyticsTimezone','analyticsGroupBy'].forEach(id => {
+            DOM.get(id)?.addEventListener('change', () => {
+                if (id === 'analyticsUser') AppState.analyticsFilters.user = DOM.get(id).value;
+                if (id === 'analyticsTimezone') AppState.analyticsFilters.timezone = DOM.get(id).value;
+                if (id === 'analyticsGroupBy') AppState.analyticsFilters.groupBy = DOM.get(id).value;
+            });
+        });
+
         setTimeout(() => {
-            this.initAnalyticsCharts(dailyData, statusCounts);
-        }, 200);
+            Object.values(AppState.chartInstances).forEach(chart => { if (chart) chart.destroy(); });
+            AppState.chartInstances = {};
+            const ctx = DOM.get('trendChart')?.getContext('2d');
+            if (!ctx || typeof Chart === 'undefined') return;
+            const gradient = ctx.createLinearGradient(0,0,0,280);
+            gradient.addColorStop(0,'rgba(99,102,241,0.20)');
+            gradient.addColorStop(1,'rgba(99,102,241,0)');
+            AppState.chartInstances.trend = new Chart(ctx, {
+                type:'line',
+                data:{ labels:chartLabels.map(fmtDate), datasets:[
+                    {label:'Meetings booked',data:chartData.booked,borderColor:'#6366f1',backgroundColor:gradient,fill:true,tension:.35,pointRadius:3,pointHoverRadius:5},
+                    {label:'Completed',data:chartData.completed,borderColor:'#22c55e',backgroundColor:'transparent',tension:.35,pointRadius:3},
+                    {label:'No-show',data:chartData.noShow,borderColor:'#ef4444',backgroundColor:'transparent',tension:.35,pointRadius:3},
+                    {label:'Rescheduled',data:chartData.rescheduled,borderColor:'#f59e0b',backgroundColor:'transparent',tension:.35,pointRadius:3}
+                ]},
+                options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y}`}}},scales:{x:{grid:{display:false},ticks:{color:'#8b93a7',maxRotation:0,autoSkip:true,maxTicksLimit:14}},y:{beginAtZero:true,precision:0,ticks:{color:'#8b93a7'},grid:{color:'rgba(148,163,184,0.10)'}}}}
+            });
+        }, 0);
     },
 
     renderAnalyticsReports: function(container) {
@@ -6417,29 +6625,17 @@ function setupEventListeners() {
     const toolsMenu = document.getElementById('toolsMenu');
     const toolsChevron = document.getElementById('toolsChevron');
     
-    if (toolsHeader && toolsMenu && !toolsHeader.dataset.bound) {
-        toolsHeader.dataset.bound = 'true';
-        const toggleTools = () => {
+    if (toolsHeader && toolsMenu) {
+        toolsHeader.addEventListener('click', () => {
             AppState.toolsOpen = !AppState.toolsOpen;
-            toolsMenu.classList.toggle('open', AppState.toolsOpen);
-            if (toolsChevron) toolsChevron.classList.toggle('rotated', AppState.toolsOpen);
-            toolsHeader.setAttribute('aria-expanded', String(AppState.toolsOpen));
-        };
-        toolsHeader.addEventListener('click', toggleTools);
-        toolsHeader.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                toggleTools();
-            }
+            toolsMenu.classList.toggle('open');
+            if (toolsChevron) toolsChevron.classList.toggle('rotated');
+            toolsHeader.setAttribute('aria-expanded', AppState.toolsOpen);
         });
     }
     
     document.querySelectorAll('.tool-item[data-tool]').forEach(item => {
-        if (item.dataset.bound === 'true') return;
-        item.dataset.bound = 'true';
-        item.setAttribute('role', 'menuitem');
-        item.setAttribute('tabindex', '0');
-        const activateTool = () => {
+        item.addEventListener('click', () => {
             const tool = item.dataset.tool;
             switch (tool) {
                 case 'calendar':
@@ -6480,13 +6676,6 @@ function setupEventListeners() {
                     break;
                 default:
                     showToast(`Feature ${tool} coming soon!`, 'info');
-            }
-        };
-        item.addEventListener('click', activateTool);
-        item.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                activateTool();
             }
         });
     });
