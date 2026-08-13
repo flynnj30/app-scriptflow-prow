@@ -5637,6 +5637,7 @@ const CalendarView = {
                         <option value="Pacific PDT" ${AppState.calendarTimezone === 'Pacific PDT' ? 'selected' : ''}>Pacific (PDT)</option>
                         <option value="UTC" ${AppState.calendarTimezone === 'UTC' ? 'selected' : ''}>UTC</option>
                     </select>
+                    <button class="btn-icon" id="calendarImportIcsBtn" title="Import an .ics calendar feed"><i class="fas fa-calendar-plus"></i> Import ICS</button>
                     <button class="btn-icon" id="calendarAddEventBtn"><i class="fas fa-plus"></i> Add</button>
                 </div>
             </div>
@@ -6308,6 +6309,17 @@ const CalendarView = {
             });
         }
         
+        const importIcsBtn = container.querySelector('#calendarImportIcsBtn');
+        if (importIcsBtn) {
+            importIcsBtn.addEventListener('click', () => {
+                if (typeof ICSCalendarSync === 'undefined') {
+                    showToast('ICS calendar sync is unavailable.', 'error');
+                    return;
+                }
+                ICSCalendarSync.openFilePicker();
+            });
+        }
+
         const addBtn = container.querySelector('#calendarAddEventBtn');
         if (addBtn) {
             addBtn.addEventListener('click', () => {

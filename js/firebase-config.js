@@ -97,89 +97,65 @@ function attemptInit() {
 }
 
 /**
- * Apply modern Firestore cache settings
- * Uses FirestoreSettings.cache instead of deprecated enableMultiTabIndexedDbPersistence
+ * Configure Firestore offline persistence for Firebase 9.22 compat.
+ *
+ * Important: do NOT call db.settings({...}) here. Firebase 9.22's compat
+ * SDK can interpret unsupported cache settings as a settings override and
+ * emit:
+ *   "You are overriding the original host. If you did not intend to
+ *    override your settings, use {merge: true}."
+ *
+ * We intentionally leave the Firebase host/settings untouched and use the
+ * supported persistence API instead. This keeps the configured Firestore
+ * endpoint unchanged and avoids the warning.
  */
 function applyModernCacheSettings() {
     try {
         const db = firebase.firestore();
-        
-        // Modern approach: Use FirestoreSettings with cache configuration
-        // This replaces the deprecated enableMultiTabIndexedDbPersistence()
-        const settings = {
-            // Use cache for offline support
-            cache: {
-                // Enable multi-tab support
-                tab: true,
-                // Cache size in bytes (100 MB)
-                size: 104857600
-            }
-        };
-        
-        // Apply settings to the Firestore instance
-        db.settings(settings);
-        
-        console.log('✅ Modern Firestore cache enabled (multi-tab support)');
-        
-        // Verify cache is working by checking if we can read from cache
-        db.enableNetwork()
-            .then(() => console.log('✅ Firestore network enabled'))
-            .catch(err => console.warn('⚠️ Firestore network enable error:', err.message));
-            
-    } catch (e) {
-        console.warn('⚠️ Failed to apply modern cache settings:', e.message);
-        // Fallback: try old approach for backward compatibility
-        tryFallbackPersistence();
-    }
-}
 
-/**
- * Fallback persistence for older Firebase versions
- */
-function tryFallbackPersistence() {
-    try {
-        const db = firebase.firestore();
-        
-        // Try to use the modern cache approach first
-        try {
-            const settings = {
-                cache: {
-                    tab: true,
-                    size: 104857600
-                }
-            };
-            db.settings(settings);
-            console.log('✅ Fallback cache settings applied');
-            return;
-        } catch (innerError) {
-            console.warn('⚠️ Modern cache settings not available, trying legacy approach');
-        }
-        
-        // Legacy approach (for older SDK versions)
-        // Check if enableMultiTabIndexedDbPersistence exists
         if (typeof db.enableMultiTabIndexedDbPersistence === 'function') {
             db.enableMultiTabIndexedDbPersistence()
                 .then(() => {
-                    console.log('✅ Legacy multi-tab persistence enabled (will be deprecated)');
+                    console.log('✅ Firestore multi-tab offline persistence enabled');
                 })
                 .catch(err => {
-                    if (err.code === 'failed-precondition') {
-                        console.warn('⚠️ Persistence: multiple tabs open, persistence limited');
-                    } else if (err.code === 'unimplemented') {
-                        console.warn('⚠️ Persistence not supported in this browser');
-                    } else {
-                        console.warn('⚠️ Persistence error:', err.message);
+                    if (err && err.code === 'failed-precondition') {
+                        console.info('ℹ️ Firestore persistence limited: another tab is already active.');
+                    } else if (err && err.code === 'unimplemented') {
+                        console.info('ℹ️ Firestore offline persistence is not supported in this browser.');
+                    } else if (err) {
+                        console.warn('⚠️ Firestore persistence unavailable:', err.message);
                     }
                 });
-        } else {
-            // Try standard persistence as last resort
-            db.enablePersistence({ synchronizeTabs: true })
-                .then(() => console.log('✅ Standard persistence enabled'))
-                .catch(err => console.warn('⚠️ Standard persistence error:', err.message));
+            return;
         }
+
+        if (typeof db.enablePersistence === 'function') {
+            db.enablePersistence({ synchronizeTabs: true })
+                .then(() => {
+                    console.log('✅ Firestore offline persistence enabled');
+                })
+                .catch(err => {
+                    if (err && err.code === 'failed-precondition') {
+                        console.info('ℹ️ Firestore persistence limited: another tab is already active.');
+                    } else if (err && err.code === 'unimplemented') {
+                        console.info('ℹ️ Firestore offline persistence is not supported in this browser.');
+                    } else if (err) {
+                        console.warn('⚠️ Firestore persistence unavailable:', err.message);
+                    }
+                });
+            return;
+        }
+
+        console.info('ℹ️ Firestore offline persistence API is unavailable; using online mode.');
     } catch (e) {
-        console.warn('⚠️ All persistence approaches failed:', e.message);
+        console.warn('⚠️ Firestore persistence setup skipped:', e.message);
     }
+}
+
+// Backward-compatible alias retained for any existing callers.
+function tryFallbackPersistence() {
+    applyModernCacheSettings();
 }
 
 // Start initialization immediately
