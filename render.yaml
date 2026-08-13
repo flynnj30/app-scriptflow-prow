@@ -5,8 +5,10 @@ services:
     buildCommand: "echo 'ScriptFlow Pro static build: no compilation required'"
     staticPublishPath: .
     autoDeployTrigger: commit
-    routes:
     headers:
+      - path: /*
+        name: Cross-Origin-Opener-Policy
+        value: same-origin-allow-popups
       - path: /*
         name: X-Content-Type-Options
         value: nosniff

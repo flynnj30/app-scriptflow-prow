@@ -354,23 +354,19 @@
     },
 
     async ensurePuterAuthorized() {
+      // Do not manually open Puter's authentication UI here. Puter.js documents
+      // that AI helpers handle authentication automatically. Calling the popup
+      // authentication helper from a Render-hosted page can trigger browser
+      // COOP/window.closed diagnostics before transcription even starts.
       const sdk = await this.ensurePuterReady();
-      try {
-        if (sdk.auth && typeof sdk.auth.isSignedIn === 'function' && sdk.auth.isSignedIn()) return true;
-        // Use Puter's in-page authentication dialog when available. This keeps
-        // authentication tied to the user's Transcribe click instead of
-        // allowing the SDK to silently launch a background popup.
-        if (sdk.ui && typeof sdk.ui.authenticateWithPuter === 'function') {
-          await sdk.ui.authenticateWithPuter();
-          return !sdk.auth || typeof sdk.auth.isSignedIn !== 'function' || sdk.auth.isSignedIn();
+      if (sdk && sdk.auth && typeof sdk.auth.isSignedIn === 'function') {
+        try {
+          return Boolean(sdk.auth.isSignedIn()) || true;
+        } catch (_) {
+          return true;
         }
-        return true;
-      } catch (error) {
-        if (error && /cancel|closed|dismiss/i.test(String(error.message || error))) {
-          throw new Error('Puter authorization was cancelled.');
-        }
-        throw error;
       }
+      return true;
     },
 
     async runPuterTranscription(source, options, attempts = 2) {
