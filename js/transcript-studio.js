@@ -503,6 +503,181 @@
       return message;
     },
 
+
+    // ------------------------------------------------------------
+    // Booking Appointment extraction
+    // ------------------------------------------------------------
+    extractBookingData(text) {
+      const sourceRaw = String(text || '').replace(/\r/g, ' ').trim();
+      const source = sourceRaw.replace(/\s+/g, ' ').trim();
+      const notSpecified = 'not specified';
+      const firstMatch = (patterns) => {
+        for (const pattern of patterns) {
+          const m = sourceRaw.match(pattern);
+          if (m && m[1] && String(m[1]).trim()) return String(m[1]).trim();
+        }
+        return '';
+      };
+      const stripTrailing = (value) => String(value || '').replace(/[|;]+$/, '').trim();
+      const email = firstMatch([
+        /(?:business\s+)?e-?mail(?:\s+address)?\s*[:=-]\s*([^\s,;|]+)/i,
+        /([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i
+      ]).replace(/^mailto:/i, '').replace(/[)\]>,.]+$/, '');
+      const phone = firstMatch([
+        /(?:phone(?:\s+number)?|mobile|cell|telephone|contact\s+number)\s*[:=-]\s*([+\d][\d\s().-]{6,})/i,
+        /(\+?\d[\d\s().-]{7,}\d)/
+      ]).replace(/\s+/g, ' ').replace(/[|;]+$/, '').trim();
+
+      const business = stripTrailing(firstMatch([
+        /(?:^|\n)\s*(?:business\s+name|company\s+name|business|company|organization|firm)\s*[:=-]\s*([^\n,|;]+)/im
+      ]));
+      const name = stripTrailing(firstMatch([
+        /(?:^|\n)\s*(?:full\s+name|contact\s+name|customer\s+name|prospect\s+name|name)\s*[:=-]\s*([^\n,|;]+)/im
+      ]));
+      const role = stripTrailing(firstMatch([
+        /(?:^|\n)\s*(?:role|title|position|job\s+title|designation)\s*[:=-]\s*([^\n,|;]+)/im
+      ]));
+
+      const schedule = this.extractSchedule(source);
+      const interest = this.detectInterest(source);
+      const notes = this.buildMeetingNotes(sourceRaw, { business, name, role, schedule, interest });
+
+      return {
+        business: business || notSpecified,
+        name: name || notSpecified,
+        role: role || notSpecified,
+        phone: phone || notSpecified,
+        dateTime: schedule.display || notSpecified,
+        email: email || notSpecified,
+        notes,
+        interest
+      };
+    },
+
+    extractSchedule(text) {
+      const schedulePatterns = [
+        /(?:demo|meeting|appointment|scheduled|callback)?\s*(?:time\s*&\s*date|date\s*&\s*time|datetime)\s*[:=-]\s*((?:(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+)?(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\s+\d{1,2}(?:st|nd|rd|th)?(?:\s*,?\s*\d{4})?\s+at\s+\d{1,2}(?::\d{2})?\s*(?:AM|PM)(?:\s+(?:EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC|ET|CT|MT|PT))?)/i,
+        /((?:(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+)?(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\s+\d{1,2}(?:st|nd|rd|th)?(?:\s*,?\s*\d{4})?\s+at\s+\d{1,2}(?::\d{2})?\s*(?:AM|PM)(?:\s+(?:EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC|ET|CT|MT|PT))?)/i,
+        /((?:\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}-\d{1,2}-\d{1,2})\s+(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:AM|PM)(?:\s+(?:EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC|ET|CT|MT|PT))?)/i
+      ];
+      let raw = '';
+      for (const pattern of schedulePatterns) {
+        const m = text.match(pattern);
+        if (m) { raw = (m[1] || m[0]).trim(); break; }
+      }
+      if (!raw) {
+        const timeOnly = text.match(/(?:demo|meeting|appointment|callback)?\s*(?:at|time)\s*[:=-]?\s*(\d{1,2}(?::\d{2})?\s*(?:AM|PM)(?:\s+(?:EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC|ET|CT|MT|PT))?)/i);
+        if (timeOnly) raw = timeOnly[1].trim();
+      }
+      if (!raw) return { raw: '', display: '', date: '', time: '', timezone: '' };
+
+      const timezoneMatch = raw.match(/\b(EST|EDT|CST|CDT|MST|MDT|PST|PDT|GMT|UTC|ET|CT|MT|PT)\b/i);
+      const timezone = timezoneMatch ? timezoneMatch[1].toUpperCase() : '';
+      const timeMatch = raw.match(/(\d{1,2}(?::\d{2})?\s*(?:AM|PM))/i);
+      const time = timeMatch ? this.normalizeTimeText(timeMatch[1]) : '';
+      const datePart = raw.replace(/\s+at\s+.*$/i, '').trim();
+      const normalizedDate = this.parseFlexibleDate(datePart);
+      let display = raw.replace(/\s+/g, ' ').trim();
+      if (normalizedDate && time) {
+        const d = new Date(normalizedDate + 'T00:00:00');
+        const weekdayText = d.toLocaleDateString('en-US', { weekday: 'long' });
+        const monthText = d.toLocaleDateString('en-US', { month: 'long' });
+        const day = d.getDate();
+        const yearMentioned = /\b\d{4}\b/.test(datePart);
+        display = `${weekdayText}, ${monthText} ${day}${this.ordinal(day)}${yearMentioned ? `, ${d.getFullYear()}` : ''} at ${time}${timezone ? ` ${timezone}` : ''}`;
+      } else if (time) {
+        display = timezone ? `${time} ${timezone}` : time;
+      }
+      return { raw, display, date: normalizedDate, time, timezone };
+    },
+
+    parseFlexibleDate(value) {
+      let s = String(value || '').trim().replace(/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s*/i, '').replace(/(\d{1,2})(st|nd|rd|th)\b/gi, '$1');
+      const now = new Date();
+      const year = (s.match(/\b(\d{4})\b/) || [])[1] || now.getFullYear();
+      let m = s.match(/^(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\s+(\d{1,2})(?:,?\s+\d{4})?$/i);
+      if (m) {
+        const months = {january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11,jan:0,feb:1,mar:2,apr:3,jun:5,jul:6,aug:7,sep:8,sept:8,oct:9,nov:10,dec:11};
+        const mi = months[m[1].toLowerCase()];
+        const d = new Date(Number(year), mi, Number(m[2]));
+        if (d.getFullYear() === Number(year) && d.getMonth() === mi && d.getDate() === Number(m[2])) return `${d.getFullYear()}-${String(mi+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      }
+      m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (m) return this.validDateParts(Number(m[1]), Number(m[2])-1, Number(m[3]));
+      m = s.match(/^(\d{1,2})[\/\\-](\d{1,2})[\/\\-](\d{2,4})$/);
+      if (m) { const y = Number(m[3]) < 100 ? 2000 + Number(m[3]) : Number(m[3]); return this.validDateParts(y, Number(m[1])-1, Number(m[2])); }
+      return '';
+    },
+
+    validDateParts(year, monthIndex, day) {
+      const d = new Date(year, monthIndex, day);
+      return d.getFullYear() === year && d.getMonth() === monthIndex && d.getDate() === day ? `${year}-${String(monthIndex+1).padStart(2,'0')}-${String(day).padStart(2,'0')}` : '';
+    },
+    normalizeTimeText(value) {
+      const m = String(value || '').match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)/i);
+      if (!m) return '';
+      return `${Number(m[1])}:${String(Number(m[2] || 0)).padStart(2,'0')} ${m[3].toUpperCase()}`;
+    },
+    ordinal(day) { const n = Number(day); if (n % 100 >= 11 && n % 100 <= 13) return 'th'; return ({1:'st',2:'nd',3:'rd'}[n % 10] || 'th'); },
+
+    detectInterest(text) {
+      if (/(?:very interested|high interest|excited|sounds great|love (?:it|that)|absolutely|definitely|looking forward|yes,? (?:let|send|show)|can't wait)/i.test(text)) return 'High';
+      if (/(?:interested|considering|curious|open to|sounds good|that works|okay|sure|maybe|willing to|would like)/i.test(text)) return 'Medium';
+      if (/(?:not interested|not sure|maybe later|too busy|already have|don't need|not looking|skeptical|just looking)/i.test(text)) return 'Low';
+      return 'Not specified';
+    },
+
+    buildMeetingNotes(text, meta) {
+      const has = (patterns) => patterns.some(p => p.test(analysisText));
+      const findSentence = (patterns) => {
+        const sentences = this.sentences(analysisText);
+        return sentences.find(s => patterns.some(p => p.test(s))) || '';
+      };
+      const analysisText = String(text || '').split(/\n/).filter(line => !/^(?:business\s+name|company\s+name|business|company|organization|firm|full\s+name|contact\s+name|customer\s+name|prospect\s+name|name|role|title|position|job\s+title|designation|phone(?:\s+number)?|mobile|cell|telephone|contact\s+number|email(?:\s+address)?|demo\s+time\s*&\s*date|demo\s+date\s*&\s*time|meeting\s+date\s*&\s*time|meeting\s+time\s*&\s*date)\s*[:=-]/i.test(line)).join('\n').trim();
+      const role = meta.role && meta.role !== 'not specified' ? meta.role : '';
+      const attending = role ? `${role} attending` : (meta.name && meta.name !== 'not specified' ? `${meta.name} attending` : 'Attendee not specified');
+      let setup = 'Current setup not specified';
+      if (has([/no (?:existing )?website|don'?t have (?:an? )?website|without (?:an? )?website/i])) setup = 'No existing website';
+      else if (has([/already have (?:a )?website|(?<!no )existing website|current website/i])) setup = 'Existing website';
+
+      const goalSentence = findSentence([/goal|looking to|want(?:s)? to|need(?:s)?|more customers|more leads|more calls|more bookings|contact|online presence|professional presence|showcase/i]);
+      const goal = goalSentence ? goalSentence : 'Website goal not specified';
+      const showSentence = findSentence([/show|preview|walkthrough|website|homepage|service page|gallery|reviews|quote form|contact form/i]);
+      const show = showSentence ? showSentence : 'What to show: not specified';
+      const interest = meta.interest || 'Not specified';
+      const objectionSentence = findSentence([/concern|worried|hesitant|but |however|already have|another provider|expensive|price|cost|busy|time|think about|not sure|skeptic/i]);
+      const objection = objectionSentence ? objectionSentence : 'Objection/concern: not specified';
+      let angle = 'Use discovery first and tailor the meeting to the prospect’s stated priorities.';
+      if (interest === 'High') angle = 'Keep the meeting focused and lead with the strongest benefit tied to the prospect’s stated goal.';
+      if (interest === 'Medium') angle = 'Use the walkthrough to compare the preview against the prospect’s current setup and priorities.';
+      if (interest === 'Low') angle = 'Keep the meeting concise, lead with discovery, and avoid pushing for a decision.';
+
+      return [
+        `Attendees: ${attending}.`,
+        `Current setup: ${setup}.`,
+        `Website goal: ${goal}.`,
+        `What to show: ${show}.`,
+        `Interest and attitude: ${interest}.`,
+        objection.startsWith('Objection') ? objection + '.' : `Objection: ${objection}.`,
+        `Meeting angle: ${angle}`
+      ].join('\n');
+    },
+
+    bookingFormat(data) {
+      return [
+        `Business Name: ${data.business}`,
+        `Name: ${data.name}`,
+        `Role: ${data.role}`,
+        `Phone Number: ${data.phone}`,
+        `Demo Time & Date: ${data.dateTime}`,
+        `Email: ${data.email}`,
+        '',
+        'Notes for the Developer:',
+        '',
+        ...data.notes.split('\n').map(line => `- ${line}`)
+      ].join('\n');
+    },
+
     resultView() {
       const title = this.baseName(this.state.fileName || 'Transcript');
       const summary = this.state.summaryMode === 'off' ? this.makeSummary(this.state.transcript, 'concise') : this.makeSummary(this.state.transcript, this.state.summaryMode);
@@ -510,7 +685,7 @@
       const duration = this.state.audioDuration || (this.state.chunks.length ? this.state.chunks[this.state.chunks.length - 1].end : 0);
       return `
       <div class="ts-pro ts-result-page">
-        <div class="ts-result-topbar"><button class="ts-back-btn" id="tsBack"><i class="fas fa-chevron-left"></i></button><div class="ts-result-title"><strong>${this.esc(title)}</strong><span>${this.state.sourceType === 'audio' ? this.formatDuration(duration) : 'Transcript file'}</span></div><div class="ts-result-actions"><button class="ts-icon-btn" id="tsShare" title="Share"><i class="fas fa-share-nodes"></i></button><button class="ts-icon-btn" id="tsMore" title="More"><i class="fas fa-ellipsis"></i></button><button class="ts-export-main" id="tsExportMenu"><i class="fas fa-download"></i> Export</button></div></div>
+        <div class="ts-result-topbar"><button class="ts-back-btn" id="tsBack"><i class="fas fa-chevron-left"></i></button><div class="ts-result-title"><strong>${this.esc(title)}</strong><span>${this.state.sourceType === 'audio' ? this.formatDuration(duration) : 'Transcript file'}</span></div><div class="ts-result-actions"><button class="ts-icon-btn" id="tsShare" title="Share"><i class="fas fa-share-nodes"></i></button><button class="ts-icon-btn" id="tsMore" title="More"><i class="fas fa-ellipsis"></i></button><button class="ts-export-main" id="tsExportMenu"><i class="fas fa-download"></i> Export</button></div></div><div class="ts-booking-card" id="tsBookingCard"><div class="ts-booking-head"><div><span class="ts-booking-kicker"><i class="fas fa-calendar-check"></i> Booking-ready details</span><h3>Appointment Submission Format</h3><p>Auto-filled from the transcript. Missing details are marked <b>not specified</b>.</p></div><div class="ts-booking-actions"><button class="ts-mini-btn" id="tsCopyBooking"><i class="far fa-copy"></i> Copy</button><button class="ts-mini-btn" id="tsSendBooking"><i class="fas fa-wand-magic-sparkles"></i> Send to Smart Import</button></div></div><textarea id="tsBookingText" class="ts-booking-text" spellcheck="false">${this.esc(this.bookingFormat(this.extractBookingData(this.state.transcript)))}</textarea></div>
         <div class="ts-result-layout">
           <section class="ts-transcript-pane">
             <div class="ts-transcript-toolbar"><div class="ts-transcript-label"><strong>Transcript</strong><span>${this.formatDuration(duration)}</span></div><label class="ts-search"><i class="fas fa-search"></i><input id="tsSearch" placeholder="Search transcript" /></label><button class="ts-icon-btn" id="tsCopy" title="Copy"><i class="far fa-copy"></i></button><button class="ts-icon-btn" id="tsTranslateQuick" title="Translate to English"><i class="fas fa-language"></i></button></div>
@@ -554,6 +729,8 @@
       container.querySelectorAll('.ts-chunk').forEach(el=>el.onclick=()=>{this.state.selectedChunkIndex=Number(el.dataset.index||0);audio.currentTime=Number(el.dataset.start||0);audio.play();if(play)play.innerHTML='<i class="fas fa-pause"></i>';});
       const search=container.querySelector('#tsSearch'); if(search) search.oninput=()=>this.filterChunks(container,search.value);
       container.querySelector('#tsCopy').onclick=()=>this.copyText(this.state.transcript);
+      const bookingCopy=container.querySelector('#tsCopyBooking'); if(bookingCopy) bookingCopy.onclick=()=>this.copyText(container.querySelector('#tsBookingText')?.value||'');
+      const bookingSend=container.querySelector('#tsSendBooking'); if(bookingSend) bookingSend.onclick=()=>this.sendBookingToSmartImport(container);
       container.querySelector('#tsBack').onclick=()=>{this.revokeUrl();this.state.phase='upload';this.renderCurrent(container);};
       container.querySelector('#tsShare').onclick=()=>this.shareTranscript();
       container.querySelector('#tsTranslateQuick').onclick=()=>this.quickTranslate(container);
@@ -565,6 +742,20 @@
       container.querySelector('#tsMore').onclick=()=>this.moreMenu(container);
       const regen=container.querySelector('#tsRegenerate'); if(regen) regen.onclick=()=>this.renderAnalysisTab(container,'summary');
       const mapExport=container.querySelector('#tsExportMap'); if(mapExport) mapExport.onclick=()=>this.exportMindMap();
+    },
+
+    sendBookingToSmartImport(container) {
+      const text = container.querySelector('#tsBookingText')?.value || this.bookingFormat(this.extractBookingData(this.state.transcript));
+      if (!text.trim()) return;
+      if (typeof openSmartImportEnhanced === 'function') {
+        openSmartImportEnhanced();
+        const area = document.getElementById('importTextArea');
+        if (area) { area.value = text; area.dispatchEvent(new Event('input', { bubbles: true })); area.focus(); }
+        if (typeof showToast === 'function') showToast('Booking details sent to Smart Import. Review before saving.', 'success');
+        return;
+      }
+      this.copyText(text);
+      if (typeof showToast === 'function') showToast('Booking format copied. Paste it into Smart Import.', 'info');
     },
 
     renderAnalysisTab(container, tab) {
