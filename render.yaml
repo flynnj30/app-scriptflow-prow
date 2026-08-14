@@ -1,32 +1,22 @@
 services:
   - type: web
     name: scriptflow-pro
-    runtime: static
-    buildCommand: "echo 'ScriptFlow Pro static build: no compilation required'"
-    staticPublishPath: .
+    runtime: python
+    buildCommand: pip install -r transcription_api/requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
     autoDeployTrigger: commit
-    headers:
-      - path: /*
-        name: Cross-Origin-Opener-Policy
-        value: same-origin-allow-popups
-      - path: /*
-        name: X-Content-Type-Options
-        value: nosniff
-      - path: /*
-        name: X-Frame-Options
-        value: DENY
-      - path: /*
-        name: Referrer-Policy
-        value: strict-origin-when-cross-origin
-      - path: /*
-        name: Permissions-Policy
-        value: camera=(), microphone=(self), geolocation=()
-      - path: /*
-        name: Strict-Transport-Security
-        value: max-age=31536000; includeSubDomains
-      - path: /*.js
-        name: Cache-Control
-        value: public, max-age=300, must-revalidate
-      - path: /*.css
-        name: Cache-Control
-        value: public, max-age=300, must-revalidate
+    envVars:
+      - key: MAX_UPLOAD_MB
+        value: "500"
+      - key: WHISPER_DEFAULT_MODEL
+        value: "tiny"
+      - key: WHISPER_DEVICE
+        value: "cpu"
+      - key: WHISPER_COMPUTE_TYPE
+        value: "int8"
+      - key: WHISPER_CPU_THREADS
+        value: "2"
+      - key: MAX_CONCURRENT_TRANSCRIPTIONS
+        value: "1"
+      - key: TRANSCRIPTION_ALLOWED_ORIGINS
+        value: "*"

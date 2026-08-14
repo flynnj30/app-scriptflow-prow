@@ -8,7 +8,7 @@ from typing import Annotated, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from starlette.concurrency import run_in_threadpool
 
 try:
@@ -19,7 +19,8 @@ except ImportError as exc:  # pragma: no cover - handled with a clear health res
 else:
     FASTER_WHISPER_IMPORT_ERROR = ""
 
-APP_NAME = "ScriptFlow Pro FastAPI Whisper"
+APP_NAME = "ScriptFlow Pro Conversation Processing"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "500"))
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 DEFAULT_MODEL = os.getenv("WHISPER_DEFAULT_MODEL", "base")
@@ -174,8 +175,11 @@ async def health():
     }
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 async def root():
+    index_path = PROJECT_ROOT / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path, media_type="text/html")
     return {"service": APP_NAME, "status": "ok"}
 
 
@@ -188,8 +192,9 @@ async def transcribe(
     language: Annotated[Optional[str], Form()] = None,
     translate: Annotated[bool, Form()] = False,
     word_timestamps: Annotated[bool, Form()] = False,
+    include_timestamps: Annotated[bool, Form()] = True,
 ):
-    del keep_wav  # accepted for compatibility with the supplied Node integration
+    del keep_wav  # accepted for compatibility with the supplied client integrations
 
     if WhisperModel is None:
         raise HTTPException(status_code=503, detail="faster-whisper is not installed on the transcription server.")

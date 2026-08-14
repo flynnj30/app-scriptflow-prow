@@ -1,5 +1,5 @@
-/* ScriptFlow Pro - Transcript Studio v6
- * FastAPI + faster-whisper speech-to-text + deterministic booking extraction.
+/* ScriptFlow Pro - Conversation Notes / Transcript Studio
+ * FastAPI + Whisper speech-to-text + deterministic booking extraction.
  * Existing CRM/calendar data is untouched. No LLM or cloud booking-analysis
  * service is used. Booking fields are extracted conservatively
  * from transcript-supported evidence and missing values remain Not specified.
@@ -7,14 +7,14 @@
 (function () {
   'use strict';
 
-  // FastAPI + faster-whisper provider. The transcription engine is open-source
+  // Workspace Whisper provider. The transcription engine is open-source
   // and self-hostable: no Gemini, Puter, LLM, or per-minute API is required.
   // For production, set window.SCRIPTFLOW_TRANSCRIPTION_API_URL to your FastAPI
   // service URL. If omitted, the app uses the same-origin /transcribe endpoint.
   const TRANSCRIPTION_API_URL = String(
     window.SCRIPTFLOW_TRANSCRIPTION_API_URL || ''
   ).replace(/\/+$/, '') || '';
-  const FASTAPI_MODELS = {
+  const WORKSPACE_MODELS = {
     fast: 'tiny',
     balanced: 'base',
     accurate: 'small'
@@ -32,7 +32,7 @@
     state: {
       phase: 'upload', file: null, audioUrl: '', fileName: '', transcript: '', chunks: [],
       language: 'auto', translate: false, subtitles: true, speakerId: false,
-      summaryMode: 'off', model: 'fast', provider: 'fastapi-faster-whisper', fastApiModel: FASTAPI_MODELS.fast,
+      summaryMode: 'off', model: 'fast', provider: 'workspace-whisper', fastApiModel: WORKSPACE_MODELS.fast,
       busy: false, cancelRequested: false, audioDuration: 0, sourceType: '', lastSummary: '', selectedChunkIndex: 0,
       initialized: false, uploadInputBound: false, historyLoaded: false, history: [], historyOpen: false, historyCloudDisabled: false, historyCloudChecked: false
     },
@@ -42,7 +42,7 @@
       this.state.initialized = true;
       document.addEventListener('click', (e) => {
         const item = e.target.closest('[data-tool="transcript"]');
-        if (item && typeof FeaturePanel !== 'undefined') FeaturePanel.show('transcript', '🎙️ Transcript Studio');
+        if (item && typeof FeaturePanel !== 'undefined') FeaturePanel.show('transcript', '🎙️ Conversation Notes');
       });
     },
 
@@ -67,8 +67,8 @@
       <div class="ts-pro">
         <div class="ts-upload-shell">
           <div class="ts-brand-mark"><i class="fas fa-waveform-lines"></i></div>
-          <div class="ts-pro-title">OPUS to Text Converter <span>Powered by FastAPI + faster-whisper</span></div>
-          <p class="ts-pro-subtitle">Turn long audio into searchable text with your own FastAPI Whisper service. Upload your recording, configure transcription, and review the result before exporting.</p>
+          <div class="ts-pro-title">Conversation Notes <span>Audio &amp; call notes</span></div>
+          <p class="ts-pro-subtitle">Turn a call recording into clean, searchable notes. Upload your recording, choose your preferred quality, and review the result before exporting.</p>
 
           <div class="ts-source-tabs" role="tablist">
             <button class="ts-source-tab active" data-source-tab="file"><i class="far fa-file-audio"></i> File upload</button>
@@ -82,7 +82,7 @@
               <h3>Click or drag &amp; drop to upload your file</h3>
               <p>OPUS, OGG, WAV, MP3, M4A, MP4, WebM, FLAC, TXT, SRT, VTT and CSV</p>
               <button class="ts-primary-btn" id="tsChooseFile"><i class="fas fa-upload"></i> Upload a file</button>
-              <small>Your recording is sent only to the configured ScriptFlow FastAPI transcription service for processing.</small>
+              <small>Your recording is processed by your configured workspace service and is not sent to a third-party AI analysis tool.</small>
             </div>
           </div>
 
@@ -97,7 +97,7 @@
 
           <div class="ts-capability-row">
             <span><i class="fas fa-language"></i> 20+ languages</span>
-            <span><i class="fas fa-microchip"></i> FastAPI Whisper transcription</span>
+            <span><i class="fas fa-microchip"></i> Fast conversation processing</span>
             <span><i class="fas fa-file-export"></i> SRT / VTT / TXT / CSV</span>
           </div>
           <div class="ts-error" id="tsUploadError" hidden></div>
@@ -193,11 +193,11 @@
           <div class="ts-option-row"><div><b><i class="fas fa-microphone-lines"></i> Audio language</b><small>Choose the language spoken in your audio. Auto-detect is recommended when unsure.</small></div><select id="tsLanguage">${LANGUAGES.map(([v,l]) => `<option value="${v}" ${this.state.language===v?'selected':''}>${l}</option>`).join('')}</select></div>
           <div class="ts-option-row"><div><b><i class="fas fa-language"></i> Translation</b><small>Translate the transcript to English after transcription.</small></div><label class="ts-switch"><input id="tsTranslate" type="checkbox" ${this.state.translate?'checked':''}><span></span></label></div>
           <div class="ts-option-row"><div><b><i class="fas fa-closed-captioning"></i> Generate subtitles</b><small>Create timestamped SRT and VTT files from detected speech segments.</small></div><label class="ts-switch"><input id="tsSubtitles" type="checkbox" ${this.state.subtitles?'checked':''}><span></span></label></div>
-          <div class="ts-option-row"><div><b><i class="fas fa-users"></i> Speaker labels</b><small>Add editable Speaker 1 / Speaker 2 labels to transcript segments after transcription. FastAPI Whisper does not perform automatic speaker identification.</small></div><label class="ts-switch"><input id="tsSpeaker" type="checkbox" ${this.state.speakerId?'checked':''}><span></span></label></div>
+          <div class="ts-option-row"><div><b><i class="fas fa-users"></i> Speaker labels</b><small>Add editable Speaker 1 / Speaker 2 labels to transcript segments after transcription. Workspace Whisper does not perform automatic speaker identification.</small></div><label class="ts-switch"><input id="tsSpeaker" type="checkbox" ${this.state.speakerId?'checked':''}><span></span></label></div>
           <div class="ts-option-row"><div><b><i class="fas fa-list-check"></i> Auto summary</b><small>Generate a concise or detailed rule-based summary from the completed transcript.</small></div><select id="tsSummaryMode"><option value="off">Off</option><option value="concise" ${this.state.summaryMode==='concise'?'selected':''}>Concise</option><option value="detailed" ${this.state.summaryMode==='detailed'?'selected':''}>Detailed</option></select></div>
-          <div class="ts-option-row"><div><b><i class="fas fa-microchip"></i> Transcription model</b><small>Runs on your FastAPI transcription service with open-source Whisper. Choose speed or accuracy; no commercial transcription API credits are required.</small></div><select id="tsModel"><option value="fast" ${this.state.model==='fast'?'selected':''}>Fast · Whisper Tiny</option><option value="balanced" ${this.state.model==='balanced'?'selected':''}>Balanced · Whisper Base</option><option value="accurate" ${this.state.model==='accurate'?'selected':''}>Higher accuracy · Whisper Small</option></select></div>
-          <div class="ts-engine-note"><i class="fas fa-shield-halved"></i><div><strong>Runs on your FastAPI transcription service</strong><span>faster-whisper handles speech-to-text on your configured server. Booking extraction uses deterministic rules only—no LLM, Gemini, Puter, or AI booking-analysis service.</span></div></div>
-          <button class="ts-transcribe-btn" id="tsTranscribe"><span class="ts-btn-content"><i class="fas fa-wand-magic-sparkles"></i> Transcribe for Free</span><span class="ts-btn-progress" aria-hidden="true"><span class="ts-progress-fill"></span></span><span class="ts-btn-percent">0%</span></button>
+          <div class="ts-option-row"><div><b><i class="fas fa-microchip"></i> Transcription model</b><small>Runs on your workspace service with open-source Whisper. Choose speed or accuracy; no commercial transcription API credits are required.</small></div><select id="tsModel"><option value="fast" ${this.state.model==='fast'?'selected':''}>Fast · Whisper Tiny</option><option value="balanced" ${this.state.model==='balanced'?'selected':''}>Balanced · Whisper Base</option><option value="accurate" ${this.state.model==='accurate'?'selected':''}>Higher accuracy · Whisper Small</option></select></div>
+          <div class="ts-engine-note"><i class="fas fa-shield-halved"></i><div><strong>Runs on your workspace service</strong><span>Whisper handles speech-to-text on your configured server. Booking extraction uses deterministic rules only—no LLM, Gemini, Puter, or AI booking-analysis service.</span></div></div>
+          <button class="ts-transcribe-btn" id="tsTranscribe"><span class="ts-btn-content"><i class="fas fa-wand-magic-sparkles"></i> Create Notes</span><span class="ts-btn-progress" aria-hidden="true"><span class="ts-progress-fill"></span></span><span class="ts-btn-percent">0%</span></button>
           <div class="ts-transcribe-status" id="tsTranscribeStatus">Ready when you are.</div>
           <div class="ts-error" id="tsConfigError" hidden></div>
         </div>
@@ -235,32 +235,33 @@
       if (errorBox) { errorBox.hidden = true; errorBox.textContent = ''; }
       if (!btn || !content || !percent || !fill) { this.state.busy = false; return; }
       btn.disabled = true; btn.classList.add('loading');
-      content.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading to FastAPI…';
+      content.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading recording…';
       const setProgress = (value, text) => { const n=Math.max(0,Math.min(100,Math.round(value))); fill.style.width=`${n}%`; percent.textContent=`${n}%`; if(status)status.textContent=text||'Processing…'; };
       try {
-        setProgress(2,'Connecting to the FastAPI transcription service…');
+        setProgress(2,'Connecting to the workspace service…');
         await this.checkTranscriptionApi();
         setProgress(8,'Uploading recording…');
         const form=new FormData();
         form.append('file',this.state.file,this.state.file.name||'audio');
         form.append('format','json'); form.append('keep_wav','false');
-        form.append('model',FASTAPI_MODELS[this.state.model]||FASTAPI_MODELS.fast);
+        form.append('model',WORKSPACE_MODELS[this.state.model]||WORKSPACE_MODELS.fast);
         form.append('translate',this.state.translate?'true':'false');
         if(this.state.language!=='auto')form.append('language',this.state.language);
         form.append('word_timestamps','false');
-        const result=await this.uploadTranscription(form,(loaded,total)=>{const p=total?(loaded/total)*100:0;setProgress(8+p*0.42,`Uploading recording… ${Math.round(p)}%`);},message=>{setProgress(50,message||'Transcribing with faster-whisper…');content.innerHTML='<i class="fas fa-microphone-lines fa-beat-fade"></i> Transcribing…';});
-        setProgress(94,'Cleaning transcript and building timestamps…');
+        form.append('include_timestamps','true');
+        const result=await this.uploadTranscription(form,(loaded,total)=>{const p=total?(loaded/total)*100:0;setProgress(8+p*0.42,`Uploading recording… ${Math.round(p)}%`);},message=>{setProgress(50,message||'Creating notes…');content.innerHTML='<i class="fas fa-microphone-lines fa-beat-fade"></i> Transcribing…';});
+        setProgress(94,'Preparing your notes…');
         this.applyFastApiResult(result);
         if(!this.state.transcript)throw new Error('The transcription service returned no speech text.');
-        setProgress(99,'Finalizing transcript and saving history…');
+        setProgress(99,'Finalizing and saving…');
         await this.saveTranscriptHistory();
-        this.state.phase='result'; setProgress(100,'Transcription complete.');
+        this.state.phase='result'; setProgress(100,'Notes ready.');
         setTimeout(()=>this.renderCurrent(container),250);
       }catch(err){
-        console.error('Transcript Studio FastAPI transcription error:',err);
+        console.error('Transcript Studio workspace processing error:',err);
         const message=this.friendlyTranscriptionError(err);
         if(errorBox){errorBox.hidden=false;errorBox.textContent=message;}
-        content.innerHTML='<i class="fas fa-wand-magic-sparkles"></i> Transcribe for Free'; btn.disabled=false;btn.classList.remove('loading');setProgress(0,'Ready to retry.');
+        content.innerHTML='<i class="fas fa-wand-magic-sparkles"></i> Create Notes'; btn.disabled=false;btn.classList.remove('loading');setProgress(0,'Ready to retry.');
       }finally{this.state.cancelRequested=false;this.state.busy=false;}
     },
 
@@ -273,9 +274,9 @@
     uploadTranscription(formData,onUploadProgress,onProcessing){
       return new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('POST',this.transcriptionApiUrl(),true);xhr.responseType='json';xhr.setRequestHeader('Accept','application/json');xhr.timeout=30*60*1000;
         xhr.upload.onprogress=e=>{if(e.lengthComputable)onUploadProgress?.(e.loaded,e.total);};
-        xhr.upload.onloadend=()=>onProcessing?.('Transcription is running on faster-whisper…');
+        xhr.upload.onloadend=()=>onProcessing?.('Your recording is being processed…');
         xhr.onload=()=>{let payload=xhr.response;if(!payload&&xhr.responseText){try{payload=JSON.parse(xhr.responseText);}catch(_){payload={detail:xhr.responseText};}}if(xhr.status>=200&&xhr.status<300)return resolve(payload||{});reject(new Error(String(payload?.detail||payload?.message||`HTTP ${xhr.status}`)));};
-        xhr.onerror=()=>reject(new Error('Network error while contacting the FastAPI transcription service.'));xhr.ontimeout=()=>reject(new Error('The transcription service timed out. Try the Fast model or a shorter recording.'));xhr.onabort=()=>reject(new Error('Transcription was cancelled.'));xhr.send(formData);});
+        xhr.onerror=()=>reject(new Error('Network error while contacting the workspace processing service.'));xhr.ontimeout=()=>reject(new Error('The transcription service timed out. Try the Fast model or a shorter recording.'));xhr.onabort=()=>reject(new Error('Transcription was cancelled.'));xhr.send(formData);});
     },
     applyFastApiResult(result){
       const segments=Array.isArray(result?.segments)?result.segments:[]; const text=this.cleanTranscript(String(result?.text||'').trim());
@@ -285,12 +286,12 @@
     },
     friendlyTranscriptionError(error){
       const message=String(error?.message||error||'Transcription failed.');
-      if(/404|failed to fetch|network|connection|cors/i.test(message))return 'The FastAPI transcription service could not be reached. Check that the API is running and that its URL is configured correctly.';
+      if(/404|failed to fetch|network|connection|cors/i.test(message))return 'The Workspace service could not be reached. Check that the API is running and that its URL is configured correctly.';
       if(/413|too large|request entity/i.test(message))return 'This recording is larger than the server upload limit. Increase MAX_UPLOAD_MB or use a shorter recording.';
-      if(/503|model|loading|not ready/i.test(message))return 'The Whisper model is still loading or unavailable. Wait a moment and retry.';
-      if(/timeout|timed out/i.test(message))return 'The transcription took too long. Try the Fast model or a shorter recording.';
-      if(/decode|codec|format|opus|ogg/i.test(message))return 'The FastAPI server could not decode this recording. Try OGG/Opus, WAV, MP3, or M4A.';
-      return `FastAPI transcription failed: ${message}`;
+      if(/503|model|loading|not ready/i.test(message))return 'The processing model is still loading or unavailable. Wait a moment and retry.';
+      if(/timeout|timed out/i.test(message))return 'The recording took too long to process. Try the Fast option or a shorter recording.';
+      if(/decode|codec|format|opus|ogg/i.test(message))return 'The workspace server could not decode this recording. Try OGG/Opus, WAV, MP3, or M4A.';
+      return `Workspace processing failed: ${message}`;
     },
 
     chunksFromText(text, duration) {
@@ -512,7 +513,7 @@
       const duration = this.state.audioDuration || (this.state.chunks.length ? this.state.chunks[this.state.chunks.length - 1].end : 0);
       return `
       <div class="ts-pro ts-result-page">
-        <div class="ts-result-topbar"><button class="ts-back-btn" id="tsBack"><i class="fas fa-chevron-left"></i></button><div class="ts-result-title"><strong>${this.esc(title)}</strong><button class="ts-history-name" id="tsHistoryName" title="Open transcript history"><i class="fas fa-clock-rotate-left"></i> ${this.esc(this.getCurrentContactName())}</button><span>${this.state.sourceType === 'audio' ? this.formatDuration(duration) : 'Transcript file'}</span></div><div class="ts-result-actions"><button class="ts-icon-btn" id="tsShare" title="Share"><i class="fas fa-share-nodes"></i></button><button class="ts-icon-btn" id="tsMore" title="More"><i class="fas fa-ellipsis"></i></button><button class="ts-export-main" id="tsExportMenu"><i class="fas fa-download"></i> Export</button></div></div><div class="ts-booking-card" id="tsBookingCard"><div class="ts-booking-head"><div><span class="ts-booking-kicker"><i class="fas fa-calendar-check"></i> Booking-ready details</span><h3>Appointment Submission Format</h3><p>Auto-filled from the transcript. Missing details are marked <b>Not specified</b>.</p></div><div class="ts-booking-actions"><button class="ts-mini-btn ts-ai-booking-btn" id="tsAnalyzeBooking" title="Extract booking details from this transcript using deterministic rules"><i class="fas fa-list-check"></i> <span>Extract &amp; Populate</span></button><button class="ts-mini-btn" id="tsCopyBooking"><i class="far fa-copy"></i> Copy</button><button class="ts-mini-btn" id="tsSendBooking"><i class="fas fa-file-import"></i> Send to Smart Import</button></div></div><textarea id="tsBookingText" class="ts-booking-text" spellcheck="false">${this.esc(this.bookingFormat(this.extractBookingData(this.state.transcript)))}</textarea></div>
+        <div class="ts-result-topbar"><button class="ts-back-btn" id="tsBack"><i class="fas fa-chevron-left"></i></button><div class="ts-result-title"><strong>${this.esc(title)}</strong><button class="ts-history-name" id="tsHistoryName" title="Open transcript history"><i class="fas fa-clock-rotate-left"></i> ${this.esc(this.getCurrentContactName())}</button><span>${this.state.sourceType === 'audio' ? this.formatDuration(duration) : 'Transcript file'}</span></div><div class="ts-result-actions"><button class="ts-icon-btn" id="tsShare" title="Share"><i class="fas fa-share-nodes"></i></button><button class="ts-icon-btn" id="tsMore" title="More"><i class="fas fa-ellipsis"></i></button><button class="ts-export-main" id="tsExportMenu"><i class="fas fa-download"></i> Export</button></div></div><div class="ts-booking-card" id="tsBookingCard"><div class="ts-booking-head"><div><span class="ts-booking-kicker"><i class="fas fa-calendar-check"></i> Booking-ready details</span><h3>Appointment Details</h3><p>Auto-filled from the transcript. Missing details are marked <b>Not specified</b>.</p></div><div class="ts-booking-actions"><button class="ts-mini-btn ts-ai-booking-btn" id="tsAnalyzeBooking" title="Build booking details from the conversation"><i class="fas fa-list-check"></i> <span>Build Booking Details</span></button><button class="ts-mini-btn" id="tsCopyBooking"><i class="far fa-copy"></i> Copy</button><button class="ts-mini-btn" id="tsSendBooking"><i class="fas fa-file-import"></i> Send to Smart Import</button></div></div><textarea id="tsBookingText" class="ts-booking-text" spellcheck="false">${this.esc(this.bookingFormat(this.extractBookingData(this.state.transcript)))}</textarea></div>
         <div class="ts-result-layout">
           <section class="ts-transcript-pane">
             <div class="ts-transcript-toolbar"><div class="ts-transcript-label"><strong>Transcript</strong><span>${this.formatDuration(duration)}</span></div><label class="ts-search"><i class="fas fa-search"></i><input id="tsSearch" placeholder="Search transcript" /></label><button class="ts-icon-btn" id="tsCopy" title="Copy"><i class="far fa-copy"></i></button><button class="ts-icon-btn" id="tsTranslateQuick" title="Translate to English"><i class="fas fa-language"></i></button></div>
@@ -604,7 +605,7 @@
       };
 
       try {
-        setStatus('Scanning transcript for explicit booking details…');
+        setStatus('Checking the conversation for appointment details…');
         // Deterministic extraction only. No LLM is loaded and no transcript is sent
         // to a cloud analysis provider. Multiple conservative passes reduce false
         // positives while preserving the exact transcript-supported values.
@@ -617,7 +618,7 @@
         const nameButton = container.querySelector('#tsHistoryName');
         if (nameButton) nameButton.innerHTML = `<i class="fas fa-clock-rotate-left"></i> ${this.esc(data.name || 'Not specified')}`;
         setStatus(`Complete. ${confidence.label} extraction — review before sending to Smart Import.`);
-        if (typeof showToast === 'function') showToast(`Booking details extracted using transcript rules (${confidence.label.toLowerCase()} confidence).`, 'success');
+        if (typeof showToast === 'function') showToast(`Appointment details prepared from the conversation (${confidence.label.toLowerCase()} confidence).`, 'success');
       } catch (error) {
         console.error('Deterministic booking extraction failed:', error);
         setStatus('Automatic extraction could not be completed. The original transcript-based output is still available.');
@@ -861,7 +862,7 @@
     async quickTranslate(container){
       if(!this.state.transcript||!this.state.file){if(typeof showToast==='function')showToast('Translation requires the original audio file.','info');return;}
       const button=container.querySelector('#tsTranslateQuick');if(!button)return;button.disabled=true;button.classList.add('loading');button.innerHTML='<i class="fas fa-spinner fa-spin"></i>';
-      try{const form=new FormData();form.append('file',this.state.file,this.state.file.name||'audio');form.append('format','json');form.append('keep_wav','false');form.append('model',FASTAPI_MODELS[this.state.model]||FASTAPI_MODELS.fast);form.append('translate','true');if(this.state.language!=='auto')form.append('language',this.state.language);const result=await this.uploadTranscription(form,null,()=>{});this.applyFastApiResult(result);this.state.translate=true;container.innerHTML=this.resultView();this.bindResult(container);if(typeof showToast==='function')showToast('English translation generated by the FastAPI Whisper service.','success');}catch(err){if(typeof showToast==='function')showToast(this.friendlyTranscriptionError(err),'error');}finally{button.disabled=false;button.classList.remove('loading');}
+      try{const form=new FormData();form.append('file',this.state.file,this.state.file.name||'audio');form.append('format','json');form.append('keep_wav','false');form.append('model',WORKSPACE_MODELS[this.state.model]||WORKSPACE_MODELS.fast);form.append('translate','true');if(this.state.language!=='auto')form.append('language',this.state.language);const result=await this.uploadTranscription(form,null,()=>{});this.applyFastApiResult(result);this.state.translate=true;container.innerHTML=this.resultView();this.bindResult(container);if(typeof showToast==='function')showToast('English translation generated by the workspace service.','success');}catch(err){if(typeof showToast==='function')showToast(this.friendlyTranscriptionError(err),'error');}finally{button.disabled=false;button.classList.remove('loading');}
     },
     exportMindMap(){
       const topics=this.topTopics(this.state.transcript,8);
