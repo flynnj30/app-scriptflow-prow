@@ -1,7 +1,7 @@
 /* ScriptFlow Pro - Transcript Studio v4
- * Local Whisper speech-to-text integration for unlimited browser-side transcription.
- * Existing CRM/calendar data is untouched. Puter remains available only for the
- * optional AI booking-analysis feature.
+ * Local Whisper speech-to-text + local Qwen booking-analysis integration.
+ * Existing CRM/calendar data is untouched. No Gemini/Puter AI dependency is used
+ * for transcription or booking analysis.
  */
 (function () {
   'use strict';
@@ -15,8 +15,13 @@
     accurate: 'onnx-community/whisper-small_timestamped'
   };
   const TRANSFORMERS_JS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/+esm';
+  // Local booking-analysis model. This runs in the browser, so AI analysis has no
+  // API key, provider quota, or Gemini/Puter dependency. The q4f16 WebGPU build is
+  // used when available; q8 WASM is the CPU fallback.
+  const LOCAL_BOOKING_AI_MODEL = 'onnx-community/Qwen2.5-0.5B-Instruct';
   let transformersRuntimePromise = null;
   const localWhisperPipelines = new Map();
+  const localBookingAIPipelines = new Map();
   const LANGUAGES = [
     ['auto','Auto-detect'],['en','English'],['es','Spanish'],['fr','French'],['de','German'],['it','Italian'],
     ['pt','Portuguese'],['nl','Dutch'],['pl','Polish'],['tr','Turkish'],['ru','Russian'],['uk','Ukrainian'],
@@ -25,25 +30,7 @@
     ['fi','Finnish'],['cs','Czech'],['ro','Romanian'],['hu','Hungarian'],['el','Greek'],['he','Hebrew']
   ];
 
-  // Keep Puter SDK's informational banner/noisy transport diagnostics out of the
-  // application's console. Actual transcription errors are still surfaced by
-  // Transcript Studio's error handler below.
-  function quietPuterSdkLogs() {
-    if (window.__scriptflowPuterConsoleGuard) return;
-    const original = { log: console.log, info: console.info, warn: console.warn, error: console.error };
-    const isKnownPuterNoise = (args) => {
-      const text = args.map(v => { try { return typeof v === 'string' ? v : JSON.stringify(v); } catch (_) { return String(v); } }).join(' ');
-      return /api\.puter\.com\/socket\.io|socket\.io.*WebSocket connection|WebSocket connection to .*api\.puter\.com|Refused to set unsafe header [\"']Origin[\"']|Submit this app to the Puter App Store|Puter App Store/i.test(text);
-    };
-    ['log','info','warn','error'].forEach(level => {
-      console[level] = function (...args) {
-        if (isKnownPuterNoise(args)) return;
-        return original[level].apply(console, args);
-      };
-    });
-
-    window.__scriptflowPuterConsoleGuard = { original };
-  }
+  // No third-party AI SDK is required for booking analysis; all analysis runs locally.
 
   const Studio = {
     state: {
@@ -85,7 +72,7 @@
         <div class="ts-upload-shell">
           <div class="ts-brand-mark"><i class="fas fa-waveform-lines"></i></div>
           <div class="ts-pro-title">OPUS to Text Converter <span>Powered by AI</span></div>
-          <p class="ts-pro-subtitle">Turn long audio into searchable text with Puter AI. Upload your recording, configure transcription, and review the result before exporting.</p>
+          <p class="ts-pro-subtitle">Turn long audio into searchable text locally in your browser. Upload your recording, configure transcription, and review the result before exporting.</p>
 
           <div class="ts-source-tabs" role="tablist">
             <button class="ts-source-tab active" data-source-tab="file"><i class="far fa-file-audio"></i> File upload</button>
@@ -99,7 +86,7 @@
               <h3>Click or drag &amp; drop to upload your file</h3>
               <p>OPUS, OGG, WAV, MP3, M4A, MP4, WebM, FLAC, TXT, SRT, VTT and CSV</p>
               <button class="ts-primary-btn" id="tsChooseFile"><i class="fas fa-upload"></i> Upload a file</button>
-              <small>Your file is sent directly to Puter AI for transcription; ScriptFlow does not store your audio.</small>
+              <small>Your audio is processed locally in this browser; ScriptFlow does not upload your recording for transcription.</small>
             </div>
           </div>
 
@@ -114,7 +101,7 @@
 
           <div class="ts-capability-row">
             <span><i class="fas fa-language"></i> 20+ languages</span>
-            <span><i class="fas fa-cloud"></i> Puter AI transcription</span>
+            <span><i class="fas fa-microchip"></i> Local Whisper transcription</span>
             <span><i class="fas fa-file-export"></i> SRT / VTT / TXT / CSV</span>
           </div>
           <div class="ts-error" id="tsUploadError" hidden></div>
@@ -518,54 +505,6 @@
       return `Local transcription failed: ${message}`;
     },
 
-    async ensurePuterReady() {
-      quietPuterSdkLogs();
-      const sdkSrc = 'https://js.puter.com/v2/';
-      const ready = () => window.puter && window.puter.ai && typeof window.puter.ai.chat === 'function';
-      if (ready()) { window.puter.quiet = true; return window.puter; }
-
-      let existing = document.querySelector('script[data-scriptflow-puter="true"]');
-      if (!existing) {
-        existing = document.createElement('script');
-        existing.src = sdkSrc;
-        existing.async = true;
-        existing.defer = true;
-        existing.dataset.scriptflowPuter = 'true';
-        document.head.appendChild(existing);
-      }
-
-      await new Promise((resolve, reject) => {
-        if (ready()) return resolve();
-        const timeout = setTimeout(() => reject(new Error('Puter AI did not finish loading within 15 seconds.')), 15000);
-        existing.addEventListener('load', () => { clearTimeout(timeout); resolve(); }, { once: true });
-        existing.addEventListener('error', () => { clearTimeout(timeout); reject(new Error('Puter AI could not be loaded. Check your connection and try again.')); }, { once: true });
-      });
-
-      const started = Date.now();
-      while (!ready()) {
-        if (Date.now() - started > 5000) throw new Error('Puter AI loaded but its AI features are not available.');
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      window.puter.quiet = true;
-      return window.puter;
-    },
-
-    async ensurePuterAuthorized() {
-      // Do not manually open Puter's authentication UI here. Puter.js documents
-      // that AI helpers handle authentication automatically. Calling the popup
-      // authentication helper from a Render-hosted page can trigger browser
-      // COOP/window.closed diagnostics before transcription even starts.
-      const sdk = await this.ensurePuterReady();
-      if (sdk && sdk.auth && typeof sdk.auth.isSignedIn === 'function') {
-        try {
-          return Boolean(sdk.auth.isSignedIn()) || true;
-        } catch (_) {
-          return true;
-        }
-      }
-      return true;
-    },
-
     chunksFromText(text, duration) {
       const sentences = this.sentences(text);
       if (!sentences.length) return [{ start: 0, end: Number(duration) || 0, text }];
@@ -877,13 +816,7 @@
       };
 
       try {
-        setStatus('AI is analyzing the captured transcript and mapping booking details…');
-        const sdk = await this.ensurePuterReady();
-        await this.ensurePuterAuthorized();
-        if (!sdk?.ai || typeof sdk.ai.chat !== 'function') {
-          throw new Error('Puter AI chat is unavailable. Please refresh and try again.');
-        }
-
+        setStatus('Loading the local booking-analysis model…');
         const deterministic = this.extractBookingData(transcript);
         const boundedTranscript = transcript.length > 60000
           ? `${transcript.slice(0, 60000)}\n\n[Transcript truncated only for AI analysis.]`
@@ -922,13 +855,8 @@ Return exactly this JSON object and no markdown:
 
 Every scalar value must be a string. Every missing value must be "Not specified".`;
 
-        setStatus('Extracting names, contact details, schedule, goals, objections, and meeting angle…');
-        const response = await this.runPuterBookingAI(sdk, [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `TRANSCRIPT:\n${boundedTranscript}` }
-        ]);
-
-        const raw = this.extractChatText(response);
+        setStatus('Extracting names, contact details, schedule, goals, objections, and meeting angle locally…');
+        const raw = await this.runLocalBookingAI(systemPrompt, boundedTranscript, setStatus);
         const aiData = this.parseBookingAIJson(raw);
         const normalized = this.normalizeAIBooking(aiData, deterministic);
         output.value = this.bookingFormat(normalized);
@@ -951,27 +879,82 @@ Every scalar value must be a string. Every missing value must be "Not specified"
       }
     },
 
-    async runPuterBookingAI(sdk, messages) {
-      const models = [
-        'google/gemini-3.1-flash-lite',
-        'google/gemini-2.5-flash'
-      ];
-      let lastError;
-      for (const model of models) {
-        try {
-          return await sdk.ai.chat(messages, {
-            model,
-            temperature: 0,
-            max_tokens: 1800
-          });
-        } catch (error) {
-          lastError = error;
-          const message = String(error && (error.message || error.error || error) || '');
-          const unavailable = /model|not found|unsupported|unavailable|quota|limit|rate|provider/i.test(message);
-          if (!unavailable || model === models[models.length - 1]) throw error;
+    async ensureLocalBookingAI() {
+      const device = (navigator.gpu && window.isSecureContext) ? 'webgpu' : 'wasm';
+      const dtype = device === 'webgpu' ? 'q4f16' : 'q8';
+      const key = `${device}:${dtype}`;
+      if (localBookingAIPipelines.has(key)) return localBookingAIPipelines.get(key);
+
+      const runtime = await this.loadTransformersRuntime();
+      const pipeline = runtime.pipeline;
+      if (typeof pipeline !== 'function') throw new Error('Local AI runtime is unavailable.');
+
+      try {
+        const pipe = await this.withContentLengthWarningSuppressed(() => pipeline('text-generation', LOCAL_BOOKING_AI_MODEL, {
+          device,
+          dtype,
+          progress_callback: (progress) => {
+            if (typeof this._localAIProgressHandler === 'function') this._localAIProgressHandler(progress);
+          }
+        }));
+        localBookingAIPipelines.set(key, pipe);
+        return pipe;
+      } catch (firstError) {
+        // A WebGPU dtype/device combination can fail on some browsers. Fall back
+        // to CPU/WASM rather than sending the transcript to a cloud provider.
+        if (device === 'webgpu') {
+          const fallbackKey = 'wasm:q8';
+          if (localBookingAIPipelines.has(fallbackKey)) return localBookingAIPipelines.get(fallbackKey);
+          const pipe = await this.withContentLengthWarningSuppressed(() => pipeline('text-generation', LOCAL_BOOKING_AI_MODEL, {
+            device: 'wasm',
+            dtype: 'q8',
+            progress_callback: (progress) => {
+              if (typeof this._localAIProgressHandler === 'function') this._localAIProgressHandler(progress);
+            }
+          }));
+          localBookingAIPipelines.set(fallbackKey, pipe);
+          return pipe;
         }
+        throw firstError;
       }
-      throw lastError || new Error('Google Gemini analysis failed.');
+    },
+
+    async runLocalBookingAI(systemPrompt, transcript, setStatus) {
+      this._localAIProgressHandler = (progress) => {
+        const value = Number(progress?.progress);
+        if (Number.isFinite(value) && value >= 0) {
+          const percent = Math.max(0, Math.min(100, Math.round(value)));
+          if (percent < 100) setStatus(`Loading local AI model… ${percent}%`);
+        }
+      };
+
+      try {
+        const pipe = await this.ensureLocalBookingAI();
+        setStatus('Local AI model ready. Extracting booking details…');
+        const messages = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `TRANSCRIPT:\n${transcript}` }
+        ];
+        const tokenizer = pipe.tokenizer;
+        let prompt;
+        if (tokenizer && typeof tokenizer.apply_chat_template === 'function') {
+          prompt = tokenizer.apply_chat_template(messages, { tokenize: false, add_generation_prompt: true });
+        } else {
+          prompt = `System:\n${systemPrompt}\n\nUser:\nTRANSCRIPT:\n${transcript}\n\nAssistant:`;
+        }
+
+        const result = await pipe(prompt, {
+          max_new_tokens: 900,
+          do_sample: false,
+          return_full_text: false
+        });
+        const generated = Array.isArray(result) ? result[0]?.generated_text : result?.generated_text;
+        const text = typeof generated === 'string' ? generated : this.extractChatText(result);
+        if (!text || !text.trim()) throw new Error('The local AI model returned an empty result.');
+        return text;
+      } finally {
+        this._localAIProgressHandler = null;
+      }
     },
 
     extractChatText(response) {
@@ -1003,13 +986,17 @@ Every scalar value must be a string. Every missing value must be "Not specified"
         return v;
       };
       const notes = ai?.notes || {};
+      const fallbackValue = (value, aiValue) => {
+        const base = String(value ?? '').trim();
+        return base && base !== NOT ? base : scalar(aiValue, NOT);
+      };
       return {
-        business: scalar(ai?.businessName, fallback?.business),
-        name: scalar(ai?.name, fallback?.name),
-        role: scalar(ai?.role, fallback?.role),
-        phone: scalar(ai?.phoneNumber, fallback?.phone),
-        dateTime: scalar(ai?.demoTimeDate, fallback?.dateTime),
-        email: scalar(ai?.email, fallback?.email),
+        business: fallbackValue(fallback?.business, ai?.businessName),
+        name: fallbackValue(fallback?.name, ai?.name),
+        role: fallbackValue(fallback?.role, ai?.role),
+        phone: fallbackValue(fallback?.phone, ai?.phoneNumber),
+        dateTime: fallbackValue(fallback?.dateTime, ai?.demoTimeDate),
+        email: fallbackValue(fallback?.email, ai?.email),
         notes: [
           `Attendees: ${scalar(notes.attendees)}`,
           `Current setup: ${scalar(notes.currentSetup)}`,
@@ -1025,8 +1012,8 @@ Every scalar value must be a string. Every missing value must be "Not specified"
 
     friendlyAIError(error) {
       const message = String(error?.message || error || 'AI analysis failed.');
-      if (/auth|sign.?in|permission/i.test(message)) return 'Please authorize Puter AI, then try AI Analyze again.';
-      if (/network|websocket|socket|timeout|connection|gateway/i.test(message)) return 'AI could not establish a stable connection. Please try again.';
+      if (/model|runtime|wasm|webgpu|memory|allocation/i.test(message)) return 'The local AI model could not run on this device. Try again, close other tabs, or use a device with WebGPU support.';
+      if (/network|fetch|download|huggingface|cdn|timeout|connection/i.test(message)) return 'The local AI model could not be downloaded. Check your connection and try again. The model is cached after the first successful download.';
       return message.length > 180 ? `${message.slice(0, 177)}…` : message;
     },
 

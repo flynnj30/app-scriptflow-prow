@@ -27,3 +27,12 @@ The balanced/higher-accuracy model is larger and requires more RAM/GPU resources
 ## AI booking analysis
 
 The optional **AI Analyze & Populate** button still uses Puter AI/Gemini. That feature is separate from local transcription and therefore remains subject to the user's Puter allowance and service availability.
+
+
+AI BOOKING ANALYSIS UPDATE
+- AI Analyze & Populate now runs locally with onnx-community/Qwen2.5-0.5B-Instruct through Transformers.js.
+- No Gemini, Puter AI chat, Google API key, or cloud AI analysis is used.
+- WebGPU uses q4f16; WASM uses q8 fallback.
+- Explicit transcript-derived fields take precedence over model output to reduce hallucinations.
+- The model is downloaded from Hugging Face and cached by Transformers.js; subsequent runs are local.
+- Local inference is not subject to an API request quota, but it is limited by the user's device resources and model availability.
