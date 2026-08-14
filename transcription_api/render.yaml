@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: scriptflow-pro-transcription-api
+    runtime: python
+    rootDir: transcription_api
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    autoDeployTrigger: commit
+    envVars:
+      - key: MAX_UPLOAD_MB
+        value: "500"
+      - key: WHISPER_DEFAULT_MODEL
+        value: "base"
+      - key: WHISPER_DEVICE
+        value: "cpu"
+      - key: WHISPER_COMPUTE_TYPE
+        value: "int8"
+      - key: WHISPER_CPU_THREADS
+        value: "4"
+      - key: MAX_CONCURRENT_TRANSCRIPTIONS
+        value: "1"
+      - key: TRANSCRIPTION_ALLOWED_ORIGINS
+        sync: false
