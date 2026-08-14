@@ -10,10 +10,13 @@
   // Workspace Whisper provider. The transcription engine is open-source
   // and self-hostable: no Gemini, Puter, LLM, or per-minute API is required.
   // For production, set window.SCRIPTFLOW_TRANSCRIPTION_API_URL to your FastAPI
-  // service URL. Defaults to the production ScriptFlow transcription service.
+  // service URL. If omitted, the app uses the same-origin /transcribe endpoint.
+  // Production FastAPI endpoint. Keep the override so local/self-hosted deployments
+  // can point the studio at another service without changing this file.
+  const DEFAULT_TRANSCRIPTION_API_URL = 'https://app-scriptflow-pro.onrender.com';
   const TRANSCRIPTION_API_URL = String(
-    window.SCRIPTFLOW_TRANSCRIPTION_API_URL || 'https://app-scriptflow-pro.onrender.com'
-  ).replace(/\/+$/, '') || '';
+    window.SCRIPTFLOW_TRANSCRIPTION_API_URL || DEFAULT_TRANSCRIPTION_API_URL
+  ).replace(/\/+$/, '');
   const WORKSPACE_MODELS = {
     fast: 'tiny',
     balanced: 'base',
