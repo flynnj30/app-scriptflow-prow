@@ -344,6 +344,33 @@
       return Math.round(n > 1 ? n : n * 100);
     },
 
+    withContentLengthWarningSuppressed(task) {
+      // Hugging Face Hub can legally omit Content-Length (for example when a CDN
+      // uses chunked transfer). Transformers.js then buffers the response and
+      // emits a non-actionable warning. Keep real warnings/errors visible and
+      // suppress only this exact upstream diagnostic while the model is loading.
+      const originalWarn = console.warn;
+      const originalInfo = console.info;
+      const isHubContentLengthWarning = (args) => {
+        try {
+          return args.some((arg) => String(arg).includes('Unable to determine content-length from response headers'));
+        } catch (_) {
+          return false;
+        }
+      };
+      console.warn = (...args) => {
+        if (!isHubContentLengthWarning(args)) originalWarn.apply(console, args);
+      };
+      console.info = (...args) => {
+        if (!isHubContentLengthWarning(args)) originalInfo.apply(console, args);
+      };
+
+      return Promise.resolve().then(task).finally(() => {
+        console.warn = originalWarn;
+        console.info = originalInfo;
+      });
+    },
+
     async ensureLocalWhisperPipeline(onProgress) {
       const model = LOCAL_WHISPER_MODELS[this.state.model] || LOCAL_WHISPER_MODELS.balanced;
       if (localWhisperPipelines.has(model)) return localWhisperPipelines.get(model);
@@ -351,6 +378,10 @@
       const { pipeline, env } = await this.loadTransformersRuntime();
       env.allowLocalModels = false;
       env.useBrowserCache = true;
+      // Transformers.js versions that expose logLevel can keep routine Hub
+      // diagnostics out of production logs. The narrow console filter below
+      // remains as a compatibility fallback for Hub versions that log directly.
+      if ('logLevel' in env) env.logLevel = 'error';
 
       const webgpu = !!navigator.gpu;
       const options = {
@@ -366,7 +397,9 @@
         options.dtype = 'q8';
       }
 
-      const promise = pipeline('automatic-speech-recognition', model, options).catch((error) => {
+      const promise = this.withContentLengthWarningSuppressed(() =>
+        pipeline('automatic-speech-recognition', model, options)
+      ).catch((error) => {
         localWhisperPipelines.delete(model);
         throw error;
       });
