@@ -1,7 +1,7 @@
 /* ScriptFlow Pro - Transcript Studio v4
- * Local Whisper speech-to-text + local Qwen booking-analysis integration.
- * Existing CRM/calendar data is untouched. No Gemini/Puter AI dependency is used
- * for transcription or booking analysis.
+ * Local Whisper speech-to-text + deterministic booking-data extraction.
+ * Existing CRM/calendar data is untouched. No LLM, Gemini, Puter AI, or
+ * remote booking-analysis model is required.
  */
 (function () {
   'use strict';
@@ -15,13 +15,8 @@
     accurate: 'onnx-community/whisper-small_timestamped'
   };
   const TRANSFORMERS_JS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/+esm';
-  // Local booking-analysis model. This runs in the browser, so AI analysis has no
-  // API key, provider quota, or Gemini/Puter dependency. The q4f16 WebGPU build is
-  // used when available; q8 WASM is the CPU fallback.
-  const LOCAL_BOOKING_AI_MODEL = 'onnx-community/Qwen2.5-0.5B-Instruct';
   let transformersRuntimePromise = null;
   const localWhisperPipelines = new Map();
-  const localBookingAIPipelines = new Map();
   const LANGUAGES = [
     ['auto','Auto-detect'],['en','English'],['es','Spanish'],['fr','French'],['de','German'],['it','Italian'],
     ['pt','Portuguese'],['nl','Dutch'],['pl','Polish'],['tr','Turkish'],['ru','Russian'],['uk','Ukrainian'],
@@ -30,7 +25,7 @@
     ['fi','Finnish'],['cs','Czech'],['ro','Romanian'],['hu','Hungarian'],['el','Greek'],['he','Hebrew']
   ];
 
-  // No third-party AI SDK is required for booking analysis; all analysis runs locally.
+  // Booking analysis is deterministic and runs instantly in the browser.
 
   const Studio = {
     state: {
@@ -649,9 +644,9 @@
 
     detectInterest(text) {
       const value = String(text || '');
-      if (/(?:high interest|very interested|highly interested|excited|enthusiastic|love (?:it|that)|absolutely|definitely|looking forward|can't wait|strong interest)/i.test(value)) return 'High';
-      if (/(?:medium[- ]high|interested|considering|curious|open to|sounds good|that works|okay|sure|willing to|would like|happy to|fine with)/i.test(value)) return 'Medium';
       if (/(?:low interest|not interested|not sure|maybe later|too busy|already have|don't need|not looking|skeptical|reserved|just looking|hesitant)/i.test(value)) return 'Low';
+      if (/(?:high interest|very interested|highly interested|excited|enthusiastic|love (?:it|that)|absolutely|definitely|looking forward|can't wait|strong interest)/i.test(value)) return 'High';
+      if (/(?:medium[- ]high|interested|considering|curious|open to|sounds good|that works|okay|sure|willing to|would like|happy to|fine with)/i.test(value)) return /medium[- ]high/i.test(value) ? 'Medium-high' : 'Medium';
       return 'Not specified';
     },
 
@@ -688,7 +683,7 @@
 
       let meetingAngle = 'Use discovery first and tailor the meeting to the prospect’s stated priorities.';
       if (interest === 'High') meetingAngle = 'Keep the meeting focused, lead with the prospect’s primary goal, and show the strongest relevant features first.';
-      if (interest === 'Medium') meetingAngle = 'Use the walkthrough to compare the preview against the prospect’s current setup and priorities.';
+      if (interest === 'Medium' || interest === 'Medium-high') meetingAngle = 'Use the walkthrough to compare the preview against the prospect’s current setup and priorities.';
       if (interest === 'Low') meetingAngle = 'Use discovery first, show only the strongest improvements, and avoid pushing for a decision.';
 
       return [
@@ -724,7 +719,7 @@
       const duration = this.state.audioDuration || (this.state.chunks.length ? this.state.chunks[this.state.chunks.length - 1].end : 0);
       return `
       <div class="ts-pro ts-result-page">
-        <div class="ts-result-topbar"><button class="ts-back-btn" id="tsBack"><i class="fas fa-chevron-left"></i></button><div class="ts-result-title"><strong>${this.esc(title)}</strong><button class="ts-history-name" id="tsHistoryName" title="Open transcript history"><i class="fas fa-clock-rotate-left"></i> ${this.esc(this.getCurrentContactName())}</button><span>${this.state.sourceType === 'audio' ? this.formatDuration(duration) : 'Transcript file'}</span></div><div class="ts-result-actions"><button class="ts-icon-btn" id="tsShare" title="Share"><i class="fas fa-share-nodes"></i></button><button class="ts-icon-btn" id="tsMore" title="More"><i class="fas fa-ellipsis"></i></button><button class="ts-export-main" id="tsExportMenu"><i class="fas fa-download"></i> Export</button></div></div><div class="ts-booking-card" id="tsBookingCard"><div class="ts-booking-head"><div><span class="ts-booking-kicker"><i class="fas fa-calendar-check"></i> Booking-ready details</span><h3>Appointment Submission Format</h3><p>Auto-filled from the transcript. Missing details are marked <b>Not specified</b>.</p></div><div class="ts-booking-actions"><button class="ts-mini-btn ts-ai-booking-btn" id="tsAnalyzeBooking" title="Use AI to analyze this transcript and populate the booking format"><i class="fas fa-wand-magic-sparkles"></i> <span>AI Analyze &amp; Populate</span></button><button class="ts-mini-btn" id="tsCopyBooking"><i class="far fa-copy"></i> Copy</button><button class="ts-mini-btn" id="tsSendBooking"><i class="fas fa-file-import"></i> Send to Smart Import</button></div></div><textarea id="tsBookingText" class="ts-booking-text" spellcheck="false">${this.esc(this.bookingFormat(this.extractBookingData(this.state.transcript)))}</textarea></div>
+        <div class="ts-result-topbar"><button class="ts-back-btn" id="tsBack"><i class="fas fa-chevron-left"></i></button><div class="ts-result-title"><strong>${this.esc(title)}</strong><button class="ts-history-name" id="tsHistoryName" title="Open transcript history"><i class="fas fa-clock-rotate-left"></i> ${this.esc(this.getCurrentContactName())}</button><span>${this.state.sourceType === 'audio' ? this.formatDuration(duration) : 'Transcript file'}</span></div><div class="ts-result-actions"><button class="ts-icon-btn" id="tsShare" title="Share"><i class="fas fa-share-nodes"></i></button><button class="ts-icon-btn" id="tsMore" title="More"><i class="fas fa-ellipsis"></i></button><button class="ts-export-main" id="tsExportMenu"><i class="fas fa-download"></i> Export</button></div></div><div class="ts-booking-card" id="tsBookingCard"><div class="ts-booking-head"><div><span class="ts-booking-kicker"><i class="fas fa-calendar-check"></i> Booking-ready details</span><h3>Appointment Submission Format</h3><p>Auto-filled from the transcript. Missing details are marked <b>Not specified</b>.</p></div><div class="ts-booking-actions"><button class="ts-mini-btn ts-analyze-booking-btn" id="tsAnalyzeBooking" title="Analyze this transcript and populate the booking format"><i class="fas fa-wand-magic-sparkles"></i> <span>Analyze &amp; Populate</span></button><button class="ts-mini-btn" id="tsCopyBooking"><i class="far fa-copy"></i> Copy</button><button class="ts-mini-btn" id="tsSendBooking"><i class="fas fa-file-import"></i> Send to Smart Import</button></div></div><textarea id="tsBookingText" class="ts-booking-text" spellcheck="false">${this.esc(this.bookingFormat(this.extractBookingData(this.state.transcript)))}</textarea></div>
         <div class="ts-result-layout">
           <section class="ts-transcript-pane">
             <div class="ts-transcript-toolbar"><div class="ts-transcript-label"><strong>Transcript</strong><span>${this.formatDuration(duration)}</span></div><label class="ts-search"><i class="fas fa-search"></i><input id="tsSearch" placeholder="Search transcript" /></label><button class="ts-icon-btn" id="tsCopy" title="Copy"><i class="far fa-copy"></i></button><button class="ts-icon-btn" id="tsTranslateQuick" title="Translate to English"><i class="fas fa-language"></i></button></div>
@@ -769,7 +764,7 @@
       container.querySelectorAll('.ts-chunk').forEach(el=>el.onclick=()=>{this.state.selectedChunkIndex=Number(el.dataset.index||0);audio.currentTime=Number(el.dataset.start||0);audio.play();if(play)play.innerHTML='<i class="fas fa-pause"></i>';});
       const search=container.querySelector('#tsSearch'); if(search) search.oninput=()=>this.filterChunks(container,search.value);
       container.querySelector('#tsCopy').onclick=()=>this.copyText(this.state.transcript);
-      const analyzeBooking=container.querySelector('#tsAnalyzeBooking'); if(analyzeBooking) analyzeBooking.onclick=()=>this.analyzeBookingWithAI(container, analyzeBooking);
+      const analyzeBooking=container.querySelector('#tsAnalyzeBooking'); if(analyzeBooking) analyzeBooking.onclick=()=>this.analyzeBookingDeterministically(container, analyzeBooking);
       const bookingCopy=container.querySelector('#tsCopyBooking'); if(bookingCopy) bookingCopy.onclick=()=>this.copyText(container.querySelector('#tsBookingText')?.value||'');
       const bookingSend=container.querySelector('#tsSendBooking'); if(bookingSend) bookingSend.onclick=()=>this.sendBookingToSmartImport(container);
       container.querySelector('#tsBack').onclick=()=>{this.revokeUrl();this.state.phase='upload';this.renderCurrent(container);};
@@ -787,7 +782,7 @@
       const mapExport=container.querySelector('#tsExportMap'); if(mapExport) mapExport.onclick=()=>this.exportMindMap();
     },
 
-    async analyzeBookingWithAI(container, button) {
+    async analyzeBookingDeterministically(container, button) {
       const transcript = String(this.state.transcript || '').trim();
       const output = container.querySelector('#tsBookingText');
       if (!transcript) {
@@ -799,222 +794,68 @@
       const originalHtml = button.innerHTML;
       button.dataset.busy = 'true';
       button.disabled = true;
-      button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>AI analyzing…</span>';
-      output.classList.add('ts-ai-processing');
+      button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Analyzing…</span>';
+      output.classList.add('ts-extract-processing');
 
-      const setStatus = (message) => {
+      const setStatus = (message, type = 'info') => {
         const card = container.querySelector('#tsBookingCard');
         if (!card) return;
-        let status = card.querySelector('.ts-ai-status');
+        let status = card.querySelector('.ts-extract-status');
         if (!status) {
           status = document.createElement('div');
-          status.className = 'ts-ai-status';
+          status.className = 'ts-extract-status';
           const head = card.querySelector('.ts-booking-head');
           if (head) head.appendChild(status);
         }
-        status.innerHTML = `<i class="fas fa-sparkles"></i> ${this.esc(message)}`;
+        status.dataset.type = type;
+        status.innerHTML = `<i class="fas fa-${type === 'success' ? 'circle-check' : 'bolt'}"></i> ${this.esc(message)}`;
       };
 
       try {
-        setStatus('Loading the local booking-analysis model…');
-        const deterministic = this.extractBookingData(transcript);
-        const boundedTranscript = transcript.length > 60000
-          ? `${transcript.slice(0, 60000)}\n\n[Transcript truncated only for AI analysis.]`
-          : transcript;
-
-        const systemPrompt = `You are ScriptFlow Pro's booking-data extraction engine. Analyze a sales/demo call transcript and return ONLY valid JSON. Your job is to populate a booking appointment format for a presenter.
-
-STRICT ACCURACY RULES:
-1. Use ONLY information explicitly supported by the transcript. Never invent, assume, or fill a gap from general knowledge.
-2. If a requested field is missing, ambiguous, conflicting, or cannot be confidently supported, return exactly "Not specified" for that field.
-3. Normalize obvious formatting only: clean names, phone spacing, email casing, and date/time presentation. Do not change the underlying meaning.
-4. For Demo Time & Date, preserve the stated date, time, and timezone. If a year is not stated, do not invent one.
-5. Interest/attitude may be summarized only from the prospect's explicit behavior or language in the transcript. If unclear, use "Not specified".
-6. The meeting notes must help the presenter run the meeting, not retell the cold call.
-7. Notes MUST follow this exact formula: Attendees + Current Setup + Website Goal + What to Show + Interest/Attitude + Objection/Concern + Meeting Angle.
-8. Keep notes concise, actionable, and personalized. Do not introduce facts that are not in the transcript.
-
-Return exactly this JSON object and no markdown:
-{
-  "businessName": "...",
-  "name": "...",
-  "role": "...",
-  "phoneNumber": "...",
-  "demoTimeDate": "...",
-  "email": "...",
-  "notes": {
-    "attendees": "...",
-    "currentSetup": "...",
-    "websiteGoal": "...",
-    "whatToShow": "...",
-    "interestAttitude": "...",
-    "objectionConcern": "...",
-    "meetingAngle": "..."
-  }
-}
-
-Every scalar value must be a string. Every missing value must be "Not specified".`;
-
-        setStatus('Extracting names, contact details, schedule, goals, objections, and meeting angle locally…');
-        const raw = await this.runLocalBookingAI(systemPrompt, boundedTranscript, setStatus);
-        const aiData = this.parseBookingAIJson(raw);
-        const normalized = this.normalizeAIBooking(aiData, deterministic);
-        output.value = this.bookingFormat(normalized);
+        setStatus('Extracting booking details locally…');
+        // The parser is intentionally deterministic: it never invents values and
+        // never sends transcript content to an AI/LLM service.
+        const data = this.extractBookingData(transcript);
+        const confidence = this.getBookingConfidence(transcript, data);
+        output.value = this.bookingFormat(data);
         output.dispatchEvent(new Event('input', { bubbles: true }));
-        this.state.aiBooking = normalized;
-        await this.saveTranscriptHistory(normalized);
+        this.state.aiBooking = data;
+        await this.saveTranscriptHistory(data);
         const nameButton = container.querySelector('#tsHistoryName');
-        if (nameButton) nameButton.innerHTML = `<i class="fas fa-clock-rotate-left"></i> ${this.esc(normalized.name || 'Not specified')}`;
-        setStatus('AI analysis complete. Review the booking details before sending them to Smart Import.');
-        if (typeof showToast === 'function') showToast('AI populated the booking format. Please review before saving.', 'success');
+        if (nameButton) nameButton.innerHTML = `<i class="fas fa-clock-rotate-left"></i> ${this.esc(data.name || 'Not specified')}`;
+        const reviewCount = confidence.filter(item => item.score < 85).length;
+        setStatus(
+          reviewCount ? `Done in ${confidence.length ? '<1' : '0'} second. ${reviewCount} field${reviewCount === 1 ? '' : 's'} may need review.` : 'Done. All extracted fields have strong source matches.',
+          reviewCount ? 'info' : 'success'
+        );
+        if (typeof showToast === 'function') showToast('Booking details extracted from the transcript. Please review before saving.', 'success');
       } catch (error) {
-        console.error('AI booking analysis failed:', error);
-        setStatus('AI analysis could not be completed. The original transcript-based extraction is still available.');
-        if (typeof showToast === 'function') showToast(this.friendlyAIError(error), 'warning');
+        console.error('Deterministic booking analysis failed:', error);
+        setStatus('The transcript could not be analyzed. The original transcript-based booking data is still available.');
+        if (typeof showToast === 'function') showToast('Booking extraction failed. Please review the transcript and try again.', 'warning');
       } finally {
-        output.classList.remove('ts-ai-processing');
+        output.classList.remove('ts-extract-processing');
         button.dataset.busy = 'false';
         button.disabled = false;
         button.innerHTML = originalHtml;
       }
     },
 
-    async ensureLocalBookingAI() {
-      const device = (navigator.gpu && window.isSecureContext) ? 'webgpu' : 'wasm';
-      const dtype = device === 'webgpu' ? 'q4f16' : 'q8';
-      const key = `${device}:${dtype}`;
-      if (localBookingAIPipelines.has(key)) return localBookingAIPipelines.get(key);
-
-      const runtime = await this.loadTransformersRuntime();
-      const pipeline = runtime.pipeline;
-      if (typeof pipeline !== 'function') throw new Error('Local AI runtime is unavailable.');
-
-      try {
-        const pipe = await this.withContentLengthWarningSuppressed(() => pipeline('text-generation', LOCAL_BOOKING_AI_MODEL, {
-          device,
-          dtype,
-          progress_callback: (progress) => {
-            if (typeof this._localAIProgressHandler === 'function') this._localAIProgressHandler(progress);
-          }
-        }));
-        localBookingAIPipelines.set(key, pipe);
-        return pipe;
-      } catch (firstError) {
-        // A WebGPU dtype/device combination can fail on some browsers. Fall back
-        // to CPU/WASM rather than sending the transcript to a cloud provider.
-        if (device === 'webgpu') {
-          const fallbackKey = 'wasm:q8';
-          if (localBookingAIPipelines.has(fallbackKey)) return localBookingAIPipelines.get(fallbackKey);
-          const pipe = await this.withContentLengthWarningSuppressed(() => pipeline('text-generation', LOCAL_BOOKING_AI_MODEL, {
-            device: 'wasm',
-            dtype: 'q8',
-            progress_callback: (progress) => {
-              if (typeof this._localAIProgressHandler === 'function') this._localAIProgressHandler(progress);
-            }
-          }));
-          localBookingAIPipelines.set(fallbackKey, pipe);
-          return pipe;
-        }
-        throw firstError;
-      }
-    },
-
-    async runLocalBookingAI(systemPrompt, transcript, setStatus) {
-      this._localAIProgressHandler = (progress) => {
-        const value = Number(progress?.progress);
-        if (Number.isFinite(value) && value >= 0) {
-          const percent = Math.max(0, Math.min(100, Math.round(value)));
-          if (percent < 100) setStatus(`Loading local AI model… ${percent}%`);
-        }
-      };
-
-      try {
-        const pipe = await this.ensureLocalBookingAI();
-        setStatus('Local AI model ready. Extracting booking details…');
-        const messages = [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `TRANSCRIPT:\n${transcript}` }
-        ];
-        const tokenizer = pipe.tokenizer;
-        let prompt;
-        if (tokenizer && typeof tokenizer.apply_chat_template === 'function') {
-          prompt = tokenizer.apply_chat_template(messages, { tokenize: false, add_generation_prompt: true });
-        } else {
-          prompt = `System:\n${systemPrompt}\n\nUser:\nTRANSCRIPT:\n${transcript}\n\nAssistant:`;
-        }
-
-        const result = await pipe(prompt, {
-          max_new_tokens: 900,
-          do_sample: false,
-          return_full_text: false
-        });
-        const generated = Array.isArray(result) ? result[0]?.generated_text : result?.generated_text;
-        const text = typeof generated === 'string' ? generated : this.extractChatText(result);
-        if (!text || !text.trim()) throw new Error('The local AI model returned an empty result.');
-        return text;
-      } finally {
-        this._localAIProgressHandler = null;
-      }
-    },
-
-    extractChatText(response) {
-      if (typeof response === 'string') return response;
-      const content = response?.message?.content ?? response?.content ?? response?.text ?? response;
-      if (Array.isArray(content)) {
-        return content.map(item => typeof item === 'string' ? item : (item?.text || '')).join('');
-      }
-      return String(content || '');
-    },
-
-    parseBookingAIJson(raw) {
-      let text = String(raw || '').trim();
-      text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-      try { return JSON.parse(text); } catch (_) {}
-      const start = text.indexOf('{');
-      const end = text.lastIndexOf('}');
-      if (start >= 0 && end > start) {
-        try { return JSON.parse(text.slice(start, end + 1)); } catch (_) {}
-      }
-      throw new Error('AI returned an invalid booking format. Please try again.');
-    },
-
-    normalizeAIBooking(ai, fallback) {
+    getBookingConfidence(transcript, data) {
+      const source = String(transcript || '');
       const NOT = 'Not specified';
-      const scalar = (value, fallbackValue) => {
-        const v = String(value ?? '').trim();
-        if (!v || /^null$|^undefined$/i.test(v)) return fallbackValue || NOT;
-        return v;
-      };
-      const notes = ai?.notes || {};
-      const fallbackValue = (value, aiValue) => {
-        const base = String(value ?? '').trim();
-        return base && base !== NOT ? base : scalar(aiValue, NOT);
-      };
-      return {
-        business: fallbackValue(fallback?.business, ai?.businessName),
-        name: fallbackValue(fallback?.name, ai?.name),
-        role: fallbackValue(fallback?.role, ai?.role),
-        phone: fallbackValue(fallback?.phone, ai?.phoneNumber),
-        dateTime: fallbackValue(fallback?.dateTime, ai?.demoTimeDate),
-        email: fallbackValue(fallback?.email, ai?.email),
-        notes: [
-          `Attendees: ${scalar(notes.attendees)}`,
-          `Current setup: ${scalar(notes.currentSetup)}`,
-          `Website goal: ${scalar(notes.websiteGoal)}`,
-          `What to show: ${scalar(notes.whatToShow)}`,
-          `Interest and attitude: ${scalar(notes.interestAttitude)}`,
-          `Objection/Concern: ${scalar(notes.objectionConcern)}`,
-          `Meeting angle: ${scalar(notes.meetingAngle)}`
-        ].join('\n'),
-        interest: scalar(notes.interestAttitude)
-      };
-    },
-
-    friendlyAIError(error) {
-      const message = String(error?.message || error || 'AI analysis failed.');
-      if (/model|runtime|wasm|webgpu|memory|allocation/i.test(message)) return 'The local AI model could not run on this device. Try again, close other tabs, or use a device with WebGPU support.';
-      if (/network|fetch|download|huggingface|cdn|timeout|connection/i.test(message)) return 'The local AI model could not be downloaded. Check your connection and try again. The model is cached after the first successful download.';
-      return message.length > 180 ? `${message.slice(0, 177)}…` : message;
+      const checks = [
+        ['Business Name', data.business, /(?:business\s+name|company\s+name|business|company|organization|firm)\s*[:=-]/i],
+        ['Name', data.name, /(?:full\s+name|contact\s+name|customer\s+name|prospect\s+name|client\s+name|name)\s*[:=-]/i],
+        ['Role', data.role, /(?:role|title|position|job\s+title|designation)\s*[:=-]/i],
+        ['Phone Number', data.phone, /(?:phone(?:\s+number)?|mobile|cell|telephone|contact\s+number)\s*[:=-]/i],
+        ['Email', data.email, /(?:e-?mail|email\s+address)\s*[:=-]/i],
+        ['Demo Time & Date', data.dateTime, /(?:demo|meeting|appointment|scheduled|callback)|(?:at\s+\d{1,2}(?::\d{2})?\s*(?:AM|PM))/i]
+      ];
+      return checks.map(([field, value, labelPattern]) => ({
+        field,
+        score: value && value !== NOT ? (labelPattern.test(source) ? 100 : 78) : 0
+      }));
     },
 
     sendBookingToSmartImport(container) {
@@ -1288,8 +1129,8 @@ Every scalar value must be a string. Every missing value must be "Not specified"
 
     cleanTranscript(t){return String(t||'').replace(/^WEBVTT.*$/gim,'').replace(/^\d+\s*$/gm,'').replace(/\d{2}:\d{2}:\d{2}[,.]\d{3}\s*-->\s*.*$/gm,'').replace(/\r/g,'').replace(/^\s*$/gm,'').trim();},
     uploadError(c,msg){const e=c&&c.querySelector('#tsUploadError');if(!e)return;e.hidden=!msg;e.textContent=msg||'';},
-    friendlyError(e){const m=String(e&&e.message||e||'Unknown error');if(/decode|audio|unsupported|AudioContext/i.test(m))return 'Your browser could not decode this audio format. Try OGG/Opus, WAV, MP3, M4A, or convert the file to WAV and retry.';if(/memory|out of memory/i.test(m))return 'This recording is too large for the current browser memory. Try the Fast model or split the recording into shorter files.';if(/network|fetch|load|cdn|model/i.test(m))return 'The AI model could not be loaded. Check your internet connection and try again.';return m;},
-    modelLabel(){return this.state.model==='fast'?'GPT-4o Mini Transcribe':this.state.model==='accurate'?'GPT-4o Transcribe':'GPT-4o Transcribe';},
+    friendlyError(e){const m=String(e&&e.message||e||'Unknown error');if(/decode|audio|unsupported|AudioContext/i.test(m))return 'Your browser could not decode this audio format. Try OGG/Opus, WAV, MP3, M4A, or convert the file to WAV and retry.';if(/memory|out of memory/i.test(m))return 'This recording is too large for the current browser memory. Try the Fast model or split the recording into shorter files.';if(/network|fetch|load|cdn|model/i.test(m))return 'The local transcription model could not be loaded. Check your internet connection and try again.';return m;},
+    modelLabel(){return this.state.model==='fast'?'Whisper Base (Fast)':this.state.model==='accurate'?'Whisper Small (Accurate)':'Whisper Small (Balanced)';},
     formatBytes(n){if(!n)return '0 B';const u=['B','KB','MB','GB'];const i=Math.min(Math.floor(Math.log(n)/Math.log(1024)),u.length-1);return `${(n/Math.pow(1024,i)).toFixed(i?1:0)} ${u[i]}`;},
     formatDuration(sec){if(!isFinite(sec)||sec<0)return '00:00';const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=Math.floor(sec%60);return h?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;},
     formatClock(sec){return this.formatDuration(sec);},
