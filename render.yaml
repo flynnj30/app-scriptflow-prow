@@ -3,6 +3,7 @@ services:
     name: scriptflow-pro
     runtime: node
     plan: free
+    rootDir: .
     buildCommand: npm install --no-audit --no-fund && npm run build
     startCommand: npm start
     healthCheckPath: /healthz
