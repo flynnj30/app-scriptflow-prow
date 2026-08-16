@@ -179,7 +179,14 @@
         headers: { 'X-ScriptFlow-Browser': '1', 'Accept': 'text/html,application/xhtml+xml' }
       });
 
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        let detail = '';
+        try {
+          const payload = await response.clone().json();
+          detail = payload?.message ? ` — ${payload.message}` : '';
+        } catch {}
+        throw new Error(`HTTP ${response.status}${detail}`);
+      }
       const type = (response.headers.get('content-type') || '').toLowerCase();
       if (!type.includes('text/html') && !type.includes('application/xhtml')) {
         throw new Error('Transcript Studio returned a non-HTML response.');
@@ -215,7 +222,10 @@
       console.error('[Transcript Studio]', error);
       viewport.replaceChildren();
       showFallback(true);
-      setStatus('Unable to load Transcript Studio', false);
+      const message = error?.message || 'Unable to reach Transcript Studio.';
+      const fallbackText = document.querySelector('#transcriptBrowserFallback p');
+      if (fallbackText) fallbackText.textContent = `The ScriptFlow proxy could not retrieve Transcript Studio. ${message}`;
+      setStatus('Transcript Studio connection failed', false);
     } finally {
       loading = false;
     }
