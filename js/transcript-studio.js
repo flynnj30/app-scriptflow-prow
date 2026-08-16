@@ -1,6 +1,3 @@
-export {};
-declare global { interface Window { ScriptFlowTranscriptStudio?: { open: () => void; close: () => void; reload: () => void; url: string }; } }
-
 /* ScriptFlow Pro — embedded Transcript Studio micro-frontend.
  * No iframe. The attached Transcript Studio React application is bundled and
  * mounted into an isolated Shadow DOM so its styles/components do not leak into CRM.

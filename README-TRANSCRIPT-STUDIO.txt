@@ -1,23 +1,24 @@
-TRANSCRIPT STUDIO INTEGRATION
-============================
+TRANSCRIPT STUDIO — IN-APP BROWSER-STYLE PREVIEW
 
-Added a single isolated launcher module:
-  js/transcript-studio.js
+This build places Transcript Studio as the first item under Tools & Settings.
+The destination is fixed to:
+https://transcript-studio-n0nv.onrender.com/
 
-Added a responsive button to the existing action bar:
-  #openTranscriptStudioBtn
+Architecture
+- No iframe is used.
+- No normal navigation/redirect is used.
+- ScriptFlow's Node Web Service proxies GET/HEAD requests through /transcript-browser/.
+- The client renders the fetched HTML in a dedicated browser-like workspace.
+- Third-party JavaScript is deliberately NOT executed inside ScriptFlow.
 
-Destination:
-  https://transcript-studio-n0nv.onrender.com/
+Security reason
+Executing a remote site's JavaScript in a same-origin CRM page would allow that code to access the CRM DOM, localStorage, Firebase state, and application event handlers. A non-iframe implementation cannot provide a separate browser security context. This build therefore provides a safe in-app HTML preview/navigation surface rather than pretending it is a full browser engine.
 
-Behavior:
-- Opens Transcript Studio in a new tab from a direct user click.
-- Uses noopener/noreferrer behavior.
-- Falls back to same-tab navigation if the browser blocks the new tab.
-- Does not modify Firebase, Firestore, authentication, appointments,
-  scripts, notifications, analytics, or existing application state.
-- No iframe is used, so the external tool cannot interfere with the
-  ScriptFlow Pro DOM or JavaScript context.
+If full Transcript Studio interactivity depends on JavaScript, WebSockets, service workers, browser storage, uploads, or another isolated browsing context, a true embedded browser requires an iframe/webview or a separate tab. That limitation is enforced by normal browser security and cannot be safely removed with TypeScript.
 
-The external service must be available for the button destination to load.
-No claim of live service health is made by this client-side integration.
+Render
+- Service type: Web Service
+- Root Directory: leave empty
+- Build: npm install --no-audit --no-fund && npm run build
+- Start: npm start
+- Health: /healthz
