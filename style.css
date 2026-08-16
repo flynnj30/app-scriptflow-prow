@@ -4365,96 +4365,112 @@ body {
     }
 }
 
-
 /* ================================================================
- * TRANSCRIPT STUDIO — embedded browser workspace
- * Isolated styles. Does not alter existing CRM components.
+ * TRANSCRIPT STUDIO TOOL
+ * Isolated styles for the Tools & Settings embedded browser workspace.
  * ================================================================ */
-.transcript-tool-item {
-    border-left: 3px solid transparent;
+.transcript-studio-tool {
+    position: relative;
 }
 
-.transcript-tool-item:hover,
-.transcript-tool-item:focus-visible {
-    border-left-color: var(--primary);
+.transcript-studio-tool::after {
+    content: 'NEW';
+    margin-left: auto;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    background: var(--primary);
+    color: #fff;
 }
 
 .transcript-studio-workspace {
     display: flex;
     flex-direction: column;
-    height: 100%;
-    min-height: 0;
-    background: var(--bg-card);
+    min-height: 620px;
+    height: min(72vh, 780px);
     border: 1px solid var(--border-color);
-    border-radius: 12px;
+    border-radius: 18px;
     overflow: hidden;
+    background: var(--bg-primary);
+    box-shadow: var(--shadow-md);
 }
 
 .transcript-browser-toolbar {
     display: flex;
     align-items: center;
     gap: 8px;
-    min-height: 52px;
-    padding: 8px 10px;
-    background: var(--bg-secondary, var(--bg-card));
+    padding: 9px 10px;
+    background: var(--bg-card);
     border-bottom: 1px solid var(--border-color);
 }
 
-.transcript-browser-actions {
+.transcript-browser-nav {
     display: flex;
+    align-items: center;
     gap: 4px;
+    flex: 0 0 auto;
 }
 
 .transcript-browser-btn {
-    width: 36px;
-    height: 36px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    width: 34px;
+    height: 34px;
     border: 1px solid var(--border-color);
-    border-radius: 8px;
-    background: var(--bg-card);
+    border-radius: 9px;
+    background: var(--bg-primary);
     color: var(--text-secondary);
     cursor: pointer;
-    transition: .15s ease;
+    display: grid;
+    place-items: center;
+    transition: .18s ease;
 }
 
 .transcript-browser-btn:hover,
 .transcript-browser-btn:focus-visible {
     color: var(--primary);
     border-color: var(--primary);
+    outline: none;
 }
 
-.transcript-addressbar {
-    flex: 1;
+.transcript-address-bar {
     min-width: 0;
-    height: 36px;
+    flex: 1 1 auto;
+    height: 34px;
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 0 12px;
     border: 1px solid var(--border-color);
-    border-radius: 18px;
-    background: var(--bg-card);
+    border-radius: 9px;
+    background: var(--bg-primary);
     color: var(--text-muted);
-    font-size: .78rem;
+    font-size: .76rem;
     overflow: hidden;
 }
 
-.transcript-addressbar span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.transcript-address-bar i { color: var(--success); }
+.transcript-address-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.transcript-browser-status {
+    min-height: 28px;
+    padding: 5px 12px;
+    font-size: .72rem;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
 }
 
-.transcript-frame-wrap {
+.transcript-browser-status.is-ready { color: var(--success); }
+
+.transcript-iframe-wrap {
     position: relative;
-    flex: 1;
-    min-height: 560px;
+    flex: 1 1 auto;
+    min-height: 0;
     background: #fff;
 }
 
-.transcript-studio-frame {
+.transcript-iframe-wrap iframe {
     display: block;
     width: 100%;
     height: 100%;
@@ -4463,65 +4479,56 @@ body {
     background: #fff;
 }
 
-.transcript-frame-loading,
-.transcript-frame-fallback {
+.transcript-iframe-fallback {
     position: absolute;
     inset: 0;
-    z-index: 2;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
+    display: grid;
+    place-items: center;
     padding: 24px;
+    background: var(--bg-primary);
+}
+
+.transcript-fallback-card {
+    width: min(560px, 100%);
+    padding: 30px;
     text-align: center;
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
     background: var(--bg-card);
-    color: var(--text-primary);
-}
-
-.transcript-frame-loading span,
-.transcript-frame-fallback p {
-    max-width: 520px;
-    color: var(--text-muted);
-    font-size: .85rem;
-    line-height: 1.5;
-}
-
-.transcript-loading-spinner {
-    width: 34px;
-    height: 34px;
-    border: 3px solid var(--border-color);
-    border-top-color: var(--primary);
-    border-radius: 50%;
-    animation: transcriptSpin .8s linear infinite;
+    box-shadow: var(--shadow-md);
 }
 
 .transcript-fallback-icon {
-    width: 56px;
-    height: 56px;
+    width: 54px;
+    height: 54px;
+    margin: 0 auto 14px;
     display: grid;
     place-items: center;
-    border-radius: 14px;
-    background: var(--bg-secondary, var(--border-color));
+    border-radius: 15px;
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
     color: var(--primary);
-    font-size: 1.4rem;
+    font-size: 1.25rem;
 }
 
-@keyframes transcriptSpin {
-    to { transform: rotate(360deg); }
+.transcript-fallback-card h3 { margin: 0 0 8px; }
+.transcript-fallback-card p { margin: 0; color: var(--text-muted); line-height: 1.55; }
+.transcript-fallback-actions {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 18px;
 }
 
-@media (max-width: 720px) {
-    .transcript-browser-toolbar {
-        padding: 7px;
-    }
+@media (max-width: 900px) {
+    .transcript-studio-workspace { height: calc(100vh - 260px); min-height: 500px; }
+}
 
-    .transcript-addressbar {
-        font-size: .7rem;
-    }
-
-    .transcript-frame-wrap,
-    .transcript-studio-frame {
-        min-height: calc(100vh - 190px);
-    }
+@media (max-width: 600px) {
+    .transcript-studio-workspace { height: calc(100vh - 220px); min-height: 440px; border-radius: 12px; }
+    .transcript-browser-toolbar { gap: 5px; padding: 7px; }
+    .transcript-browser-btn { width: 32px; height: 32px; }
+    .transcript-address-bar { font-size: .68rem; padding: 0 8px; }
+    .transcript-iframe-wrap iframe { min-height: 390px; }
+    .transcript-fallback-card { padding: 22px 16px; }
 }
