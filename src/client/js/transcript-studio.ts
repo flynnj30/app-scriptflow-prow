@@ -1,5 +1,13 @@
 export {};
-declare global { interface Window { ScriptFlowTranscriptStudio?: { open: () => void; close: () => void; reload: () => void; url: string }; } }
+declare global {
+  interface Window {
+    ScriptFlowTranscriptStudio?: { open: () => void; close: () => void; reload: () => void; url: string };
+    TranscriptStudioApp?: {
+      mount: (host: HTMLElement) => (() => void) | void;
+      unmount?: (host: HTMLElement) => void;
+    };
+  }
+}
 
 /* ScriptFlow Pro — embedded Transcript Studio micro-frontend.
  * No iframe. The attached Transcript Studio React application is bundled and
@@ -22,6 +30,12 @@ declare global { interface Window { ScriptFlowTranscriptStudio?: { open: () => v
   const $ = id => document.getElementById(id);
 
   function status(text) { const el = $(IDS.status); if (el) el.textContent = text; }
+  function getMount(): ((host: HTMLElement) => (() => void) | void) | null {
+    const api = window.TranscriptStudioApp;
+    if (!api) return null;
+    if (typeof api.mount === 'function') return api.mount;
+    return null;
+  }
   function showPanel(open) {
     const panel = $(IDS.panel);
     const scripts = $('scriptPanel');
@@ -35,13 +49,13 @@ declare global { interface Window { ScriptFlowTranscriptStudio?: { open: () => v
     } else if (scripts) scripts.style.display = '';
   }
   function ensureScript() {
-    if (loaded && window.TranscriptStudioApp?.mount) return Promise.resolve();
-    return new Promise((resolve, reject) => {
+    if (loaded && getMount()) return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
       const existing = document.querySelector('script[data-transcript-studio-bundle]');
       if (existing) {
         existing.addEventListener('load', () => resolve());
         existing.addEventListener('error', reject);
-        if (window.TranscriptStudioApp?.mount) resolve();
+        if (getMount()) resolve();
         return;
       }
       const s = document.createElement('script');
@@ -58,13 +72,14 @@ declare global { interface Window { ScriptFlowTranscriptStudio?: { open: () => v
     if (!viewport) return;
     showPanel(true);
     const address = $(IDS.address);
-    if (address) address.value = DEFAULT_URL;
+    if (address) (address as HTMLInputElement).value = DEFAULT_URL;
     status('Loading Transcript Studio…');
     try {
       await ensureScript();
-      if (!window.TranscriptStudioApp?.mount) throw new Error('Transcript Studio mount API unavailable');
+      const mount = getMount();
+      if (!mount) throw new Error('Transcript Studio mount API unavailable');
       if (unmount) unmount();
-      unmount = window.TranscriptStudioApp.mount(viewport);
+      unmount = mount(viewport) || null;
       status('Transcript Studio ready');
     } catch (error) {
       console.error('[Transcript Studio]', error);
@@ -79,11 +94,11 @@ declare global { interface Window { ScriptFlowTranscriptStudio?: { open: () => v
   }
   function init() {
     document.querySelectorAll('[data-tool="transcript-studio"]').forEach(item => {
-      item.addEventListener('click', open);
-      item.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+      item.addEventListener('click', () => { void open(); });
+      item.addEventListener('keydown', (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void open(); } });
     });
     $(IDS.back)?.addEventListener('click', close);
-    $(IDS.reload)?.addEventListener('click', () => open());
+    $(IDS.reload)?.addEventListener('click', () => { void open(); });
     window.ScriptFlowTranscriptStudio = { open, close, reload: open, url: DEFAULT_URL };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });

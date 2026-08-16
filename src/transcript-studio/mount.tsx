@@ -5,9 +5,9 @@ import styles from "./index.css?inline";
 
 const roots = new WeakMap<HTMLElement, { root: Root; shadow: ShadowRoot }>();
 
-export function mountTranscriptStudio(host: HTMLElement) {
+export function mount(host: HTMLElement) {
   const existing = roots.get(host);
-  if (existing) return () => unmountTranscriptStudio(host);
+  if (existing) return () => unmount(host);
 
   const shadow = host.shadowRoot || host.attachShadow({ mode: "open" });
   shadow.innerHTML = "";
@@ -21,10 +21,10 @@ export function mountTranscriptStudio(host: HTMLElement) {
   const root = createRoot(rootNode);
   root.render(<StrictMode><App /></StrictMode>);
   roots.set(host, { root, shadow });
-  return () => unmountTranscriptStudio(host);
+  return () => unmount(host);
 }
 
-export function unmountTranscriptStudio(host: HTMLElement) {
+export function unmount(host: HTMLElement) {
   const record = roots.get(host);
   if (!record) return;
   record.root.unmount();
@@ -32,4 +32,6 @@ export function unmountTranscriptStudio(host: HTMLElement) {
   roots.delete(host);
 }
 
-export default { mount: mountTranscriptStudio, unmount: unmountTranscriptStudio };
+export const mountTranscriptStudio = mount;
+export const unmountTranscriptStudio = unmount;
+export default { mount, unmount };

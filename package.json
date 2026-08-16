@@ -10,7 +10,7 @@
     "dev": "npm run build && node dist/server.js"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "20.19.0"
   },
   "dependencies": {
     "esbuild": "^0.25.9",
