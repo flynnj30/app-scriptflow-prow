@@ -83,6 +83,9 @@
                     <i class="fas fa-chevron-right tools-chevron" id="toolsChevron"></i>
                 </div>
                 <div class="tools-menu" id="toolsMenu" role="menu">
+                    <div class="tool-item transcript-tool-item" id="transcriptStudioToolItem" role="menuitem" tabindex="0" aria-label="Open Transcript Studio">
+                        <i class="fas fa-file-audio"></i> <span>Transcript Studio</span>
+                    </div>
                     <div class="tool-item" data-tool="analytics" role="menuitem" tabindex="0"><i class="fas fa-chart-pie"></i> <span>Analytics Hub</span></div>
                     <div class="tool-item" data-tool="calendar" role="menuitem" tabindex="0"><i class="fas fa-calendar-alt"></i> <span>Appointment Calendar</span></div>
                     <div class="tool-item" data-tool="tasks" role="menuitem" tabindex="0"><i class="fas fa-tasks"></i> <span>Follow-up Tasks</span></div>
@@ -156,9 +159,6 @@
                 </div>
 
                 <div class="action-buttons" id="actionButtons">
-                    <button class="btn-icon transcript-studio-btn" id="openTranscriptStudioBtn" type="button" title="Open Transcript Studio inside ScriptFlow Pro">
-                        <i class="fas fa-file-audio"></i> Transcript Studio
-                    </button>
                     <button class="btn-icon" id="quickReportBtn"><i class="fas fa-magic"></i> Smart Import</button>
                     <button class="btn-icon" id="bulkActionsBtn"><i class="fas fa-check-double"></i> Bulk Actions</button>
                     <label class="btn-icon csv-upload-btn"><i class="fas fa-file-upload"></i> CSV<input type="file" id="csvFileInput" accept=".csv" /></label>
@@ -203,33 +203,6 @@
                     </div>
                     <div class="feature-panel-body" id="featurePanelBody"></div>
                 </div>
-
-                <!-- Transcript Studio embedded browser -->
-                <section id="transcriptStudioPanel" class="transcript-studio-panel" hidden aria-label="Transcript Studio">
-                    <div class="transcript-browser-bar">
-                        <button type="button" id="transcriptBackBtn" class="transcript-browser-btn" title="Back to ScriptFlow"><i class="fas fa-arrow-left"></i></button>
-                        <button type="button" id="transcriptReloadBtn" class="transcript-browser-btn" title="Reload Transcript Studio"><i class="fas fa-rotate-right"></i></button>
-                        <div class="transcript-address-wrap">
-                            <i class="fas fa-lock" aria-hidden="true"></i>
-                            <input id="transcriptAddress" class="transcript-address" type="text" value="https://transcript-studio-n0nv.onrender.com/" aria-label="Transcript Studio address" spellcheck="false" />
-                        </div>
-                        <button type="button" id="transcriptGoBtn" class="transcript-browser-btn transcript-go-btn" title="Go"><i class="fas fa-arrow-right"></i></button>
-                        <button type="button" id="transcriptNewTabBtn" class="transcript-browser-btn" title="Open in new tab"><i class="fas fa-up-right-from-square"></i></button>
-                    </div>
-                    <div class="transcript-browser-status" id="transcriptBrowserStatus" role="status">Loading Transcript Studio…</div>
-                    <div class="transcript-frame-wrap">
-                        <iframe id="transcriptStudioFrame" title="Transcript Studio" src="about:blank" loading="eager" allow="clipboard-read; clipboard-write; microphone" referrerpolicy="strict-origin-when-cross-origin"></iframe>
-                        <div id="transcriptFrameFallback" class="transcript-frame-fallback" hidden>
-                            <div class="transcript-fallback-icon"><i class="fas fa-window-maximize"></i></div>
-                            <h3>Transcript Studio cannot be embedded here</h3>
-                            <p>The Transcript Studio server may block iframe embedding with its security headers. Your ScriptFlow CRM is still safe and unaffected.</p>
-                            <div class="transcript-fallback-actions">
-                                <button type="button" id="transcriptFallbackOpenBtn" class="btn-icon transcript-primary-btn"><i class="fas fa-up-right-from-square"></i> Open Transcript Studio</button>
-                                <button type="button" id="transcriptFallbackRetryBtn" class="btn-icon"><i class="fas fa-rotate-right"></i> Try Again</button>
-                            </div>
-                        </div>
-                    </div>
-                </section>
             </div>
 
             <div class="footer-note"><i class="fas fa-chart-line"></i> Full-featured CRM · Drag appointments to reschedule · Lead scoring · Follow-up tasks · Bulk actions</div>
