@@ -1,16 +1,19 @@
 {
   "name": "scriptflow-pro",
-  "version": "2.0.0",
-  "description": "ScriptFlow Pro - Smart CRM with Handoff Integration",
-  "main": "index.html",
+  "version": "2.1.0",
+  "private": true,
+  "description": "ScriptFlow Pro - Smart CRM with in-app Transcript Studio browser surface",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "npx serve . -p $PORT",
-    "dev": "npx serve . -p 3000"
-  },
-  "dependencies": {
-    "serve": "^14.2.0"
+    "build": "node build.mjs",
+    "start": "node dist/server.js",
+    "dev": "npm run build && node dist/server.js"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "esbuild": "^0.25.9",
+    "typescript": "^5.8.3"
   }
 }

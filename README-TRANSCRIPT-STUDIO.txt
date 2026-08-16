@@ -1,21 +1,23 @@
-SCRIPT FLOW PRO — TRANSCRIPT STUDIO INTEGRATION
+TRANSCRIPT STUDIO INTEGRATION
+============================
 
-Transcript Studio is integrated as the first item under Tools & Settings.
-It opens inside the existing Feature Panel using an isolated iframe browser workspace.
+Added a single isolated launcher module:
+  js/transcript-studio.js
 
-Controls:
-- Back: closes the embedded workspace and returns to the CRM script view.
-- Reload: reloads the Transcript Studio iframe.
-- Open in new tab: opens the external site directly.
-- Retry: retries an iframe connection if embedding is unavailable.
+Added a responsive button to the existing action bar:
+  #openTranscriptStudioBtn
 
-Isolation:
-- No Firebase/Firestore code was changed.
-- No appointment, script, analytics, notification, or CRM data code was changed.
-- The integration is contained in js/transcript-studio.js plus isolated HTML/CSS hooks.
+Destination:
+  https://transcript-studio-n0nv.onrender.com/
 
-Browser security:
-The remote Transcript Studio service must permit iframe embedding. If it sends X-Frame-Options or a restrictive Content-Security-Policy frame-ancestors directive, browsers will block embedding. The app provides a graceful fallback instead of breaking ScriptFlow Pro.
+Behavior:
+- Opens Transcript Studio in a new tab from a direct user click.
+- Uses noopener/noreferrer behavior.
+- Falls back to same-tab navigation if the browser blocks the new tab.
+- Does not modify Firebase, Firestore, authentication, appointments,
+  scripts, notifications, analytics, or existing application state.
+- No iframe is used, so the external tool cannot interfere with the
+  ScriptFlow Pro DOM or JavaScript context.
 
-URL:
-https://transcript-studio-n0nv.onrender.com/
+The external service must be available for the button destination to load.
+No claim of live service health is made by this client-side integration.
