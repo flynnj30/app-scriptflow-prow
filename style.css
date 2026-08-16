@@ -4364,3 +4364,30 @@ body {
         width: 100%;
     }
 }
+
+/* ================================================================
+ * TRANSCRIPT STUDIO LAUNCHER
+ * Isolated styles; existing layout/components are unchanged.
+ * ================================================================ */
+.transcript-studio-btn {
+    white-space: nowrap;
+}
+
+.transcript-studio-btn i {
+    margin-right: 2px;
+}
+
+@media (max-width: 900px) {
+    .transcript-studio-btn {
+        min-width: 42px;
+    }
+
+    .transcript-studio-btn:not(:focus) {
+        font-size: 0;
+    }
+
+    .transcript-studio-btn i {
+        margin-right: 0;
+        font-size: 0.85rem;
+    }
+}
