@@ -1,6 +1,0 @@
-{
-  "name": "Transcript Studio",
-  "description": "Professional AI audio speech-to-text transcriber, video visual analyzer, and low-latency meeting intelligence studio with synchronized playback, speaker diarization, and booking notes extraction.",
-  "requestFramePermissions": ["microphone"],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
