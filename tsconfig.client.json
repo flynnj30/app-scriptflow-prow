@@ -8,7 +8,6 @@
     "removeComments": false,
     "sourceMap": false,
     "outDir": "build-client",
-    "rootDir": "src/client",
     "skipLibCheck": true
   },
   "include": ["src/client/**/*.ts"]
